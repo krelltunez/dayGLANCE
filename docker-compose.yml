@@ -1,0 +1,7 @@
+services:
+  day-planner:
+    build: .
+    container_name: day-planner
+    restart: unless-stopped
+    ports:
+      - "6767:80"
