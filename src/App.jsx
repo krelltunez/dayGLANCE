@@ -505,7 +505,7 @@ const DayPlanner = () => {
 
                 <div className="absolute top-0 left-20 right-0 bottom-0 pointer-events-none">
                   {showCurrentTimeLine && (
-                    <div ref={currentTimeRef} className="absolute left-0 right-0 pointer-events-none z-10" style={{ top: currentTimeTop + 'px' }}>
+                    <div ref={currentTimeRef} className="absolute left-0 right-0 pointer-events-none z-10" style={{ top: `${currentTimeTop}px` }}>
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
                         <div className="flex-1 h-0.5 bg-red-500"></div>
@@ -525,8 +525,8 @@ const DayPlanner = () => {
                         className={task.color + ' rounded-lg shadow-md pointer-events-auto ' + (isConflicted ? 'ring-2 ring-orange-500 ' : '') + (task.completed ? 'opacity-50' : '')}
                         style={{ 
                           position: 'absolute',
-                          top: pos.top + 'px', 
-                          height: pos.height + 'px', 
+                          top: `${pos.top}px`, 
+                          height: `${pos.height}px`, 
                           minHeight: '40px',
                           left: conflictPos.left,
                           right: conflictPos.right,
