@@ -1094,47 +1094,6 @@ const DayPlanner = () => {
                       </label>
                     </div>
                   </div>
-                    <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
-                      <select
-                        value={newTask.duration}
-                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                      >
-                        {durationOptions.map(minutes => (
-                          <option key={minutes} value={minutes}>
-                            {minutes} min
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowColorPicker('newTask')}
-                          className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
-                        />
-                        {showColorPicker === 'newTask' && (
-                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass}`}>
-                            <div className="grid grid-cols-3 gap-1">
-                              {colors.map((color) => (
-                                <button
-                                  key={color.class}
-                                  onClick={() => {
-                                    setNewTask({ ...newTask, color: color.class });
-                                    setShowColorPicker(null);
-                                  }}
-                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
-                                  title={color.name}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => addTask(newTask.openInInbox || false)}
