@@ -10,15 +10,30 @@ const DayPlanner = () => {
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 60 });
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
+  const [resizingTask, setResizingTask] = useState(null);
+  const [resizeStartY, setResizeStartY] = useState(null);
   const [conflicts, setConflicts] = useState([]);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
   const hours = Array.from({ length: 17 }, (_, i) => i + 7);
-  const colors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500', 'bg-indigo-500'];
+  const colors = [
+    { name: 'Blue', class: 'bg-blue-500' },
+    { name: 'Purple', class: 'bg-purple-500' },
+    { name: 'Green', class: 'bg-green-500' },
+    { name: 'Orange', class: 'bg-orange-500' },
+    { name: 'Pink', class: 'bg-pink-500' },
+    { name: 'Indigo', class: 'bg-indigo-500' },
+    { name: 'Red', class: 'bg-red-500' },
+    { name: 'Teal', class: 'bg-teal-500' },
+    { name: 'Yellow', class: 'bg-yellow-500' },
+  ];
+  const durationOptions = Array.from({ length: 9 }, (_, i) => (i + 1) * 15); // 15 to 120 minutes
 
   useEffect(() => {
     loadData();
@@ -49,36 +64,36 @@ const DayPlanner = () => {
     checkConflicts();
   }, [tasks, unscheduledTasks]);
 
-  const loadData = async () => {
+  const loadData = () => {
     try {
-      const tasksResult = await window.storage.get('day-planner-tasks');
-      const unscheduledResult = await window.storage.get('day-planner-unscheduled');
-      const darkModeResult = await window.storage.get('day-planner-darkmode');
-      const syncUrlResult = await window.storage.get('day-planner-sync-url');
+      const tasksData = localStorage.getItem('day-planner-tasks');
+      const unscheduledData = localStorage.getItem('day-planner-unscheduled');
+      const darkModeData = localStorage.getItem('day-planner-darkmode');
+      const syncUrlData = localStorage.getItem('day-planner-sync-url');
       
-      if (tasksResult?.value) {
-        setTasks(JSON.parse(tasksResult.value));
+      if (tasksData) {
+        setTasks(JSON.parse(tasksData));
       }
-      if (unscheduledResult?.value) {
-        setUnscheduledTasks(JSON.parse(unscheduledResult.value));
+      if (unscheduledData) {
+        setUnscheduledTasks(JSON.parse(unscheduledData));
       }
-      if (darkModeResult?.value) {
-        setDarkMode(JSON.parse(darkModeResult.value));
+      if (darkModeData) {
+        setDarkMode(JSON.parse(darkModeData));
       }
-      if (syncUrlResult?.value) {
-        setSyncUrl(JSON.parse(syncUrlResult.value));
+      if (syncUrlData) {
+        setSyncUrl(JSON.parse(syncUrlData));
       }
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
   };
 
-  const saveData = async () => {
+  const saveData = () => {
     try {
-      await window.storage.set('day-planner-tasks', JSON.stringify(tasks));
-      await window.storage.set('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
-      await window.storage.set('day-planner-darkmode', JSON.stringify(darkMode));
-      await window.storage.set('day-planner-sync-url', JSON.stringify(syncUrl));
+      localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
+      localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
+      localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
+      localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
     } catch (error) {
       console.error('Error saving data:', error);
     }
@@ -123,13 +138,43 @@ const DayPlanner = () => {
     setConflicts(newConflicts);
   };
 
+  const getConflictingTasks = (task, allTasks) => {
+    const start = timeToMinutes(task.startTime);
+    const end = start + task.duration;
+    
+    return allTasks.filter(t => {
+      if (t.id === task.id) return false;
+      const tStart = timeToMinutes(t.startTime);
+      const tEnd = tStart + t.duration;
+      return start < tEnd && end > tStart;
+    });
+  };
+
+  const calculateConflictPosition = (task, allTasks) => {
+    const conflicting = getConflictingTasks(task, allTasks);
+    if (conflicting.length === 0) return { left: 2, right: 2, width: null };
+    
+    const allConflicted = [task, ...conflicting].sort((a, b) => a.id - b.id);
+    const index = allConflicted.findIndex(t => t.id === task.id);
+    const total = allConflicted.length;
+    
+    const widthPercent = 100 / total;
+    const leftPercent = widthPercent * index;
+    
+    return {
+      left: `${leftPercent}%`,
+      right: 'auto',
+      width: `${widthPercent - 1}%`
+    };
+  };
+
   const addTask = (toInbox = false) => {
     if (newTask.title.trim()) {
       const task = {
         id: Date.now(),
         title: newTask.title,
         duration: newTask.duration,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: newTask.color || colors[0].class,
         completed: false
       };
 
@@ -146,6 +191,19 @@ const DayPlanner = () => {
       setNewTask({ title: '', startTime: '09:00', duration: 60 });
       setShowAddTask(false);
     }
+  };
+
+  const changeTaskColor = (taskId, newColor, fromInbox = false) => {
+    if (fromInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(task =>
+        task.id === taskId ? { ...task, color: newColor } : task
+      ));
+    } else {
+      setTasks(tasks.map(task =>
+        task.id === taskId ? { ...task, color: newColor } : task
+      ));
+    }
+    setShowColorPicker(null);
   };
 
   const toggleComplete = (id, fromInbox = false) => {
@@ -193,26 +251,33 @@ const DayPlanner = () => {
     return { top, height };
   };
 
-  const handleDragStart = (task, source) => {
+  const handleDragStart = (task, source, e) => {
     setDraggedTask(task);
     setDragSource(source);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDropOnCalendar = (e) => {
     e.preventDefault();
     if (!draggedTask) return;
 
-    const rect = calendarRef.current.getBoundingClientRect();
-    const y = e.clientY - rect.top + window.scrollY;
-    const clickedHour = Math.floor(y / 80) + 7;
-    const pixelsIntoHour = y % 80;
-    const minutesIntoHour = Math.round((pixelsIntoHour / 80) * 60 / 15) * 15;
-    const totalMinutes = clickedHour * 60 + minutesIntoHour;
-    const startTime = minutesToTime(Math.max(0, Math.min(1440 - draggedTask.duration, totalMinutes)));
+    const calendarElement = e.currentTarget;
+    const rect = calendarElement.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    
+    // Calculate the time based on pixel position
+    const totalMinutesFromTop = (y / 80) * 60;
+    const hours = Math.floor(totalMinutesFromTop / 60) + 7; // Add 7 for 7 AM offset
+    const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15; // Round to 15 min
+    
+    // Ensure time is within bounds
+    const totalMinutes = Math.max(7 * 60, Math.min(23 * 60 - draggedTask.duration, hours * 60 + minutes));
+    const startTime = minutesToTime(totalMinutes);
 
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
@@ -243,6 +308,35 @@ const DayPlanner = () => {
     
     setDraggedTask(null);
     setDragSource(null);
+  };
+
+  const handleResizeStart = (task, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setResizingTask(task);
+    setResizeStartY(e.clientY);
+    
+    const handleMouseMove = (moveEvent) => {
+      if (!resizingTask) return;
+      
+      const deltaY = moveEvent.clientY - resizeStartY;
+      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const newDuration = Math.max(15, task.duration + deltaMinutes);
+      
+      setTasks(tasks.map(t => 
+        t.id === task.id ? { ...t, duration: newDuration } : t
+      ));
+    };
+    
+    const handleMouseUp = () => {
+      setResizingTask(null);
+      setResizeStartY(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   const parseICS = (icsContent) => {
@@ -363,8 +457,156 @@ const DayPlanner = () => {
     }
   };
 
+  const ClockTimePicker = ({ value, onChange, onClose }) => {
+    const [selectedHour, setSelectedHour] = useState(parseInt(value.split(':')[0]));
+    const [selectedMinute, setSelectedMinute] = useState(parseInt(value.split(':')[1]));
+    const [mode, setMode] = useState('hour');
+
+    const handleConfirm = () => {
+      const timeStr = `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')}`;
+      onChange(timeStr);
+      onClose();
+    };
+
+    const renderClock = () => {
+      const numbers = mode === 'hour' ? Array.from({ length: 24 }, (_, i) => i) : [0, 15, 30, 45];
+      const radius = 100;
+      const centerX = 120;
+      const centerY = 120;
+
+      return (
+        <div className="relative" style={{ width: '240px', height: '240px' }}>
+          <svg width="240" height="240" className="absolute top-0 left-0">
+            <circle cx={centerX} cy={centerY} r={radius} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
+            
+            {/* Selected time indicator */}
+            {mode === 'hour' && (
+              <line
+                x1={centerX}
+                y1={centerY}
+                x2={centerX + radius * Math.sin((selectedHour * 15) * Math.PI / 180)}
+                y2={centerY - radius * Math.cos((selectedHour * 15) * Math.PI / 180)}
+                stroke="#3b82f6"
+                strokeWidth="2"
+              />
+            )}
+            {mode === 'minute' && (
+              <line
+                x1={centerX}
+                y1={centerY}
+                x2={centerX + radius * Math.sin((selectedMinute * 6) * Math.PI / 180)}
+                y2={centerY - radius * Math.cos((selectedMinute * 6) * Math.PI / 180)}
+                stroke="#3b82f6"
+                strokeWidth="2"
+              />
+            )}
+            
+            {/* Center dot */}
+            <circle cx={centerX} cy={centerY} r="4" fill="#3b82f6" />
+          </svg>
+
+          {numbers.map((num) => {
+            const angle = mode === 'hour' ? (num * 15 - 90) : (num * 6 - 90);
+            const x = centerX + radius * Math.cos(angle * Math.PI / 180);
+            const y = centerY + radius * Math.sin(angle * Math.PI / 180);
+            const isSelected = mode === 'hour' ? num === selectedHour : num === selectedMinute;
+
+            return (
+              <button
+                key={num}
+                onClick={() => {
+                  if (mode === 'hour') {
+                    setSelectedHour(num);
+                    setMode('minute');
+                  } else {
+                    setSelectedMinute(num);
+                  }
+                }}
+                className={`absolute w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                  isSelected 
+                    ? 'bg-blue-600 text-white' 
+                    : darkMode 
+                      ? 'hover:bg-gray-700 text-gray-300' 
+                      : 'hover:bg-gray-200 text-gray-700'
+                }`}
+                style={{
+                  left: `${x - 20}px`,
+                  top: `${y - 20}px`,
+                }}
+              >
+                {mode === 'hour' ? num : num.toString().padStart(2, '0')}
+              </button>
+            );
+          })}
+        </div>
+      );
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+        <div 
+          className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-lg font-semibold ${textPrimary}`}>Select Time</h3>
+            <button onClick={onClose} className={`p-1 rounded ${hoverBg}`}>
+              <X size={20} className={textSecondary} />
+            </button>
+          </div>
+
+          <div className="flex justify-center mb-4">
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={() => setMode('hour')}
+                className={`text-3xl font-bold px-3 py-1 rounded ${
+                  mode === 'hour' ? 'bg-blue-600 text-white' : textSecondary
+                }`}
+              >
+                {selectedHour.toString().padStart(2, '0')}
+              </button>
+              <span className={`text-3xl ${textPrimary}`}>:</span>
+              <button
+                onClick={() => setMode('minute')}
+                className={`text-3xl font-bold px-3 py-1 rounded ${
+                  mode === 'minute' ? 'bg-blue-600 text-white' : textSecondary
+                }`}
+              >
+                {selectedMinute.toString().padStart(2, '0')}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-center mb-4">
+            {renderClock()}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onClose}
+              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const todayTasks = tasks.filter(t => t.date === dateToString(selectedDate));
   const hasConflicts = conflicts.length > 0;
+
+  // Calculate all-time stats
+  const allCompletedTasks = tasks.filter(t => t.completed);
+  const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
+  const totalScheduledMinutes = tasks.reduce((sum, task) => sum + task.duration, 0);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -399,6 +641,13 @@ const DayPlanner = () => {
                 className={`px-3 py-1 text-sm ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded ${hoverBg}`}
               >
                 Today
+              </button>
+              <button
+                onClick={() => setShowAddTask(!showAddTask)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={18} />
+                New Task
               </button>
             </div>
           </div>
@@ -466,6 +715,36 @@ const DayPlanner = () => {
 
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-3">
+            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
+              <h3 className={`font-semibold ${textPrimary} mb-3`}>All Time Summary</h3>
+              <div className={`text-sm ${textSecondary} space-y-2`}>
+                <div className="flex justify-between">
+                  <span>Total tasks:</span>
+                  <span className={textPrimary}>{tasks.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Completed:</span>
+                  <span className={textPrimary}>{allCompletedTasks.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Time spent:</span>
+                  <span className={textPrimary}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total planned:</span>
+                  <span className={textPrimary}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                </div>
+                {tasks.length > 0 && (
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between font-semibold">
+                      <span>Completion:</span>
+                      <span className={textPrimary}>{Math.round((allCompletedTasks.length / tasks.length) * 100)}%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
@@ -478,7 +757,7 @@ const DayPlanner = () => {
               <div
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnInbox}
-                className={`min-h-[200px] space-y-2 ${unscheduledTasks.length === 0 ? 'flex items-center justify-center' : ''}`}
+                className={`space-y-2 ${unscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
               >
                 {unscheduledTasks.length === 0 ? (
                   <p className={`text-sm ${textSecondary} text-center`}>Drag tasks here to unschedule them</p>
@@ -488,8 +767,22 @@ const DayPlanner = () => {
                       key={task.id}
                       draggable
                       onDragStart={() => handleDragStart(task, 'inbox')}
-                      className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''}`}
+                      className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
                     >
+                      {showColorPicker === task.id && (
+                        <div className="absolute top-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-lg p-2 z-10 shadow-lg border border-gray-200 dark:border-gray-700">
+                          <div className="grid grid-cols-3 gap-1">
+                            {colors.map((color) => (
+                              <button
+                                key={color.class}
+                                onClick={() => changeTaskColor(task.id, color.class, true)}
+                                className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                title={color.name}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-start justify-between text-white">
                         <div className="flex items-start gap-2 flex-1">
                           <button
@@ -499,6 +792,10 @@ const DayPlanner = () => {
                             {task.completed && <Check size={14} />}
                             {!task.completed && <div className="w-3.5 h-3.5"></div>}
                           </button>
+                          <button
+                            onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                            className="mt-0.5 w-3.5 h-3.5 rounded-full border-2 border-white hover:scale-110 transition-transform"
+                          />
                           <GripVertical size={16} className="mt-0.5 opacity-70" />
                           <div className="flex-1">
                             <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
@@ -516,14 +813,6 @@ const DayPlanner = () => {
                   ))
                 )}
               </div>
-
-              <button
-                onClick={() => setShowAddTask(!showAddTask)}
-                className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={18} />
-                New Task
-              </button>
             </div>
 
             {hasConflicts && (
@@ -560,26 +849,55 @@ const DayPlanner = () => {
                     onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                   />
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="col-span-2">
                       <label className={`block text-sm ${textSecondary} mb-1`}>Start Time</label>
-                      <input
-                        type="time"
-                        value={newTask.startTime}
-                        onChange={(e) => setNewTask({ ...newTask, startTime: e.target.value })}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                      />
+                      <button
+                        onClick={() => setShowTimePicker(true)}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      >
+                        {newTask.startTime}
+                      </button>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration (min)</label>
-                      <input
-                        type="number"
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                      <select
                         value={newTask.duration}
-                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                        min="15"
-                        step="15"
-                      />
+                      >
+                        {durationOptions.map(minutes => (
+                          <option key={minutes} value={minutes}>
+                            {minutes} min
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowColorPicker('newTask')}
+                          className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
+                        />
+                        {showColorPicker === 'newTask' && (
+                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass}`}>
+                            <div className="grid grid-cols-3 gap-1">
+                              {colors.map((color) => (
+                                <button
+                                  key={color.class}
+                                  onClick={() => {
+                                    setNewTask({ ...newTask, color: color.class });
+                                    setShowColorPicker(null);
+                                  }}
+                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                  title={color.name}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -639,14 +957,37 @@ const DayPlanner = () => {
                   {todayTasks.map((task) => {
                     const { top, height } = calculateTaskPosition(task);
                     const isConflicted = conflicts.some(c => c.includes(task.id));
+                    const conflictPos = calculateConflictPosition(task, todayTasks);
+                    
                     return (
                       <div
                         key={task.id}
                         draggable
-                        onDragStart={() => handleDragStart(task, 'calendar')}
-                        className={`absolute left-2 right-2 ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-2 ring-orange-500' : ''} ${task.completed ? 'opacity-50' : ''}`}
-                        style={{ top: `${top}px`, height: `${height}px`, minHeight: '40px' }}
+                        onDragStart={(e) => handleDragStart(task, 'calendar', e)}
+                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-2 ring-orange-500' : ''} ${task.completed ? 'opacity-50' : ''}`}
+                        style={{ 
+                          top: `${top}px`, 
+                          height: `${height}px`, 
+                          minHeight: '40px',
+                          left: conflictPos.left,
+                          right: conflictPos.right,
+                          width: conflictPos.width
+                        }}
                       >
+                        {showColorPicker === task.id && (
+                          <div className="absolute top-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-lg p-2 z-10 shadow-lg border border-gray-200 dark:border-gray-700">
+                            <div className="grid grid-cols-3 gap-1">
+                              {colors.map((color) => (
+                                <button
+                                  key={color.class}
+                                  onClick={() => changeTaskColor(task.id, color.class, false)}
+                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                  title={color.name}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="p-3 h-full flex flex-col justify-between text-white">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -657,6 +998,10 @@ const DayPlanner = () => {
                                 {task.completed && <Check size={14} />}
                                 {!task.completed && <div className="w-3.5 h-3.5"></div>}
                               </button>
+                              <button
+                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                className="mt-0.5 w-3.5 h-3.5 rounded-full border-2 border-white hover:scale-110 transition-transform flex-shrink-0"
+                              />
                               <GripVertical size={16} className="flex-shrink-0 mt-0.5 opacity-70" />
                               <div className="flex-1 min-w-0">
                                 <div className={`font-semibold truncate ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
@@ -673,6 +1018,14 @@ const DayPlanner = () => {
                               <X size={16} />
                             </button>
                           </div>
+                          {/* Resize handle at bottom */}
+                          <div
+                            onMouseDown={(e) => handleResizeStart(task, e)}
+                            className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
+                            style={{ marginBottom: '-4px' }}
+                          >
+                            <div className="w-8 h-1 bg-white/50 rounded-full"></div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -683,6 +1036,14 @@ const DayPlanner = () => {
           </div>
         </div>
       </div>
+
+      {showTimePicker && (
+        <ClockTimePicker
+          value={newTask.startTime}
+          onChange={(time) => setNewTask({ ...newTask, startTime: time })}
+          onClose={() => setShowTimePicker(false)}
+        />
+      )}
     </div>
   );
 };
