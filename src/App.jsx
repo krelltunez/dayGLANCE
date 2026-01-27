@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus } from 'lucide-react';
+import { Plus, Clock, X, ChevronLeft, ChevronRight, Moon, Sun, Inbox, AlertCircle, Check, CalendarPlus } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -8,17 +8,9 @@ const DayPlanner = () => {
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 60 });
-  const [draggedTask, setDraggedTask] = useState(null);
-  const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
-  const [showSyncSettings, setShowSyncSettings] = useState(false);
-  const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [weather, setWeather] = useState(null);
-  const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
@@ -34,7 +26,6 @@ const DayPlanner = () => {
     { name: 'Teal', class: 'bg-teal-500' },
     { name: 'Yellow', class: 'bg-yellow-500' },
   ];
-  const durationOptions = Array.from({ length: 9 }, (_, i) => (i + 1) * 15);
 
   useEffect(() => {
     loadData();
@@ -42,39 +33,26 @@ const DayPlanner = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    const isToday = dateToString(selectedDate) === dateToString(new Date());
-    if (isToday && currentTimeRef.current) {
-      setTimeout(() => {
-        currentTimeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks, darkMode, syncUrl]);
+  }, [tasks, unscheduledTasks, darkMode]);
 
   const loadData = () => {
     try {
       const tasksData = localStorage.getItem('day-planner-tasks');
       const unscheduledData = localStorage.getItem('day-planner-unscheduled');
       const darkModeData = localStorage.getItem('day-planner-darkmode');
-      const syncUrlData = localStorage.getItem('day-planner-sync-url');
       
       if (tasksData) setTasks(JSON.parse(tasksData));
       if (unscheduledData) setUnscheduledTasks(JSON.parse(unscheduledData));
       if (darkModeData) setDarkMode(JSON.parse(darkModeData));
-      if (syncUrlData) setSyncUrl(JSON.parse(syncUrlData));
     } catch (error) {
-      console.log('No existing data found');
+      console.log('No data found');
     }
   };
 
@@ -83,25 +61,9 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
       localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
       localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
-      localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
     } catch (error) {
-      console.error('Error saving:', error);
+      console.error('Save error:', error);
     }
-  };
-
-  const getNextQuarterHour = () => {
-    const now = new Date();
-    const minutes = now.getMinutes();
-    const nextQuarter = Math.ceil(minutes / 15) * 15;
-    
-    if (nextQuarter === 60) {
-      now.setHours(now.getHours() + 1);
-      now.setMinutes(0);
-    } else {
-      now.setMinutes(nextQuarter);
-    }
-    
-    return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
   };
 
   const fetchWeather = async () => {
@@ -110,9 +72,15 @@ const DayPlanner = () => {
       const data = await response.json();
       
       if (data.current && data.daily) {
+        const code = data.current.weather_code;
+        let icon = '☁️';
+        if (code === 0) icon = '☀️';
+        else if ([1, 2].includes(code)) icon = '⛅';
+        else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) icon = '🌧️';
+        
         setWeather({
           temp: Math.round(data.current.temperature_2m),
-          icon: getWeatherIcon(data.current.weather_code),
+          icon: icon,
           high: Math.round(data.daily.temperature_2m_max[0]),
           low: Math.round(data.daily.temperature_2m_min[0])
         });
@@ -122,26 +90,15 @@ const DayPlanner = () => {
     }
   };
 
-  const getWeatherIcon = (code) => {
-    if (code === 0) return '☀️';
-    if ([1, 2].includes(code)) return '⛅';
-    if (code === 3) return '☁️';
-    if ([45, 48].includes(code)) return '🌫️';
-    if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return '🌧️';
-    if ([71, 73, 75, 77, 85, 86].includes(code)) return '🌨️';
-    if ([95, 96, 99].includes(code)) return '⛈️';
-    return '☁️';
-  };
-
   const timeToMinutes = (time) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
+    const parts = time.split(':').map(Number);
+    return parts[0] * 60 + parts[1];
   };
 
   const minutesToTime = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours.toString().padStart(2, '0') + ':' + mins.toString().padStart(2, '0');
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
   };
 
   const dateToString = (date) => {
@@ -150,7 +107,7 @@ const DayPlanner = () => {
 
   const checkConflicts = () => {
     const dateStr = dateToString(selectedDate);
-    const todayTasks = tasks.filter(t => t.date === dateStr && !t.isAllDay);
+    const todayTasks = tasks.filter(t => t.date === dateStr);
     const newConflicts = [];
 
     for (let i = 0; i < todayTasks.length; i++) {
@@ -163,44 +120,11 @@ const DayPlanner = () => {
         const end2 = start2 + task2.duration;
 
         if (start1 < end2 && end1 > start2) {
-          if (!newConflicts.find(c => c.includes(task1.id) && c.includes(task2.id))) {
-            newConflicts.push([task1.id, task2.id]);
-          }
+          newConflicts.push([task1.id, task2.id]);
         }
       }
     }
     setConflicts(newConflicts);
-  };
-
-  const getConflictingTasks = (task, allTasks) => {
-    if (task.isAllDay) return [];
-    const start = timeToMinutes(task.startTime);
-    const end = start + task.duration;
-    
-    return allTasks.filter(t => {
-      if (t.id === task.id || t.isAllDay) return false;
-      const tStart = timeToMinutes(t.startTime);
-      const tEnd = tStart + t.duration;
-      return start < tEnd && end > tStart;
-    });
-  };
-
-  const calculateConflictPosition = (task, allTasks) => {
-    const conflicting = getConflictingTasks(task, allTasks);
-    if (conflicting.length === 0) return { left: 2, right: 2, width: null };
-    
-    const allConflicted = [task, ...conflicting].sort((a, b) => a.id - b.id);
-    const index = allConflicted.findIndex(t => t.id === task.id);
-    const total = allConflicted.length;
-    
-    const widthPercent = 100 / total;
-    const leftPercent = widthPercent * index;
-    
-    return {
-      left: leftPercent + '%',
-      right: 'auto',
-      width: (widthPercent - 1) + '%'
-    };
   };
 
   const addTask = (toInbox = false) => {
@@ -208,10 +132,9 @@ const DayPlanner = () => {
       const task = {
         id: Date.now(),
         title: newTask.title,
-        duration: newTask.duration,
-        color: newTask.color || colors[0].class,
-        completed: false,
-        isAllDay: newTask.isAllDay || false
+        duration: newTask.duration || 60,
+        color: colors[0].class,
+        completed: false
       };
 
       if (toInbox) {
@@ -219,27 +142,14 @@ const DayPlanner = () => {
       } else {
         setTasks([...tasks, {
           ...task,
-          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-          date: newTask.date || dateToString(selectedDate)
+          startTime: newTask.startTime || '09:00',
+          date: dateToString(selectedDate)
         }]);
       }
       
-      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 60, date: dateToString(selectedDate), isAllDay: false });
+      setNewTask({ title: '', startTime: '09:00', duration: 60 });
       setShowAddTask(false);
     }
-  };
-
-  const changeTaskColor = (taskId, newColor, fromInbox = false) => {
-    if (fromInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(task =>
-        task.id === taskId ? { ...task, color: newColor } : task
-      ));
-    } else {
-      setTasks(tasks.map(task =>
-        task.id === taskId ? { ...task, color: newColor } : task
-      ));
-    }
-    setShowColorPicker(null);
   };
 
   const toggleComplete = (id, fromInbox = false) => {
@@ -278,29 +188,6 @@ const DayPlanner = () => {
     setSelectedDate(new Date());
   };
 
-  const openNewTaskForm = () => {
-    setNewTask({ 
-      title: '', 
-      startTime: getNextQuarterHour(), 
-      duration: 60,
-      date: dateToString(selectedDate),
-      isAllDay: false
-    });
-    setShowAddTask(true);
-  };
-
-  const openNewInboxTask = () => {
-    setNewTask({ 
-      title: '', 
-      startTime: getNextQuarterHour(), 
-      duration: 60,
-      date: dateToString(selectedDate),
-      isAllDay: false,
-      openInInbox: true
-    });
-    setShowAddTask(true);
-  };
-
   const calculateTaskPosition = (task) => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
@@ -315,9 +202,11 @@ const DayPlanner = () => {
   const allCompletedTasks = tasks.filter(t => t.completed);
   const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
   const totalScheduledMinutes = tasks.reduce((sum, task) => sum + task.duration, 0);
+  
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeTop = ((currentTime.getHours() - 7) * 80) + ((currentTime.getMinutes() / 60) * 80);
   const showCurrentTimeLine = isToday && currentTime.getHours() >= 7 && currentTime.getHours() < 23;
+  
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
   const borderClass = darkMode ? 'border-gray-700' : 'border-gray-200';
@@ -334,18 +223,18 @@ const DayPlanner = () => {
             <div className="flex items-center gap-6 mt-2">
               <div className="flex items-center gap-2">
                 <button onClick={() => changeDate(-1)} className={'p-1 rounded ' + hoverBg}>
-                  <ChevronLeft size={20} className={textSecondary} />
+                  <ChevronLeft size={20} />
                 </button>
                 <span className={textPrimary + ' font-bold text-xl min-w-[220px] text-center'}>{formatDate(selectedDate)}</span>
                 <button onClick={() => changeDate(1)} className={'p-1 rounded ' + hoverBg}>
-                  <ChevronRight size={20} className={textSecondary} />
+                  <ChevronRight size={20} />
                 </button>
               </div>
-              <button onClick={goToToday} className={'px-3 py-1 text-sm ' + (darkMode ? 'bg-gray-700' : 'bg-gray-200') + ' ' + textPrimary + ' rounded ' + hoverBg}>
+              <button onClick={goToToday} className={'px-3 py-1 text-sm rounded ' + (darkMode ? 'bg-gray-700' : 'bg-gray-200')}>
                 Today
               </button>
               {weather && (
-                <div className={'flex items-center gap-3 px-4 py-2 ' + (darkMode ? 'bg-gray-700' : 'bg-gray-100') + ' rounded-lg'}>
+                <div className={'flex items-center gap-3 px-4 py-2 rounded-lg ' + (darkMode ? 'bg-gray-700' : 'bg-gray-100')}>
                   <div className="text-2xl">{weather.icon}</div>
                   <div>
                     <div className={'text-lg font-bold ' + textPrimary}>{weather.temp}°F</div>
@@ -355,11 +244,9 @@ const DayPlanner = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode(!darkMode)} className={'p-2 rounded-lg ' + hoverBg}>
-              {darkMode ? <Sun size={20} className={textSecondary} /> : <Moon size={20} className={textSecondary} />}
-            </button>
-          </div>
+          <button onClick={() => setDarkMode(!darkMode)} className={'p-2 rounded-lg ' + hoverBg}>
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
         </div>
       </div>
 
@@ -367,11 +254,11 @@ const DayPlanner = () => {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-3">
             <div className="flex gap-2 mb-4">
-              <button onClick={openNewTaskForm} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button onClick={() => setShowAddTask(true)} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <CalendarPlus size={18} />
                 <span className="font-medium">Schedule</span>
               </button>
-              <button onClick={openNewInboxTask} className={'flex-1 flex items-center justify-center gap-2 px-4 py-3 ' + (darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300') + ' ' + textPrimary + ' rounded-lg'}>
+              <button onClick={() => setShowAddTask(true)} className={'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg ' + (darkMode ? 'bg-gray-700' : 'bg-gray-200')}>
                 <Plus size={18} />
                 <span className="font-medium">Inbox</span>
               </button>
@@ -387,21 +274,21 @@ const DayPlanner = () => {
               </div>
               <div className={'space-y-2 ' + (unscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : '')}>
                 {unscheduledTasks.length === 0 ? (
-                  <p className={'text-sm ' + textSecondary + ' text-center'}>No tasks in inbox</p>
+                  <p className={'text-sm ' + textSecondary + ' text-center'}>No tasks</p>
                 ) : (
                   unscheduledTasks.map(task => (
                     <div key={task.id} className={task.color + ' rounded-lg p-3 shadow-sm ' + (task.completed ? 'opacity-50' : '')}>
                       <div className="flex items-start justify-between text-white">
-                        <div className="flex items-start gap-2 flex-1 min-w-0">
-                          <button onClick={() => toggleComplete(task.id, true)} className={'mt-0.5 rounded flex-shrink-0 ' + (task.completed ? 'bg-white/40' : 'bg-white/20') + ' border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30'}>
+                        <div className="flex items-start gap-2 flex-1">
+                          <button onClick={() => toggleComplete(task.id, true)} className={'rounded border-2 border-white w-4 h-4 flex items-center justify-center ' + (task.completed ? 'bg-white/40' : 'bg-white/20')}>
                             {task.completed && <Check size={10} strokeWidth={3} />}
                           </button>
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1">
                             <div className={'font-medium text-sm ' + (task.completed ? 'line-through' : '')}>{task.title}</div>
                             <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
                           </div>
                         </div>
-                        <button onClick={() => deleteTask(task.id, true)} className="hover:bg-white/20 rounded p-1 flex-shrink-0">
+                        <button onClick={() => deleteTask(task.id, true)} className="hover:bg-white/20 rounded p-1">
                           <X size={14} />
                         </button>
                       </div>
@@ -414,41 +301,124 @@ const DayPlanner = () => {
             {hasConflicts && (
               <div className={cardBg + ' rounded-lg shadow-sm border border-orange-500 p-4 mt-4'}>
                 <div className="flex items-start gap-2 text-orange-600">
-                  <AlertCircle size={18} className="mt-0.5" />
+                  <AlertCircle size={18} />
                   <div>
                     <div className="font-semibold text-sm">Time Conflicts</div>
-                    <div className="text-xs mt-1">You have {conflicts.length} overlapping tasks</div>
+                    <div className="text-xs mt-1">{conflicts.length} overlapping tasks</div>
                   </div>
                 </div>
               </div>
             )}
 
             <div className={cardBg + ' rounded-lg shadow-sm border ' + borderClass + ' p-4 mt-4'}>
-              <h3 className={'font-semibold ' + textPrimary + ' mb-2'}>Today's Summary</h3>
-              <div className={'text-sm ' + textSecondary + ' space-y-1'}>
-                <div>{todayTasks.length} tasks scheduled</div>
-                <div>{todayTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
-                <div>{unscheduledTasks.length} tasks in inbox</div>
+              <h3 className={'font-semibold ' + textPrimary + ' mb-2'}>Today</h3>
+              <div className={'text-sm ' + textSecondary}>
+                <div>{todayTasks.length} tasks</div>
+                <div>{todayTasks.reduce((sum, t) => sum + t.duration, 0)} min planned</div>
               </div>
             </div>
 
             <div className={cardBg + ' rounded-lg shadow-sm border ' + borderClass + ' p-4 mt-4'}>
-              <h3 className={'font-semibold ' + textPrimary + ' mb-3'}>All Time Summary</h3>
-              <div className={'text-sm ' + textSecondary + ' space-y-2'}>
-                <div className="flex justify-between">
-                  <span>Total tasks:</span>
-                  <span className={textPrimary}>{tasks.length}</span>
+              <h3 className={'font-semibold ' + textPrimary + ' mb-2'}>All Time</h3>
+              <div className={'text-sm ' + textSecondary}>
+                <div>{tasks.length} total tasks</div>
+                <div>{allCompletedTasks.length} completed</div>
+                <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m spent</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-9">
+            {showAddTask && (
+              <div className={cardBg + ' rounded-lg shadow-sm border ' + borderClass + ' p-4 mb-6'}>
+                <h3 className={'font-semibold ' + textPrimary + ' mb-4'}>New Task</h3>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Task title"
+                    value={newTask.title}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                    className={'w-full px-3 py-2 border ' + borderClass + ' rounded-lg ' + (darkMode ? 'bg-gray-700 text-white' : 'bg-white')}
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => addTask(false)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                      Add to Schedule
+                    </button>
+                    <button onClick={() => addTask(true)} className={'px-4 py-2 rounded-lg ' + (darkMode ? 'bg-gray-700' : 'bg-gray-200')}>
+                      Add to Inbox
+                    </button>
+                    <button onClick={() => setShowAddTask(false)} className={'px-4 py-2 rounded-lg ' + (darkMode ? 'bg-gray-700' : 'bg-gray-200')}>
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Completed:</span>
-                  <span className={textPrimary}>{allCompletedTasks.length}</span>
+              </div>
+            )}
+
+            <div className={cardBg + ' rounded-lg shadow-sm border ' + borderClass + ' overflow-hidden'}>
+              <div ref={calendarRef} className="relative overflow-y-auto max-h-[calc(100vh-300px)]">
+                {hours.map((hour) => (
+                  <div key={hour} className={'flex border-b ' + borderClass}>
+                    <div className={'w-20 py-2 px-3 text-sm border-r ' + borderClass + ' ' + textSecondary}>
+                      {String(hour).padStart(2, '0')}:00
+                    </div>
+                    <div className="flex-1 relative h-20"></div>
+                  </div>
+                ))}
+
+                <div className="absolute top-0 left-20 right-0 bottom-0 pointer-events-none">
+                  {showCurrentTimeLine && (
+                    <div ref={currentTimeRef} className="absolute left-0 right-0 z-10" style={{ top: currentTimeTop + 'px' }}>
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
+                        <div className="flex-1 h-0.5 bg-red-500"></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {todayTasks.map((task) => {
+                    const pos = calculateTaskPosition(task);
+                    const isConflicted = conflicts.some(c => c.includes(task.id));
+                    
+                    return (
+                      <div
+                        key={task.id}
+                        className={task.color + ' rounded-lg shadow-md pointer-events-auto absolute left-2 right-2 ' + (isConflicted ? 'ring-2 ring-orange-500 ' : '') + (task.completed ? 'opacity-50' : '')}
+                        style={{ top: pos.top + 'px', height: pos.height + 'px', minHeight: '40px' }}
+                      >
+                        <div className="p-2 h-full flex flex-col text-white">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <button onClick={() => toggleComplete(task.id)} className={'rounded border-2 border-white w-4 h-4 flex items-center justify-center ' + (task.completed ? 'bg-white/40' : 'bg-white/20')}>
+                                {task.completed && <Check size={10} strokeWidth={3} />}
+                              </button>
+                              <div className="flex-1">
+                                <div className={'font-semibold text-base ' + (task.completed ? 'line-through' : '')}>{task.title}</div>
+                                <div className="text-xs opacity-90 flex items-center gap-1 mt-1">
+                                  <Clock size={12} />
+                                  {task.startTime} • {task.duration}min
+                                </div>
+                              </div>
+                            </div>
+                            <button onClick={() => deleteTask(task.id)} className="hover:bg-white/20 rounded p-1">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex justify-between">
-                  <span>Time spent:</span>
-                  <span className={textPrimary}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total planned:</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DayPlanner;              <span>Total planned:</span>
                   <span className={textPrimary}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
                 </div>
                 {tasks.length > 0 && (
