@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -316,6 +316,18 @@ const DayPlanner = () => {
       duration: 60,
       date: dateToString(selectedDate),
       isAllDay: false
+    });
+    setShowAddTask(true);
+  };
+
+  const openNewInboxTask = () => {
+    setNewTask({ 
+      title: '', 
+      startTime: getNextQuarterHour(), 
+      duration: 60,
+      date: dateToString(selectedDate),
+      isAllDay: false,
+      openInInbox: true
     });
     setShowAddTask(true);
   };
@@ -744,7 +756,7 @@ const DayPlanner = () => {
       <div className={`${cardBg} border-b ${borderClass} px-6 py-4`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className={`text-2xl font-bold ${textPrimary}`}>Hey Jason, here's what your day looks like.</h1>
+            <h1 className={`text-2xl font-bold ${textPrimary}`}>Here's what your day looks like!</h1>
             <div className="flex items-center gap-6 mt-2">
               <div className="flex items-center gap-2">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
@@ -760,13 +772,6 @@ const DayPlanner = () => {
                 className={`px-3 py-1 text-sm ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded ${hoverBg}`}
               >
                 Today
-              </button>
-              <button
-                onClick={openNewTaskForm}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={18} />
-                New Task
               </button>
               {weather && (
                 <div className={`flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
@@ -843,6 +848,25 @@ const DayPlanner = () => {
 
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-3">
+            <div className={`flex gap-2 mb-4`}>
+              <button
+                onClick={openNewTaskForm}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="New Scheduled Task"
+              >
+                <CalendarPlus size={18} />
+                <span className="font-medium">Schedule</span>
+              </button>
+              <button
+                onClick={openNewInboxTask}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                title="Add to Inbox"
+              >
+                <Plus size={18} />
+                <span className="font-medium">Inbox</span>
+              </button>
+            </div>
+
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
@@ -1113,17 +1137,19 @@ const DayPlanner = () => {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => addTask(false)}
+                      onClick={() => addTask(newTask.openInInbox || false)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
-                      Add to Schedule
+                      {newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
                     </button>
-                    <button
-                      onClick={() => addTask(true)}
-                      className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
-                    >
-                      Add to Inbox
-                    </button>
+                    {!newTask.openInInbox && (
+                      <button
+                        onClick={() => addTask(true)}
+                        className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+                      >
+                        Add to Inbox
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowAddTask(false)}
                       className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
