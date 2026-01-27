@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -10,14 +10,14 @@ const DayPlanner = () => {
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 60 });
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
-  const [resizingTask, setResizingTask] = useState(null);
-  const [resizeStartY, setResizeStartY] = useState(null);
   const [conflicts, setConflicts] = useState([]);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [weather, setWeather] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
@@ -97,6 +97,53 @@ const DayPlanner = () => {
     } catch (error) {
       console.error('Error saving data:', error);
     }
+  };
+
+  const getNextQuarterHour = () => {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const nextQuarter = Math.ceil(minutes / 15) * 15;
+    
+    if (nextQuarter === 60) {
+      now.setHours(now.getHours() + 1);
+      now.setMinutes(0);
+    } else {
+      now.setMinutes(nextQuarter);
+    }
+    
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const fetchWeather = async () => {
+    try {
+      // Using wttr.in for free weather data (no API key needed)
+      const response = await fetch('https://wttr.in/Denver?format=j1');
+      const data = await response.json();
+      
+      const current = data.current_condition[0];
+      const today = data.weather[0];
+      
+      setWeather({
+        temp: Math.round(current.temp_F),
+        condition: current.weatherDesc[0].value,
+        icon: getWeatherIcon(current.weatherCode),
+        high: Math.round(today.maxtempF),
+        low: Math.round(today.mintempF)
+      });
+    } catch (error) {
+      console.error('Failed to fetch weather:', error);
+    }
+  };
+
+  const getWeatherIcon = (code) => {
+    const weatherCode = parseInt(code);
+    if (weatherCode === 113) return '☀️';
+    if ([116, 119, 122].includes(weatherCode)) return '⛅';
+    if ([143, 248, 260].includes(weatherCode)) return '🌫️';
+    if ([176, 263, 266, 281, 284, 293, 296, 299, 302, 305, 308, 311, 314, 317, 320, 323, 326, 329, 332, 335, 338, 350, 353, 356, 359, 362, 365, 368, 371, 374, 377].includes(weatherCode)) return '🌧️';
+    if ([179, 182, 185, 227, 230, 317, 320, 323, 326, 329, 332, 335, 338, 350, 353, 356, 359, 362, 365, 368, 371, 374, 377, 392, 395].includes(weatherCode)) return '🌨️';
+    if ([200, 386, 389].includes(weatherCode)) return '⛈️';
+    return '☁️';
   };
 
   const timeToMinutes = (time) => {
@@ -184,11 +231,11 @@ const DayPlanner = () => {
         setTasks([...tasks, {
           ...task,
           startTime: newTask.startTime,
-          date: dateToString(selectedDate)
+          date: newTask.date || dateToString(selectedDate)
         }]);
       }
       
-      setNewTask({ title: '', startTime: '09:00', duration: 60 });
+      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 60, date: dateToString(selectedDate) });
       setShowAddTask(false);
     }
   };
@@ -242,6 +289,16 @@ const DayPlanner = () => {
     setSelectedDate(new Date());
   };
 
+  const openNewTaskForm = () => {
+    setNewTask({ 
+      title: '', 
+      startTime: getNextQuarterHour(), 
+      duration: 60,
+      date: dateToString(selectedDate)
+    });
+    setShowAddTask(true);
+  };
+
   const calculateTaskPosition = (task) => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
@@ -268,7 +325,12 @@ const DayPlanner = () => {
 
     const calendarElement = e.currentTarget;
     const rect = calendarElement.getBoundingClientRect();
-    const y = e.clientY - rect.top;
+    
+    // Get the scroll position of the calendar container
+    const scrollTop = calendarElement.scrollTop;
+    
+    // Calculate position relative to the top of the scrollable content
+    const y = e.clientY - rect.top + scrollTop;
     
     // Calculate the time based on pixel position
     const totalMinutesFromTop = (y / 80) * 60;
@@ -313,24 +375,21 @@ const DayPlanner = () => {
   const handleResizeStart = (task, e) => {
     e.stopPropagation();
     e.preventDefault();
-    setResizingTask(task);
-    setResizeStartY(e.clientY);
+    
+    const startY = e.clientY;
+    const startDuration = task.duration;
     
     const handleMouseMove = (moveEvent) => {
-      if (!resizingTask) return;
-      
-      const deltaY = moveEvent.clientY - resizeStartY;
+      const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
-      const newDuration = Math.max(15, task.duration + deltaMinutes);
+      const newDuration = Math.max(15, startDuration + deltaMinutes);
       
-      setTasks(tasks.map(t => 
+      setTasks(prevTasks => prevTasks.map(t => 
         t.id === task.id ? { ...t, duration: newDuration } : t
       ));
     };
     
     const handleMouseUp = () => {
-      setResizingTask(null);
-      setResizeStartY(null);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -625,13 +684,13 @@ const DayPlanner = () => {
       <div className={`${cardBg} border-b ${borderClass} px-6 py-4`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className={`text-2xl font-bold ${textPrimary}`}>Day Planner</h1>
-            <div className="flex items-center gap-4 mt-2">
+            <h1 className={`text-2xl font-bold ${textPrimary}`}>Hey Jason, here's what your day looks like.</h1>
+            <div className="flex items-center gap-6 mt-2">
               <div className="flex items-center gap-2">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronLeft size={20} className={textSecondary} />
                 </button>
-                <span className={`${textSecondary} min-w-[200px] text-center`}>{formatDate(selectedDate)}</span>
+                <span className={`${textPrimary} font-bold text-xl min-w-[220px] text-center`}>{formatDate(selectedDate)}</span>
                 <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronRight size={20} className={textSecondary} />
                 </button>
@@ -642,16 +701,25 @@ const DayPlanner = () => {
               >
                 Today
               </button>
-              <button
-                onClick={() => setShowAddTask(!showAddTask)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={18} />
-                New Task
-              </button>
+              {weather && (
+                <div className={`flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
+                  <div className="text-2xl">{weather.icon}</div>
+                  <div>
+                    <div className={`text-lg font-bold ${textPrimary}`}>{weather.temp}°F</div>
+                    <div className={`text-xs ${textSecondary}`}>H: {weather.high}° L: {weather.low}°</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={openNewTaskForm}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mr-4"
+            >
+              <Plus size={18} />
+              New Task
+            </button>
             <button
               onClick={() => setShowSyncSettings(!showSyncSettings)}
               className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
@@ -716,36 +784,6 @@ const DayPlanner = () => {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-3">
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
-              <h3 className={`font-semibold ${textPrimary} mb-3`}>All Time Summary</h3>
-              <div className={`text-sm ${textSecondary} space-y-2`}>
-                <div className="flex justify-between">
-                  <span>Total tasks:</span>
-                  <span className={textPrimary}>{tasks.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Completed:</span>
-                  <span className={textPrimary}>{allCompletedTasks.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Time spent:</span>
-                  <span className={textPrimary}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total planned:</span>
-                  <span className={textPrimary}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
-                </div>
-                {tasks.length > 0 && (
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex justify-between font-semibold">
-                      <span>Completion:</span>
-                      <span className={textPrimary}>{Math.round((allCompletedTasks.length / tasks.length) * 100)}%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Inbox size={18} />
@@ -770,13 +808,13 @@ const DayPlanner = () => {
                       className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
                     >
                       {showColorPicker === task.id && (
-                        <div className="absolute top-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-lg p-2 z-10 shadow-lg border border-gray-200 dark:border-gray-700">
+                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
                           <div className="grid grid-cols-3 gap-1">
                             {colors.map((color) => (
                               <button
                                 key={color.class}
                                 onClick={() => changeTaskColor(task.id, color.class, true)}
-                                className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
                                 title={color.name}
                               />
                             ))}
@@ -787,24 +825,25 @@ const DayPlanner = () => {
                         <div className="flex items-start gap-2 flex-1">
                           <button
                             onClick={() => toggleComplete(task.id, true)}
-                            className={`mt-0.5 rounded ${task.completed ? 'bg-white/30' : 'bg-white/10'} p-0.5 hover:bg-white/40 transition-colors`}
+                            className={`mt-0.5 rounded ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-5 h-5 flex items-center justify-center hover:bg-white/30 transition-colors flex-shrink-0`}
                           >
-                            {task.completed && <Check size={14} />}
-                            {!task.completed && <div className="w-3.5 h-3.5"></div>}
+                            {task.completed && <Check size={14} strokeWidth={3} />}
                           </button>
                           <button
                             onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                            className="mt-0.5 w-3.5 h-3.5 rounded-full border-2 border-white hover:scale-110 transition-transform"
-                          />
-                          <GripVertical size={16} className="mt-0.5 opacity-70" />
-                          <div className="flex-1">
+                            className="mt-0.5 hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                          >
+                            <Palette size={14} />
+                          </button>
+                          <GripVertical size={16} className="mt-0.5 opacity-70 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
                             <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
                             <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
                           </div>
                         </div>
                         <button
                           onClick={() => deleteTask(task.id, true)}
-                          className="hover:bg-white/20 rounded p-1"
+                          className="hover:bg-white/20 rounded p-1 flex-shrink-0"
                         >
                           <X size={14} />
                         </button>
@@ -835,6 +874,36 @@ const DayPlanner = () => {
                 <div>{unscheduledTasks.length} tasks in inbox</div>
               </div>
             </div>
+
+            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
+              <h3 className={`font-semibold ${textPrimary} mb-3`}>All Time Summary</h3>
+              <div className={`text-sm ${textSecondary} space-y-2`}>
+                <div className="flex justify-between">
+                  <span>Total tasks:</span>
+                  <span className={textPrimary}>{tasks.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Completed:</span>
+                  <span className={textPrimary}>{allCompletedTasks.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Time spent:</span>
+                  <span className={textPrimary}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total planned:</span>
+                  <span className={textPrimary}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                </div>
+                {tasks.length > 0 && (
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between font-semibold">
+                      <span>Completion:</span>
+                      <span className={textPrimary}>{Math.round((allCompletedTasks.length / tasks.length) * 100)}%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="col-span-9">
@@ -849,8 +918,17 @@ const DayPlanner = () => {
                     onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                   />
-                  <div className="grid grid-cols-4 gap-3">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-5 gap-3">
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
+                      <button
+                        onClick={() => setShowDatePicker(true)}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      >
+                        {new Date(newTask.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </button>
+                    </div>
+                    <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Start Time</label>
                       <button
                         onClick={() => setShowTimePicker(true)}
@@ -958,13 +1036,14 @@ const DayPlanner = () => {
                     const { top, height } = calculateTaskPosition(task);
                     const isConflicted = conflicts.some(c => c.includes(task.id));
                     const conflictPos = calculateConflictPosition(task, todayTasks);
+                    const isShort = height < 60;
                     
                     return (
                       <div
                         key={task.id}
                         draggable
                         onDragStart={(e) => handleDragStart(task, 'calendar', e)}
-                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-2 ring-orange-500' : ''} ${task.completed ? 'opacity-50' : ''}`}
+                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-2 ring-orange-500' : ''} ${task.completed ? 'opacity-50' : ''} overflow-visible`}
                         style={{ 
                           top: `${top}px`, 
                           height: `${height}px`, 
@@ -975,57 +1054,69 @@ const DayPlanner = () => {
                         }}
                       >
                         {showColorPicker === task.id && (
-                          <div className="absolute top-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-lg p-2 z-10 shadow-lg border border-gray-200 dark:border-gray-700">
+                          <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
                             <div className="grid grid-cols-3 gap-1">
                               {colors.map((color) => (
                                 <button
                                   key={color.class}
                                   onClick={() => changeTaskColor(task.id, color.class, false)}
-                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
                                   title={color.name}
                                 />
                               ))}
                             </div>
                           </div>
                         )}
-                        <div className="p-3 h-full flex flex-col justify-between text-white">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <div className={`p-2 h-full flex flex-col text-white ${isShort ? 'justify-center' : 'justify-between'}`}>
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="flex items-start gap-1 flex-1 min-w-0">
                               <button
                                 onClick={() => toggleComplete(task.id)}
-                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/30' : 'bg-white/10'} p-0.5 hover:bg-white/40 transition-colors`}
+                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-5 h-5 flex items-center justify-center hover:bg-white/30 transition-colors`}
                               >
-                                {task.completed && <Check size={14} />}
-                                {!task.completed && <div className="w-3.5 h-3.5"></div>}
+                                {task.completed && <Check size={14} strokeWidth={3} />}
                               </button>
                               <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                className="mt-0.5 w-3.5 h-3.5 rounded-full border-2 border-white hover:scale-110 transition-transform flex-shrink-0"
-                              />
+                                className="mt-0.5 hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                              >
+                                <Palette size={14} />
+                              </button>
                               <GripVertical size={16} className="flex-shrink-0 mt-0.5 opacity-70" />
                               <div className="flex-1 min-w-0">
-                                <div className={`font-semibold truncate ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
-                                <div className="text-xs opacity-90 flex items-center gap-1 mt-1">
-                                  <Clock size={12} />
-                                  {task.startTime} • {task.duration}min
+                                <div className={`font-semibold text-sm leading-tight ${task.completed ? 'line-through' : ''} ${isShort ? 'truncate' : ''}`}>
+                                  {task.title}
                                 </div>
+                                {!isShort && (
+                                  <div className="text-xs opacity-90 flex items-center gap-1 mt-1">
+                                    <Clock size={12} />
+                                    {task.startTime} • {task.duration}min
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <button
                               onClick={() => deleteTask(task.id)}
                               className="flex-shrink-0 hover:bg-white/20 rounded p-1 transition-colors"
                             >
-                              <X size={16} />
+                              <X size={14} />
                             </button>
                           </div>
+                          {isShort && (
+                            <div className="text-xs opacity-75 mt-1 whitespace-nowrap">
+                              {task.startTime} • {task.duration}min
+                            </div>
+                          )}
                           {/* Resize handle at bottom */}
-                          <div
-                            onMouseDown={(e) => handleResizeStart(task, e)}
-                            className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
-                            style={{ marginBottom: '-4px' }}
-                          >
-                            <div className="w-8 h-1 bg-white/50 rounded-full"></div>
-                          </div>
+                          {!isShort && (
+                            <div
+                              onMouseDown={(e) => handleResizeStart(task, e)}
+                              className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
+                              style={{ marginBottom: '-4px' }}
+                            >
+                              <div className="w-8 h-1 bg-white/50 rounded-full"></div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1042,6 +1133,14 @@ const DayPlanner = () => {
           value={newTask.startTime}
           onChange={(time) => setNewTask({ ...newTask, startTime: time })}
           onClose={() => setShowTimePicker(false)}
+        />
+      )}
+
+      {showDatePicker && (
+        <DatePicker
+          value={newTask.date}
+          onChange={(date) => setNewTask({ ...newTask, date })}
+          onClose={() => setShowDatePicker(false)}
         />
       )}
     </div>
