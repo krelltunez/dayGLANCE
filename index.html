@@ -6,13 +6,16 @@
   <meta name="description" content="A beautiful time-blocking day planner with task management">
   <meta name="theme-color" content="#2563eb">
   
+  <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json">
   
+  <!-- iOS specific -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Day Planner">
   <link rel="apple-touch-icon" href="/icon-192x192.png">
   
+  <!-- Favicon -->
   <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png">
   
   <title>Here's what your day looks like!</title>
@@ -21,6 +24,7 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
   
+  <!-- Register Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -36,3 +40,4 @@
   </script>
 </body>
 </html>
+
