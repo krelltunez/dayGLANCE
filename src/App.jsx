@@ -756,7 +756,7 @@ const DayPlanner = () => {
       <div className={`${cardBg} border-b ${borderClass} px-6 py-4`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className={`text-2xl font-bold ${textPrimary}`}>Here's what your day looks like!</h1>
+            <h1 className={`text-2xl font-bold ${textPrimary}`}>Hey Jason, here's what your day looks like.</h1>
             <div className="flex items-center gap-6 mt-2">
               <div className="flex items-center gap-2">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
