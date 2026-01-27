@@ -7,7 +7,7 @@ const DayPlanner = () => {
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   const [showAddTask, setShowAddTask] = useState(false);
-  const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 60 });
+  const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
@@ -256,7 +256,7 @@ const DayPlanner = () => {
         }]);
       }
       
-      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 60, date: dateToString(selectedDate), isAllDay: false });
+      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false });
       setShowAddTask(false);
     }
   };
@@ -314,7 +314,7 @@ const DayPlanner = () => {
     setNewTask({ 
       title: '', 
       startTime: getNextQuarterHour(), 
-      duration: 60,
+      duration: 30,
       date: dateToString(selectedDate),
       isAllDay: false
     });
@@ -325,7 +325,7 @@ const DayPlanner = () => {
     setNewTask({ 
       title: '', 
       startTime: getNextQuarterHour(), 
-      duration: 60,
+      duration: 30,
       date: dateToString(selectedDate),
       isAllDay: false,
       openInInbox: true
@@ -349,7 +349,7 @@ const DayPlanner = () => {
       setNewTask({ 
         title: '', 
         startTime: clickedTime, 
-        duration: 60,
+        duration: 30,
         date: dateToString(selectedDate),
         isAllDay: false
       });
@@ -882,7 +882,7 @@ const DayPlanner = () => {
       <div className={`${cardBg} border-b ${borderClass} px-6 py-4`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className={`text-2xl font-bold ${textPrimary}`}>Here's what your day looks like!</h1>
+            <h1 className={`text-2xl font-bold ${textPrimary}`}>&nbsp;&nbsp;Here's what your day looks like!</h1>
             <div className="flex items-center gap-6 mt-2">
               <div className="flex items-center gap-2">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
@@ -985,7 +985,7 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={openNewInboxTask}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 title="Add to Inbox"
               >
                 <Plus size={18} />
@@ -1346,7 +1346,7 @@ const DayPlanner = () => {
                     const { top, height } = calculateTaskPosition(task);
                     const isConflicted = conflicts.some(c => c.includes(task.id));
                     const conflictPos = calculateConflictPosition(task, todayTasks);
-                    const isVeryShort = height < 50;
+                    const isVeryShort = height < 20;
                     
                     return (
                       <div
@@ -1373,15 +1373,8 @@ const DayPlanner = () => {
                                 {task.completed && <Check size={10} strokeWidth={3} />}
                               </button>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline justify-between gap-2">
-                                  <div className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''} ${isVeryShort ? 'truncate' : ''}`}>
-                                    {task.title}
-                                  </div>
-                                  {isVeryShort && (
-                                    <div className="text-xs opacity-75 whitespace-nowrap flex-shrink-0">
-                                      {task.startTime} • {task.duration}min
-                                    </div>
-                                  )}
+                                <div className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''}`}>
+                                  {task.title}
                                 </div>
                                 {!isVeryShort && (
                                   <div className="text-xs opacity-90 flex items-center gap-1 mt-1">
@@ -1392,6 +1385,11 @@ const DayPlanner = () => {
                               </div>
                             </div>
                             <div className="flex items-start gap-1 flex-shrink-0">
+                              {isVeryShort && (
+                                <div className="text-xs opacity-75 whitespace-nowrap mr-1 mt-0.5">
+                                  {task.startTime} • {task.duration}min
+                                </div>
+                              )}
                               <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
                                 className="hover:bg-white/20 rounded p-1 transition-colors relative"
@@ -1423,14 +1421,14 @@ const DayPlanner = () => {
                               </button>
                             </div>
                           </div>
-                          {/* Resize handle at bottom */}
+                          {/* Resize handle at bottom - solid white for visibility */}
                           {!isVeryShort && (
                             <div
                               onMouseDown={(e) => handleResizeStart(task, e)}
                               className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
                               style={{ marginBottom: '-4px' }}
                             >
-                              <div className="w-8 h-1 bg-white/50 rounded-full"></div>
+                              <div className="w-8 h-1 bg-white rounded-full"></div>
                             </div>
                           )}
                         </div>
