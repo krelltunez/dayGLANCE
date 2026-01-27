@@ -1168,7 +1168,7 @@ const DayPlanner = () => {
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
                 className="relative overflow-y-auto"
-                style-{{ maxHeight: 'calc(100vh-300px)' }}
+                style={{ maxHeight: 'calc(100vh-300px)' }}
               >
                 {hours.map((hour) => (
                   <div key={hour} className={`flex border-b ${borderClass}`}>
