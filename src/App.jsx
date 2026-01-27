@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -18,6 +18,7 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
@@ -116,33 +117,51 @@ const DayPlanner = () => {
 
   const fetchWeather = async () => {
     try {
-      // Using wttr.in for free weather data (no API key needed)
-      const response = await fetch('https://wttr.in/Denver?format=j1');
+      // Using Open-Meteo API (free, no API key needed)
+      // Denver coordinates: 39.7392, -104.9903
+      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.7392&longitude=-104.9903&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=1');
       const data = await response.json();
       
-      const current = data.current_condition[0];
-      const today = data.weather[0];
-      
-      setWeather({
-        temp: Math.round(current.temp_F),
-        condition: current.weatherDesc[0].value,
-        icon: getWeatherIcon(current.weatherCode),
-        high: Math.round(today.maxtempF),
-        low: Math.round(today.mintempF)
-      });
+      if (data.current && data.daily) {
+        setWeather({
+          temp: Math.round(data.current.temperature_2m),
+          condition: getWeatherCondition(data.current.weather_code),
+          icon: getWeatherIcon(data.current.weather_code),
+          high: Math.round(data.daily.temperature_2m_max[0]),
+          low: Math.round(data.daily.temperature_2m_min[0])
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch weather:', error);
+      // Set a fallback so we know it tried
+      setWeather({
+        temp: '--',
+        condition: 'Unable to load',
+        icon: '🌡️',
+        high: '--',
+        low: '--'
+      });
     }
   };
 
+  const getWeatherCondition = (code) => {
+    if (code === 0) return 'Clear';
+    if ([1, 2, 3].includes(code)) return 'Partly Cloudy';
+    if ([45, 48].includes(code)) return 'Foggy';
+    if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return 'Rainy';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return 'Snowy';
+    if ([95, 96, 99].includes(code)) return 'Stormy';
+    return 'Cloudy';
+  };
+
   const getWeatherIcon = (code) => {
-    const weatherCode = parseInt(code);
-    if (weatherCode === 113) return '☀️';
-    if ([116, 119, 122].includes(weatherCode)) return '⛅';
-    if ([143, 248, 260].includes(weatherCode)) return '🌫️';
-    if ([176, 263, 266, 281, 284, 293, 296, 299, 302, 305, 308, 311, 314, 317, 320, 323, 326, 329, 332, 335, 338, 350, 353, 356, 359, 362, 365, 368, 371, 374, 377].includes(weatherCode)) return '🌧️';
-    if ([179, 182, 185, 227, 230, 317, 320, 323, 326, 329, 332, 335, 338, 350, 353, 356, 359, 362, 365, 368, 371, 374, 377, 392, 395].includes(weatherCode)) return '🌨️';
-    if ([200, 386, 389].includes(weatherCode)) return '⛈️';
+    if (code === 0) return '☀️';
+    if ([1, 2].includes(code)) return '⛅';
+    if (code === 3) return '☁️';
+    if ([45, 48].includes(code)) return '🌫️';
+    if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return '🌧️';
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return '🌨️';
+    if ([95, 96, 99].includes(code)) return '⛈️';
     return '☁️';
   };
 
@@ -222,7 +241,8 @@ const DayPlanner = () => {
         title: newTask.title,
         duration: newTask.duration,
         color: newTask.color || colors[0].class,
-        completed: false
+        completed: false,
+        isAllDay: newTask.isAllDay || false
       };
 
       if (toInbox) {
@@ -230,12 +250,12 @@ const DayPlanner = () => {
       } else {
         setTasks([...tasks, {
           ...task,
-          startTime: newTask.startTime,
+          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
           date: newTask.date || dateToString(selectedDate)
         }]);
       }
       
-      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 60, date: dateToString(selectedDate) });
+      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 60, date: dateToString(selectedDate), isAllDay: false });
       setShowAddTask(false);
     }
   };
@@ -294,9 +314,46 @@ const DayPlanner = () => {
       title: '', 
       startTime: getNextQuarterHour(), 
       duration: 60,
-      date: dateToString(selectedDate)
+      date: dateToString(selectedDate),
+      isAllDay: false
     });
     setShowAddTask(true);
+  };
+
+  const openNewInboxTask = () => {
+    setNewTask({ 
+      title: '', 
+      startTime: getNextQuarterHour(), 
+      duration: 60,
+      date: dateToString(selectedDate),
+      isAllDay: false,
+      openInInbox: true
+    });
+    setShowAddTask(true);
+  };
+
+  const openNewTaskAtTime = (e) => {
+    // Only trigger if clicking on the empty calendar area, not on tasks
+    if (e.target.classList.contains('calendar-slot')) {
+      const rect = calendarRef.current.getBoundingClientRect();
+      const scrollTop = calendarRef.current.scrollTop;
+      const y = e.clientY - rect.top + scrollTop;
+      
+      const totalMinutesFromTop = (y / 80) * 60;
+      const hours = Math.floor(totalMinutesFromTop / 60) + 7;
+      const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
+      const totalMinutes = Math.max(7 * 60, Math.min(23 * 60 - 60, hours * 60 + minutes));
+      const clickedTime = minutesToTime(totalMinutes);
+      
+      setNewTask({ 
+        title: '', 
+        startTime: clickedTime, 
+        duration: 60,
+        date: dateToString(selectedDate),
+        isAllDay: false
+      });
+      setShowAddTask(true);
+    }
   };
 
   const calculateTaskPosition = (task) => {
@@ -311,12 +368,25 @@ const DayPlanner = () => {
   const handleDragStart = (task, source, e) => {
     setDraggedTask(task);
     setDragSource(source);
+    setDragPreviewTime(null);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    
+    // Show preview time while dragging
+    if (draggedTask && e.currentTarget === calendarRef.current) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const scrollTop = e.currentTarget.scrollTop;
+      const y = e.clientY - rect.top + scrollTop;
+      const totalMinutesFromTop = (y / 80) * 60;
+      const hours = Math.floor(totalMinutesFromTop / 60) + 7;
+      const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
+      const totalMinutes = Math.max(7 * 60, Math.min(23 * 60 - draggedTask.duration, hours * 60 + minutes));
+      setDragPreviewTime(minutesToTime(totalMinutes));
+    }
   };
 
   const handleDropOnCalendar = (e) => {
@@ -358,6 +428,7 @@ const DayPlanner = () => {
 
     setDraggedTask(null);
     setDragSource(null);
+    setDragPreviewTime(null);
   };
 
   const handleDropOnInbox = (e) => {
@@ -370,6 +441,7 @@ const DayPlanner = () => {
     
     setDraggedTask(null);
     setDragSource(null);
+    setDragPreviewTime(null);
   };
 
   const handleResizeStart = (task, e) => {
@@ -684,7 +756,7 @@ const DayPlanner = () => {
       <div className={`${cardBg} border-b ${borderClass} px-6 py-4`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className={`text-2xl font-bold ${textPrimary}`}>Hey Jason, here's what your day looks like.</h1>
+            <h1 className={`text-2xl font-bold ${textPrimary}`}>Here's what your day looks like!</h1>
             <div className="flex items-center gap-6 mt-2">
               <div className="flex items-center gap-2">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
@@ -713,13 +785,6 @@ const DayPlanner = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={openNewTaskForm}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mr-4"
-            >
-              <Plus size={18} />
-              New Task
-            </button>
             <button
               onClick={() => setShowSyncSettings(!showSyncSettings)}
               className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
@@ -783,6 +848,25 @@ const DayPlanner = () => {
 
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-3">
+            <div className={`flex gap-2 mb-4`}>
+              <button
+                onClick={openNewTaskForm}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="New Scheduled Task"
+              >
+                <CalendarPlus size={18} />
+                <span className="font-medium">Schedule</span>
+              </button>
+              <button
+                onClick={openNewInboxTask}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                title="Add to Inbox"
+              >
+                <Plus size={18} />
+                <span className="font-medium">Inbox</span>
+              </button>
+            </div>
+
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
@@ -822,31 +906,49 @@ const DayPlanner = () => {
                         </div>
                       )}
                       <div className="flex items-start justify-between text-white">
-                        <div className="flex items-start gap-2 flex-1">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
                           <button
                             onClick={() => toggleComplete(task.id, true)}
-                            className={`mt-0.5 rounded ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-5 h-5 flex items-center justify-center hover:bg-white/30 transition-colors flex-shrink-0`}
+                            className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                           >
-                            {task.completed && <Check size={14} strokeWidth={3} />}
+                            {task.completed && <Check size={10} strokeWidth={3} />}
                           </button>
-                          <button
-                            onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                            className="mt-0.5 hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                          >
-                            <Palette size={14} />
-                          </button>
-                          <GripVertical size={16} className="mt-0.5 opacity-70 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
                             <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => deleteTask(task.id, true)}
-                          className="hover:bg-white/20 rounded p-1 flex-shrink-0"
-                        >
-                          <X size={14} />
-                        </button>
+                        <div className="flex items-start gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                            className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                          >
+                            <Palette size={14} />
+                            {showColorPicker === task.id && (
+                              <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
+                                <div className="grid grid-cols-3 gap-1">
+                                  {colors.map((color) => (
+                                    <button
+                                      key={color.class}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        changeTaskColor(task.id, color.class, true);
+                                      }}
+                                      className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                      title={color.name}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => deleteTask(task.id, true)}
+                            className="hover:bg-white/20 rounded p-1"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -918,25 +1020,80 @@ const DayPlanner = () => {
                     onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                   />
-                  <div className="grid grid-cols-5 gap-3">
+                  <div className="grid grid-cols-6 gap-3">
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
                       <button
                         onClick={() => setShowDatePicker(true)}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                       >
-                        {new Date(newTask.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
                       </button>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Start Time</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
                       <button
-                        onClick={() => setShowTimePicker(true)}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                        onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
+                        disabled={newTask.isAllDay}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {newTask.startTime}
+                        {newTask.isAllDay ? 'All Day' : newTask.startTime}
                       </button>
                     </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                      <select
+                        value={newTask.duration}
+                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                        disabled={newTask.isAllDay}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {durationOptions.map(minutes => (
+                          <option key={minutes} value={minutes}>
+                            {minutes} min
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowColorPicker('newTask')}
+                          className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
+                        />
+                        {showColorPicker === 'newTask' && (
+                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass}`}>
+                            <div className="grid grid-cols-3 gap-1">
+                              {colors.map((color) => (
+                                <button
+                                  key={color.class}
+                                  onClick={() => {
+                                    setNewTask({ ...newTask, color: color.class });
+                                    setShowColorPicker(null);
+                                  }}
+                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                  title={color.name}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <label className={`block text-sm ${textSecondary} mb-1`}>All Day Event</label>
+                      <label className="flex items-center h-10 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newTask.isAllDay}
+                          onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className={`ml-2 text-sm ${textPrimary}`}>Full day reminder</span>
+                      </label>
+                    </div>
+                  </div>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
                       <select
@@ -980,17 +1137,19 @@ const DayPlanner = () => {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => addTask(false)}
+                      onClick={() => addTask(newTask.openInInbox || false)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
-                      Add to Schedule
+                      {newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
                     </button>
-                    <button
-                      onClick={() => addTask(true)}
-                      className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
-                    >
-                      Add to Inbox
-                    </button>
+                    {!newTask.openInInbox && (
+                      <button
+                        onClick={() => addTask(true)}
+                        className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+                      >
+                        Add to Inbox
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowAddTask(false)}
                       className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
@@ -1007,6 +1166,7 @@ const DayPlanner = () => {
                 ref={calendarRef}
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnCalendar}
+                onClick={openNewTaskAtTime}
                 className="relative overflow-y-auto max-h-[calc(100vh-300px)]"
               >
                 {hours.map((hour) => (
@@ -1014,7 +1174,7 @@ const DayPlanner = () => {
                     <div className={`w-20 flex-shrink-0 py-2 px-3 text-sm ${textSecondary} border-r ${borderClass}`}>
                       {hour.toString().padStart(2, '0')}:00
                     </div>
-                    <div className="flex-1 relative h-20"></div>
+                    <div className="flex-1 relative h-20 calendar-slot"></div>
                   </div>
                 ))}
 
@@ -1036,7 +1196,64 @@ const DayPlanner = () => {
                     const { top, height } = calculateTaskPosition(task);
                     const isConflicted = conflicts.some(c => c.includes(task.id));
                     const conflictPos = calculateConflictPosition(task, todayTasks);
-                    const isShort = height < 60;
+                    const isVeryShort = height < 50;
+                    
+                    // All-day events appear at the top
+                    if (task.isAllDay) {
+                      return (
+                        <div
+                          key={task.id}
+                          className={`absolute left-2 right-2 ${task.color} rounded-lg shadow-md pointer-events-auto px-3 py-2 ${task.completed ? 'opacity-50' : ''}`}
+                          style={{ top: '-40px', height: '32px' }}
+                        >
+                          <div className="flex items-center justify-between text-white h-full">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleComplete(task.id)}
+                                className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                              >
+                                {task.completed && <Check size={10} strokeWidth={3} />}
+                              </button>
+                              <Calendar size={14} className="flex-shrink-0" />
+                              <div className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}>
+                                {task.title}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                              >
+                                <Palette size={14} />
+                                {showColorPicker === task.id && (
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {colors.map((color) => (
+                                        <button
+                                          key={color.class}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            changeTaskColor(task.id, color.class, false);
+                                          }}
+                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                          title={color.name}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => deleteTask(task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
                     
                     return (
                       <div
@@ -1053,41 +1270,27 @@ const DayPlanner = () => {
                           width: conflictPos.width
                         }}
                       >
-                        {showColorPicker === task.id && (
-                          <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
-                            <div className="grid grid-cols-3 gap-1">
-                              {colors.map((color) => (
-                                <button
-                                  key={color.class}
-                                  onClick={() => changeTaskColor(task.id, color.class, false)}
-                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                  title={color.name}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div className={`p-2 h-full flex flex-col text-white ${isShort ? 'justify-center' : 'justify-between'}`}>
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="flex items-start gap-1 flex-1 min-w-0">
+                        <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
                               <button
                                 onClick={() => toggleComplete(task.id)}
-                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-5 h-5 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                               >
-                                {task.completed && <Check size={14} strokeWidth={3} />}
+                                {task.completed && <Check size={10} strokeWidth={3} />}
                               </button>
-                              <button
-                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                className="mt-0.5 hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                              >
-                                <Palette size={14} />
-                              </button>
-                              <GripVertical size={16} className="flex-shrink-0 mt-0.5 opacity-70" />
                               <div className="flex-1 min-w-0">
-                                <div className={`font-semibold text-sm leading-tight ${task.completed ? 'line-through' : ''} ${isShort ? 'truncate' : ''}`}>
-                                  {task.title}
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <div className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''} ${isVeryShort ? 'truncate' : ''}`}>
+                                    {task.title}
+                                  </div>
+                                  {isVeryShort && (
+                                    <div className="text-xs opacity-75 whitespace-nowrap flex-shrink-0">
+                                      {task.startTime} • {task.duration}min
+                                    </div>
+                                  )}
                                 </div>
-                                {!isShort && (
+                                {!isVeryShort && (
                                   <div className="text-xs opacity-90 flex items-center gap-1 mt-1">
                                     <Clock size={12} />
                                     {task.startTime} • {task.duration}min
@@ -1095,20 +1298,40 @@ const DayPlanner = () => {
                                 )}
                               </div>
                             </div>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="flex-shrink-0 hover:bg-white/20 rounded p-1 transition-colors"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                          {isShort && (
-                            <div className="text-xs opacity-75 mt-1 whitespace-nowrap">
-                              {task.startTime} • {task.duration}min
+                            <div className="flex items-start gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                              >
+                                <Palette size={14} />
+                                {showColorPicker === task.id && (
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {colors.map((color) => (
+                                        <button
+                                          key={color.class}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            changeTaskColor(task.id, color.class, false);
+                                          }}
+                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                          title={color.name}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => deleteTask(task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
                             </div>
-                          )}
+                          </div>
                           {/* Resize handle at bottom */}
-                          {!isShort && (
+                          {!isVeryShort && (
                             <div
                               onMouseDown={(e) => handleResizeStart(task, e)}
                               className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
@@ -1121,6 +1344,19 @@ const DayPlanner = () => {
                       </div>
                     );
                   })}
+                  
+                  {/* Drag preview */}
+                  {dragPreviewTime && draggedTask && (
+                    <div className="absolute left-2 right-2 bg-blue-500/30 border-2 border-blue-500 border-dashed rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none"
+                      style={{
+                        top: `${((timeToMinutes(dragPreviewTime) - 7 * 60) / 60) * 80}px`,
+                        height: `${(draggedTask.duration / 60) * 80}px`,
+                        minHeight: '40px'
+                      }}
+                    >
+                      {dragPreviewTime}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
