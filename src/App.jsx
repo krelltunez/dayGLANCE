@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2 } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3 } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -1457,7 +1457,10 @@ const DayPlanner = () => {
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
               <div className="flex items-center justify-between mb-2">
-                <h3 className={`font-semibold ${textPrimary}`}>Daily Summary</h3>
+                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
+                  <BarChart3 size={18} />
+                  Daily Summary
+                </h3>
                 <button
                   onClick={() => toggleSection('dailySummary')}
                   className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -1477,7 +1480,10 @@ const DayPlanner = () => {
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className={`font-semibold ${textPrimary}`}>All Time Summary</h3>
+                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
+                  <BarChart3 size={18} />
+                  All Time Summary
+                </h3>
                 <button
                   onClick={() => toggleSection('allTimeSummary')}
                   className={`${textSecondary} hover:${textPrimary} transition-colors`}
