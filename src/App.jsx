@@ -64,7 +64,7 @@ const DayPlanner = () => {
     if (isToday && calendarRef.current) {
       setTimeout(() => {
         const currentHour = new Date().getHours();
-        const scrollPosition = Math.max(0, (currentHour - 4) * 80); // Scroll to 4 hours before current time
+        const scrollPosition = Math.max(0, (currentHour - 4) * 160); // Scroll to 4 hours before current time
         calendarRef.current.scrollTop = scrollPosition;
       }, 100);
     }
@@ -259,17 +259,22 @@ const DayPlanner = () => {
     try {
       // Using GNews API for real news headlines (browser-friendly, no CORS issues)
       const API_KEY = '986dcee6f5e6dcefb4665a5cc090d20a';
-      const response = await fetch(`https://gnews.io/api/v4/top-headlines?country=us&max=3&apikey=${API_KEY}`);
-      const data = await response.json();
+      const url = `https://gnews.io/api/v4/top-headlines?country=us&max=3&apikey=${API_KEY}`;
       
-      console.log('GNews API response:', data); // Debug logging
+      console.log('Fetching news from:', url);
+      const response = await fetch(url);
+      console.log('News response status:', response.status);
+      
+      const data = await response.json();
+      console.log('GNews API full response:', data);
       
       if (data.errors) {
         console.error('GNews API error:', data.errors);
-        throw new Error(data.errors);
+        throw new Error(JSON.stringify(data.errors));
       }
       
       if (data.articles && data.articles.length > 0) {
+        console.log('Successfully got', data.articles.length, 'articles');
         setNews(data.articles.slice(0, 3).map(article => ({
           title: article.title
         })));
@@ -277,7 +282,7 @@ const DayPlanner = () => {
       }
       
       // Fallback if API fails
-      console.warn('No articles returned from GNews API, using fallback');
+      console.warn('No articles returned from GNews API, using fallback. Response was:', data);
       setNews([
         { title: 'News not available at this time' },
         { title: 'News not available at this time' },
@@ -510,7 +515,7 @@ const DayPlanner = () => {
       const scrollTop = calendarRef.current.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
       
-      const totalMinutesFromTop = (y / 80) * 60;
+      const totalMinutesFromTop = (y / 160) * 60;
       const clickHours = Math.floor(totalMinutesFromTop / 60);
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
       const totalMinutes = Math.max(0, Math.min(23 * 60 + 45, clickHours * 60 + minutes));
@@ -531,8 +536,8 @@ const DayPlanner = () => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
     const minutesIntoHour = startMinutes % 60;
-    const top = startHour * 80 + (minutesIntoHour / 60) * 80;
-    const height = (task.duration / 60) * 80;
+    const top = startHour * 160 + (minutesIntoHour / 60) * 160;
+    const height = (task.duration / 60) * 160;
     return { top, height };
   };
 
@@ -552,7 +557,7 @@ const DayPlanner = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = e.currentTarget.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
-      const totalMinutesFromTop = (y / 80) * 60;
+      const totalMinutesFromTop = (y / 160) * 60;
       const dragHours = Math.floor(totalMinutesFromTop / 60);
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
       const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dragHours * 60 + minutes));
@@ -574,7 +579,7 @@ const DayPlanner = () => {
     const y = e.clientY - rect.top + scrollTop;
     
     // Calculate the time based on pixel position
-    const totalMinutesFromTop = (y / 80) * 60;
+    const totalMinutesFromTop = (y / 160) * 60;
     const dropHours = Math.floor(totalMinutesFromTop / 60);
     const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15; // Round to 15 min
     
@@ -1037,7 +1042,7 @@ const DayPlanner = () => {
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-  const currentTimeTop = (currentTime.getHours() * 80) + ((currentTime.getMinutes() / 60) * 80);
+  const currentTimeTop = (currentTime.getHours() * 160) + ((currentTime.getMinutes() / 60) * 160);
   const showCurrentTimeLine = isToday;
 
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
@@ -1528,11 +1533,21 @@ const DayPlanner = () => {
                 style={{ height: '640px' }}
               >
                 {hours.map((hour) => (
-                  <div key={hour} className={`flex border-b ${borderClass}`}>
-                    <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-start pt-2`}>
-                      {hour.toString().padStart(2, '0')}:00
+                  <div key={hour} className="relative">
+                    {/* Main hour row with solid border */}
+                    <div className={`flex border-b ${borderClass}`}>
+                      <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-start pt-2`}>
+                        {hour.toString().padStart(2, '0')}:00
+                      </div>
+                      <div className="flex-1 relative h-40 calendar-slot"></div>
                     </div>
-                    <div className="flex-1 relative h-20 calendar-slot"></div>
+                    {/* Half-hour dashed line (no label) */}
+                    <div className="absolute left-0 right-0 pointer-events-none" style={{ top: '80px' }}>
+                      <div className={`flex border-b border-dashed ${borderClass} opacity-50`}>
+                        <div className="w-20 flex-shrink-0"></div>
+                        <div className="flex-1"></div>
+                      </div>
+                    </div>
                   </div>
                 ))}
 
@@ -1641,8 +1656,8 @@ const DayPlanner = () => {
                   {dragPreviewTime && draggedTask && (
                     <div className="absolute left-2 right-2 bg-blue-500/30 border-2 border-blue-500 border-dashed rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
                       style={{
-                        top: `${(timeToMinutes(dragPreviewTime) / 60) * 80}px`,
-                        height: `${(draggedTask.duration / 60) * 80}px`,
+                        top: `${(timeToMinutes(dragPreviewTime) / 60) * 160}px`,
+                        height: `${(draggedTask.duration / 60) * 160}px`,
                         minHeight: '40px'
                       }}
                     >
