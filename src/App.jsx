@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2 } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -13,6 +13,7 @@ const DayPlanner = () => {
   });
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
+  const [recycleBin, setRecycleBin] = useState([]);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
   const [draggedTask, setDraggedTask] = useState(null);
@@ -21,6 +22,16 @@ const DayPlanner = () => {
   const [ignoredConflicts, setIgnoredConflicts] = useState(() => {
     const saved = localStorage.getItem('ignoredConflicts');
     return saved ? JSON.parse(saved) : [];
+  });
+  const [minimizedSections, setMinimizedSections] = useState(() => {
+    const saved = localStorage.getItem('minimizedSections');
+    return saved ? JSON.parse(saved) : {
+      inbox: false,
+      conflicts: false,
+      dailySummary: false,
+      allTimeSummary: false,
+      recycleBin: false
+    };
   });
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
@@ -67,6 +78,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('ignoredConflicts', JSON.stringify(ignoredConflicts));
   }, [ignoredConflicts]);
+
+  // Persist minimizedSections to localStorage
+  useEffect(() => {
+    localStorage.setItem('minimizedSections', JSON.stringify(minimizedSections));
+  }, [minimizedSections]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -407,6 +423,13 @@ const DayPlanner = () => {
     });
   };
 
+  const toggleSection = (sectionName) => {
+    setMinimizedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
+
   const calculateConflictPosition = (task, allTasks) => {
     const conflicting = getConflictingTasks(task, allTasks);
     if (conflicting.length === 0) return { left: 2, right: 2, width: null };
@@ -476,11 +499,24 @@ const DayPlanner = () => {
     }
   };
 
-  const deleteTask = (id, fromInbox = false) => {
-    if (fromInbox) {
-      setUnscheduledTasks(unscheduledTasks.filter(task => task.id !== id));
-    } else {
-      setTasks(tasks.filter(task => task.id !== id));
+  const moveToRecycleBin = (id, fromInbox = false) => {
+    const task = fromInbox 
+      ? unscheduledTasks.find(t => t.id === id)
+      : tasks.find(t => t.id === id);
+    
+    if (task) {
+      setRecycleBin([...recycleBin, task]);
+      if (fromInbox) {
+        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== id));
+      } else {
+        setTasks(tasks.filter(t => t.id !== id));
+      }
+    }
+  };
+
+  const emptyRecycleBin = () => {
+    if (window.confirm('Are you sure you want to permanently delete all tasks in the recycle bin?')) {
+      setRecycleBin([]);
     }
   };
 
@@ -645,6 +681,25 @@ const DayPlanner = () => {
     setTasks(tasks.filter(t => t.id !== draggedTask.id));
     const { startTime, date, ...taskWithoutSchedule } = draggedTask;
     setUnscheduledTasks([...unscheduledTasks, taskWithoutSchedule]);
+    
+    setDraggedTask(null);
+    setDragSource(null);
+    setDragPreviewTime(null);
+  };
+
+  const handleDropOnRecycleBin = (e) => {
+    e.preventDefault();
+    if (!draggedTask) return;
+
+    // Add to recycle bin
+    setRecycleBin([...recycleBin, draggedTask]);
+    
+    // Remove from original location
+    if (dragSource === 'inbox') {
+      setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+    } else if (dragSource === 'calendar') {
+      setTasks(tasks.filter(t => t.id !== draggedTask.id));
+    }
     
     setDraggedTask(null);
     setDragSource(null);
@@ -1236,18 +1291,28 @@ const DayPlanner = () => {
                   <Inbox size={18} />
                   Inbox
                 </h3>
-                <span className={`text-sm ${textSecondary}`}>{unscheduledTasks.length}</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${textSecondary}`}>{unscheduledTasks.length}</span>
+                  <button
+                    onClick={() => toggleSection('inbox')}
+                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                    title={minimizedSections.inbox ? "Expand" : "Minimize"}
+                  >
+                    {minimizedSections.inbox ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                  </button>
+                </div>
               </div>
               
-              <div
-                onDragOver={handleDragOver}
-                onDrop={handleDropOnInbox}
-                className={`space-y-2 ${unscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
-              >
-                {unscheduledTasks.length === 0 ? (
-                  <p className={`text-sm ${textSecondary} text-center`}>Drag tasks here to unschedule them</p>
-                ) : (
-                  unscheduledTasks.map(task => (
+              {!minimizedSections.inbox && (
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={handleDropOnInbox}
+                  className={`space-y-2 ${unscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
+                >
+                  {unscheduledTasks.length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center`}>Drag tasks here to unschedule them</p>
+                  ) : (
+                    unscheduledTasks.map(task => (
                     <div
                       key={task.id}
                       draggable
@@ -1295,65 +1360,159 @@ const DayPlanner = () => {
                             )}
                           </button>
                           <button
-                            onClick={() => deleteTask(task.id, true)}
+                            onClick={() => moveToRecycleBin(task.id, true)}
                             className="hover:bg-white/20 rounded p-1"
+                            title="Move to Recycle Bin"
                           >
-                            <X size={14} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
                     </div>
                   ))
                 )}
-              </div>
+                </div>
+              )}
             </div>
 
             {hasConflicts && (
               <div className={`${cardBg} rounded-lg shadow-sm border border-orange-500 p-4 mt-4`}>
-                <div className="flex items-start gap-2 text-orange-600">
-                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <div className="font-semibold text-sm mb-2">Time Conflicts</div>
-                    <div className="space-y-2">
-                      {conflicts.map((conflict, index) => (
-                        <div key={index} className="flex items-center justify-between text-xs">
-                          <span>Conflict at {minutesToTime(conflict[2])}</span>
-                          <button
-                            onClick={() => ignoreConflict(conflict)}
-                            className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200 rounded hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
-                          >
-                            Ignore
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-start gap-2 text-orange-600">
+                    <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+                    <div className="font-semibold text-sm">Time Conflicts</div>
                   </div>
+                  <button
+                    onClick={() => toggleSection('conflicts')}
+                    className={`text-orange-600 hover:text-orange-700 transition-colors`}
+                    title={minimizedSections.conflicts ? "Expand" : "Minimize"}
+                  >
+                    {minimizedSections.conflicts ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                  </button>
                 </div>
+                {!minimizedSections.conflicts && (
+                  <div className="space-y-2 text-orange-600">
+                    {conflicts.map((conflict, index) => (
+                      <div key={index} className="flex items-center justify-between text-xs">
+                        <span>Conflict at {minutesToTime(conflict[2])}</span>
+                        <button
+                          onClick={() => ignoreConflict(conflict)}
+                          className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200 rounded hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
+                        >
+                          Ignore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <h3 className={`font-semibold ${textPrimary} mb-2`}>Daily Summary</h3>
-              <div className={`text-sm ${textSecondary} space-y-1`}>
-                <div>{todayTasks.length} tasks scheduled</div>
-                <div>{todayTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
-                <div>{unscheduledTasks.length} tasks in inbox</div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className={`font-semibold ${textPrimary}`}>Daily Summary</h3>
+                <button
+                  onClick={() => toggleSection('dailySummary')}
+                  className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                  title={minimizedSections.dailySummary ? "Expand" : "Minimize"}
+                >
+                  {minimizedSections.dailySummary ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
               </div>
+              {!minimizedSections.dailySummary && (
+                <div className={`text-sm ${textSecondary} space-y-1`}>
+                    <div>{todayTasks.length} tasks scheduled</div>
+                  <div>{todayTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
+                  <div>{unscheduledTasks.length} tasks in inbox</div>
+                </div>
+              )}
             </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <h3 className={`font-semibold ${textPrimary} mb-3`}>All Time Summary</h3>
-              <div className={`text-sm ${textSecondary} space-y-1`}>
-                <div>{tasks.length} total tasks</div>
-                <div>{allCompletedTasks.length} completed</div>
-                <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
-                <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m total planned</div>
-                {tasks.length > 0 && (
-                  <div className="pt-1">
-                    <div className="font-semibold">{Math.round((allCompletedTasks.length / tasks.length) * 100)}% completion rate</div>
-                  </div>
-                )}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className={`font-semibold ${textPrimary}`}>All Time Summary</h3>
+                <button
+                  onClick={() => toggleSection('allTimeSummary')}
+                  className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                  title={minimizedSections.allTimeSummary ? "Expand" : "Minimize"}
+                >
+                  {minimizedSections.allTimeSummary ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </button>
               </div>
+              {!minimizedSections.allTimeSummary && (
+                <div className={`text-sm ${textSecondary} space-y-1`}>
+                  <div>{tasks.length} total tasks</div>
+                  <div>{allCompletedTasks.length} completed</div>
+                  <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
+                  <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m total planned</div>
+                  {tasks.length > 0 && (
+                    <div className="pt-1">
+                      <div className="font-semibold">{Math.round((allCompletedTasks.length / tasks.length) * 100)}% completion rate</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
+                  <Trash2 size={18} />
+                  Recycle Bin
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
+                  <button
+                    onClick={() => toggleSection('recycleBin')}
+                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                    title={minimizedSections.recycleBin ? "Expand" : "Minimize"}
+                  >
+                    {minimizedSections.recycleBin ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                  </button>
+                </div>
+              </div>
+              
+              {!minimizedSections.recycleBin && (
+                <>
+                  <div
+                    onDragOver={handleDragOver}
+                    onDrop={handleDropOnRecycleBin}
+                    className={`space-y-2 mb-3 ${recycleBin.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
+                  >
+                    {recycleBin.length === 0 ? (
+                      <p className={`text-sm ${textSecondary} text-center`}>Drag tasks here to delete them</p>
+                    ) : (
+                      recycleBin.map(task => (
+                        <div
+                          key={task.id}
+                          className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative`}
+                        >
+                          <div className="flex items-start justify-between text-white">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{task.title}</div>
+                                {task.startTime && (
+                                  <div className="text-xs opacity-75 mt-1">
+                                    {task.startTime} • {task.duration}min
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {recycleBin.length > 0 && (
+                    <button
+                      onClick={emptyRecycleBin}
+                      className={`w-full px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium`}
+                    >
+                      Empty Recycle Bin
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -1527,10 +1686,11 @@ const DayPlanner = () => {
                                 )}
                               </button>
                               <button
-                                onClick={() => deleteTask(task.id)}
+                                onClick={() => moveToRecycleBin(task.id)}
                                 className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Move to Recycle Bin"
                               >
-                                <X size={14} />
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </div>
@@ -1646,10 +1806,11 @@ const DayPlanner = () => {
                                 )}
                               </button>
                               <button
-                                onClick={() => deleteTask(task.id)}
+                                onClick={() => moveToRecycleBin(task.id)}
                                 className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Move to Recycle Bin"
                               >
-                                <X size={14} />
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </div>
