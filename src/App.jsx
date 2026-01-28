@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2 } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2 } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -107,12 +107,13 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks]);
+  }, [tasks, unscheduledTasks, recycleBin]);
 
   const loadData = () => {
     try {
       const tasksData = localStorage.getItem('day-planner-tasks');
       const unscheduledData = localStorage.getItem('day-planner-unscheduled');
+      const recycleBinData = localStorage.getItem('day-planner-recycle-bin');
       const darkModeData = localStorage.getItem('day-planner-darkmode');
       const syncUrlData = localStorage.getItem('day-planner-sync-url');
       
@@ -121,6 +122,9 @@ const DayPlanner = () => {
       }
       if (unscheduledData) {
         setUnscheduledTasks(JSON.parse(unscheduledData));
+      }
+      if (recycleBinData) {
+        setRecycleBin(JSON.parse(recycleBinData));
       }
       if (darkModeData) {
         setDarkMode(JSON.parse(darkModeData));
@@ -137,6 +141,7 @@ const DayPlanner = () => {
     try {
       localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
       localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
+      localStorage.setItem('day-planner-recycle-bin', JSON.stringify(recycleBin));
       localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
       localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
     } catch (error) {
@@ -505,12 +510,32 @@ const DayPlanner = () => {
       : tasks.find(t => t.id === id);
     
     if (task) {
-      setRecycleBin([...recycleBin, task]);
+      // Store original location with the task
+      const taskWithMeta = {
+        ...task,
+        _deletedFrom: fromInbox ? 'inbox' : 'calendar'
+      };
+      setRecycleBin([...recycleBin, taskWithMeta]);
       if (fromInbox) {
         setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== id));
       } else {
         setTasks(tasks.filter(t => t.id !== id));
       }
+    }
+  };
+
+  const undeleteTask = (id) => {
+    const task = recycleBin.find(t => t.id === id);
+    if (task) {
+      const { _deletedFrom, ...cleanTask } = task; // Remove metadata
+      
+      if (_deletedFrom === 'inbox') {
+        setUnscheduledTasks([...unscheduledTasks, cleanTask]);
+      } else {
+        setTasks([...tasks, cleanTask]);
+      }
+      
+      setRecycleBin(recycleBin.filter(t => t.id !== id));
     }
   };
 
@@ -667,6 +692,15 @@ const DayPlanner = () => {
           ? { ...t, startTime, date: dateToString(selectedDate) }
           : t
       ));
+    } else if (dragSource === 'recycleBin') {
+      // Remove metadata and add to calendar
+      const { _deletedFrom, ...cleanTask } = draggedTask;
+      setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
+      setTasks([...tasks, {
+        ...cleanTask,
+        startTime,
+        date: dateToString(selectedDate)
+      }]);
     }
 
     setDraggedTask(null);
@@ -676,11 +710,20 @@ const DayPlanner = () => {
 
   const handleDropOnInbox = (e) => {
     e.preventDefault();
-    if (!draggedTask || dragSource !== 'calendar') return;
+    if (!draggedTask) return;
+    
+    // Only allow calendar and recycle bin tasks to be moved to inbox
+    if (dragSource !== 'calendar' && dragSource !== 'recycleBin') return;
 
-    setTasks(tasks.filter(t => t.id !== draggedTask.id));
-    const { startTime, date, ...taskWithoutSchedule } = draggedTask;
-    setUnscheduledTasks([...unscheduledTasks, taskWithoutSchedule]);
+    if (dragSource === 'calendar') {
+      setTasks(tasks.filter(t => t.id !== draggedTask.id));
+      const { startTime, date, ...taskWithoutSchedule } = draggedTask;
+      setUnscheduledTasks([...unscheduledTasks, taskWithoutSchedule]);
+    } else if (dragSource === 'recycleBin') {
+      setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
+      const { _deletedFrom, startTime, date, ...taskWithoutSchedule } = draggedTask;
+      setUnscheduledTasks([...unscheduledTasks, taskWithoutSchedule]);
+    }
     
     setDraggedTask(null);
     setDragSource(null);
@@ -691,8 +734,12 @@ const DayPlanner = () => {
     e.preventDefault();
     if (!draggedTask) return;
 
-    // Add to recycle bin
-    setRecycleBin([...recycleBin, draggedTask]);
+    // Add to recycle bin with metadata about where it came from
+    const taskWithMeta = {
+      ...draggedTask,
+      _deletedFrom: dragSource === 'inbox' ? 'inbox' : 'calendar'
+    };
+    setRecycleBin([...recycleBin, taskWithMeta]);
     
     // Remove from original location
     if (dragSource === 'inbox') {
@@ -1485,7 +1532,9 @@ const DayPlanner = () => {
                       recycleBin.map(task => (
                         <div
                           key={task.id}
-                          className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative`}
+                          draggable
+                          onDragStart={(e) => handleDragStart(task, 'recycleBin', e)}
+                          className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative cursor-move`}
                         >
                           <div className="flex items-start justify-between text-white">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -1498,6 +1547,13 @@ const DayPlanner = () => {
                                 )}
                               </div>
                             </div>
+                            <button
+                              onClick={() => undeleteTask(task.id)}
+                              className="hover:bg-white/20 rounded p-1 transition-colors"
+                              title="Restore Task"
+                            >
+                              <Undo2 size={14} />
+                            </button>
                           </div>
                         </div>
                       ))
