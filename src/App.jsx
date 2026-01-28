@@ -561,9 +561,16 @@ const DayPlanner = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = e.currentTarget.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
+      
+      // Calculate total minutes from the top of the calendar
       const totalMinutesFromTop = (y / 160) * 60;
-      const dragHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
-      const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
+      
+      // Round to nearest 15 minutes FIRST, then calculate hours
+      const totalMinutesRounded = Math.round(totalMinutesFromTop / 15) * 15;
+      const hours = Math.floor(totalMinutesRounded / 60);
+      const minutes = totalMinutesRounded % 60;
+      
+      const dragHours = hours + firstHour;
       const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dragHours * 60 + minutes));
       setDragPreviewTime(minutesToTime(totalMinutes));
     }
@@ -582,10 +589,15 @@ const DayPlanner = () => {
     // Calculate position relative to the top of the scrollable content
     const y = e.clientY - rect.top + scrollTop;
     
-    // Calculate the time based on pixel position
+    // Calculate total minutes from the top of the calendar
     const totalMinutesFromTop = (y / 160) * 60;
-    const dropHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
-    const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15; // Round to 15 min
+    
+    // Round to nearest 15 minutes FIRST, then calculate hours
+    const totalMinutesRounded = Math.round(totalMinutesFromTop / 15) * 15;
+    const hours = Math.floor(totalMinutesRounded / 60);
+    const minutes = totalMinutesRounded % 60;
+    
+    const dropHours = hours + firstHour;
     
     // Ensure time is within bounds
     const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dropHours * 60 + minutes));
@@ -1533,8 +1545,8 @@ const DayPlanner = () => {
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
-                className="relative overflow-y-auto"
-                style={{ height: '640px' }}
+                className="relative overflow-hidden"
+                style={{ height: '1120px' }}
               >
                 {hours.map((hour) => (
                   <div key={hour} className="relative">
@@ -1658,15 +1670,27 @@ const DayPlanner = () => {
                   
                   {/* Drag preview - more visible with time display */}
                   {dragPreviewTime && draggedTask && (
-                    <div className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
-                      style={{
-                        top: `${((timeToMinutes(dragPreviewTime) / 60) - firstHour) * 160}px`,
-                        height: `${(draggedTask.duration / 60) * 160}px`,
-                        minHeight: '40px'
-                      }}
-                    >
-                      {dragPreviewTime}
-                    </div>
+                    <>
+                      {/* Time label above the box */}
+                      <div 
+                        className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
+                        style={{
+                          top: `${((timeToMinutes(dragPreviewTime) / 60) - firstHour) * 160 - 30}px`
+                        }}
+                      >
+                        {dragPreviewTime}
+                      </div>
+                      {/* Preview box */}
+                      <div 
+                        className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
+                        style={{
+                          top: `${((timeToMinutes(dragPreviewTime) / 60) - firstHour) * 160}px`,
+                          height: `${(draggedTask.duration / 60) * 160}px`,
+                          minHeight: '40px'
+                        }}
+                      >
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
