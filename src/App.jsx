@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus } from 'lucide-react';
 
 const DayPlanner = () => {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
@@ -15,7 +18,10 @@ const DayPlanner = () => {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
-  const [ignoredConflicts, setIgnoredConflicts] = useState([]);
+  const [ignoredConflicts, setIgnoredConflicts] = useState(() => {
+    const saved = localStorage.getItem('ignoredConflicts');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -51,6 +57,16 @@ const DayPlanner = () => {
     fetchStocks();
     fetchNews();
   }, []);
+
+  // Persist darkMode to localStorage
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
+  // Persist ignoredConflicts to localStorage
+  useEffect(() => {
+    localStorage.setItem('ignoredConflicts', JSON.stringify(ignoredConflicts));
+  }, [ignoredConflicts]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1317,7 +1333,7 @@ const DayPlanner = () => {
             )}
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <h3 className={`font-semibold ${textPrimary} mb-2`}>Today's Summary</h3>
+              <h3 className={`font-semibold ${textPrimary} mb-2`}>Daily Summary</h3>
               <div className={`text-sm ${textSecondary} space-y-1`}>
                 <div>{todayTasks.length} tasks scheduled</div>
                 <div>{todayTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
@@ -1327,29 +1343,14 @@ const DayPlanner = () => {
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
               <h3 className={`font-semibold ${textPrimary} mb-3`}>All Time Summary</h3>
-              <div className={`text-sm ${textSecondary} space-y-2`}>
-                <div className="flex justify-between">
-                  <span>Total tasks:</span>
-                  <span className={textPrimary}>{tasks.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Completed:</span>
-                  <span className={textPrimary}>{allCompletedTasks.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Time spent:</span>
-                  <span className={textPrimary}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total planned:</span>
-                  <span className={textPrimary}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
-                </div>
+              <div className={`text-sm ${textSecondary} space-y-1`}>
+                <div>{tasks.length} total tasks</div>
+                <div>{allCompletedTasks.length} completed</div>
+                <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
+                <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m total planned</div>
                 {tasks.length > 0 && (
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex justify-between font-semibold">
-                      <span>Completion:</span>
-                      <span className={textPrimary}>{Math.round((allCompletedTasks.length / tasks.length) * 100)}%</span>
-                    </div>
+                  <div className="pt-1">
+                    <div className="font-semibold">{Math.round((allCompletedTasks.length / tasks.length) * 100)}% completion rate</div>
                   </div>
                 )}
               </div>
