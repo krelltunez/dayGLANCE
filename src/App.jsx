@@ -169,8 +169,9 @@ const DayPlanner = () => {
       // Using Alpha Vantage API for real-time stock data
       const API_KEY = 'TMIZYNJ5MZP7VXCT';
       const symbols = [
-        { symbol: 'SPY', name: 'S&P 500' },
-        { symbol: 'DIA', name: 'NYSE' },
+        { symbol: 'FCNTX', name: 'FCNTX' },
+        { symbol: 'FXAIX', name: 'FXAIX' },
+        { symbol: 'QQQ', name: 'QQQ' },
         { symbol: 'NVDA', name: 'NVDA' }
       ];
       
@@ -181,7 +182,7 @@ const DayPlanner = () => {
           const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${API_KEY}`);
           const data = await response.json();
           
-          if (data['Global Quote']) {
+          if (data['Global Quote'] && data['Global Quote']['05. price']) {
             const quote = data['Global Quote'];
             const price = parseFloat(quote['05. price']);
             const change = parseFloat(quote['09. change']);
@@ -211,8 +212,9 @@ const DayPlanner = () => {
         // Fallback to demo data if API fails
         console.log('Using demo stock data - Alpha Vantage API may have failed');
         setStocks([
-          { symbol: 'S&P 500', price: '4,783.45', change: '+12.35', changePercent: '+0.26', isPositive: true },
-          { symbol: 'NYSE', price: '16,825.93', change: '+45.67', changePercent: '+0.27', isPositive: true },
+          { symbol: 'FCNTX', price: '18.45', change: '+0.12', changePercent: '+0.65', isPositive: true },
+          { symbol: 'FXAIX', price: '185.32', change: '+0.89', changePercent: '+0.48', isPositive: true },
+          { symbol: 'QQQ', price: '512.67', change: '+3.24', changePercent: '+0.64', isPositive: true },
           { symbol: 'NVDA', price: '495.22', change: '+8.15', changePercent: '+1.67', isPositive: true }
         ]);
       }
@@ -220,8 +222,9 @@ const DayPlanner = () => {
       console.error('Failed to fetch stocks:', error);
       // Demo data fallback
       setStocks([
-        { symbol: 'S&P 500', price: '4,783.45', change: '+12.35', changePercent: '+0.26', isPositive: true },
-        { symbol: 'NYSE', price: '16,825.93', change: '+45.67', changePercent: '+0.27', isPositive: true },
+        { symbol: 'FCNTX', price: '18.45', change: '+0.12', changePercent: '+0.65', isPositive: true },
+        { symbol: 'FXAIX', price: '185.32', change: '+0.89', changePercent: '+0.48', isPositive: true },
+        { symbol: 'QQQ', price: '512.67', change: '+3.24', changePercent: '+0.64', isPositive: true },
         { symbol: 'NVDA', price: '495.22', change: '+8.15', changePercent: '+1.67', isPositive: true }
       ]);
     }
@@ -1071,9 +1074,6 @@ const DayPlanner = () => {
             {/* News headlines row */}
             {news && (
               <div className={`flex items-center gap-2 mt-2`}>
-                <div className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg flex items-center gap-2`}>
-                  <span className={`text-xs font-semibold ${textSecondary}`}>📰 News</span>
-                </div>
                 <div className="flex gap-2 overflow-x-auto flex-1">
                   {news.map((item, index) => (
                     <div
@@ -1501,7 +1501,7 @@ const DayPlanner = () => {
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
                 className="relative overflow-y-auto"
-                style={{ maxHeight: 'calc(100vh - 300px)' }}
+                style={{ height: 'calc(100vh - 300px)' }}
               >
                 {hours.map((hour) => (
                   <div key={hour} className={`flex border-b ${borderClass}`}>
