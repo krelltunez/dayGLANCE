@@ -29,7 +29,17 @@ const DayPlanner = () => {
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
-  const hours = Array.from({ length: 17 }, (_, i) => i + 7);
+  // Dynamic hours: 4 hours before and 4 hours after current time (8 total)
+  const getCurrentHours = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const startHour = Math.max(0, currentHour - 4);
+    const endHour = Math.min(23, currentHour + 4);
+    const length = endHour - startHour + 1;
+    return Array.from({ length }, (_, i) => startHour + i);
+  };
+  
+  const hours = getCurrentHours();
   const colors = [
     { name: 'Blue', class: 'bg-blue-500' },
     { name: 'Purple', class: 'bg-purple-500' },
@@ -156,38 +166,29 @@ const DayPlanner = () => {
 
   const fetchStocks = async () => {
     try {
-      // Yahoo Finance API often has CORS issues in browser
-      // Using a more reliable approach with fallback data
+      // Using Alpha Vantage API for real-time stock data
+      const API_KEY = 'TMIZYNJ5MZP7VXCT';
+      const symbols = [
+        { symbol: 'SPY', name: 'S&P 500' },
+        { symbol: 'DIA', name: 'NYSE' },
+        { symbol: 'NVDA', name: 'NVDA' }
+      ];
       
-      const symbols = ['SPY', 'DIA', 'NVDA']; // SPY=S&P500, DIA=Dow Jones proxy
       const stockData = [];
       
-      // Try to fetch from Yahoo Finance
-      for (const symbol of symbols) {
+      for (const stock of symbols) {
         try {
-          const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch');
-          }
-          
+          const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${API_KEY}`);
           const data = await response.json();
           
-          if (data.chart?.result?.[0]) {
-            const result = data.chart.result[0];
-            const quote = result.meta;
-            const price = quote.regularMarketPrice;
-            const prevClose = quote.previousClose || quote.chartPreviousClose;
-            const change = price - prevClose;
-            const changePercent = (change / prevClose) * 100;
+          if (data['Global Quote']) {
+            const quote = data['Global Quote'];
+            const price = parseFloat(quote['05. price']);
+            const change = parseFloat(quote['09. change']);
+            const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
             
             stockData.push({
-              symbol: symbol === 'SPY' ? 'S&P 500' : symbol === 'DIA' ? 'NYSE' : symbol,
+              symbol: stock.name,
               price: price.toFixed(2),
               change: change.toFixed(2),
               changePercent: changePercent.toFixed(2),
@@ -195,15 +196,20 @@ const DayPlanner = () => {
             });
           }
         } catch (err) {
-          console.error(`Failed to fetch ${symbol}:`, err);
+          console.error(`Failed to fetch ${stock.symbol}:`, err);
+        }
+        
+        // Alpha Vantage rate limit: small delay between requests
+        if (stockData.length < symbols.length) {
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
       
       if (stockData.length > 0) {
         setStocks(stockData);
       } else {
-        // Fallback to demo data if API fails (common with CORS in browser)
-        console.log('Using demo stock data - Yahoo Finance API may be blocked by CORS');
+        // Fallback to demo data if API fails
+        console.log('Using demo stock data - Alpha Vantage API may have failed');
         setStocks([
           { symbol: 'S&P 500', price: '4,783.45', change: '+12.35', changePercent: '+0.26', isPositive: true },
           { symbol: 'NYSE', price: '16,825.93', change: '+45.67', changePercent: '+0.27', isPositive: true },
@@ -223,37 +229,31 @@ const DayPlanner = () => {
 
   const fetchNews = async () => {
     try {
-      // To use real news, get a free API key from https://newsapi.org
-      // Then uncomment the code below and add your API key
-      
-      /*
-      const API_KEY = 'your_api_key_here';
-      const response = await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=5&apiKey=${API_KEY}`);
+      // Using NewsAPI.org for real news headlines
+      const API_KEY = 'ff46b169dbfe4143853fb968f788de68';
+      const response = await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=3&apiKey=${API_KEY}`);
       const data = await response.json();
       
-      if (data.articles) {
-        setNews(data.articles.slice(0, 5).map(article => ({
+      if (data.articles && data.articles.length > 0) {
+        setNews(data.articles.slice(0, 3).map(article => ({
           title: article.title
         })));
         return;
       }
-      */
       
-      // Demo data - replace with real API call above
-      setTimeout(() => {
-        setNews([
-          { title: 'Markets rally on strong economic data' },
-          { title: 'Tech sector shows continued growth momentum' },
-          { title: 'Federal Reserve maintains current interest rates' },
-          { title: 'Major breakthrough in renewable energy technology' },
-          { title: 'Global trade agreements reach new milestone' }
-        ]);
-      }, 500);
+      // Fallback if API fails
+      setNews([
+        { title: 'Markets rally on strong economic data' },
+        { title: 'Tech sector shows continued growth momentum' },
+        { title: 'Federal Reserve maintains current interest rates' }
+      ]);
     } catch (error) {
       console.error('Failed to fetch news:', error);
+      // Fallback demo data
       setNews([
-        { title: 'Unable to load news headlines' },
-        { title: 'Check console for errors' }
+        { title: 'Markets rally on strong economic data' },
+        { title: 'Tech sector shows continued growth momentum' },
+        { title: 'Federal Reserve maintains current interest rates' }
       ]);
     }
   };
@@ -474,10 +474,12 @@ const DayPlanner = () => {
       const scrollTop = calendarRef.current.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
       
+      const firstHour = hours[0];
+      const lastHour = hours[hours.length - 1];
       const totalMinutesFromTop = (y / 80) * 60;
-      const hours = Math.floor(totalMinutesFromTop / 60) + 7;
+      const clickHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
-      const totalMinutes = Math.max(7 * 60, Math.min(23 * 60 - 60, hours * 60 + minutes));
+      const totalMinutes = Math.max(firstHour * 60, Math.min(lastHour * 60 + 60 - 60, clickHours * 60 + minutes));
       const clickedTime = minutesToTime(totalMinutes);
       
       setNewTask({ 
@@ -495,7 +497,8 @@ const DayPlanner = () => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
     const minutesIntoHour = startMinutes % 60;
-    const top = (startHour - 7) * 80 + (minutesIntoHour / 60) * 80;
+    const firstHour = hours[0]; // Get first hour from dynamic hours array
+    const top = (startHour - firstHour) * 80 + (minutesIntoHour / 60) * 80;
     const height = (task.duration / 60) * 80;
     return { top, height };
   };
@@ -516,10 +519,12 @@ const DayPlanner = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = e.currentTarget.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
+      const firstHour = hours[0];
+      const lastHour = hours[hours.length - 1];
       const totalMinutesFromTop = (y / 80) * 60;
-      const hours = Math.floor(totalMinutesFromTop / 60) + 7;
+      const dragHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
-      const totalMinutes = Math.max(7 * 60, Math.min(23 * 60 - draggedTask.duration, hours * 60 + minutes));
+      const totalMinutes = Math.max(firstHour * 60, Math.min((lastHour + 1) * 60 - draggedTask.duration, dragHours * 60 + minutes));
       setDragPreviewTime(minutesToTime(totalMinutes));
     }
   };
@@ -538,12 +543,14 @@ const DayPlanner = () => {
     const y = e.clientY - rect.top + scrollTop;
     
     // Calculate the time based on pixel position
+    const firstHour = hours[0];
+    const lastHour = hours[hours.length - 1];
     const totalMinutesFromTop = (y / 80) * 60;
-    const hours = Math.floor(totalMinutesFromTop / 60) + 7; // Add 7 for 7 AM offset
+    const dropHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
     const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15; // Round to 15 min
     
     // Ensure time is within bounds
-    const totalMinutes = Math.max(7 * 60, Math.min(23 * 60 - draggedTask.duration, hours * 60 + minutes));
+    const totalMinutes = Math.max(firstHour * 60, Math.min((lastHour + 1) * 60 - draggedTask.duration, dropHours * 60 + minutes));
     const startTime = minutesToTime(totalMinutes);
 
     if (dragSource === 'inbox') {
@@ -1001,8 +1008,10 @@ const DayPlanner = () => {
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-  const currentTimeTop = ((currentTime.getHours() - 7) * 80) + ((currentTime.getMinutes() / 60) * 80);
-  const showCurrentTimeLine = isToday && currentTime.getHours() >= 7 && currentTime.getHours() < 23;
+  const firstHour = hours[0];
+  const lastHour = hours[hours.length - 1];
+  const currentTimeTop = ((currentTime.getHours() - firstHour) * 80) + ((currentTime.getMinutes() / 60) * 80);
+  const showCurrentTimeLine = isToday && currentTime.getHours() >= firstHour && currentTime.getHours() <= lastHour;
 
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
@@ -1086,7 +1095,7 @@ const DayPlanner = () => {
               <RefreshCw size={18} className={textSecondary} />
               <span className={`text-sm ${textPrimary}`}>Sync</span>
             </button>
-            <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}>
+            <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
               <Upload size={18} className={textSecondary} />
               <span className={`text-sm ${textPrimary}`}>Import iCal</span>
               <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
@@ -1608,7 +1617,7 @@ const DayPlanner = () => {
                   {dragPreviewTime && draggedTask && (
                     <div className="absolute left-2 right-2 bg-blue-500/30 border-2 border-blue-500 border-dashed rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
                       style={{
-                        top: `${((timeToMinutes(dragPreviewTime) - 7 * 60) / 60) * 80}px`,
+                        top: `${((timeToMinutes(dragPreviewTime) - firstHour * 60) / 60) * 80}px`,
                         height: `${(draggedTask.duration / 60) * 80}px`,
                         minHeight: '40px'
                       }}
