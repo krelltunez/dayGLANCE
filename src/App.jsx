@@ -23,6 +23,8 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [stocks, setStocks] = useState(null);
+  const [news, setNews] = useState(null);
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
@@ -44,6 +46,8 @@ const DayPlanner = () => {
   useEffect(() => {
     loadData();
     fetchWeather(); // FIX 1: Call fetchWeather on mount
+    fetchStocks();
+    fetchNews();
   }, []);
 
   useEffect(() => {
@@ -150,6 +154,84 @@ const DayPlanner = () => {
     }
   };
 
+  const fetchStocks = async () => {
+    try {
+      // Using Yahoo Finance alternative API (free, no key needed)
+      // Note: In production, you'd want to use a proper financial API
+      const symbols = ['SPY', 'DIA', 'NVDA']; // SPY=S&P500, DIA=Dow Jones proxy
+      const stockData = [];
+      
+      for (const symbol of symbols) {
+        try {
+          const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`);
+          const data = await response.json();
+          
+          if (data.chart?.result?.[0]) {
+            const result = data.chart.result[0];
+            const quote = result.meta;
+            const price = quote.regularMarketPrice;
+            const prevClose = quote.previousClose || quote.chartPreviousClose;
+            const change = price - prevClose;
+            const changePercent = (change / prevClose) * 100;
+            
+            stockData.push({
+              symbol: symbol === 'SPY' ? 'S&P 500' : symbol === 'DIA' ? 'NYSE' : symbol,
+              price: price.toFixed(2),
+              change: change.toFixed(2),
+              changePercent: changePercent.toFixed(2),
+              isPositive: change >= 0
+            });
+          }
+        } catch (err) {
+          console.error(`Failed to fetch ${symbol}:`, err);
+        }
+      }
+      
+      if (stockData.length > 0) {
+        setStocks(stockData);
+      } else {
+        setStocks([
+          { symbol: 'S&P 500', price: '--', change: '--', changePercent: '--', isPositive: true },
+          { symbol: 'NYSE', price: '--', change: '--', changePercent: '--', isPositive: true },
+          { symbol: 'NVDA', price: '--', change: '--', changePercent: '--', isPositive: true }
+        ]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch stocks:', error);
+      setStocks([
+        { symbol: 'S&P 500', price: '--', change: '--', changePercent: '--', isPositive: true },
+        { symbol: 'NYSE', price: '--', change: '--', changePercent: '--', isPositive: true },
+        { symbol: 'NVDA', price: '--', change: '--', changePercent: '--', isPositive: true }
+      ]);
+    }
+  };
+
+  const fetchNews = async () => {
+    try {
+      // Using a news API - this is a placeholder, you may need to use a different API
+      // For demo purposes, using static data
+      // In production, use something like NewsAPI.org or similar
+      setNews([
+        { title: 'Loading news...', url: '#' },
+        { title: 'Loading news...', url: '#' }
+      ]);
+      
+      // Simulate API call
+      setTimeout(() => {
+        setNews([
+          { title: 'Markets rally on economic data', url: '#' },
+          { title: 'Tech sector shows strong growth', url: '#' }
+        ]);
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to fetch news:', error);
+      setNews([
+        { title: 'Unable to load news', url: '#' },
+        { title: 'Unable to load news', url: '#' }
+      ]);
+    }
+  };
+
   const getWeatherCondition = (code) => {
     if (code === 0) return 'Clear';
     if ([1, 2, 3].includes(code)) return 'Partly Cloudy';
@@ -183,7 +265,10 @@ const DayPlanner = () => {
   };
 
   const dateToString = (date) => {
-    return date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const checkConflicts = () => {
@@ -925,6 +1010,42 @@ const DayPlanner = () => {
                   </div>
                 </div>
               )}
+              
+              {/* Stock widgets */}
+              {stocks && (
+                <div className={`flex items-center gap-2`}>
+                  {stocks.map((stock, index) => (
+                    <div key={index} className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
+                      <div className={`text-xs font-semibold ${textPrimary}`}>{stock.symbol}</div>
+                      <div className={`text-sm font-bold ${textPrimary}`}>${stock.price}</div>
+                      <div className={`text-xs ${stock.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {stock.isPositive ? '▲' : '▼'} {stock.changePercent}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* News headlines row */}
+            {news && (
+              <div className={`flex items-center gap-2 mt-2`}>
+                <div className={`text-xs font-semibold ${textSecondary} whitespace-nowrap`}>📰 News:</div>
+                <div className="flex gap-4 overflow-hidden">
+                  {news.map((item, index) => (
+                    <a
+                      key={index}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`text-xs ${textPrimary} hover:text-blue-600 dark:hover:text-blue-400 truncate`}
+                    >
+                      {item.title}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
             </div>
           </div>
           <div className="flex items-center gap-3">
