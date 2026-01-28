@@ -159,10 +159,10 @@ const DayPlanner = () => {
       // Using Alpha Vantage API for real-time stock data
       const API_KEY = 'TMIZYNJ5MZP7VXCT';
       const symbols = [
-        { symbol: 'FCNTX', name: 'FCNTX', fallback: { price: '18.45', change: '+0.12', changePercent: '+0.65' } },
-        { symbol: 'FXAIX', name: 'FXAIX', fallback: { price: '185.32', change: '+0.89', changePercent: '+0.48' } },
-        { symbol: 'QQQ', name: 'QQQ', fallback: { price: '512.67', change: '+3.24', changePercent: '+0.64' } },
-        { symbol: 'NVDA', name: 'NVDA', fallback: { price: '495.22', change: '+8.15', changePercent: '+1.67' } }
+        { symbol: 'FCNTX', name: 'FCNTX', fallback: { price: '--', change: '--', changePercent: '--' } },
+        { symbol: 'FXAIX', name: 'FXAIX', fallback: { price: '--', change: '--', changePercent: '--' } },
+        { symbol: 'QQQ', name: 'QQQ', fallback: { price: '--', change: '--', changePercent: '--' } },
+        { symbol: 'NVDA', name: 'NVDA', fallback: { price: '--', change: '--', changePercent: '--' } }
       ];
       
       const stockData = [];
@@ -245,28 +245,28 @@ const DayPlanner = () => {
       setStocks(stockData);
     } catch (error) {
       console.error('Failed to fetch stocks:', error);
-      // Demo data fallback - all 4 stocks
+      // Show blanks on error
       setStocks([
-        { symbol: 'FCNTX', price: '18.45', change: '+0.12', changePercent: '+0.65', isPositive: true },
-        { symbol: 'FXAIX', price: '185.32', change: '+0.89', changePercent: '+0.48', isPositive: true },
-        { symbol: 'QQQ', price: '512.67', change: '+3.24', changePercent: '+0.64', isPositive: true },
-        { symbol: 'NVDA', price: '495.22', change: '+8.15', changePercent: '+1.67', isPositive: true }
+        { symbol: 'FCNTX', price: '--', change: '--', changePercent: '--', isPositive: true },
+        { symbol: 'FXAIX', price: '--', change: '--', changePercent: '--', isPositive: true },
+        { symbol: 'QQQ', price: '--', change: '--', changePercent: '--', isPositive: true },
+        { symbol: 'NVDA', price: '--', change: '--', changePercent: '--', isPositive: true }
       ]);
     }
   };
 
   const fetchNews = async () => {
     try {
-      // Using NewsAPI.org for real news headlines
-      const API_KEY = 'ff46b169dbfe4143853fb968f788de68';
-      const response = await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=3&apiKey=${API_KEY}`);
+      // Using GNews API for real news headlines (browser-friendly, no CORS issues)
+      const API_KEY = '986dcee6f5e6dcefb4665a5cc090d20a';
+      const response = await fetch(`https://gnews.io/api/v4/top-headlines?country=us&max=3&apikey=${API_KEY}`);
       const data = await response.json();
       
-      console.log('NewsAPI response:', data); // Debug logging
+      console.log('GNews API response:', data); // Debug logging
       
-      if (data.status === 'error') {
-        console.error('NewsAPI error:', data.message);
-        throw new Error(data.message);
+      if (data.errors) {
+        console.error('GNews API error:', data.errors);
+        throw new Error(data.errors);
       }
       
       if (data.articles && data.articles.length > 0) {
@@ -277,19 +277,19 @@ const DayPlanner = () => {
       }
       
       // Fallback if API fails
-      console.warn('No articles returned from NewsAPI, using fallback');
+      console.warn('No articles returned from GNews API, using fallback');
       setNews([
-        { title: 'Markets rally on strong economic data' },
-        { title: 'Tech sector shows continued growth momentum' },
-        { title: 'Federal Reserve maintains current interest rates' }
+        { title: 'News not available at this time' },
+        { title: 'News not available at this time' },
+        { title: 'News not available at this time' }
       ]);
     } catch (error) {
       console.error('Failed to fetch news:', error);
-      // Fallback demo data
+      // Fallback on error
       setNews([
-        { title: 'Markets rally on strong economic data' },
-        { title: 'Tech sector shows continued growth momentum' },
-        { title: 'Federal Reserve maintains current interest rates' }
+        { title: 'News not available at this time' },
+        { title: 'News not available at this time' },
+        { title: 'News not available at this time' }
       ]);
     }
   };
