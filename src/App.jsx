@@ -3,7 +3,11 @@ import { Plus, Clock, X, GripVertical, ChevronLeft, ChevronRight, Moon, Sun, Upl
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    return today;
+  });
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   const [showAddTask, setShowAddTask] = useState(false);
@@ -11,6 +15,7 @@ const DayPlanner = () => {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
+  const [ignoredConflicts, setIgnoredConflicts] = useState([]);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -197,12 +202,21 @@ const DayPlanner = () => {
 
         if ((start1 < end2 && end1 > start2)) {
           if (!newConflicts.find(c => c.includes(task1.id) && c.includes(task2.id))) {
-            newConflicts.push([task1.id, task2.id]);
+            const conflictKey = [task1.id, task2.id].sort().join('-');
+            // Only add if not ignored
+            if (!ignoredConflicts.includes(conflictKey)) {
+              newConflicts.push([task1.id, task2.id, Math.min(start1, start2)]); // Include conflict time
+            }
           }
         }
       }
     }
     setConflicts(newConflicts);
+  };
+
+  const ignoreConflict = (conflict) => {
+    const conflictKey = [conflict[0], conflict[1]].sort().join('-');
+    setIgnoredConflicts([...ignoredConflicts, conflictKey]);
   };
 
   const getConflictingTasks = (task, allTasks) => {
@@ -303,11 +317,14 @@ const DayPlanner = () => {
   const changeDate = (days) => {
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + days);
+    newDate.setHours(12, 0, 0, 0); // Maintain noon to avoid timezone issues
     setSelectedDate(newDate);
   };
 
   const goToToday = () => {
-    setSelectedDate(new Date());
+    const today = new Date();
+    today.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+    setSelectedDate(today);
   };
 
   const openNewTaskForm = () => {
@@ -1040,7 +1057,7 @@ const DayPlanner = () => {
                           >
                             <Palette size={14} />
                             {showColorPicker === task.id && (
-                              <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
+                              <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                 <div className="grid grid-cols-3 gap-1">
                                   {colors.map((color) => (
                                     <button
@@ -1074,10 +1091,22 @@ const DayPlanner = () => {
             {hasConflicts && (
               <div className={`${cardBg} rounded-lg shadow-sm border border-orange-500 p-4 mt-4`}>
                 <div className="flex items-start gap-2 text-orange-600">
-                  <AlertCircle size={18} className="mt-0.5" />
-                  <div>
-                    <div className="font-semibold text-sm">Time Conflicts</div>
-                    <div className="text-xs mt-1">You have {conflicts.length} overlapping task{conflicts.length > 1 ? 's' : ''}</div>
+                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm mb-2">Time Conflicts</div>
+                    <div className="space-y-2">
+                      {conflicts.map((conflict, index) => (
+                        <div key={index} className="flex items-center justify-between text-xs">
+                          <span>Conflict at {minutesToTime(conflict[2])}</span>
+                          <button
+                            onClick={() => ignoreConflict(conflict)}
+                            className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200 rounded hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
+                          >
+                            Ignore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1182,7 +1211,7 @@ const DayPlanner = () => {
                           className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
                         />
                         {showColorPicker === 'newTask' && (
-                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass}`}>
+                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass} min-w-[120px]`}>
                             <div className="grid grid-cols-3 gap-1">
                               {colors.map((color) => (
                                 <button
@@ -1275,7 +1304,7 @@ const DayPlanner = () => {
                               >
                                 <Palette size={14} />
                                 {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                     <div className="grid grid-cols-3 gap-1">
                                       {colors.map((color) => (
                                         <button
@@ -1384,7 +1413,7 @@ const DayPlanner = () => {
                               >
                                 <Palette size={14} />
                                 {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700">
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                     <div className="grid grid-cols-3 gap-1">
                                       {colors.map((color) => (
                                         <button
