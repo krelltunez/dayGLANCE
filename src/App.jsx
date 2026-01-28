@@ -1668,9 +1668,6 @@ const DayPlanner = () => {
                       {dragPreviewTime}
                     </div>
                   )}
-                      {dragPreviewTime}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
