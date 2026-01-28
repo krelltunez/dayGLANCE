@@ -29,8 +29,19 @@ const DayPlanner = () => {
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
-  // Show all 24 hours (full day)
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  // Show 7 hours: 2 before current, current hour, 4 after
+  const getVisibleHours = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const startHour = Math.max(0, currentHour - 2);
+    const endHour = Math.min(23, startHour + 6);
+    const adjustedStart = Math.max(0, endHour - 6); // Ensure we always show 7 hours
+    const length = endHour - adjustedStart + 1;
+    return Array.from({ length }, (_, i) => adjustedStart + i);
+  };
+  
+  const hours = getVisibleHours();
+  const firstHour = hours[0];
   const colors = [
     { name: 'Blue', class: 'bg-blue-500' },
     { name: 'Purple', class: 'bg-purple-500' },
@@ -60,14 +71,7 @@ const DayPlanner = () => {
   }, []);
 
   useEffect(() => {
-    const isToday = dateToString(selectedDate) === dateToString(new Date());
-    if (isToday && calendarRef.current) {
-      setTimeout(() => {
-        const currentHour = new Date().getHours();
-        const scrollPosition = Math.max(0, (currentHour - 4) * 160); // Scroll to 4 hours before current time
-        calendarRef.current.scrollTop = scrollPosition;
-      }, 100);
-    }
+    // No need to scroll - we're only showing 7 hours at a time
   }, [selectedDate]);
 
   useEffect(() => {
@@ -516,7 +520,7 @@ const DayPlanner = () => {
       const y = e.clientY - rect.top + scrollTop;
       
       const totalMinutesFromTop = (y / 160) * 60;
-      const clickHours = Math.floor(totalMinutesFromTop / 60);
+      const clickHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
       const totalMinutes = Math.max(0, Math.min(23 * 60 + 45, clickHours * 60 + minutes));
       const clickedTime = minutesToTime(totalMinutes);
@@ -536,7 +540,7 @@ const DayPlanner = () => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
     const minutesIntoHour = startMinutes % 60;
-    const top = startHour * 160 + (minutesIntoHour / 60) * 160;
+    const top = (startHour - firstHour) * 160 + (minutesIntoHour / 60) * 160;
     const height = (task.duration / 60) * 160;
     return { top, height };
   };
@@ -558,7 +562,7 @@ const DayPlanner = () => {
       const scrollTop = e.currentTarget.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
       const totalMinutesFromTop = (y / 160) * 60;
-      const dragHours = Math.floor(totalMinutesFromTop / 60);
+      const dragHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
       const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dragHours * 60 + minutes));
       setDragPreviewTime(minutesToTime(totalMinutes));
@@ -580,7 +584,7 @@ const DayPlanner = () => {
     
     // Calculate the time based on pixel position
     const totalMinutesFromTop = (y / 160) * 60;
-    const dropHours = Math.floor(totalMinutesFromTop / 60);
+    const dropHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
     const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15; // Round to 15 min
     
     // Ensure time is within bounds
@@ -1042,7 +1046,7 @@ const DayPlanner = () => {
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-  const currentTimeTop = (currentTime.getHours() * 160) + ((currentTime.getMinutes() / 60) * 160);
+  const currentTimeTop = ((currentTime.getHours() - firstHour) * 160) + ((currentTime.getMinutes() / 60) * 160);
   const showCurrentTimeLine = isToday;
 
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
@@ -1652,15 +1656,18 @@ const DayPlanner = () => {
                     );
                   })}
                   
-                  {/* Drag preview - FIX 4: Lower z-index so time indicator is visible */}
+                  {/* Drag preview - more visible with time display */}
                   {dragPreviewTime && draggedTask && (
-                    <div className="absolute left-2 right-2 bg-blue-500/30 border-2 border-blue-500 border-dashed rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
+                    <div className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
                       style={{
-                        top: `${(timeToMinutes(dragPreviewTime) / 60) * 160}px`,
+                        top: `${((timeToMinutes(dragPreviewTime) / 60) - firstHour) * 160}px`,
                         height: `${(draggedTask.duration / 60) * 160}px`,
                         minHeight: '40px'
                       }}
                     >
+                      {dragPreviewTime}
+                    </div>
+                  )}
                       {dragPreviewTime}
                     </div>
                   )}
