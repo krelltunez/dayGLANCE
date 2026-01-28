@@ -29,17 +29,8 @@ const DayPlanner = () => {
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
 
-  // Dynamic hours: 4 hours before and 4 hours after current time (8 total)
-  const getCurrentHours = () => {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const startHour = Math.max(0, currentHour - 4);
-    const endHour = Math.min(23, currentHour + 4);
-    const length = endHour - startHour + 1;
-    return Array.from({ length }, (_, i) => startHour + i);
-  };
-  
-  const hours = getCurrentHours();
+  // Show all 24 hours (full day)
+  const hours = Array.from({ length: 24 }, (_, i) => i);
   const colors = [
     { name: 'Blue', class: 'bg-blue-500' },
     { name: 'Purple', class: 'bg-purple-500' },
@@ -70,12 +61,11 @@ const DayPlanner = () => {
 
   useEffect(() => {
     const isToday = dateToString(selectedDate) === dateToString(new Date());
-    if (isToday && currentTimeRef.current) {
+    if (isToday && calendarRef.current) {
       setTimeout(() => {
-        currentTimeRef.current.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center' 
-        });
+        const currentHour = new Date().getHours();
+        const scrollPosition = Math.max(0, (currentHour - 4) * 80); // Scroll to 4 hours before current time
+        calendarRef.current.scrollTop = scrollPosition;
       }, 100);
     }
   }, [selectedDate]);
@@ -169,10 +159,10 @@ const DayPlanner = () => {
       // Using Alpha Vantage API for real-time stock data
       const API_KEY = 'TMIZYNJ5MZP7VXCT';
       const symbols = [
-        { symbol: 'FCNTX', name: 'FCNTX' },
-        { symbol: 'FXAIX', name: 'FXAIX' },
-        { symbol: 'QQQ', name: 'QQQ' },
-        { symbol: 'NVDA', name: 'NVDA' }
+        { symbol: 'FCNTX', name: 'FCNTX', fallback: { price: '18.45', change: '+0.12', changePercent: '+0.65' } },
+        { symbol: 'FXAIX', name: 'FXAIX', fallback: { price: '185.32', change: '+0.89', changePercent: '+0.48' } },
+        { symbol: 'QQQ', name: 'QQQ', fallback: { price: '512.67', change: '+3.24', changePercent: '+0.64' } },
+        { symbol: 'NVDA', name: 'NVDA', fallback: { price: '495.22', change: '+8.15', changePercent: '+1.67' } }
       ];
       
       const stockData = [];
@@ -182,45 +172,80 @@ const DayPlanner = () => {
           const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${API_KEY}`);
           const data = await response.json();
           
-          if (data['Global Quote'] && data['Global Quote']['05. price']) {
+          console.log(`Stock ${stock.symbol} response:`, data); // Debug logging
+          
+          if (data['Global Quote'] && Object.keys(data['Global Quote']).length > 0) {
             const quote = data['Global Quote'];
-            const price = parseFloat(quote['05. price']);
-            const change = parseFloat(quote['09. change']);
-            const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+            const priceStr = quote['05. price'];
+            const changeStr = quote['09. change'];
+            const changePercentStr = quote['10. change percent'];
             
+            if (priceStr && changeStr && changePercentStr) {
+              const price = parseFloat(priceStr);
+              const change = parseFloat(changeStr);
+              const changePercent = parseFloat(changePercentStr.replace('%', ''));
+              
+              stockData.push({
+                symbol: stock.name,
+                price: price.toFixed(2),
+                change: change.toFixed(2),
+                changePercent: changePercent.toFixed(2),
+                isPositive: change >= 0
+              });
+              console.log(`Successfully fetched ${stock.symbol}`);
+            } else {
+              // Use fallback for this stock
+              console.warn(`Incomplete data for ${stock.symbol}, using fallback`);
+              stockData.push({
+                symbol: stock.name,
+                price: stock.fallback.price,
+                change: stock.fallback.change,
+                changePercent: stock.fallback.changePercent,
+                isPositive: stock.fallback.change.startsWith('+')
+              });
+            }
+          } else if (data['Note']) {
+            console.warn(`API rate limit for ${stock.symbol}, using fallback`);
+            // Use fallback for this stock
             stockData.push({
               symbol: stock.name,
-              price: price.toFixed(2),
-              change: change.toFixed(2),
-              changePercent: changePercent.toFixed(2),
-              isPositive: change >= 0
+              price: stock.fallback.price,
+              change: stock.fallback.change,
+              changePercent: stock.fallback.changePercent,
+              isPositive: stock.fallback.change.startsWith('+')
+            });
+          } else {
+            // Use fallback for this stock
+            console.warn(`No data for ${stock.symbol}, using fallback`);
+            stockData.push({
+              symbol: stock.name,
+              price: stock.fallback.price,
+              change: stock.fallback.change,
+              changePercent: stock.fallback.changePercent,
+              isPositive: stock.fallback.change.startsWith('+')
             });
           }
         } catch (err) {
           console.error(`Failed to fetch ${stock.symbol}:`, err);
+          // Use fallback for this stock
+          stockData.push({
+            symbol: stock.name,
+            price: stock.fallback.price,
+            change: stock.fallback.change,
+            changePercent: stock.fallback.changePercent,
+            isPositive: stock.fallback.change.startsWith('+')
+          });
         }
         
-        // Alpha Vantage rate limit: small delay between requests
-        if (stockData.length < symbols.length) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
+        // Alpha Vantage rate limit: delay between requests
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      if (stockData.length > 0) {
-        setStocks(stockData);
-      } else {
-        // Fallback to demo data if API fails
-        console.log('Using demo stock data - Alpha Vantage API may have failed');
-        setStocks([
-          { symbol: 'FCNTX', price: '18.45', change: '+0.12', changePercent: '+0.65', isPositive: true },
-          { symbol: 'FXAIX', price: '185.32', change: '+0.89', changePercent: '+0.48', isPositive: true },
-          { symbol: 'QQQ', price: '512.67', change: '+3.24', changePercent: '+0.64', isPositive: true },
-          { symbol: 'NVDA', price: '495.22', change: '+8.15', changePercent: '+1.67', isPositive: true }
-        ]);
-      }
+      // Always set all 4 stocks
+      setStocks(stockData);
     } catch (error) {
       console.error('Failed to fetch stocks:', error);
-      // Demo data fallback
+      // Demo data fallback - all 4 stocks
       setStocks([
         { symbol: 'FCNTX', price: '18.45', change: '+0.12', changePercent: '+0.65', isPositive: true },
         { symbol: 'FXAIX', price: '185.32', change: '+0.89', changePercent: '+0.48', isPositive: true },
@@ -237,6 +262,13 @@ const DayPlanner = () => {
       const response = await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=3&apiKey=${API_KEY}`);
       const data = await response.json();
       
+      console.log('NewsAPI response:', data); // Debug logging
+      
+      if (data.status === 'error') {
+        console.error('NewsAPI error:', data.message);
+        throw new Error(data.message);
+      }
+      
       if (data.articles && data.articles.length > 0) {
         setNews(data.articles.slice(0, 3).map(article => ({
           title: article.title
@@ -245,6 +277,7 @@ const DayPlanner = () => {
       }
       
       // Fallback if API fails
+      console.warn('No articles returned from NewsAPI, using fallback');
       setNews([
         { title: 'Markets rally on strong economic data' },
         { title: 'Tech sector shows continued growth momentum' },
@@ -477,12 +510,10 @@ const DayPlanner = () => {
       const scrollTop = calendarRef.current.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
       
-      const firstHour = hours[0];
-      const lastHour = hours[hours.length - 1];
       const totalMinutesFromTop = (y / 80) * 60;
-      const clickHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
+      const clickHours = Math.floor(totalMinutesFromTop / 60);
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
-      const totalMinutes = Math.max(firstHour * 60, Math.min(lastHour * 60 + 60 - 60, clickHours * 60 + minutes));
+      const totalMinutes = Math.max(0, Math.min(23 * 60 + 45, clickHours * 60 + minutes));
       const clickedTime = minutesToTime(totalMinutes);
       
       setNewTask({ 
@@ -500,8 +531,7 @@ const DayPlanner = () => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
     const minutesIntoHour = startMinutes % 60;
-    const firstHour = hours[0]; // Get first hour from dynamic hours array
-    const top = (startHour - firstHour) * 80 + (minutesIntoHour / 60) * 80;
+    const top = startHour * 80 + (minutesIntoHour / 60) * 80;
     const height = (task.duration / 60) * 80;
     return { top, height };
   };
@@ -522,12 +552,10 @@ const DayPlanner = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = e.currentTarget.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
-      const firstHour = hours[0];
-      const lastHour = hours[hours.length - 1];
       const totalMinutesFromTop = (y / 80) * 60;
-      const dragHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
+      const dragHours = Math.floor(totalMinutesFromTop / 60);
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
-      const totalMinutes = Math.max(firstHour * 60, Math.min((lastHour + 1) * 60 - draggedTask.duration, dragHours * 60 + minutes));
+      const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dragHours * 60 + minutes));
       setDragPreviewTime(minutesToTime(totalMinutes));
     }
   };
@@ -546,14 +574,12 @@ const DayPlanner = () => {
     const y = e.clientY - rect.top + scrollTop;
     
     // Calculate the time based on pixel position
-    const firstHour = hours[0];
-    const lastHour = hours[hours.length - 1];
     const totalMinutesFromTop = (y / 80) * 60;
-    const dropHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
+    const dropHours = Math.floor(totalMinutesFromTop / 60);
     const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15; // Round to 15 min
     
     // Ensure time is within bounds
-    const totalMinutes = Math.max(firstHour * 60, Math.min((lastHour + 1) * 60 - draggedTask.duration, dropHours * 60 + minutes));
+    const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dropHours * 60 + minutes));
     const startTime = minutesToTime(totalMinutes);
 
     if (dragSource === 'inbox') {
@@ -1011,10 +1037,8 @@ const DayPlanner = () => {
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-  const firstHour = hours[0];
-  const lastHour = hours[hours.length - 1];
-  const currentTimeTop = ((currentTime.getHours() - firstHour) * 80) + ((currentTime.getMinutes() / 60) * 80);
-  const showCurrentTimeLine = isToday && currentTime.getHours() >= firstHour && currentTime.getHours() <= lastHour;
+  const currentTimeTop = (currentTime.getHours() * 80) + ((currentTime.getMinutes() / 60) * 80);
+  const showCurrentTimeLine = isToday;
 
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
@@ -1501,11 +1525,11 @@ const DayPlanner = () => {
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
                 className="relative overflow-y-auto"
-                style={{ height: 'calc(100vh - 300px)' }}
+                style={{ height: '640px' }}
               >
                 {hours.map((hour) => (
                   <div key={hour} className={`flex border-b ${borderClass}`}>
-                    <div className={`w-20 flex-shrink-0 py-2 px-3 text-sm ${textSecondary} border-r ${borderClass}`}>
+                    <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-start pt-2`}>
                       {hour.toString().padStart(2, '0')}:00
                     </div>
                     <div className="flex-1 relative h-20 calendar-slot"></div>
@@ -1617,7 +1641,7 @@ const DayPlanner = () => {
                   {dragPreviewTime && draggedTask && (
                     <div className="absolute left-2 right-2 bg-blue-500/30 border-2 border-blue-500 border-dashed rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
                       style={{
-                        top: `${((timeToMinutes(dragPreviewTime) - firstHour * 60) / 60) * 80}px`,
+                        top: `${(timeToMinutes(dragPreviewTime) / 60) * 80}px`,
                         height: `${(draggedTask.duration / 60) * 80}px`,
                         minHeight: '40px'
                       }}
