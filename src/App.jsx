@@ -159,11 +159,16 @@ const DayPlanner = () => {
   const fetchWeather = async () => {
     try {
       // Using Open-Meteo API (free, no API key needed)
-      // Denver coordinates: 39.7392, -104.9903
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.7392&longitude=-104.9903&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=5');
+      // Erie, CO coordinates: 40.0503, -105.0497
+      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.0503&longitude=-105.0497&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=5');
       const data = await response.json();
       
       if (data.current && data.daily) {
+        console.log('Weather codes received:', {
+          current: data.current.weather_code,
+          daily: data.daily.weather_code
+        });
+        
         // Build forecast array for next 5 days
         const forecast = [];
         for (let i = 0; i < 5; i++) {
@@ -173,7 +178,8 @@ const DayPlanner = () => {
             day: dayName,
             high: Math.round(data.daily.temperature_2m_max[i]),
             low: Math.round(data.daily.temperature_2m_min[i]),
-            icon: getWeatherIcon(data.daily.weather_code[i])
+            icon: getWeatherIcon(data.daily.weather_code[i]),
+            code: data.daily.weather_code[i] // For debugging
           });
         }
         
@@ -359,14 +365,25 @@ const DayPlanner = () => {
   };
 
   const getWeatherIcon = (code) => {
-    if (code === 0) return '☀️';
-    if ([1, 2].includes(code)) return '⛅';
-    if (code === 3) return '☁️';
-    if ([45, 48].includes(code)) return '🌫️';
-    if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return '🌧️';
-    if ([71, 73, 75, 77, 85, 86].includes(code)) return '🌨️';
-    if ([95, 96, 99].includes(code)) return '⛈️';
-    return '☁️';
+    // WMO Weather interpretation codes
+    if (code === 0) return '☀️'; // Clear sky
+    if (code === 1) return '🌤️'; // Mainly clear
+    if (code === 2) return '⛅'; // Partly cloudy
+    if (code === 3) return '☁️'; // Overcast
+    if ([45, 48].includes(code)) return '🌫️'; // Fog
+    if ([51, 53, 55].includes(code)) return '🌦️'; // Drizzle
+    if ([56, 57].includes(code)) return '🌧️'; // Freezing drizzle
+    if ([61, 63, 65].includes(code)) return '🌧️'; // Rain
+    if ([66, 67].includes(code)) return '🌧️'; // Freezing rain
+    if ([71, 73, 75].includes(code)) return '🌨️'; // Snow fall
+    if (code === 77) return '🌨️'; // Snow grains
+    if ([80, 81, 82].includes(code)) return '🌧️'; // Rain showers
+    if ([85, 86].includes(code)) return '🌨️'; // Snow showers
+    if (code === 95) return '⛈️'; // Thunderstorm
+    if ([96, 99].includes(code)) return '⛈️'; // Thunderstorm with hail
+    
+    console.warn('Unknown weather code:', code);
+    return '☁️'; // Default fallback
   };
 
   const timeToMinutes = (time) => {
