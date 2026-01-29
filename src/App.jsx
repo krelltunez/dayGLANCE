@@ -35,8 +35,9 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [weather, setWeather] = useState(null);
-  const [stocks, setStocks] = useState(null);
-  const [news, setNews] = useState(null);
+  // TODO: Re-enable stocks and news later
+  // const [stocks, setStocks] = useState(null);
+  // const [news, setNews] = useState(null);
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
@@ -60,8 +61,9 @@ const DayPlanner = () => {
   useEffect(() => {
     loadData();
     fetchWeather(); // FIX 1: Call fetchWeather on mount
-    fetchStocks();
-    fetchNews();
+    // TODO: Re-enable stocks and news later
+    // fetchStocks();
+    // fetchNews();
   }, []);
 
   // Persist darkMode to localStorage
@@ -183,6 +185,8 @@ const DayPlanner = () => {
     }
   };
 
+  // TODO: Re-enable stocks and news later
+  /*
   const fetchStocks = async () => {
     try {
       // Using Alpha Vantage API for real-time stock data
@@ -327,6 +331,7 @@ const DayPlanner = () => {
       ]);
     }
   };
+  */
 
   const getWeatherCondition = (code) => {
     if (code === 0) return 'Clear';
@@ -1192,8 +1197,9 @@ const DayPlanner = () => {
                 </div>
               )}
               
+              {/* TODO: Re-enable stocks and news later */}
               {/* Stock widgets */}
-              {stocks && (
+              {/* stocks && (
                 <div className={`flex items-center gap-2`}>
                   {stocks.map((stock, index) => (
                     <div key={index} className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
@@ -1205,11 +1211,11 @@ const DayPlanner = () => {
                     </div>
                   ))}
                 </div>
-              )}
+              ) */}
             </div>
             
             {/* News headlines row */}
-            {news && (
+            {/* news && (
               <div className={`flex items-center gap-2 mt-2`}>
                 <div className="flex gap-2 overflow-x-auto flex-1">
                   {news.map((item, index) => (
@@ -1222,7 +1228,7 @@ const DayPlanner = () => {
                   ))}
                 </div>
               </div>
-            )}
+            ) */}
           </div>
           <div className="flex items-center gap-3">
             <button
