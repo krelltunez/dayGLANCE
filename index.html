@@ -6,40 +6,13 @@
   <meta name="description" content="A beautiful time-blocking day planner with task management">
   <meta name="theme-color" content="#2563eb">
   
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json">
-  
-  <!-- iOS specific -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-status-bar-style" content="default">
-  <meta name="mobile-web-app-title" content="Day Planner">
-  <link rel="touch-icon" href="/icon-192x192.png">
-  
   <!-- Favicon - Calendar SVG Icon -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>" type="image/svg+xml">
-  
-  <!-- Favicon PNG fallback -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png">
   
   <title>Day Planner</title>
 </head>
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
-  
-  <!-- Register Service Worker -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then((registration) => {
-            console.log('ServiceWorker registered:', registration);
-          })
-          .catch((error) => {
-            console.log('ServiceWorker registration failed:', error);
-          });
-      });
-    }
-  </script>
 </body>
 </html>
