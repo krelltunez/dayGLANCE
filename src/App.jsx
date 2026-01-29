@@ -530,6 +530,22 @@ const DayPlanner = () => {
     ));
   };
 
+  const moveToInbox = (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    
+    // Remove scheduling info and move to inbox
+    const unscheduledTask = {
+      ...task,
+      startTime: null,
+      date: null,
+      isAllDay: false
+    };
+    
+    setTasks(tasks.filter(t => t.id !== id));
+    setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
+  };
+
   const moveToRecycleBin = (id, fromInbox = false) => {
     const task = fromInbox 
       ? unscheduledTasks.find(t => t.id === id)
@@ -1766,6 +1782,13 @@ const DayPlanner = () => {
                                 <SkipForward size={14} />
                               </button>
                               <button
+                                onClick={() => moveToInbox(task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Move to Inbox"
+                              >
+                                <Inbox size={14} />
+                              </button>
+                              <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
                                 className="hover:bg-white/20 rounded p-1 transition-colors relative"
                               >
@@ -1891,6 +1914,13 @@ const DayPlanner = () => {
                                 title="Postpone to tomorrow"
                               >
                                 <SkipForward size={14} />
+                              </button>
+                              <button
+                                onClick={() => moveToInbox(task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Move to Inbox"
+                              >
+                                <Inbox size={14} />
                               </button>
                               <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
