@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, CalendarArrowRight } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -1763,7 +1763,7 @@ const DayPlanner = () => {
                                 className="hover:bg-white/20 rounded p-1 transition-colors"
                                 title="Postpone to tomorrow"
                               >
-                                <CalendarArrowRight size={14} />
+                                <SkipForward size={14} />
                               </button>
                               <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
@@ -1890,7 +1890,7 @@ const DayPlanner = () => {
                                 className="hover:bg-white/20 rounded p-1 transition-colors"
                                 title="Postpone to tomorrow"
                               >
-                                <CalendarArrowRight size={14} />
+                                <SkipForward size={14} />
                               </button>
                               <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
