@@ -447,9 +447,9 @@ const DayPlanner = () => {
     const leftPercent = widthPercent * index;
     
     return {
-      left: `${leftPercent}%`,
+      left: `calc(${leftPercent}% + 0.5rem)`,
       right: 'auto',
-      width: `${widthPercent - 1}%`
+      width: `calc(${widthPercent}% - 0.75rem)`
     };
   };
 
