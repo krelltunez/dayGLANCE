@@ -1548,11 +1548,15 @@ const DayPlanner = () => {
                             <div className="flex items-start gap-2 flex-1 min-w-0">
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium truncate">{task.title}</div>
-                                {task.startTime && (
-                                  <div className="text-xs opacity-75 mt-1">
-                                    {task.startTime} • {task.duration}min
-                                  </div>
-                                )}
+                                <div className="text-xs opacity-75 mt-1">
+                                  {task._deletedFrom === 'inbox' ? (
+                                    <>Inbox • {task.duration}min</>
+                                  ) : task.startTime ? (
+                                    <>{task.startTime} • {task.duration}min</>
+                                  ) : (
+                                    <>{task.duration}min</>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             <button
