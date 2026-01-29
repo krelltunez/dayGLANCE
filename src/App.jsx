@@ -160,16 +160,30 @@ const DayPlanner = () => {
     try {
       // Using Open-Meteo API (free, no API key needed)
       // Denver coordinates: 39.7392, -104.9903
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.7392&longitude=-104.9903&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=1');
+      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.7392&longitude=-104.9903&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=5');
       const data = await response.json();
       
       if (data.current && data.daily) {
+        // Build forecast array for next 5 days
+        const forecast = [];
+        for (let i = 0; i < 5; i++) {
+          const date = new Date(data.daily.time[i]);
+          const dayName = i === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' });
+          forecast.push({
+            day: dayName,
+            high: Math.round(data.daily.temperature_2m_max[i]),
+            low: Math.round(data.daily.temperature_2m_min[i]),
+            icon: getWeatherIcon(data.daily.weather_code[i])
+          });
+        }
+        
         setWeather({
           temp: Math.round(data.current.temperature_2m),
           condition: getWeatherCondition(data.current.weather_code),
           icon: getWeatherIcon(data.current.weather_code),
           high: Math.round(data.daily.temperature_2m_max[0]),
-          low: Math.round(data.daily.temperature_2m_min[0])
+          low: Math.round(data.daily.temperature_2m_min[0]),
+          forecast: forecast
         });
       }
     } catch (error) {
@@ -180,7 +194,8 @@ const DayPlanner = () => {
         condition: 'Unable to load',
         icon: '🌡️',
         high: '--',
-        low: '--'
+        low: '--',
+        forecast: []
       });
     }
   };
@@ -1188,13 +1203,32 @@ const DayPlanner = () => {
                 Today
               </button>
               {weather && (
-                <div className={`flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
-                  <div className="text-2xl">{weather.icon}</div>
-                  <div>
-                    <div className={`text-lg font-bold ${textPrimary}`}>{weather.temp}°F</div>
-                    <div className={`text-xs ${textSecondary}`}>H: {weather.high}° L: {weather.low}°</div>
+                <>
+                  {/* Current weather */}
+                  <div className={`flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
+                    <div className="text-2xl">{weather.icon}</div>
+                    <div>
+                      <div className={`text-lg font-bold ${textPrimary}`}>{weather.temp}°F</div>
+                      <div className={`text-xs ${textSecondary}`}>H: {weather.high}° L: {weather.low}°</div>
+                    </div>
                   </div>
-                </div>
+                  
+                  {/* 5-day forecast */}
+                  {weather.forecast && weather.forecast.length > 0 && (
+                    <div className={`flex items-center gap-2`}>
+                      {weather.forecast.map((day, index) => (
+                        <div key={index} className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
+                          <div className={`text-xs font-semibold ${textSecondary}`}>{day.day}</div>
+                          <div className="text-lg my-1">{day.icon}</div>
+                          <div className={`text-xs ${textPrimary}`}>
+                            <span className="font-semibold">{day.high}°</span>
+                            <span className={`${textSecondary} ml-1`}>{day.low}°</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
               
               {/* TODO: Re-enable stocks and news later */}
