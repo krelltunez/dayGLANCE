@@ -34,6 +34,7 @@ const DayPlanner = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showMonthView, setShowMonthView] = useState(false);
   const [weather, setWeather] = useState(null);
   // TODO: Re-enable stocks and news later
   // const [stocks, setStocks] = useState(null);
@@ -65,6 +66,18 @@ const DayPlanner = () => {
     // fetchStocks();
     // fetchNews();
   }, []);
+
+  // Close month view when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showMonthView && !e.target.closest('.month-view-container')) {
+        setShowMonthView(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMonthView]);
 
   // Persist darkMode to localStorage
   useEffect(() => {
@@ -605,6 +618,47 @@ const DayPlanner = () => {
     const today = new Date();
     today.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
     setSelectedDate(today);
+  };
+
+  const goToDate = (date) => {
+    const newDate = new Date(date);
+    newDate.setHours(12, 0, 0, 0);
+    setSelectedDate(newDate);
+    setShowMonthView(false);
+  };
+
+  const getMonthDays = () => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    
+    // First day of the month
+    const firstDay = new Date(year, month, 1);
+    const firstDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    
+    // Last day of the month
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    // Generate array of days
+    const days = [];
+    
+    // Add empty slots for days before month starts
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      days.push(null);
+    }
+    
+    // Add all days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(new Date(year, month, day));
+    }
+    
+    return days;
+  };
+
+  const hasTasksOnDate = (date) => {
+    if (!date) return false;
+    const dateStr = date.toISOString().split('T')[0];
+    return tasks.some(task => task.date === dateStr);
   };
 
   const openNewTaskForm = () => {
@@ -1234,14 +1288,67 @@ const DayPlanner = () => {
           <div>
             <h1 className={`text-2xl font-bold ${textPrimary}`}>&nbsp;&nbsp;Here's what your day looks like!</h1>
             <div className="flex items-center gap-6 mt-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronLeft size={20} className={textSecondary} />
                 </button>
-                <span className={`${textPrimary} font-bold text-xl min-w-[220px] text-center`}>{formatDate(selectedDate)}</span>
+                <button 
+                  onClick={() => setShowMonthView(!showMonthView)}
+                  className={`${textPrimary} font-bold text-xl min-w-[220px] text-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
+                >
+                  {formatDate(selectedDate)}
+                </button>
                 <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronRight size={20} className={textSecondary} />
                 </button>
+                
+                {/* Month View Popup */}
+                {showMonthView && (
+                  <div className={`month-view-container absolute top-full left-0 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+                    <div className={`text-center font-bold ${textPrimary} mb-3`}>
+                      {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </div>
+                    
+                    {/* Day headers */}
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                        <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Calendar days */}
+                    <div className="grid grid-cols-7 gap-1">
+                      {getMonthDays().map((day, index) => {
+                        const isToday = day && day.toDateString() === new Date().toDateString();
+                        const isSelected = day && day.toDateString() === selectedDate.toDateString();
+                        const hasTasks = hasTasksOnDate(day);
+                        
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => day && goToDate(day)}
+                            disabled={!day}
+                            className={`
+                              h-10 rounded text-sm relative
+                              ${!day ? 'invisible' : ''}
+                              ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
+                              ${!isSelected && isToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
+                              ${!isSelected && !isToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
+                              ${!day ? '' : 'cursor-pointer'}
+                            `}
+                          >
+                            {day && day.getDate()}
+                            {hasTasks && (
+                              <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
               <button
                 onClick={goToToday}
