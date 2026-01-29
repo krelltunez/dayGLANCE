@@ -616,8 +616,8 @@ const DayPlanner = () => {
     const startMinutes = timeToMinutes(task.startTime);
     const startHour = Math.floor(startMinutes / 60);
     const minutesIntoHour = startMinutes % 60;
-    // Precise calculation: 160px per hour, with exact fractional positioning
-    const top = startHour * 160 + (minutesIntoHour * 160 / 60);
+    // 160px per hour + 1px border per hour above this one
+    const top = startHour * 160 + startHour + (minutesIntoHour * 160 / 60);
     const height = (task.duration * 160 / 60);
     return { top, height };
   };
@@ -1176,7 +1176,8 @@ const DayPlanner = () => {
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-  const currentTimeTop = currentTime.getHours() * 160 + (currentTime.getMinutes() * 160 / 60);
+  const currentHour = currentTime.getHours();
+  const currentTimeTop = currentHour * 160 + currentHour + (currentTime.getMinutes() * 160 / 60);
   const showCurrentTimeLine = isToday;
 
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
@@ -1899,7 +1900,7 @@ const DayPlanner = () => {
                       <div 
                         className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
                         style={{
-                          top: `${(timeToMinutes(dragPreviewTime) * 160 / 60) - 30}px`
+                          top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60) - 30}px`
                         }}
                       >
                         {dragPreviewTime}
@@ -1908,7 +1909,7 @@ const DayPlanner = () => {
                       <div 
                         className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
                         style={{
-                          top: `${timeToMinutes(dragPreviewTime) * 160 / 60}px`,
+                          top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60)}px`,
                           height: `${draggedTask.duration * 160 / 60}px`,
                           minHeight: '40px'
                         }}
