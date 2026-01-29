@@ -19,15 +19,10 @@ const DayPlanner = () => {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
-  const [ignoredConflicts, setIgnoredConflicts] = useState(() => {
-    const saved = localStorage.getItem('ignoredConflicts');
-    return saved ? JSON.parse(saved) : [];
-  });
   const [minimizedSections, setMinimizedSections] = useState(() => {
     const saved = localStorage.getItem('minimizedSections');
     return saved ? JSON.parse(saved) : {
       inbox: false,
-      conflicts: false,
       dailySummary: false,
       allTimeSummary: false,
       recycleBin: false
@@ -73,11 +68,6 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
-
-  // Persist ignoredConflicts to localStorage
-  useEffect(() => {
-    localStorage.setItem('ignoredConflicts', JSON.stringify(ignoredConflicts));
-  }, [ignoredConflicts]);
 
   // Persist minimizedSections to localStorage
   useEffect(() => {
@@ -393,27 +383,12 @@ const DayPlanner = () => {
 
         if ((start1 < end2 && end1 > start2)) {
           if (!newConflicts.find(c => c.includes(task1.id) && c.includes(task2.id))) {
-            const conflictKey = [task1.id, task2.id].sort().join('-');
-            // Only add if not ignored
-            if (!ignoredConflicts.includes(conflictKey)) {
-              newConflicts.push([task1.id, task2.id, Math.min(start1, start2)]); // Include conflict time
-            }
+            newConflicts.push([task1.id, task2.id, Math.min(start1, start2)]); // Include conflict time
           }
         }
       }
     }
     setConflicts(newConflicts);
-  };
-
-  const ignoreConflict = (conflict) => {
-    const conflictKey = [conflict[0], conflict[1]].sort().join('-');
-    const newIgnored = [...ignoredConflicts, conflictKey];
-    setIgnoredConflicts(newIgnored);
-    // Immediately remove this conflict from the display
-    setConflicts(conflicts.filter(c => {
-      const cKey = [c[0], c[1]].sort().join('-');
-      return cKey !== conflictKey;
-    }));
   };
 
   const getConflictingTasks = (task, allTasks) => {
@@ -1167,8 +1142,6 @@ const DayPlanner = () => {
   };
 
   const todayTasks = tasks.filter(t => t.date === dateToString(selectedDate));
-  const hasConflicts = conflicts.length > 0;
-
   // Calculate all-time stats
   const allCompletedTasks = tasks.filter(t => t.completed);
   const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
@@ -1424,38 +1397,6 @@ const DayPlanner = () => {
               )}
             </div>
 
-            {hasConflicts && (
-              <div className={`${cardBg} rounded-lg shadow-sm border border-orange-500 p-4 mt-4`}>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-start gap-2 text-orange-600">
-                    <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
-                    <div className="font-semibold text-sm">Time Conflicts</div>
-                  </div>
-                  <button
-                    onClick={() => toggleSection('conflicts')}
-                    className={`text-orange-600 hover:text-orange-700 transition-colors`}
-                    title={minimizedSections.conflicts ? "Expand" : "Minimize"}
-                  >
-                    {minimizedSections.conflicts ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                  </button>
-                </div>
-                {!minimizedSections.conflicts && (
-                  <div className="space-y-2 text-orange-600">
-                    {conflicts.map((conflict, index) => (
-                      <div key={index} className="flex items-center justify-between text-xs">
-                        <span>Conflict at {minutesToTime(conflict[2])}</span>
-                        <button
-                          onClick={() => ignoreConflict(conflict)}
-                          className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200 rounded hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
-                        >
-                          Ignore
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
               <div className="flex items-center justify-between mb-2">
@@ -1820,7 +1761,7 @@ const DayPlanner = () => {
                         key={task.id}
                         draggable
                         onDragStart={(e) => handleDragStart(task, 'calendar', e)}
-                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-2 ring-orange-500' : ''} ${task.completed ? 'opacity-50' : ''} overflow-visible`}
+                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed ? 'opacity-50' : ''} overflow-visible`}
                         style={{ 
                           top: `${top}px`, 
                           height: `${height}px`, 
