@@ -1773,14 +1773,14 @@ const DayPlanner = () => {
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
-                className={`relative overflow-y-auto border-t ${borderClass}`}
+                className="relative overflow-y-auto"
                 style={{ height: '1120px' }}
               >
-                {hours.map((hour) => (
+                {hours.map((hour, index) => (
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
-                    <div className={`flex border-b ${borderClass}`}>
-                      <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-start`}>
+                    <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
+                      <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-center`}>
                         {hour.toString().padStart(2, '0')}:00
                       </div>
                       <div className="flex-1 relative h-40 calendar-slot"></div>
