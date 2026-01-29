@@ -414,77 +414,17 @@ const DayPlanner = () => {
     const conflicting = getConflictingTasks(task, allTasks);
     if (conflicting.length === 0) return { left: 2, right: 2, width: null };
     
-    // Get all tasks that overlap with this task
-    const allConflicted = [task, ...conflicting];
+    const allConflicted = [task, ...conflicting].sort((a, b) => a.id - b.id);
+    const index = allConflicted.findIndex(t => t.id === task.id);
+    const total = allConflicted.length;
     
-    // Find the maximum number of concurrent tasks at any point
-    const taskTimes = allConflicted.map(t => ({
-      id: t.id,
-      start: timeToMinutes(t.startTime),
-      end: timeToMinutes(t.startTime) + t.duration
-    }));
-    
-    let maxConcurrent = 1;
-    for (let i = 0; i < taskTimes.length; i++) {
-      let concurrent = 1;
-      for (let j = 0; j < taskTimes.length; j++) {
-        if (i !== j && 
-            taskTimes[i].start < taskTimes[j].end && 
-            taskTimes[i].end > taskTimes[j].start) {
-          concurrent++;
-        }
-      }
-      maxConcurrent = Math.max(maxConcurrent, concurrent);
-    }
-    
-    // Assign columns using a greedy algorithm
-    const columns = [];
-    const sortedTasks = [...allConflicted].sort((a, b) => {
-      const aStart = timeToMinutes(a.startTime);
-      const bStart = timeToMinutes(b.startTime);
-      return aStart - bStart;
-    });
-    
-    for (const t of sortedTasks) {
-      const tStart = timeToMinutes(t.startTime);
-      const tEnd = tStart + t.duration;
-      
-      // Find the first available column
-      let column = 0;
-      while (column < columns.length) {
-        const colTasks = columns[column];
-        const conflicts = colTasks.some(ct => {
-          const ctStart = timeToMinutes(ct.startTime);
-          const ctEnd = ctStart + ct.duration;
-          return tStart < ctEnd && tEnd > ctStart;
-        });
-        if (!conflicts) break;
-        column++;
-      }
-      
-      if (column >= columns.length) {
-        columns.push([]);
-      }
-      columns[column].push(t);
-    }
-    
-    // Find which column this task is in
-    let taskColumn = 0;
-    for (let i = 0; i < columns.length; i++) {
-      if (columns[i].find(t => t.id === task.id)) {
-        taskColumn = i;
-        break;
-      }
-    }
-    
-    const totalColumns = columns.length;
-    const widthPercent = 100 / totalColumns;
-    const leftPercent = widthPercent * taskColumn;
+    const widthPercent = 100 / total;
+    const leftPercent = widthPercent * index;
     
     return {
       left: `calc(${leftPercent}% + 0.25rem)`,
       right: 'auto',
-      width: `calc(${widthPercent}% - 0.375rem)`
+      width: `calc(${widthPercent}% - 0.5rem)`
     };
   };
 
