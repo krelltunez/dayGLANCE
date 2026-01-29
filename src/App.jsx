@@ -447,9 +447,9 @@ const DayPlanner = () => {
     const leftPercent = widthPercent * index;
     
     return {
-      left: `calc(${leftPercent}% + 0.5rem)`,
+      left: `calc(${leftPercent}% + 0.25rem)`,
       right: 'auto',
-      width: `calc(${widthPercent}% - 0.75rem)`
+      width: `calc(${widthPercent}% - 0.5rem)`
     };
   };
 
@@ -1773,7 +1773,7 @@ const DayPlanner = () => {
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
-                className="relative overflow-y-auto"
+                className={`relative overflow-y-auto border-t ${borderClass}`}
                 style={{ height: '1120px' }}
               >
                 {hours.map((hour) => (
