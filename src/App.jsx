@@ -424,7 +424,7 @@ const DayPlanner = () => {
     return {
       left: `calc(${leftPercent}% + 0.25rem)`,
       right: 'auto',
-      width: `calc(${widthPercent}% - 0.5rem)`
+      width: `calc(${widthPercent}% - 0.375rem)`
     };
   };
 
