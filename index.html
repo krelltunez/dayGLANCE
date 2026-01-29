@@ -3,40 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="A beautiful time-blocking day planner with task management">
-  <meta name="theme-color" content="#2563eb">
+  <title>Day Planner</title>
   
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json">
+  <!-- Favicon - Simple Calendar Icon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>" type="image/svg+xml">
   
-  <!-- iOS specific -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-status-bar-style" content="default">
-  <meta name="mobile-web-app-title" content="Day Planner">
-  <link rel="touch-icon" href="/icon-192x192.png">
+  <!-- React and Babel -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
   
-  <title>Here's what your day looks like!</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    /* Override default confirm dialog title */
+    body::before {
+      content: '';
+    }
+  </style>
+  
+  <script>
+    // Override window.confirm to use custom dialog title
+    (function() {
+      const originalConfirm = window.confirm;
+      window.confirm = function(message) {
+        // Unfortunately, we can't change the browser's native confirm dialog title directly
+        // The browser shows the domain name by default
+        // As a workaround, we add "Day Planner: " prefix to the message
+        if (message.includes('permanently delete')) {
+          return originalConfirm('Day Planner:\n\n' + message);
+        }
+        return originalConfirm(message);
+      };
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
   
-  <!-- Register Service Worker -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then((registration) => {
-            console.log('ServiceWorker registered:', registration);
-          })
-          .catch((error) => {
-            console.log('ServiceWorker registration failed:', error);
-          });
-      });
-    }
+  <script type="text/babel" src="App.jsx"></script>
+  <script type="text/babel">
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<DayPlanner />);
   </script>
 </body>
 </html>

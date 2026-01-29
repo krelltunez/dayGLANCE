@@ -540,7 +540,8 @@ const DayPlanner = () => {
   };
 
   const emptyRecycleBin = () => {
-    if (window.confirm('Are you sure you want to permanently delete all tasks in the recycle bin?')) {
+    // Adding "Day Planner" to the message since we can't change the browser's dialog title
+    if (window.confirm('Day Planner\n\nAre you sure you want to permanently delete all tasks in the recycle bin?')) {
       setRecycleBin([]);
     }
   };
