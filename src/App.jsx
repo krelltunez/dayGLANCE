@@ -1294,7 +1294,16 @@ const DayPlanner = () => {
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 title="New Scheduled Task"
               >
-                <Plus size={18} />
+                <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {/* Calendar body - moved further left */}
+                  <rect x="1" y="5" width="16" height="16" rx="2" ry="2"/>
+                  <line x1="13" y1="3" x2="13" y2="7"/>
+                  <line x1="5" y1="3" x2="5" y2="7"/>
+                  <line x1="1" y1="10" x2="17" y2="10"/>
+                  {/* Plus sign - stays where it is */}
+                  <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
+                  <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
+                </svg>
                 <span className="font-medium">Schedule</span>
               </button>
               <button
@@ -1302,7 +1311,14 @@ const DayPlanner = () => {
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 title="Add to Inbox"
               >
-                <Plus size={18} />
+                <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {/* Inbox body - moved left, not truncated */}
+                  <path d="M3.45 6.11L0 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 12.76 5H4.24a2 2 0 0 0-1.79 1.11z"/>
+                  <polyline points="18 13 13 13 11 16 7 16 5 13 0 13"/>
+                  {/* Plus sign - positioned to fit in viewBox */}
+                  <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
+                  <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
+                </svg>
                 <span className="font-medium">Inbox</span>
               </button>
             </div>
