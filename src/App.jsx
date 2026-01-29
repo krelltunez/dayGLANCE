@@ -1780,7 +1780,7 @@ const DayPlanner = () => {
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
                     <div className={`flex border-b ${borderClass}`}>
-                      <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-start pt-2`}>
+                      <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-start`}>
                         {hour.toString().padStart(2, '0')}:00
                       </div>
                       <div className="flex-1 relative h-40 calendar-slot"></div>
