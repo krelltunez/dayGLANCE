@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3 } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, CalendarArrowRight } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -514,6 +514,20 @@ const DayPlanner = () => {
         task.id === id ? { ...task, completed: !task.completed } : task
       ));
     }
+  };
+
+  const postponeTask = (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task || !task.startTime) return; // Only postpone scheduled tasks
+    
+    // Calculate next day's date
+    const nextDay = new Date(selectedDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    // Update the task with the new date (same time)
+    setTasks(tasks.map(t => 
+      t.id === id ? { ...t, date: nextDay.toISOString().split('T')[0] } : t
+    ));
   };
 
   const moveToRecycleBin = (id, fromInbox = false) => {
@@ -1745,6 +1759,13 @@ const DayPlanner = () => {
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <button
+                                onClick={() => postponeTask(task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Postpone to tomorrow"
+                              >
+                                <CalendarArrowRight size={14} />
+                              </button>
+                              <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
                                 className="hover:bg-white/20 rounded p-1 transition-colors relative"
                               >
@@ -1864,6 +1885,13 @@ const DayPlanner = () => {
                                 <Clock size={12} />
                                 {task.startTime} • {task.duration}min
                               </div>
+                              <button
+                                onClick={() => postponeTask(task.id)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Postpone to tomorrow"
+                              >
+                                <CalendarArrowRight size={14} />
+                              </button>
                               <button
                                 onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
                                 className="hover:bg-white/20 rounded p-1 transition-colors relative"
