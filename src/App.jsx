@@ -97,6 +97,17 @@ const DayPlanner = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Auto-sync calendar every 15 minutes when syncUrl is configured
+  useEffect(() => {
+    if (!syncUrl) return;
+
+    const syncTimer = setInterval(() => {
+      syncWithCalendar();
+    }, 15 * 60 * 1000); // 15 minutes
+
+    return () => clearInterval(syncTimer);
+  }, [syncUrl]);
+
   useEffect(() => {
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current) {
@@ -984,8 +995,9 @@ const DayPlanner = () => {
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
           duration: duration > 0 ? duration : 60,
           date: dateToString(startDate),
-          color: colors[Math.floor(Math.random() * colors.length)],
-          completed: false
+          color: 'bg-gray-600',
+          completed: false,
+          imported: true
         };
       });
 
@@ -1423,12 +1435,22 @@ const DayPlanner = () => {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowSyncSettings(!showSyncSettings)}
+              onClick={() => syncUrl ? syncWithCalendar() : setShowSyncSettings(true)}
               className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
+              title={syncUrl ? "Sync now" : "Configure calendar sync"}
             >
               <RefreshCw size={18} className={textSecondary} />
               <span className={`text-sm ${textPrimary}`}>Sync</span>
             </button>
+            {syncUrl && (
+              <button
+                onClick={() => setShowSyncSettings(!showSyncSettings)}
+                className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                title="Sync settings"
+              >
+                <Calendar size={18} className={textSecondary} />
+              </button>
+            )}
             <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
               <Upload size={18} className={textSecondary} />
               <span className={`text-sm ${textPrimary}`}>Import iCal</span>
@@ -1862,77 +1884,84 @@ const DayPlanner = () => {
                 <div className={`border-b ${borderClass} p-2 ${cardBg}`}>
                   <div className={`text-xs font-semibold ${textSecondary} mb-2 px-2`}>ALL DAY</div>
                   <div className="space-y-2">
-                    {todayTasks.filter(t => t.isAllDay).map((task) => (
-                      <div
-                        key={task.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(task, 'calendar', e)}
-                        className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : ''} relative`}
-                      >
-                        <div className="p-2 text-white">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <button
-                                onClick={() => toggleComplete(task.id)}
-                                className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                              >
-                                {task.completed && <Check size={10} strokeWidth={3} />}
-                              </button>
-                              <Calendar size={14} className="flex-shrink-0" />
-                              <div className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}>
-                                {task.title}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button
-                                onClick={() => postponeTask(task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Postpone to tomorrow"
-                              >
-                                <SkipForward size={14} />
-                              </button>
-                              <button
-                                onClick={() => moveToInbox(task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Move to Inbox"
-                              >
-                                <Inbox size={14} />
-                              </button>
-                              <button
-                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors relative"
-                              >
-                                <Palette size={14} />
-                                {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {colors.map((color) => (
-                                        <button
-                                          key={color.class}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            changeTaskColor(task.id, color.class, false);
-                                          }}
-                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                          title={color.name}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
+                    {todayTasks.filter(t => t.isAllDay).map((task) => {
+                      const isImported = task.imported;
+                      return (
+                        <div
+                          key={task.id}
+                          draggable={!isImported}
+                          onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
+                          className={`${task.color} rounded-lg shadow-sm ${isImported ? 'cursor-default' : 'cursor-move'} ${task.completed ? 'opacity-50' : ''} relative`}
+                        >
+                          <div className="p-2 text-white">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {!isImported && (
+                                  <button
+                                    onClick={() => toggleComplete(task.id)}
+                                    className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                  >
+                                    {task.completed && <Check size={10} strokeWidth={3} />}
+                                  </button>
                                 )}
-                              </button>
-                              <button
-                                onClick={() => moveToRecycleBin(task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Move to Recycle Bin"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                                <Calendar size={14} className="flex-shrink-0" />
+                                <div className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}>
+                                  {task.title}
+                                </div>
+                              </div>
+                              {!isImported && (
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <button
+                                    onClick={() => postponeTask(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Postpone to tomorrow"
+                                  >
+                                    <SkipForward size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => moveToInbox(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Move to Inbox"
+                                  >
+                                    <Inbox size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                                  >
+                                    <Palette size={14} />
+                                    {showColorPicker === task.id && (
+                                      <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                        <div className="grid grid-cols-3 gap-1">
+                                          {colors.map((color) => (
+                                            <button
+                                              key={color.class}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                changeTaskColor(task.id, color.class, false);
+                                              }}
+                                              className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                              title={color.name}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => moveToRecycleBin(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Move to Recycle Bin"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1982,16 +2011,17 @@ const DayPlanner = () => {
                     const isConflicted = conflicts.some(c => c.includes(task.id));
                     const conflictPos = calculateConflictPosition(task, todayTasks);
                     const isVeryShort = height < 20;
-                    
+                    const isImported = task.imported;
+
                     return (
                       <div
                         key={task.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(task, 'calendar', e)}
-                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto cursor-move ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed ? 'opacity-50' : ''} overflow-visible`}
-                        style={{ 
-                          top: `${top}px`, 
-                          height: `${height}px`, 
+                        draggable={!isImported}
+                        onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
+                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto ${isImported ? 'cursor-default' : 'cursor-move'} ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed ? 'opacity-50' : ''} overflow-visible`}
+                        style={{
+                          top: `${top}px`,
+                          height: `${height}px`,
                           minHeight: '40px',
                           left: conflictPos.left,
                           right: conflictPos.right,
@@ -2001,12 +2031,14 @@ const DayPlanner = () => {
                         <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <button
-                                onClick={() => toggleComplete(task.id)}
-                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                              >
-                                {task.completed && <Check size={10} strokeWidth={3} />}
-                              </button>
+                              {!isImported && (
+                                <button
+                                  onClick={() => toggleComplete(task.id)}
+                                  className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                >
+                                  {task.completed && <Check size={10} strokeWidth={3} />}
+                                </button>
+                              )}
                               <div className="flex-1 min-w-0">
                                 <div className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''}`}>
                                   {task.title}
@@ -2018,54 +2050,58 @@ const DayPlanner = () => {
                                 <Clock size={12} />
                                 {task.startTime} • {task.duration}min
                               </div>
-                              <button
-                                onClick={() => postponeTask(task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Postpone to tomorrow"
-                              >
-                                <SkipForward size={14} />
-                              </button>
-                              <button
-                                onClick={() => moveToInbox(task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Move to Inbox"
-                              >
-                                <Inbox size={14} />
-                              </button>
-                              <button
-                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors relative"
-                              >
-                                <Palette size={14} />
-                                {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {colors.map((color) => (
-                                        <button
-                                          key={color.class}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            changeTaskColor(task.id, color.class, false);
-                                          }}
-                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                          title={color.name}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </button>
-                              <button
-                                onClick={() => moveToRecycleBin(task.id)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Move to Recycle Bin"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {!isImported && (
+                                <>
+                                  <button
+                                    onClick={() => postponeTask(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Postpone to tomorrow"
+                                  >
+                                    <SkipForward size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => moveToInbox(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Move to Inbox"
+                                  >
+                                    <Inbox size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                                  >
+                                    <Palette size={14} />
+                                    {showColorPicker === task.id && (
+                                      <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                        <div className="grid grid-cols-3 gap-1">
+                                          {colors.map((color) => (
+                                            <button
+                                              key={color.class}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                changeTaskColor(task.id, color.class, false);
+                                              }}
+                                              className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                              title={color.name}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => moveToRecycleBin(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Move to Recycle Bin"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                           {/* Resize handle at bottom - solid white for visibility */}
-                          {!isVeryShort && (
+                          {!isVeryShort && !isImported && (
                             <div
                               onMouseDown={(e) => handleResizeStart(task, e)}
                               className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
