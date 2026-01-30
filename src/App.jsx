@@ -957,17 +957,21 @@ const DayPlanner = () => {
         const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
         const duration = Math.round((endDate - startDate) / (1000 * 60));
 
+        // Detect all-day events: either explicitly marked, or starts at midnight and lasts 24+ hours
+        const isAllDay = event.isAllDay ||
+          (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
+
         return {
           id: event.uid || `imported-${Date.now()}-${Math.random()}`,
           icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: event.isAllDay ? 60 : (duration > 0 ? duration : 60),
+          duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
           date: dateToString(startDate),
           color: 'bg-gray-600',
           completed: false,
           imported: true,
-          isAllDay: event.isAllDay || false
+          isAllDay: isAllDay
         };
       });
 
@@ -1000,17 +1004,21 @@ const DayPlanner = () => {
         const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
         const duration = Math.round((endDate - startDate) / (1000 * 60));
 
+        // Detect all-day events: either explicitly marked, or starts at midnight and lasts 24+ hours
+        const isAllDay = event.isAllDay ||
+          (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
+
         return {
           id: event.uid || `imported-${Date.now()}-${Math.random()}`,
           icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: event.isAllDay ? 60 : (duration > 0 ? duration : 60),
+          duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
           date: dateToString(startDate),
           color: 'bg-gray-600',
           completed: false,
           imported: true,
-          isAllDay: event.isAllDay || false
+          isAllDay: isAllDay
         };
       });
 
