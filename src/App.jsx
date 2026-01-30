@@ -1417,7 +1417,7 @@ const DayPlanner = () => {
 
               <div className="flex items-center gap-3 ml-auto">
                 <div className="flex flex-col gap-1 items-start">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => syncUrl ? syncWithCalendar() : setShowSyncSettings(true)}
                       className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
