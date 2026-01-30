@@ -35,6 +35,7 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showMonthView, setShowMonthView] = useState(false);
+  const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [weather, setWeather] = useState(null);
   // TODO: Re-enable stocks and news later
   // const [stocks, setStocks] = useState(null);
@@ -446,8 +447,7 @@ const DayPlanner = () => {
 
         if ((start1 < end2 && end1 > start2)) {
           if (!newConflicts.find(c => c.includes(task1.id) && c.includes(task2.id))) {
-            console.log('[Conflict Found]', task1.title, `(${task1.startTime}, ${task1.duration}min)`, 'vs', task2.title, `(${task2.startTime}, ${task2.duration}min)`);
-            newConflicts.push([task1.id, task2.id, Math.min(start1, start2)]); // Include conflict time
+            newConflicts.push([task1.id, task2.id, Math.min(start1, start2)]);
           }
         }
       }
@@ -641,9 +641,17 @@ const DayPlanner = () => {
     setShowMonthView(false);
   };
 
+  const changeViewedMonth = (delta) => {
+    setViewedMonth(prev => {
+      const newMonth = new Date(prev);
+      newMonth.setMonth(newMonth.getMonth() + delta);
+      return newMonth;
+    });
+  };
+
   const getMonthDays = () => {
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
+    const year = viewedMonth.getFullYear();
+    const month = viewedMonth.getMonth();
     
     // First day of the month
     const firstDay = new Date(year, month, 1);
@@ -1335,8 +1343,11 @@ const DayPlanner = () => {
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronLeft size={20} className={textSecondary} />
                 </button>
-                <button 
-                  onClick={() => setShowMonthView(!showMonthView)}
+                <button
+                  onClick={() => {
+                    if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                    setShowMonthView(!showMonthView);
+                  }}
                   className={`${textPrimary} font-bold text-xl min-w-[220px] text-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
                 >
                   {formatDate(selectedDate)}
@@ -1348,8 +1359,16 @@ const DayPlanner = () => {
                 {/* Month View Popup */}
                 {showMonthView && (
                   <div className={`month-view-container absolute top-full left-0 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
-                    <div className={`text-center font-bold ${textPrimary} mb-3`}>
-                      {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    <div className="flex items-center justify-between mb-3">
+                      <button onClick={() => changeViewedMonth(-1)} className={`p-1 rounded ${hoverBg}`}>
+                        <ChevronLeft size={18} className={textSecondary} />
+                      </button>
+                      <div className={`font-bold ${textPrimary}`}>
+                        {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </div>
+                      <button onClick={() => changeViewedMonth(1)} className={`p-1 rounded ${hoverBg}`}>
+                        <ChevronRight size={18} className={textSecondary} />
+                      </button>
                     </div>
                     
                     {/* Day headers */}
