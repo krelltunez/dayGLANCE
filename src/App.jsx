@@ -1548,7 +1548,7 @@ const DayPlanner = () => {
                     <div
                       key={task.id}
                       draggable
-                      onDragStart={() => handleDragStart(task, 'inbox')}
+                      onDragStart={(e) => handleDragStart(task, 'inbox', e)}
                       className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
                     >
                       <div className="flex items-start justify-between text-white">
