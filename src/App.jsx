@@ -434,8 +434,6 @@ const DayPlanner = () => {
     const todayTasks = tasks.filter(t => t.date === dateStr && !t.isAllDay); // Exclude all-day tasks
     const newConflicts = [];
 
-    console.log('[Conflict Check] Tasks for', dateStr, ':', todayTasks.map(t => ({ id: t.id, title: t.title, startTime: t.startTime, duration: t.duration, imported: t.imported })));
-
     for (let i = 0; i < todayTasks.length; i++) {
       for (let j = i + 1; j < todayTasks.length; j++) {
         const task1 = todayTasks[i];
