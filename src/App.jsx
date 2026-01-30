@@ -75,7 +75,7 @@ const DayPlanner = () => {
         setShowMonthView(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMonthView]);
@@ -644,6 +644,7 @@ const DayPlanner = () => {
   const changeViewedMonth = (delta) => {
     setViewedMonth(prev => {
       const newMonth = new Date(prev);
+      newMonth.setDate(1); // Set to 1st to avoid month rollover issues
       newMonth.setMonth(newMonth.getMonth() + delta);
       return newMonth;
     });
@@ -1360,13 +1361,21 @@ const DayPlanner = () => {
                 {showMonthView && (
                   <div className={`month-view-container absolute top-full left-0 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
                     <div className="flex items-center justify-between mb-3">
-                      <button onClick={() => changeViewedMonth(-1)} className={`p-1 rounded ${hoverBg}`}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }}
+                        className={`p-1 rounded ${hoverBg}`}
+                      >
                         <ChevronLeft size={18} className={textSecondary} />
                       </button>
                       <div className={`font-bold ${textPrimary}`}>
                         {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </div>
-                      <button onClick={() => changeViewedMonth(1)} className={`p-1 rounded ${hoverBg}`}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }}
+                        className={`p-1 rounded ${hoverBg}`}
+                      >
                         <ChevronRight size={18} className={textSecondary} />
                       </button>
                     </div>
