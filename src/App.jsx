@@ -965,7 +965,8 @@ const DayPlanner = () => {
 
     try {
       // Use proxy to bypass CORS restrictions
-      const proxyUrl = `/api/calendar-proxy/?url=${encodeURIComponent(syncUrl)}`;
+      // Note: URL is not encoded because nginx's $arg_url doesn't auto-decode
+      const proxyUrl = `/api/calendar-proxy/?url=${syncUrl}`;
       const response = await fetch(proxyUrl);
       if (!response.ok) throw new Error('Failed to fetch calendar');
       
