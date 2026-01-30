@@ -906,6 +906,10 @@ const DayPlanner = () => {
         if (line.startsWith('SUMMARY:')) {
           currentEvent.summary = line.substring(8);
         } else if (line.startsWith('DTSTART')) {
+          // Detect all-day events (VALUE=DATE or 8-character date)
+          if (line.includes('VALUE=DATE') || line.split(':')[1]?.length === 8) {
+            currentEvent.isAllDay = true;
+          }
           const dateStr = line.split(':')[1];
           currentEvent.dtstart = dateStr;
         } else if (line.startsWith('DTEND')) {
@@ -958,11 +962,12 @@ const DayPlanner = () => {
           icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: duration > 0 ? duration : 60,
+          duration: event.isAllDay ? 60 : (duration > 0 ? duration : 60),
           date: dateToString(startDate),
           color: 'bg-gray-600',
           completed: false,
-          imported: true
+          imported: true,
+          isAllDay: event.isAllDay || false
         };
       });
 
@@ -1000,11 +1005,12 @@ const DayPlanner = () => {
           icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: duration > 0 ? duration : 60,
+          duration: event.isAllDay ? 60 : (duration > 0 ? duration : 60),
           date: dateToString(startDate),
           color: 'bg-gray-600',
           completed: false,
-          imported: true
+          imported: true,
+          isAllDay: event.isAllDay || false
         };
       });
 
@@ -1463,9 +1469,9 @@ const DayPlanner = () => {
                   </button>
                 )}
               </div>
-              <label className={`cursor-pointer px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
-                <Upload size={16} className={textSecondary} />
-                <span className={`text-xs ${textPrimary}`}>Import iCal</span>
+              <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
+                <Upload size={18} className={textSecondary} />
+                <span className={`text-sm ${textPrimary}`}>Import iCal</span>
                 <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
               </label>
             </div>
@@ -2022,7 +2028,7 @@ const DayPlanner = () => {
                   {todayTasks.filter(t => !t.isAllDay).map((task) => {
                     const { top, height } = calculateTaskPosition(task);
                     const isConflicted = conflicts.some(c => c.includes(task.id));
-                    const conflictPos = calculateConflictPosition(task, todayTasks);
+                    const conflictPos = calculateConflictPosition(task, todayTasks.filter(t => !t.isAllDay));
                     const isVeryShort = height < 20;
                     const isImported = task.imported;
 
