@@ -433,6 +433,8 @@ const DayPlanner = () => {
     const todayTasks = tasks.filter(t => t.date === dateStr && !t.isAllDay); // Exclude all-day tasks
     const newConflicts = [];
 
+    console.log('[Conflict Check] Tasks for', dateStr, ':', todayTasks.map(t => ({ id: t.id, title: t.title, startTime: t.startTime, duration: t.duration, imported: t.imported })));
+
     for (let i = 0; i < todayTasks.length; i++) {
       for (let j = i + 1; j < todayTasks.length; j++) {
         const task1 = todayTasks[i];
@@ -444,6 +446,7 @@ const DayPlanner = () => {
 
         if ((start1 < end2 && end1 > start2)) {
           if (!newConflicts.find(c => c.includes(task1.id) && c.includes(task2.id))) {
+            console.log('[Conflict Found]', task1.title, `(${task1.startTime}, ${task1.duration}min)`, 'vs', task2.title, `(${task2.startTime}, ${task2.duration}min)`);
             newConflicts.push([task1.id, task2.id, Math.min(start1, start2)]); // Include conflict time
           }
         }
