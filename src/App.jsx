@@ -1304,10 +1304,12 @@ const DayPlanner = () => {
   };
 
   const todayTasks = tasks.filter(t => t.date === dateToString(selectedDate));
-  // Calculate all-time stats
-  const allCompletedTasks = tasks.filter(t => t.completed);
+  // Calculate all-time stats (excluding imported events)
+  const nonImportedTasks = tasks.filter(t => !t.imported);
+  const todayNonImportedTasks = todayTasks.filter(t => !t.imported);
+  const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
   const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
-  const totalScheduledMinutes = tasks.reduce((sum, task) => sum + task.duration, 0);
+  const totalScheduledMinutes = nonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -1680,8 +1682,8 @@ const DayPlanner = () => {
               </div>
               {!minimizedSections.dailySummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
-                    <div>{todayTasks.length} tasks scheduled</div>
-                  <div>{todayTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
+                    <div>{todayNonImportedTasks.length} tasks scheduled</div>
+                  <div>{todayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
                   <div>{unscheduledTasks.length} tasks in inbox</div>
                 </div>
               )}
@@ -1703,13 +1705,13 @@ const DayPlanner = () => {
               </div>
               {!minimizedSections.allTimeSummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
-                  <div>{tasks.length} total tasks</div>
+                  <div>{nonImportedTasks.length} total tasks</div>
                   <div>{allCompletedTasks.length} completed</div>
                   <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m total planned</div>
-                  {tasks.length > 0 && (
+                  {nonImportedTasks.length > 0 && (
                     <div className="pt-1">
-                      <div className="font-semibold">{Math.round((allCompletedTasks.length / tasks.length) * 100)}% completion rate</div>
+                      <div className="font-semibold">{Math.round((allCompletedTasks.length / nonImportedTasks.length) * 100)}% completion rate</div>
                     </div>
                   )}
                 </div>
