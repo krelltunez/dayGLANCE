@@ -894,7 +894,7 @@ const DayPlanner = () => {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      
+
       if (line === 'BEGIN:VEVENT') {
         currentEvent = {};
       } else if (line === 'END:VEVENT' && currentEvent) {
@@ -911,6 +911,8 @@ const DayPlanner = () => {
         } else if (line.startsWith('DTEND')) {
           const dateStr = line.split(':')[1];
           currentEvent.dtend = dateStr;
+        } else if (line.startsWith('UID:')) {
+          currentEvent.uid = line.substring(4);
         }
       }
     }
@@ -945,24 +947,28 @@ const DayPlanner = () => {
     reader.onload = (event) => {
       const icsContent = event.target.result;
       const events = parseICS(icsContent);
-      
+
       const importedTasks = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
         const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
         const duration = Math.round((endDate - startDate) / (1000 * 60));
 
         return {
-          id: Date.now() + Math.random(),
+          id: event.uid || `imported-${Date.now()}-${Math.random()}`,
+          icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
           duration: duration > 0 ? duration : 60,
           date: dateToString(startDate),
-          color: colors[Math.floor(Math.random() * colors.length)],
-          completed: false
+          color: 'bg-gray-600',
+          completed: false,
+          imported: true
         };
       });
 
-      setTasks([...tasks, ...importedTasks]);
+      // Remove old imported events and add the fresh ones
+      const nonImportedTasks = tasks.filter(t => !t.imported);
+      setTasks([...nonImportedTasks, ...importedTasks]);
       e.target.value = '';
     };
     reader.readAsText(file);
@@ -990,7 +996,8 @@ const DayPlanner = () => {
         const duration = Math.round((endDate - startDate) / (1000 * 60));
 
         return {
-          id: Date.now() + Math.random(),
+          id: event.uid || `imported-${Date.now()}-${Math.random()}`,
+          icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
           duration: duration > 0 ? duration : 60,
@@ -1001,7 +1008,9 @@ const DayPlanner = () => {
         };
       });
 
-      setTasks([...tasks, ...importedTasks]);
+      // Remove old imported events and add the fresh ones
+      const nonImportedTasks = tasks.filter(t => !t.imported);
+      setTasks([...nonImportedTasks, ...importedTasks]);
       alert(`Synced ${importedTasks.length} events from calendar`);
     } catch (error) {
       alert('Failed to sync with calendar. Make sure the URL is correct and publicly accessible.');
@@ -1434,28 +1443,32 @@ const DayPlanner = () => {
             ) */}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => syncUrl ? syncWithCalendar() : setShowSyncSettings(true)}
-              className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
-              title={syncUrl ? "Sync now" : "Configure calendar sync"}
-            >
-              <RefreshCw size={18} className={textSecondary} />
-              <span className={`text-sm ${textPrimary}`}>Sync</span>
-            </button>
-            {syncUrl && (
-              <button
-                onClick={() => setShowSyncSettings(!showSyncSettings)}
-                className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                title="Sync settings"
-              >
-                <Calendar size={18} className={textSecondary} />
-              </button>
-            )}
-            <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
-              <Upload size={18} className={textSecondary} />
-              <span className={`text-sm ${textPrimary}`}>Import iCal</span>
-              <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
-            </label>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => syncUrl ? syncWithCalendar() : setShowSyncSettings(true)}
+                  className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
+                  title={syncUrl ? "Sync now" : "Configure calendar sync"}
+                >
+                  <RefreshCw size={18} className={textSecondary} />
+                  <span className={`text-sm ${textPrimary}`}>Sync</span>
+                </button>
+                {syncUrl && (
+                  <button
+                    onClick={() => setShowSyncSettings(!showSyncSettings)}
+                    className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                    title="Sync settings"
+                  >
+                    <Calendar size={18} className={textSecondary} />
+                  </button>
+                )}
+              </div>
+              <label className={`cursor-pointer px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
+                <Upload size={16} className={textSecondary} />
+                <span className={`text-xs ${textPrimary}`}>Import iCal</span>
+                <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
+              </label>
+            </div>
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2 rounded-lg ${hoverBg}`}
