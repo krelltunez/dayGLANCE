@@ -1,7 +1,31 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash } from 'lucide-react';
 
+// Hook to determine how many days to show based on window width
+const useVisibleDays = () => {
+  const [visibleDays, setVisibleDays] = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth >= 1600) return 3;
+      if (window.innerWidth >= 1200) return 2;
+    }
+    return 1;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1600) setVisibleDays(3);
+      else if (window.innerWidth >= 1200) setVisibleDays(2);
+      else setVisibleDays(1);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return visibleDays;
+};
+
 const DayPlanner = () => {
+  const visibleDays = useVisibleDays();
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -52,10 +76,8 @@ const DayPlanner = () => {
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [weather, setWeather] = useState(null);
-  // TODO: Re-enable stocks and news later
-  // const [stocks, setStocks] = useState(null);
-  // const [news, setNews] = useState(null);
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
+  const [dragPreviewDate, setDragPreviewDate] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
@@ -95,10 +117,7 @@ const DayPlanner = () => {
 
   useEffect(() => {
     loadData();
-    fetchWeather(); // FIX 1: Call fetchWeather on mount
-    // TODO: Re-enable stocks and news later
-    // fetchStocks();
-    // fetchNews();
+    fetchWeather();
   }, []);
 
   // Close month view when clicking outside
@@ -273,154 +292,6 @@ const DayPlanner = () => {
       });
     }
   };
-
-  // TODO: Re-enable stocks and news later
-  /*
-  const fetchStocks = async () => {
-    try {
-      // Using Alpha Vantage API for real-time stock data
-      const API_KEY = 'TMIZYNJ5MZP7VXCT';
-      const symbols = [
-        { symbol: 'FCNTX', name: 'FCNTX', fallback: { price: '--', change: '--', changePercent: '--' } },
-        { symbol: 'FXAIX', name: 'FXAIX', fallback: { price: '--', change: '--', changePercent: '--' } },
-        { symbol: 'QQQ', name: 'QQQ', fallback: { price: '--', change: '--', changePercent: '--' } },
-        { symbol: 'NVDA', name: 'NVDA', fallback: { price: '--', change: '--', changePercent: '--' } }
-      ];
-      
-      const stockData = [];
-      
-      for (const stock of symbols) {
-        try {
-          const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${API_KEY}`);
-          const data = await response.json();
-          
-          console.log(`Stock ${stock.symbol} response:`, data); // Debug logging
-          
-          if (data['Global Quote'] && Object.keys(data['Global Quote']).length > 0) {
-            const quote = data['Global Quote'];
-            const priceStr = quote['05. price'];
-            const changeStr = quote['09. change'];
-            const changePercentStr = quote['10. change percent'];
-            
-            if (priceStr && changeStr && changePercentStr) {
-              const price = parseFloat(priceStr);
-              const change = parseFloat(changeStr);
-              const changePercent = parseFloat(changePercentStr.replace('%', ''));
-              
-              stockData.push({
-                symbol: stock.name,
-                price: price.toFixed(2),
-                change: change.toFixed(2),
-                changePercent: changePercent.toFixed(2),
-                isPositive: change >= 0
-              });
-              console.log(`Successfully fetched ${stock.symbol}`);
-            } else {
-              // Use fallback for this stock
-              console.warn(`Incomplete data for ${stock.symbol}, using fallback`);
-              stockData.push({
-                symbol: stock.name,
-                price: stock.fallback.price,
-                change: stock.fallback.change,
-                changePercent: stock.fallback.changePercent,
-                isPositive: stock.fallback.change.startsWith('+')
-              });
-            }
-          } else if (data['Note']) {
-            console.warn(`API rate limit for ${stock.symbol}, using fallback`);
-            // Use fallback for this stock
-            stockData.push({
-              symbol: stock.name,
-              price: stock.fallback.price,
-              change: stock.fallback.change,
-              changePercent: stock.fallback.changePercent,
-              isPositive: stock.fallback.change.startsWith('+')
-            });
-          } else {
-            // Use fallback for this stock
-            console.warn(`No data for ${stock.symbol}, using fallback`);
-            stockData.push({
-              symbol: stock.name,
-              price: stock.fallback.price,
-              change: stock.fallback.change,
-              changePercent: stock.fallback.changePercent,
-              isPositive: stock.fallback.change.startsWith('+')
-            });
-          }
-        } catch (err) {
-          console.error(`Failed to fetch ${stock.symbol}:`, err);
-          // Use fallback for this stock
-          stockData.push({
-            symbol: stock.name,
-            price: stock.fallback.price,
-            change: stock.fallback.change,
-            changePercent: stock.fallback.changePercent,
-            isPositive: stock.fallback.change.startsWith('+')
-          });
-        }
-        
-        // Alpha Vantage rate limit: delay between requests
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // Always set all 4 stocks
-      setStocks(stockData);
-    } catch (error) {
-      console.error('Failed to fetch stocks:', error);
-      // Show blanks on error
-      setStocks([
-        { symbol: 'FCNTX', price: '--', change: '--', changePercent: '--', isPositive: true },
-        { symbol: 'FXAIX', price: '--', change: '--', changePercent: '--', isPositive: true },
-        { symbol: 'QQQ', price: '--', change: '--', changePercent: '--', isPositive: true },
-        { symbol: 'NVDA', price: '--', change: '--', changePercent: '--', isPositive: true }
-      ]);
-    }
-  };
-
-  const fetchNews = async () => {
-    try {
-      // Using GNews API for real news headlines (browser-friendly, no CORS issues)
-      const API_KEY = '986dcee6f5e6dcefb4665a5cc090d20a';
-      const url = `https://gnews.io/api/v4/top-headlines?country=us&max=3&apikey=${API_KEY}`;
-      
-      console.log('Fetching news from:', url);
-      const response = await fetch(url);
-      console.log('News response status:', response.status);
-      
-      const data = await response.json();
-      console.log('GNews API full response:', data);
-      
-      if (data.errors) {
-        console.error('GNews API error:', data.errors);
-        throw new Error(JSON.stringify(data.errors));
-      }
-      
-      if (data.articles && data.articles.length > 0) {
-        console.log('Successfully got', data.articles.length, 'articles');
-        setNews(data.articles.slice(0, 3).map(article => ({
-          title: article.title
-        })));
-        return;
-      }
-      
-      // Fallback if API fails
-      console.warn('No articles returned from GNews API, using fallback. Response was:', data);
-      setNews([
-        { title: 'News not available at this time' },
-        { title: 'News not available at this time' },
-        { title: 'News not available at this time' }
-      ]);
-    } catch (error) {
-      console.error('Failed to fetch news:', error);
-      // Fallback on error
-      setNews([
-        { title: 'News not available at this time' },
-        { title: 'News not available at this time' },
-        { title: 'News not available at this time' }
-      ]);
-    }
-  };
-  */
 
   const getTaskCalendarStyle = (task, isDarkMode) => {
     if (!task.isTaskCalendar) return {};
@@ -784,9 +655,36 @@ const DayPlanner = () => {
     return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
   };
 
-  const changeDate = (days) => {
+  const formatDateRange = (dates) => {
+    if (dates.length === 1) {
+      return formatDate(dates[0]);
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+
+    if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
+      // Same month: "Jan 31 - Feb 2"
+      return `${months[first.getMonth()]} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`;
+    } else if (first.getFullYear() === last.getFullYear()) {
+      // Different months, same year: "Jan 31 - Feb 2, 2026"
+      return `${months[first.getMonth()]} ${first.getDate()} - ${months[last.getMonth()]} ${last.getDate()}, ${first.getFullYear()}`;
+    } else {
+      // Different years
+      return `${months[first.getMonth()]} ${first.getDate()}, ${first.getFullYear()} - ${months[last.getMonth()]} ${last.getDate()}, ${last.getFullYear()}`;
+    }
+  };
+
+  const formatShortDate = (date) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+  };
+
+  const changeDate = (direction) => {
+    // Move by the number of visible days (1, 2, or 3) in the given direction
     const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
+    newDate.setDate(newDate.getDate() + (direction * visibleDays));
     newDate.setHours(12, 0, 0, 0); // Maintain noon to avoid timezone issues
     setSelectedDate(newDate);
   };
@@ -870,24 +768,24 @@ const DayPlanner = () => {
     setShowAddTask(true);
   };
 
-  const openNewTaskAtTime = (e) => {
+  const openNewTaskAtTime = (e, targetDate = null) => {
     // Only trigger if clicking on the empty calendar area, not on tasks
     if (e.target.classList.contains('calendar-slot')) {
       const rect = calendarRef.current.getBoundingClientRect();
       const scrollTop = calendarRef.current.scrollTop;
       const y = e.clientY - rect.top + scrollTop;
-      
+
       const totalMinutesFromTop = (y / 160) * 60;
       const clickHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
       const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
       const totalMinutes = Math.max(0, Math.min(23 * 60 + 45, clickHours * 60 + minutes));
       const clickedTime = minutesToTime(totalMinutes);
-      
-      setNewTask({ 
-        title: '', 
-        startTime: clickedTime, 
+
+      setNewTask({
+        title: '',
+        startTime: clickedTime,
         duration: 30,
-        date: dateToString(selectedDate),
+        date: dateToString(targetDate || selectedDate),
         isAllDay: false
       });
       setShowAddTask(true);
@@ -911,56 +809,65 @@ const DayPlanner = () => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e, targetDate = null) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    
+
     // Show preview time while dragging
-    if (draggedTask && e.currentTarget === calendarRef.current) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const scrollTop = e.currentTarget.scrollTop;
-      const y = e.clientY - rect.top + scrollTop;
-      
+    if (draggedTask && calendarRef.current) {
+      const calendarRect = calendarRef.current.getBoundingClientRect();
+      const scrollTop = calendarRef.current.scrollTop;
+      const y = e.clientY - calendarRect.top + scrollTop;
+
       // Calculate total minutes from the top of the calendar
       const totalMinutesFromTop = (y / 160) * 60;
-      
+
       // Round to nearest 15 minutes FIRST, then calculate hours
       const totalMinutesRounded = Math.round(totalMinutesFromTop / 15) * 15;
       const hours = Math.floor(totalMinutesRounded / 60);
       const minutes = totalMinutesRounded % 60;
-      
+
       const dragHours = hours + firstHour;
       const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dragHours * 60 + minutes));
       setDragPreviewTime(minutesToTime(totalMinutes));
+
+      // Track which date column we're dragging over
+      if (targetDate) {
+        setDragPreviewDate(targetDate);
+      }
     }
   };
 
-  const handleDropOnCalendar = (e) => {
+  const handleDropOnCalendar = (e, targetDate = null) => {
     e.preventDefault();
     if (!draggedTask) return;
 
-    const calendarElement = e.currentTarget;
+    const calendarElement = calendarRef.current;
     const rect = calendarElement.getBoundingClientRect();
-    
+
     // Get the scroll position of the calendar container
     const scrollTop = calendarElement.scrollTop;
-    
+
     // Calculate position relative to the top of the scrollable content
     const y = e.clientY - rect.top + scrollTop;
-    
+
     // Calculate total minutes from the top of the calendar
     const totalMinutesFromTop = (y / 160) * 60;
-    
+
     // Round to nearest 15 minutes FIRST, then calculate hours
     const totalMinutesRounded = Math.round(totalMinutesFromTop / 15) * 15;
     const hours = Math.floor(totalMinutesRounded / 60);
     const minutes = totalMinutesRounded % 60;
-    
+
     const dropHours = hours + firstHour;
-    
+
     // Ensure time is within bounds
     const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dropHours * 60 + minutes));
     const startTime = minutesToTime(totalMinutes);
+
+    // Use the target date from the column, falling back to dragPreviewDate or selectedDate
+    const dropDate = targetDate || dragPreviewDate || selectedDate;
+    const dropDateStr = dateToString(dropDate);
 
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
@@ -968,12 +875,12 @@ const DayPlanner = () => {
       setTasks([...tasks, {
         ...taskWithoutPriority,
         startTime,
-        date: dateToString(selectedDate)
+        date: dropDateStr
       }]);
     } else if (dragSource === 'calendar') {
-      setTasks(tasks.map(t => 
-        t.id === draggedTask.id 
-          ? { ...t, startTime, date: dateToString(selectedDate) }
+      setTasks(tasks.map(t =>
+        t.id === draggedTask.id
+          ? { ...t, startTime, date: dropDateStr }
           : t
       ));
     } else if (dragSource === 'recycleBin') {
@@ -983,13 +890,14 @@ const DayPlanner = () => {
       setTasks([...tasks, {
         ...cleanTask,
         startTime,
-        date: dateToString(selectedDate)
+        date: dropDateStr
       }]);
     }
 
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
+    setDragPreviewDate(null);
   };
 
   const handleDropOnInbox = (e) => {
@@ -1616,6 +1524,15 @@ const DayPlanner = () => {
     return Array.from(tagSet).sort();
   }, [tasks, unscheduledTasks]);
 
+  // Compute array of visible dates based on selectedDate and visibleDays
+  const visibleDates = useMemo(() => {
+    return Array.from({ length: visibleDays }, (_, i) => {
+      const date = new Date(selectedDate);
+      date.setDate(date.getDate() + i);
+      return date;
+    });
+  }, [selectedDate, visibleDays]);
+
   // Auto-select new tags when they appear
   useEffect(() => {
     const newTags = allTags.filter(tag => !selectedTags.includes(tag));
@@ -1639,6 +1556,12 @@ const DayPlanner = () => {
   const filteredUnscheduledTasks = filterByTags(unscheduledTasks)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
+
+  // Helper to get tasks for a specific date (must be after filterByTags)
+  const getTasksForDate = (date) => {
+    const dateStr = dateToString(date);
+    return filterByTags(tasks.filter(t => t.date === dateStr));
+  };
 
   // Calculate all-time stats (excluding imported events)
   const nonImportedTasks = tasks.filter(t => !t.imported);
@@ -1665,11 +1588,11 @@ const DayPlanner = () => {
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
-      <div className={`${cardBg} border-b ${borderClass} px-6 py-4`}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex-1">
-            <h1 className={`text-2xl font-bold ${textPrimary}`}>&nbsp;&nbsp;Here's what your day looks like!</h1>
-            <div className="flex items-center gap-6 mt-2">
+      <div className={`${cardBg} border-b ${borderClass}`}>
+        <div className="max-w-[2000px] mx-auto px-6 py-4">
+          <div className="flex gap-6">
+            {/* Sidebar area - date navigator centered with Today button below */}
+            <div className="w-72 flex-shrink-0 flex flex-col items-center">
               <div className="flex items-center gap-2 relative">
                 <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronLeft size={20} className={textSecondary} />
@@ -1679,17 +1602,17 @@ const DayPlanner = () => {
                     if (!showMonthView) setViewedMonth(new Date(selectedDate));
                     setShowMonthView(!showMonthView);
                   }}
-                  className={`${textPrimary} font-bold text-xl min-w-[220px] text-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
+                  className={`${textPrimary} font-bold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
                 >
-                  {formatDate(selectedDate)}
+                  {formatDateRange(visibleDates)}
                 </button>
                 <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg}`}>
                   <ChevronRight size={20} className={textSecondary} />
                 </button>
-                
+
                 {/* Month View Popup */}
                 {showMonthView && (
-                  <div className={`month-view-container absolute top-full left-0 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+                  <div className={`month-view-container absolute top-full left-1/2 -translate-x-1/2 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
                     <div className="flex items-center justify-between mb-3">
                       <button
                         type="button"
@@ -1709,7 +1632,7 @@ const DayPlanner = () => {
                         <ChevronRight size={18} className={textSecondary} />
                       </button>
                     </div>
-                    
+
                     {/* Day headers */}
                     <div className="grid grid-cols-7 gap-1 mb-2">
                       {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
@@ -1718,14 +1641,14 @@ const DayPlanner = () => {
                         </div>
                       ))}
                     </div>
-                    
+
                     {/* Calendar days */}
                     <div className="grid grid-cols-7 gap-1">
                       {getMonthDays().map((day, index) => {
-                        const isToday = day && day.toDateString() === new Date().toDateString();
+                        const isDayToday = day && day.toDateString() === new Date().toDateString();
                         const isSelected = day && day.toDateString() === selectedDate.toDateString();
                         const hasTasks = hasTasksOnDate(day);
-                        
+
                         return (
                           <button
                             key={index}
@@ -1735,8 +1658,8 @@ const DayPlanner = () => {
                               h-10 rounded text-sm relative
                               ${!day ? 'invisible' : ''}
                               ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
-                              ${!isSelected && isToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
-                              ${!isSelected && !isToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
+                              ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
+                              ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
                               ${!day ? '' : 'cursor-pointer'}
                             `}
                           >
@@ -1753,10 +1676,13 @@ const DayPlanner = () => {
               </div>
               <button
                 onClick={goToToday}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="mt-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
               >
                 Today
               </button>
+            </div>
+            {/* Calendar area - weather aligned with left edge */}
+            <div className="flex-1 flex items-center gap-6">
               {weather && (
                 <>
                   {/* Current weather */}
@@ -1787,7 +1713,7 @@ const DayPlanner = () => {
               )}
 
               <div className="flex items-center gap-3 ml-auto">
-                <div className="flex flex-col gap-1 items-start">
+                <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => {
@@ -1799,7 +1725,7 @@ const DayPlanner = () => {
                         }
                       }}
                       disabled={isSyncing}
-                      className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      className={`flex-1 px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
                       title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? "Sync now" : "Configure calendar sync")}
                     >
                       <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
@@ -1815,7 +1741,7 @@ const DayPlanner = () => {
                       </button>
                     )}
                   </div>
-                  <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 whitespace-nowrap`}>
+                  <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
                     <Upload size={18} className={textSecondary} />
                     <span className={`text-sm ${textPrimary}`}>Import iCal</span>
                     <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
@@ -1828,44 +1754,12 @@ const DayPlanner = () => {
                   {darkMode ? <Sun size={20} className={textSecondary} /> : <Moon size={20} className={textSecondary} />}
                 </button>
               </div>
-              
-              {/* TODO: Re-enable stocks and news later */}
-              {/* Stock widgets */}
-              {/* stocks && (
-                <div className={`flex items-center gap-2`}>
-                  {stocks.map((stock, index) => (
-                    <div key={index} className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
-                      <div className={`text-xs font-semibold ${textPrimary}`}>{stock.symbol}</div>
-                      <div className={`text-sm font-bold ${textPrimary}`}>${stock.price}</div>
-                      <div className={`text-xs ${stock.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {stock.isPositive ? '▲' : '▼'} {stock.changePercent}%
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) */}
             </div>
-            
-            {/* News headlines row */}
-            {/* news && (
-              <div className={`flex items-center gap-2 mt-2`}>
-                <div className="flex gap-2 overflow-x-auto flex-1">
-                  {news.map((item, index) => (
-                    <div
-                      key={index}
-                      className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg whitespace-nowrap`}
-                    >
-                      <span className={`text-xs ${textPrimary}`}>{item.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) */}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-[2000px] mx-auto px-6 py-6">
         {showSyncSettings && (
           <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-6`}>
             <h3 className={`font-semibold ${textPrimary} mb-4`}>Calendar Sync Settings</h3>
@@ -1919,8 +1813,8 @@ const DayPlanner = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-3">
+        <div className="flex gap-6">
+          <div className="w-72 flex-shrink-0">
             <div className={`flex gap-2 mb-4`}>
               <button
                 onClick={openNewTaskForm}
@@ -2267,7 +2161,7 @@ const DayPlanner = () => {
             </div>
           </div>
 
-          <div className="col-span-9">
+          <div className="flex-1 min-w-0">
             {showAddTask && (
               <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-6`}>
                 <h3 className={`font-semibold ${textPrimary} mb-4`}>New Task</h3>
@@ -2385,125 +2279,93 @@ const DayPlanner = () => {
               </div>
             )}
 
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-hidden`}>
-              {/* FIX 3: All-day tasks section at the top */}
-              {filteredTodayTasks.filter(t => t.isAllDay).length > 0 && (
-                <div className={`border-b ${borderClass} p-2 ${cardBg}`}>
-                  <div className={`text-xs font-semibold ${textSecondary} mb-2 px-2`}>ALL DAY</div>
-                  <div className="space-y-2">
-                    {filteredTodayTasks.filter(t => t.isAllDay).map((task) => {
-                      const isImported = task.imported;
-                      const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
-                      return (
-                        <div
-                          key={task.id}
-                          draggable={!isImported || task.isTaskCalendar}
-                          onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
-                          className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
-                          style={taskCalendarStyle}
-                        >
-                          <div className="p-2 text-white">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                {(!isImported || task.isTaskCalendar) && (
-                                  <button
-                                    onClick={() => toggleComplete(task.id)}
-                                    className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                  >
-                                    {task.completed && <Check size={10} strokeWidth={3} />}
-                                  </button>
-                                )}
-                                <Calendar size={14} className="flex-shrink-0" />
-                                {editingTaskId === task.id ? (
-                                  <input
-                                    type="text"
-                                    value={editingTaskText}
-                                    onChange={(e) => setEditingTaskText(e.target.value)}
-                                    onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                    onBlur={() => saveTaskTitle(false)}
-                                    autoFocus
-                                    className="flex-1 bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                ) : (
-                                  <div
-                                    className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                    onDoubleClick={(e) => {
-                                      if (!isImported) {
-                                        e.stopPropagation();
-                                        startEditingTask(task, false);
-                                      }
-                                    }}
-                                    title={!isImported ? "Double-click to edit" : undefined}
-                                  >
-                                    {renderTitle(task.title)}
-                                  </div>
-                                )}
-                              </div>
-                              {!isImported && (
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  <button
-                                    onClick={() => postponeTask(task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Postpone to tomorrow"
-                                  >
-                                    <SkipForward size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => moveToInbox(task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Move to Inbox"
-                                  >
-                                    <Inbox size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors relative"
-                                  >
-                                    <Palette size={14} />
-                                    {showColorPicker === task.id && (
-                                      <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                        <div className="grid grid-cols-3 gap-1">
-                                          {colors.map((color) => (
-                                            <button
-                                              key={color.class}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                changeTaskColor(task.id, color.class, false);
-                                              }}
-                                              className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                              title={color.name}
-                                            />
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => moveToRecycleBin(task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Move to Recycle Bin"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+            <div
+              ref={calendarRef}
+              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll ${darkMode ? 'dark-scrollbar' : ''}`}
+              style={{ height: '1200px' }}
+            >
+              {/* Date headers row - sticky at top */}
+              <div className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
+                <div className={`w-20 flex-shrink-0 border-r ${borderClass}`}></div>
+                {visibleDates.map((date, idx) => {
+                  const isDateToday = dateToString(date) === dateToString(new Date());
+                  return (
+                    <div
+                      key={dateToString(date)}
+                      className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg}`}
+                    >
+                      <div className={`font-bold ${isDateToday ? 'text-blue-600' : textPrimary}`}>
+                        {formatShortDate(date)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* All-day tasks section - sticky below date headers */}
+              {visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay)) && (
+                <div className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
+                  <div className={`w-20 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
+                    ALL DAY
                   </div>
+                  {visibleDates.map((date, idx) => {
+                    const dayTasks = getTasksForDate(date).filter(t => t.isAllDay);
+                    return (
+                      <div
+                        key={dateToString(date)}
+                        className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+                      >
+                        {dayTasks.map((task) => {
+                          const isImported = task.imported;
+                          const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                          return (
+                            <div
+                              key={task.id}
+                              draggable={!isImported || task.isTaskCalendar}
+                              onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
+                              style={taskCalendarStyle}
+                            >
+                              <div className="p-2 text-white">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    {(!isImported || task.isTaskCalendar) && (
+                                      <button
+                                        onClick={() => toggleComplete(task.id)}
+                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                      >
+                                        {task.completed && <Check size={10} strokeWidth={3} />}
+                                      </button>
+                                    )}
+                                    <Calendar size={14} className="flex-shrink-0" />
+                                    <div
+                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''}`}
+                                    >
+                                      {renderTitle(task.title)}
+                                    </div>
+                                  </div>
+                                  {!isImported && (
+                                    <button
+                                      onClick={() => moveToRecycleBin(task.id)}
+                                      className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                      title="Move to Recycle Bin"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-              <div
-                ref={calendarRef}
-                onDragOver={handleDragOver}
-                onDrop={handleDropOnCalendar}
-                onClick={openNewTaskAtTime}
-                className={`relative overflow-y-auto ${darkMode ? 'dark-scrollbar' : ''}`}
-                style={{ height: '1120px' }}
-              >
+
+              {/* Main calendar grid */}
+              <div className="relative">
                 {hours.map((hour, index) => (
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
@@ -2511,189 +2373,216 @@ const DayPlanner = () => {
                       <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-center`}>
                         {hour.toString().padStart(2, '0')}:00
                       </div>
-                      <div className="flex-1 relative h-40 calendar-slot"></div>
+                      {visibleDates.map((date, idx) => (
+                        <div
+                          key={dateToString(date)}
+                          className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+                          data-date={dateToString(date)}
+                          onDragOver={(e) => handleDragOver(e, date)}
+                          onDrop={(e) => handleDropOnCalendar(e, date)}
+                          onClick={(e) => openNewTaskAtTime(e, date)}
+                        ></div>
+                      ))}
                     </div>
                     {/* Half-hour dashed line (no label) */}
                     <div className="absolute left-0 right-0 pointer-events-none" style={{ top: '80px' }}>
                       <div className={`flex border-b border-dashed ${borderClass} opacity-50`}>
                         <div className="w-20 flex-shrink-0"></div>
-                        <div className="flex-1"></div>
+                        {visibleDates.map((date, idx) => (
+                          <div key={dateToString(date)} className={`flex-1 ${idx > 0 ? `border-l ${borderClass}` : ''}`}></div>
+                        ))}
                       </div>
                     </div>
                   </div>
                 ))}
 
-                <div className="absolute top-0 left-20 right-0 bottom-0 pointer-events-none">
-                  {showCurrentTimeLine && (
-                    <div 
-                      ref={currentTimeRef}
-                      className="absolute left-0 right-0 pointer-events-none z-10"
-                      style={{ top: `${currentTimeTop}px` }}
-                    >
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
-                        <div className="flex-1 h-0.5 bg-red-500"></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {filteredTodayTasks.filter(t => !t.isAllDay).map((task) => {
-                    const { top, height } = calculateTaskPosition(task);
-                    const isConflicted = conflicts.some(c => c.includes(task.id));
-                    const conflictPos = calculateConflictPosition(task, filteredTodayTasks.filter(t => !t.isAllDay));
-                    const isVeryShort = height < 20;
-                    const isImported = task.imported;
-                    const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                {/* Task overlay for each day column */}
+                <div className="absolute top-0 left-20 right-0 bottom-0 pointer-events-none flex">
+                  {visibleDates.map((date, dayIndex) => {
+                    const dateStr = dateToString(date);
+                    const isDateToday = dateStr === dateToString(new Date());
+                    const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay);
 
                     return (
                       <div
-                        key={task.id}
-                        draggable={!isImported || task.isTaskCalendar}
-                        onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
-                        className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
-                        style={{
-                          top: `${top}px`,
-                          height: `${height}px`,
-                          minHeight: '40px',
-                          left: conflictPos.left,
-                          right: conflictPos.right,
-                          width: conflictPos.width,
-                          ...taskCalendarStyle
-                        }}
+                        key={dateStr}
+                        className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
                       >
-                        <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              {(!isImported || task.isTaskCalendar) && (
-                                <button
-                                  onClick={() => toggleComplete(task.id)}
-                                  className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                >
-                                  {task.completed && <Check size={10} strokeWidth={3} />}
-                                </button>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                {editingTaskId === task.id ? (
-                                  <input
-                                    type="text"
-                                    value={editingTaskText}
-                                    onChange={(e) => setEditingTaskText(e.target.value)}
-                                    onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                    onBlur={() => saveTaskTitle(false)}
-                                    autoFocus
-                                    className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                ) : (
+                        {/* Current time line - only on today */}
+                        {isDateToday && (
+                          <div
+                            ref={currentTimeRef}
+                            className="absolute left-0 right-0 pointer-events-none z-10"
+                            style={{ top: `${currentTimeTop}px` }}
+                          >
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
+                              <div className="flex-1 h-0.5 bg-red-500"></div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tasks for this day */}
+                        {dayTasks.map((task) => {
+                          const { top, height } = calculateTaskPosition(task);
+                          const isConflicted = conflicts.some(c => c.includes(task.id));
+                          const conflictPos = calculateConflictPosition(task, dayTasks);
+                          const isVeryShort = height < 20;
+                          const isImported = task.imported;
+                          const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+
+                          return (
+                            <div
+                              key={task.id}
+                              draggable={!isImported || task.isTaskCalendar}
+                              onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
+                              style={{
+                                top: `${top}px`,
+                                height: `${height}px`,
+                                minHeight: '40px',
+                                left: conflictPos.left,
+                                right: conflictPos.right,
+                                width: conflictPos.width,
+                                ...taskCalendarStyle
+                              }}
+                            >
+                              <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                    {(!isImported || task.isTaskCalendar) && (
+                                      <button
+                                        onClick={() => toggleComplete(task.id)}
+                                        className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                      >
+                                        {task.completed && <Check size={10} strokeWidth={3} />}
+                                      </button>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      {editingTaskId === task.id ? (
+                                        <input
+                                          type="text"
+                                          value={editingTaskText}
+                                          onChange={(e) => setEditingTaskText(e.target.value)}
+                                          onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                          onBlur={() => saveTaskTitle(false)}
+                                          autoFocus
+                                          className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      ) : (
+                                        <div
+                                          className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                          onDoubleClick={(e) => {
+                                            if (!isImported) {
+                                              e.stopPropagation();
+                                              startEditingTask(task, false);
+                                            }
+                                          }}
+                                          title={!isImported ? "Double-click to edit" : undefined}
+                                        >
+                                          {renderTitle(task.title)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-start gap-1 flex-shrink-0">
+                                    <div className="text-xs opacity-90 whitespace-nowrap mr-1 mt-0.5 flex items-center gap-1">
+                                      <Clock size={12} />
+                                      {task.startTime} • {task.duration}min
+                                    </div>
+                                    {!isImported && (
+                                      <>
+                                        <button
+                                          onClick={() => postponeTask(task.id)}
+                                          className="hover:bg-white/20 rounded p-1 transition-colors"
+                                          title="Postpone to tomorrow"
+                                        >
+                                          <SkipForward size={14} />
+                                        </button>
+                                        <button
+                                          onClick={() => moveToInbox(task.id)}
+                                          className="hover:bg-white/20 rounded p-1 transition-colors"
+                                          title="Move to Inbox"
+                                        >
+                                          <Inbox size={14} />
+                                        </button>
+                                        <button
+                                          onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                          className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                                        >
+                                          <Palette size={14} />
+                                          {showColorPicker === task.id && (
+                                            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                              <div className="grid grid-cols-3 gap-1">
+                                                {colors.map((color) => (
+                                                  <button
+                                                    key={color.class}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      changeTaskColor(task.id, color.class, false);
+                                                    }}
+                                                    className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                                    title={color.name}
+                                                  />
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </button>
+                                        <button
+                                          onClick={() => moveToRecycleBin(task.id)}
+                                          className="hover:bg-white/20 rounded p-1 transition-colors"
+                                          title="Move to Recycle Bin"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Resize handle at bottom - solid white for visibility */}
+                                {!isVeryShort && !isImported && (
                                   <div
-                                    className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                    onDoubleClick={(e) => {
-                                      if (!isImported) {
-                                        e.stopPropagation();
-                                        startEditingTask(task, false);
-                                      }
-                                    }}
-                                    title={!isImported ? "Double-click to edit" : undefined}
+                                    onMouseDown={(e) => handleResizeStart(task, e)}
+                                    className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
+                                    style={{ marginBottom: '-4px' }}
                                   >
-                                    {renderTitle(task.title)}
+                                    <div className="w-8 h-1 bg-white rounded-full"></div>
                                   </div>
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-start gap-1 flex-shrink-0">
-                              <div className="text-xs opacity-90 whitespace-nowrap mr-1 mt-0.5 flex items-center gap-1">
-                                <Clock size={12} />
-                                {task.startTime} • {task.duration}min
-                              </div>
-                              {!isImported && (
-                                <>
-                                  <button
-                                    onClick={() => postponeTask(task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Postpone to tomorrow"
-                                  >
-                                    <SkipForward size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => moveToInbox(task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Move to Inbox"
-                                  >
-                                    <Inbox size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors relative"
-                                  >
-                                    <Palette size={14} />
-                                    {showColorPicker === task.id && (
-                                      <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                        <div className="grid grid-cols-3 gap-1">
-                                          {colors.map((color) => (
-                                            <button
-                                              key={color.class}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                changeTaskColor(task.id, color.class, false);
-                                              }}
-                                              className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                              title={color.name}
-                                            />
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => moveToRecycleBin(task.id)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Move to Recycle Bin"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {/* Resize handle at bottom - solid white for visibility */}
-                          {!isVeryShort && !isImported && (
+                          );
+                        })}
+
+                        {/* Drag preview - only show in the column being dragged over */}
+                        {dragPreviewTime && draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === dateStr && (
+                          <>
+                            {/* Time label above the box */}
                             <div
-                              onMouseDown={(e) => handleResizeStart(task, e)}
-                              className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
-                              style={{ marginBottom: '-4px' }}
+                              className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
+                              style={{
+                                top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60) - 30}px`
+                              }}
                             >
-                              <div className="w-8 h-1 bg-white rounded-full"></div>
+                              {dragPreviewTime}
                             </div>
-                          )}
-                        </div>
+                            {/* Preview box */}
+                            <div
+                              className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
+                              style={{
+                                top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60)}px`,
+                                height: `${draggedTask.duration * 160 / 60}px`,
+                                minHeight: '40px'
+                              }}
+                            >
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
-                  
-                  {/* Drag preview - more visible with time display */}
-                  {dragPreviewTime && draggedTask && (
-                    <>
-                      {/* Time label above the box */}
-                      <div 
-                        className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
-                        style={{
-                          top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60) - 30}px`
-                        }}
-                      >
-                        {dragPreviewTime}
-                      </div>
-                      {/* Preview box */}
-                      <div 
-                        className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
-                        style={{
-                          top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60)}px`,
-                          height: `${draggedTask.duration * 160 / 60}px`,
-                          minHeight: '40px'
-                        }}
-                      >
-                      </div>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
