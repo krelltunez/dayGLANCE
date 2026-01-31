@@ -33,6 +33,7 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-selected-tags');
     return saved ? JSON.parse(saved) : [];
   });
+  const [pendingPriorities, setPendingPriorities] = useState({});
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -509,6 +510,26 @@ const DayPlanner = () => {
     setSelectedTags([]);
   };
 
+  const cyclePriority = (taskId) => {
+    const task = unscheduledTasks.find(t => t.id === taskId);
+    const currentPriority = pendingPriorities[taskId] ?? task?.priority ?? 0;
+    const newPriority = (currentPriority + 1) % 4;
+
+    // Update visual immediately
+    setPendingPriorities(prev => ({ ...prev, [taskId]: newPriority }));
+
+    // Update actual priority (triggers reorder) after delay
+    setTimeout(() => {
+      setUnscheduledTasks(prev => prev.map(t =>
+        t.id === taskId ? { ...t, priority: newPriority } : t
+      ));
+      setPendingPriorities(prev => {
+        const { [taskId]: _, ...rest } = prev;
+        return rest;
+      });
+    }, 500);
+  };
+
   const calculateConflictPosition = (task, allTasks) => {
     const conflicting = getConflictingTasks(task, allTasks);
     if (conflicting.length === 0) return { left: 2, right: 2, width: null };
@@ -539,7 +560,7 @@ const DayPlanner = () => {
       };
 
       if (toInbox) {
-        setUnscheduledTasks([...unscheduledTasks, task]);
+        setUnscheduledTasks([...unscheduledTasks, { ...task, priority: 0 }]);
       } else {
         setTasks([...tasks, {
           ...task,
@@ -836,8 +857,9 @@ const DayPlanner = () => {
 
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+      const { priority, ...taskWithoutPriority } = draggedTask;
       setTasks([...tasks, {
-        ...draggedTask,
+        ...taskWithoutPriority,
         startTime,
         date: dateToString(selectedDate)
       }]);
@@ -1375,7 +1397,8 @@ const DayPlanner = () => {
     });
   };
 
-  const filteredUnscheduledTasks = filterByTags(unscheduledTasks);
+  const filteredUnscheduledTasks = filterByTags(unscheduledTasks)
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
 
   // Calculate all-time stats (excluding imported events)
@@ -1719,39 +1742,56 @@ const DayPlanner = () => {
                             <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
                           </div>
                         </div>
-                        <div className="flex items-start gap-1 flex-shrink-0">
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <div className="flex items-start gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowColorPicker(showColorPicker === task.id ? null : task.id);
+                              }}
+                              className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                            >
+                              <Palette size={14} />
+                              {showColorPicker === task.id && (
+                                <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                  <div className="grid grid-cols-3 gap-1">
+                                    {colors.map((color) => (
+                                      <button
+                                        key={color.class}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          changeTaskColor(task.id, color.class, true);
+                                        }}
+                                        className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                        title={color.name}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => moveToRecycleBin(task.id, true)}
+                              className="hover:bg-white/20 rounded p-1"
+                              title="Move to Recycle Bin"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowColorPicker(showColorPicker === task.id ? null : task.id);
+                              cyclePriority(task.id);
                             }}
-                            className="hover:bg-white/20 rounded p-1 transition-colors relative"
+                            className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 mt-1 transition-colors"
+                            title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
                           >
-                            <Palette size={14} />
-                            {showColorPicker === task.id && (
-                              <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                <div className="grid grid-cols-3 gap-1">
-                                  {colors.map((color) => (
-                                    <button
-                                      key={color.class}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        changeTaskColor(task.id, color.class, true);
-                                      }}
-                                      className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                      title={color.name}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => moveToRecycleBin(task.id, true)}
-                            className="hover:bg-white/20 rounded p-1"
-                            title="Move to Recycle Bin"
-                          >
-                            <Trash2 size={14} />
+                            {[0, 1, 2].map(i => (
+                              <span
+                                key={i}
+                                className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
+                              />
+                            ))}
                           </button>
                         </div>
                       </div>
