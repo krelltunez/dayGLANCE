@@ -70,6 +70,16 @@ const DayPlanner = () => {
     return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
   };
 
+  const renderTitle = (title) => {
+    const parts = title.split(/(#\w+)/g);
+    return parts.map((part, i) => {
+      if (part.match(/^#\w+$/)) {
+        return <span key={i} className="text-xs italic opacity-75">{part}</span>;
+      }
+      return part;
+    });
+  };
+
   useEffect(() => {
     loadData();
     fetchWeather(); // FIX 1: Call fetchWeather on mount
@@ -1705,7 +1715,7 @@ const DayPlanner = () => {
                             {task.completed && <Check size={10} strokeWidth={3} />}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>{task.title}</div>
+                            <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</div>
                             <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
                           </div>
                         </div>
@@ -1892,7 +1902,7 @@ const DayPlanner = () => {
                           <div className="flex items-start justify-between text-white">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium truncate">{task.title}</div>
+                                <div className="font-medium truncate">{renderTitle(task.title)}</div>
                                 <div className="text-xs opacity-75 mt-1">
                                   {task._deletedFrom === 'inbox' ? (
                                     <>Inbox • {task.duration}min</>
@@ -2075,7 +2085,7 @@ const DayPlanner = () => {
                                 )}
                                 <Calendar size={14} className="flex-shrink-0" />
                                 <div className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}>
-                                  {task.title}
+                                  {renderTitle(task.title)}
                                 </div>
                               </div>
                               {!isImported && (
@@ -2210,7 +2220,7 @@ const DayPlanner = () => {
                               )}
                               <div className="flex-1 min-w-0">
                                 <div className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''}`}>
-                                  {task.title}
+                                  {renderTitle(task.title)}
                                 </div>
                               </div>
                             </div>
