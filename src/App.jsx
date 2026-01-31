@@ -203,8 +203,6 @@ const DayPlanner = () => {
 
   const saveData = () => {
     try {
-      const taskCalItems = tasks.filter(t => t.isTaskCalendar);
-      console.log('DEBUG saveData: saving', tasks.length, 'tasks, of which', taskCalItems.length, 'are task calendar items');
       localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
       localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
       localStorage.setItem('day-planner-recycle-bin', JSON.stringify(recycleBin));
@@ -240,11 +238,6 @@ const DayPlanner = () => {
       const data = await response.json();
       
       if (data.current && data.daily) {
-        console.log('Weather codes received:', {
-          current: data.current.weather_code,
-          daily: data.daily.weather_code
-        });
-        
         // Build forecast array for next 5 days (starting from tomorrow)
         const forecast = [];
         for (let i = 1; i <= 5; i++) {
@@ -1267,7 +1260,6 @@ const DayPlanner = () => {
 
       const icsContent = await response.text();
       const events = parseICS(icsContent);
-      console.log('DEBUG: parseICS returned', events.length, 'events:', events);
 
       const taskCalendarItems = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
@@ -1294,11 +1286,8 @@ const DayPlanner = () => {
 
       // Remove old task calendar items and add the fresh ones (preserve regular imports + user tasks)
       // Use functional form to avoid stale closure when both syncs run in parallel
-      console.log('DEBUG: taskCalendarItems created:', taskCalendarItems.length, taskCalendarItems);
       setTasks(prevTasks => {
         const nonTaskCalendarTasks = prevTasks.filter(t => !t.isTaskCalendar);
-        console.log('DEBUG: nonTaskCalendarTasks:', nonTaskCalendarTasks.length);
-        console.log('DEBUG: About to setTasks with', nonTaskCalendarTasks.length + taskCalendarItems.length, 'total items');
         return [...nonTaskCalendarTasks, ...taskCalendarItems];
       });
       if (!silent) setSyncNotification({ type: 'success', message: `Synced ${taskCalendarItems.length} tasks from task calendar` });
@@ -2403,7 +2392,7 @@ const DayPlanner = () => {
                                   />
                                 ) : (
                                   <div
-                                    className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                    className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                     onDoubleClick={(e) => {
                                       if (!isImported) {
                                         e.stopPropagation();
@@ -2562,7 +2551,7 @@ const DayPlanner = () => {
                                   />
                                 ) : (
                                   <div
-                                    className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                    className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                     onDoubleClick={(e) => {
                                       if (!isImported) {
                                         e.stopPropagation();
