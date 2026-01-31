@@ -203,6 +203,8 @@ const DayPlanner = () => {
 
   const saveData = () => {
     try {
+      const taskCalItems = tasks.filter(t => t.isTaskCalendar);
+      console.log('DEBUG saveData: saving', tasks.length, 'tasks, of which', taskCalItems.length, 'are task calendar items');
       localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
       localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
       localStorage.setItem('day-planner-recycle-bin', JSON.stringify(recycleBin));
@@ -1262,6 +1264,7 @@ const DayPlanner = () => {
 
       const icsContent = await response.text();
       const events = parseICS(icsContent);
+      console.log('DEBUG: parseICS returned', events.length, 'events:', events);
 
       const taskCalendarItems = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
@@ -1287,7 +1290,10 @@ const DayPlanner = () => {
       });
 
       // Remove old task calendar items and add the fresh ones (preserve regular imports + user tasks)
+      console.log('DEBUG: taskCalendarItems created:', taskCalendarItems.length, taskCalendarItems);
       const nonTaskCalendarTasks = tasks.filter(t => !t.isTaskCalendar);
+      console.log('DEBUG: nonTaskCalendarTasks:', nonTaskCalendarTasks.length);
+      console.log('DEBUG: About to setTasks with', nonTaskCalendarTasks.length + taskCalendarItems.length, 'total items');
       setTasks([...nonTaskCalendarTasks, ...taskCalendarItems]);
       if (!silent) setSyncNotification({ type: 'success', message: `Synced ${taskCalendarItems.length} tasks from task calendar` });
     } catch (error) {
