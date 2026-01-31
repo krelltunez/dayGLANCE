@@ -47,6 +47,10 @@ const DayPlanner = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
+  const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
+  const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
+  const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [weather, setWeather] = useState(null);
   // TODO: Re-enable stocks and news later
   // const [stocks, setStocks] = useState(null);
@@ -132,16 +136,17 @@ const DayPlanner = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-sync calendar every 15 minutes when syncUrl is configured
+  // Auto-sync calendars every 15 minutes when URLs are configured
   useEffect(() => {
-    if (!syncUrl) return;
+    if (!syncUrl && !taskCalendarUrl) return;
 
     const syncTimer = setInterval(() => {
-      syncWithCalendar({ silent: true });
+      if (syncUrl) syncWithCalendar({ silent: true });
+      if (taskCalendarUrl) syncTaskCalendar({ silent: true });
     }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(syncTimer);
-  }, [syncUrl]);
+  }, [syncUrl, taskCalendarUrl]);
 
   useEffect(() => {
     const isToday = dateToString(selectedDate) === dateToString(new Date());
@@ -158,7 +163,7 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks, recycleBin]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids]);
 
   const loadData = () => {
     try {
@@ -167,7 +172,9 @@ const DayPlanner = () => {
       const recycleBinData = localStorage.getItem('day-planner-recycle-bin');
       const darkModeData = localStorage.getItem('day-planner-darkmode');
       const syncUrlData = localStorage.getItem('day-planner-sync-url');
-      
+      const taskCalendarUrlData = localStorage.getItem('day-planner-task-calendar-url');
+      const completedTaskUidsData = localStorage.getItem('day-planner-task-completed-uids');
+
       if (tasksData) {
         setTasks(JSON.parse(tasksData));
       }
@@ -183,6 +190,12 @@ const DayPlanner = () => {
       if (syncUrlData) {
         setSyncUrl(JSON.parse(syncUrlData));
       }
+      if (taskCalendarUrlData) {
+        setTaskCalendarUrl(JSON.parse(taskCalendarUrlData));
+      }
+      if (completedTaskUidsData) {
+        setCompletedTaskUids(new Set(JSON.parse(completedTaskUidsData)));
+      }
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
@@ -195,6 +208,8 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-recycle-bin', JSON.stringify(recycleBin));
       localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
       localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
+      localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(taskCalendarUrl));
+      localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
     } catch (error) {
       console.error('Error saving data:', error);
     }
@@ -413,6 +428,32 @@ const DayPlanner = () => {
   };
   */
 
+  const getTaskCalendarStyle = (task, isDarkMode) => {
+    if (!task.isTaskCalendar) return {};
+
+    if (task.completed) {
+      // Completed: solid muted gray with lower opacity
+      return {
+        backgroundColor: isDarkMode ? '#4b5563' : '#6b7280',
+        opacity: 0.5
+      };
+    }
+
+    // Active: -45° diagonal stripes
+    const color1 = isDarkMode ? '#4b5563' : '#6b7280';
+    const color2 = isDarkMode ? '#6b7280' : '#9ca3af';
+
+    return {
+      background: `repeating-linear-gradient(
+        -45deg,
+        ${color1},
+        ${color1} 8px,
+        ${color2} 8px,
+        ${color2} 16px
+      )`
+    };
+  };
+
   const getWeatherCondition = (code) => {
     if (code === 0) return 'Clear';
     if ([1, 2, 3].includes(code)) return 'Partly Cloudy';
@@ -604,11 +645,25 @@ const DayPlanner = () => {
 
   const toggleComplete = (id, fromInbox = false) => {
     if (fromInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(task => 
+      setUnscheduledTasks(unscheduledTasks.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
       ));
     } else {
-      setTasks(tasks.map(task => 
+      // Find the task to check if it's a task calendar item
+      const task = tasks.find(t => t.id === id);
+      if (task?.isTaskCalendar && task?.icalUid) {
+        // Persist completion state for task calendar items
+        setCompletedTaskUids(prev => {
+          const newSet = new Set(prev);
+          if (task.completed) {
+            newSet.delete(task.icalUid);
+          } else {
+            newSet.add(task.icalUid);
+          }
+          return newSet;
+        });
+      }
+      setTasks(tasks.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
       ));
     }
@@ -1074,6 +1129,14 @@ const DayPlanner = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setPendingImportFile(file);
+    setShowImportModal(true);
+    e.target.value = '';
+  };
+
+  const processImportFile = (asTaskCalendar) => {
+    if (!pendingImportFile) return;
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const icsContent = event.target.result;
@@ -1084,7 +1147,6 @@ const DayPlanner = () => {
         const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
         const duration = Math.round((endDate - startDate) / (1000 * 60));
 
-        // Detect all-day events: either explicitly marked, or starts at midnight and lasts 24+ hours
         const isAllDay = event.isAllDay ||
           (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
 
@@ -1095,19 +1157,26 @@ const DayPlanner = () => {
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
           duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
           date: dateToString(startDate),
-          color: 'bg-gray-600',
-          completed: false,
+          color: asTaskCalendar ? 'task-calendar' : 'bg-gray-600',
+          completed: asTaskCalendar ? completedTaskUids.has(event.uid) : false,
           imported: true,
+          isTaskCalendar: asTaskCalendar,
           isAllDay: isAllDay
         };
       });
 
-      // Remove old imported events and add the fresh ones
-      const nonImportedTasks = tasks.filter(t => !t.imported);
-      setTasks([...nonImportedTasks, ...importedTasks]);
-      e.target.value = '';
+      if (asTaskCalendar) {
+        const nonTaskCalendarTasks = tasks.filter(t => !t.isTaskCalendar);
+        setTasks([...nonTaskCalendarTasks, ...importedTasks]);
+      } else {
+        const nonImportedTasks = tasks.filter(t => !t.imported || t.isTaskCalendar);
+        setTasks([...nonImportedTasks, ...importedTasks]);
+      }
+
+      setPendingImportFile(null);
+      setShowImportModal(false);
     };
-    reader.readAsText(file);
+    reader.readAsText(pendingImportFile);
   };
 
   const syncWithCalendar = async ({ silent = false } = {}) => {
@@ -1150,13 +1219,62 @@ const DayPlanner = () => {
         };
       });
 
-      // Remove old imported events and add the fresh ones
-      const nonImportedTasks = tasks.filter(t => !t.imported);
+      // Remove old regular imported events (not task calendar) and add the fresh ones
+      const nonImportedTasks = tasks.filter(t => !t.imported || t.isTaskCalendar);
       setTasks([...nonImportedTasks, ...importedTasks]);
       if (!silent) setSyncNotification({ type: 'success', message: `Synced ${importedTasks.length} events from calendar` });
     } catch (error) {
       if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with calendar. Make sure the URL is correct and publicly accessible.' });
       console.error('Sync error:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const syncTaskCalendar = async ({ silent = false } = {}) => {
+    if (!taskCalendarUrl) {
+      return; // Silently return if no task calendar URL configured
+    }
+
+    setIsSyncing(true);
+    try {
+      const proxyUrl = `/api/calendar-proxy/?url=${taskCalendarUrl}`;
+      const response = await fetch(proxyUrl);
+      if (!response.ok) throw new Error('Failed to fetch task calendar');
+
+      const icsContent = await response.text();
+      const events = parseICS(icsContent);
+
+      const taskCalendarItems = events.map(event => {
+        const startDate = parseDatetime(event.dtstart);
+        const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
+        const duration = Math.round((endDate - startDate) / (1000 * 60));
+
+        const isAllDay = event.isAllDay ||
+          (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
+
+        return {
+          id: event.uid || `task-cal-${Date.now()}-${Math.random()}`,
+          icalUid: event.uid,
+          title: event.summary,
+          startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
+          duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
+          date: dateToString(startDate),
+          color: 'task-calendar',
+          completed: completedTaskUids.has(event.uid),
+          imported: true,
+          isTaskCalendar: true,
+          isAllDay: isAllDay
+        };
+      });
+
+      // Remove old task calendar items and add the fresh ones (preserve regular imports + user tasks)
+      const nonTaskCalendarTasks = tasks.filter(t => !t.isTaskCalendar);
+      setTasks([...nonTaskCalendarTasks, ...taskCalendarItems]);
+      if (!silent) setSyncNotification({ type: 'success', message: `Synced ${taskCalendarItems.length} tasks from task calendar` });
+    } catch (error) {
+      if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with task calendar. Make sure the URL is correct and publicly accessible.' });
+      console.error('Task calendar sync error:', error);
     } finally {
       setIsSyncing(false);
     }
@@ -1612,15 +1730,23 @@ const DayPlanner = () => {
                 <div className="flex flex-col gap-1 items-start">
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => !isSyncing && (syncUrl ? syncWithCalendar() : setShowSyncSettings(true))}
+                      onClick={() => {
+                        if (isSyncing) return;
+                        if (syncUrl || taskCalendarUrl) {
+                          if (syncUrl) syncWithCalendar();
+                          if (taskCalendarUrl) syncTaskCalendar();
+                        } else {
+                          setShowSyncSettings(true);
+                        }
+                      }}
                       disabled={isSyncing}
                       className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
-                      title={isSyncing ? "Syncing..." : (syncUrl ? "Sync now" : "Configure calendar sync")}
+                      title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? "Sync now" : "Configure calendar sync")}
                     >
                       <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
                       <span className={`text-sm ${textPrimary}`}>{isSyncing ? 'Syncing...' : 'Sync'}</span>
                     </button>
-                    {syncUrl && (
+                    {(syncUrl || taskCalendarUrl) && (
                       <button
                         onClick={() => setShowSyncSettings(!showSyncSettings)}
                         className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
@@ -1684,7 +1810,7 @@ const DayPlanner = () => {
         {showSyncSettings && (
           <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-6`}>
             <h3 className={`font-semibold ${textPrimary} mb-4`}>Calendar Sync Settings</h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
                 <label className={`block text-sm ${textSecondary} mb-2`}>
                   Calendar URL (iCal/CalDAV)
@@ -1700,9 +1826,30 @@ const DayPlanner = () => {
                   For Nextcloud: Go to Calendar → Settings → Copy the public link for your calendar
                 </p>
               </div>
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-2`}>
+                  Task Calendar URL (iCal/CalDAV)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
+                  value={taskCalendarUrl}
+                  onChange={(e) => setTaskCalendarUrl(e.target.value)}
+                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                />
+                <p className={`text-xs ${textSecondary} mt-2`}>
+                  Tasks appear with striped pattern; completion state persists across syncs
+                </p>
+              </div>
               <div className="flex gap-2">
                 <button
-                  onClick={syncWithCalendar}
+                  onClick={() => {
+                    if (syncUrl) syncWithCalendar();
+                    if (taskCalendarUrl) syncTaskCalendar();
+                    if (!syncUrl && !taskCalendarUrl) {
+                      setSyncNotification({ type: 'info', message: 'Please enter at least one calendar URL' });
+                    }
+                  }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                 >
                   <RefreshCw size={16} />
@@ -2192,17 +2339,19 @@ const DayPlanner = () => {
                   <div className="space-y-2">
                     {filteredTodayTasks.filter(t => t.isAllDay).map((task) => {
                       const isImported = task.imported;
+                      const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                       return (
                         <div
                           key={task.id}
-                          draggable={!isImported}
-                          onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
-                          className={`${task.color} rounded-lg shadow-sm ${isImported ? 'cursor-default' : 'cursor-move'} ${task.completed ? 'opacity-50' : ''} relative`}
+                          draggable={!isImported || task.isTaskCalendar}
+                          onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                          className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
+                          style={taskCalendarStyle}
                         >
                           <div className="p-2 text-white">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 flex-1 min-w-0">
-                                {!isImported && (
+                                {(!isImported || task.isTaskCalendar) && (
                                   <button
                                     onClick={() => toggleComplete(task.id)}
                                     className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -2340,26 +2489,28 @@ const DayPlanner = () => {
                     const conflictPos = calculateConflictPosition(task, filteredTodayTasks.filter(t => !t.isAllDay));
                     const isVeryShort = height < 20;
                     const isImported = task.imported;
+                    const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
 
                     return (
                       <div
                         key={task.id}
-                        draggable={!isImported}
-                        onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
-                        className={`absolute ${task.color} rounded-lg shadow-md pointer-events-auto ${isImported ? 'cursor-default' : 'cursor-move'} ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed ? 'opacity-50' : ''} overflow-visible`}
+                        draggable={!isImported || task.isTaskCalendar}
+                        onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                        className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
                         style={{
                           top: `${top}px`,
                           height: `${height}px`,
                           minHeight: '40px',
                           left: conflictPos.left,
                           right: conflictPos.right,
-                          width: conflictPos.width
+                          width: conflictPos.width,
+                          ...taskCalendarStyle
                         }}
                       >
                         <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
-                              {!isImported && (
+                              {(!isImported || task.isTaskCalendar) && (
                                 <button
                                   onClick={() => toggleComplete(task.id)}
                                   className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -2539,6 +2690,49 @@ const DayPlanner = () => {
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImportModal(false); setPendingImportFile(null); }}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                <Upload size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Import Calendar</h3>
+            </div>
+            <p className={`${textSecondary} mb-6`}>
+              How would you like to import "{pendingImportFile?.name}"?
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => processImportFile(false)}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium">As Calendar Events</div>
+                <div className={`text-sm ${textSecondary}`}>Read-only events (solid gray)</div>
+              </button>
+              <button
+                onClick={() => processImportFile(true)}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium">As Task Calendar</div>
+                <div className={`text-sm ${textSecondary}`}>Checkable tasks (striped pattern)</div>
+              </button>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => { setShowImportModal(false); setPendingImportFile(null); }}
+                className={`px-4 py-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+              >
+                Cancel
               </button>
             </div>
           </div>
