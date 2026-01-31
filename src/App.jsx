@@ -141,8 +141,7 @@ const DayPlanner = () => {
     if (!syncUrl && !taskCalendarUrl) return;
 
     const syncTimer = setInterval(() => {
-      if (syncUrl) syncWithCalendar({ silent: true });
-      if (taskCalendarUrl) syncTaskCalendar({ silent: true });
+      syncAll({ silent: true });
     }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(syncTimer);
@@ -1192,13 +1191,12 @@ const DayPlanner = () => {
     reader.readAsText(pendingImportFile);
   };
 
-  const syncWithCalendar = async ({ silent = false } = {}) => {
+  // Returns { success: boolean, count?: number, error?: string }
+  const syncWithCalendar = async () => {
     if (!syncUrl) {
-      if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a calendar URL in sync settings' });
-      return;
+      return { success: false, error: 'no-url' };
     }
 
-    setIsSyncing(true);
     try {
       // Use proxy to bypass CORS restrictions
       // Note: URL is not encoded because nginx's $arg_url doesn't auto-decode
@@ -1238,21 +1236,19 @@ const DayPlanner = () => {
         const nonImportedTasks = prevTasks.filter(t => !t.imported || t.isTaskCalendar);
         return [...nonImportedTasks, ...importedTasks];
       });
-      if (!silent) setSyncNotification({ type: 'success', message: `Synced ${importedTasks.length} events from calendar` });
+      return { success: true, count: importedTasks.length };
     } catch (error) {
-      if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with calendar. Make sure the URL is correct and publicly accessible.' });
       console.error('Sync error:', error);
-    } finally {
-      setIsSyncing(false);
+      return { success: false, error: 'calendar' };
     }
   };
 
-  const syncTaskCalendar = async ({ silent = false } = {}) => {
+  // Returns { success: boolean, count?: number, error?: string }
+  const syncTaskCalendar = async () => {
     if (!taskCalendarUrl) {
-      return; // Silently return if no task calendar URL configured
+      return { success: false, error: 'no-url' };
     }
 
-    setIsSyncing(true);
     try {
       const proxyUrl = `/api/calendar-proxy/?url=${taskCalendarUrl}`;
       const response = await fetch(proxyUrl);
@@ -1263,8 +1259,8 @@ const DayPlanner = () => {
 
       const taskCalendarItems = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
-        const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
-        const duration = Math.round((endDate - startDate) / (1000 * 60));
+        const endDate = event.dtend ? parseDatetime(event.dtend) : null;
+        const duration = endDate ? Math.round((endDate - startDate) / (1000 * 60)) : 0;
 
         const isAllDay = event.isAllDay ||
           (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
@@ -1274,7 +1270,7 @@ const DayPlanner = () => {
           icalUid: event.uid,
           title: event.summary,
           startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
+          duration: isAllDay ? 60 : (duration > 0 ? duration : 15),
           date: dateToString(startDate),
           color: 'task-calendar',
           completed: completedTaskUids.has(event.uid),
@@ -1290,10 +1286,52 @@ const DayPlanner = () => {
         const nonTaskCalendarTasks = prevTasks.filter(t => !t.isTaskCalendar);
         return [...nonTaskCalendarTasks, ...taskCalendarItems];
       });
-      if (!silent) setSyncNotification({ type: 'success', message: `Synced ${taskCalendarItems.length} tasks from task calendar` });
+      return { success: true, count: taskCalendarItems.length };
     } catch (error) {
-      if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with task calendar. Make sure the URL is correct and publicly accessible.' });
       console.error('Task calendar sync error:', error);
+      return { success: false, error: 'task-calendar' };
+    }
+  };
+
+  // Combined sync function that shows a single notification
+  const syncAll = async ({ silent = false } = {}) => {
+    if (!syncUrl && !taskCalendarUrl) {
+      if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a calendar URL in sync settings' });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const [calendarResult, taskResult] = await Promise.all([
+        syncWithCalendar(),
+        syncTaskCalendar()
+      ]);
+
+      if (silent) return;
+
+      // Build notification message
+      const successes = [];
+      const errors = [];
+
+      if (calendarResult.success) {
+        successes.push(`${calendarResult.count} event${calendarResult.count !== 1 ? 's' : ''}`);
+      } else if (calendarResult.error === 'calendar') {
+        errors.push('calendar');
+      }
+
+      if (taskResult.success) {
+        successes.push(`${taskResult.count} task${taskResult.count !== 1 ? 's' : ''}`);
+      } else if (taskResult.error === 'task-calendar') {
+        errors.push('task calendar');
+      }
+
+      if (errors.length > 0 && successes.length === 0) {
+        setSyncNotification({ type: 'error', message: `Failed to sync with ${errors.join(' and ')}. Make sure the URL is correct and publicly accessible.` });
+      } else if (errors.length > 0) {
+        setSyncNotification({ type: 'error', message: `Synced ${successes.join(' and ')}, but failed to sync ${errors.join(' and ')}` });
+      } else if (successes.length > 0) {
+        setSyncNotification({ type: 'success', message: `Synced ${successes.join(' and ')}` });
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -1752,8 +1790,7 @@ const DayPlanner = () => {
                       onClick={() => {
                         if (isSyncing) return;
                         if (syncUrl || taskCalendarUrl) {
-                          if (syncUrl) syncWithCalendar();
-                          if (taskCalendarUrl) syncTaskCalendar();
+                          syncAll();
                         } else {
                           setShowSyncSettings(true);
                         }
@@ -1862,13 +1899,7 @@ const DayPlanner = () => {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    if (syncUrl) syncWithCalendar();
-                    if (taskCalendarUrl) syncTaskCalendar();
-                    if (!syncUrl && !taskCalendarUrl) {
-                      setSyncNotification({ type: 'info', message: 'Please enter at least one calendar URL' });
-                    }
-                  }}
+                  onClick={() => syncAll()}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                 >
                   <RefreshCw size={16} />
