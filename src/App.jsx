@@ -1240,8 +1240,11 @@ const DayPlanner = () => {
       });
 
       // Remove old regular imported events (not task calendar) and add the fresh ones
-      const nonImportedTasks = tasks.filter(t => !t.imported || t.isTaskCalendar);
-      setTasks([...nonImportedTasks, ...importedTasks]);
+      // Use functional form to avoid stale closure when both syncs run in parallel
+      setTasks(prevTasks => {
+        const nonImportedTasks = prevTasks.filter(t => !t.imported || t.isTaskCalendar);
+        return [...nonImportedTasks, ...importedTasks];
+      });
       if (!silent) setSyncNotification({ type: 'success', message: `Synced ${importedTasks.length} events from calendar` });
     } catch (error) {
       if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with calendar. Make sure the URL is correct and publicly accessible.' });
@@ -1290,11 +1293,14 @@ const DayPlanner = () => {
       });
 
       // Remove old task calendar items and add the fresh ones (preserve regular imports + user tasks)
+      // Use functional form to avoid stale closure when both syncs run in parallel
       console.log('DEBUG: taskCalendarItems created:', taskCalendarItems.length, taskCalendarItems);
-      const nonTaskCalendarTasks = tasks.filter(t => !t.isTaskCalendar);
-      console.log('DEBUG: nonTaskCalendarTasks:', nonTaskCalendarTasks.length);
-      console.log('DEBUG: About to setTasks with', nonTaskCalendarTasks.length + taskCalendarItems.length, 'total items');
-      setTasks([...nonTaskCalendarTasks, ...taskCalendarItems]);
+      setTasks(prevTasks => {
+        const nonTaskCalendarTasks = prevTasks.filter(t => !t.isTaskCalendar);
+        console.log('DEBUG: nonTaskCalendarTasks:', nonTaskCalendarTasks.length);
+        console.log('DEBUG: About to setTasks with', nonTaskCalendarTasks.length + taskCalendarItems.length, 'total items');
+        return [...nonTaskCalendarTasks, ...taskCalendarItems];
+      });
       if (!silent) setSyncNotification({ type: 'success', message: `Synced ${taskCalendarItems.length} tasks from task calendar` });
     } catch (error) {
       if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with task calendar. Make sure the URL is correct and publicly accessible.' });
