@@ -42,6 +42,8 @@ const DayPlanner = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showMonthView, setShowMonthView] = useState(false);
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
+  const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
+  const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [weather, setWeather] = useState(null);
   // TODO: Re-enable stocks and news later
   // const [stocks, setStocks] = useState(null);
@@ -226,7 +228,8 @@ const DayPlanner = () => {
         // Build forecast array for next 5 days (starting from tomorrow)
         const forecast = [];
         for (let i = 1; i <= 5; i++) {
-          const date = new Date(data.daily.time[i]);
+          // Append T12:00:00 to avoid timezone issues (date-only strings are parsed as UTC midnight)
+          const date = new Date(data.daily.time[i] + 'T12:00:00');
           forecast.push({
             day: date.toLocaleDateString('en-US', { weekday: 'short' }),
             high: Math.round(data.daily.temperature_2m_max[i]),
@@ -526,6 +529,7 @@ const DayPlanner = () => {
     }
 
     // Update actual priority (triggers reorder) after delay
+    // Longer delay allows for multiple clicks to reach desired priority
     priorityTimeouts.current[taskId] = setTimeout(() => {
       setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, priority: newPriority } : t
@@ -535,7 +539,7 @@ const DayPlanner = () => {
         return rest;
       });
       delete priorityTimeouts.current[taskId];
-    }, 500);
+    }, 1200);
   };
 
   const calculateConflictPosition = (task, allTasks) => {
@@ -673,10 +677,12 @@ const DayPlanner = () => {
   };
 
   const emptyRecycleBin = () => {
-    // Adding "Day Planner" to the message since we can't change the browser's dialog title
-    if (window.confirm('Day Planner\n\nAre you sure you want to permanently delete all tasks in the recycle bin?')) {
-      setRecycleBin([]);
-    }
+    setShowEmptyBinConfirm(true);
+  };
+
+  const confirmEmptyBin = () => {
+    setRecycleBin([]);
+    setShowEmptyBinConfirm(false);
   };
 
   const formatDate = (date) => {
@@ -1062,7 +1068,7 @@ const DayPlanner = () => {
 
   const syncWithCalendar = async ({ silent = false } = {}) => {
     if (!syncUrl) {
-      if (!silent) alert('Please enter a calendar URL in sync settings');
+      if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a calendar URL in sync settings' });
       return;
     }
 
@@ -1102,9 +1108,9 @@ const DayPlanner = () => {
       // Remove old imported events and add the fresh ones
       const nonImportedTasks = tasks.filter(t => !t.imported);
       setTasks([...nonImportedTasks, ...importedTasks]);
-      if (!silent) alert(`Synced ${importedTasks.length} events from calendar`);
+      if (!silent) setSyncNotification({ type: 'success', message: `Synced ${importedTasks.length} events from calendar` });
     } catch (error) {
-      if (!silent) alert('Failed to sync with calendar. Make sure the URL is correct and publicly accessible.');
+      if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with calendar. Make sure the URL is correct and publicly accessible.' });
       console.error('Sync error:', error);
     }
   };
@@ -2390,6 +2396,83 @@ const DayPlanner = () => {
           onChange={(date) => setNewTask({ ...newTask, date })}
           onClose={() => setShowDatePicker(false)}
         />
+      )}
+
+      {showEmptyBinConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmptyBinConfirm(false)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                <Trash2 size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Empty Recycle Bin</h3>
+            </div>
+            <p className={`${textSecondary} mb-6`}>
+              Are you sure you want to permanently delete all {recycleBin.length} task{recycleBin.length !== 1 ? 's' : ''} in the recycle bin? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowEmptyBinConfirm(false)}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmEmptyBin}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {syncNotification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSyncNotification(null)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`p-2 rounded-full ${
+                syncNotification.type === 'success' ? 'bg-green-100 dark:bg-green-900/30' :
+                syncNotification.type === 'error' ? 'bg-red-100 dark:bg-red-900/30' :
+                'bg-blue-100 dark:bg-blue-900/30'
+              }`}>
+                {syncNotification.type === 'success' ? (
+                  <Check size={20} className="text-green-600 dark:text-green-400" />
+                ) : syncNotification.type === 'error' ? (
+                  <AlertCircle size={20} className="text-red-600 dark:text-red-400" />
+                ) : (
+                  <RefreshCw size={20} className="text-blue-600 dark:text-blue-400" />
+                )}
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>
+                {syncNotification.type === 'success' ? 'Sync Complete' :
+                 syncNotification.type === 'error' ? 'Sync Failed' : 'Calendar Sync'}
+              </h3>
+            </div>
+            <p className={`${textSecondary} mb-6`}>
+              {syncNotification.message}
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setSyncNotification(null)}
+                className={`px-4 py-2 ${
+                  syncNotification.type === 'success' ? 'bg-green-600 hover:bg-green-700' :
+                  syncNotification.type === 'error' ? 'bg-red-600 hover:bg-red-700' :
+                  'bg-blue-600 hover:bg-blue-700'
+                } text-white rounded-lg`}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
