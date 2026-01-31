@@ -1643,9 +1643,12 @@ const DayPlanner = () => {
   // Calculate all-time stats (excluding imported events)
   const nonImportedTasks = tasks.filter(t => !t.imported);
   const todayNonImportedTasks = todayTasks.filter(t => !t.imported);
+  const todayCompletedTasks = todayNonImportedTasks.filter(t => t.completed);
   const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
   const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
   const totalScheduledMinutes = nonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
+  const todayCompletedMinutes = todayCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
+  const todayPlannedMinutes = todayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -2152,9 +2155,10 @@ const DayPlanner = () => {
               </div>
               {!minimizedSections.dailySummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
-                    <div>{todayNonImportedTasks.length} tasks scheduled</div>
-                  <div>{todayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0)} minutes planned</div>
-                  <div>{unscheduledTasks.length} tasks in inbox</div>
+                  <div>{todayNonImportedTasks.length} tasks scheduled</div>
+                  <div>{todayCompletedTasks.length} tasks completed</div>
+                  <div>{Math.floor(todayCompletedMinutes / 60)}h {todayCompletedMinutes % 60}m time spent</div>
+                  <div>{Math.floor(todayPlannedMinutes / 60)}h {todayPlannedMinutes % 60}m time planned</div>
                 </div>
               )}
             </div>
