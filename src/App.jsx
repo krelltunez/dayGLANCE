@@ -44,6 +44,9 @@ const DayPlanner = () => {
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTaskText, setEditingTaskText] = useState('');
   const [weather, setWeather] = useState(null);
   // TODO: Re-enable stocks and news later
   // const [stocks, setStocks] = useState(null);
@@ -628,7 +631,7 @@ const DayPlanner = () => {
   const moveToInbox = (id) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-    
+
     // Remove scheduling info and move to inbox
     const unscheduledTask = {
       ...task,
@@ -636,9 +639,50 @@ const DayPlanner = () => {
       date: null,
       isAllDay: false
     };
-    
+
     setTasks(tasks.filter(t => t.id !== id));
     setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
+  };
+
+  const startEditingTask = (task, isInbox = false) => {
+    if (task.imported) return; // Don't allow editing imported tasks
+    setEditingTaskId(task.id);
+    setEditingTaskText(task.title);
+  };
+
+  const saveTaskTitle = (isInbox = false) => {
+    if (!editingTaskId || !editingTaskText.trim()) {
+      cancelEditingTask();
+      return;
+    }
+
+    if (isInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(t =>
+        t.id === editingTaskId ? { ...t, title: editingTaskText.trim() } : t
+      ));
+    } else {
+      setTasks(tasks.map(t =>
+        t.id === editingTaskId ? { ...t, title: editingTaskText.trim() } : t
+      ));
+    }
+
+    setEditingTaskId(null);
+    setEditingTaskText('');
+  };
+
+  const cancelEditingTask = () => {
+    setEditingTaskId(null);
+    setEditingTaskText('');
+  };
+
+  const handleEditKeyDown = (e, isInbox = false) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTaskTitle(isInbox);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditingTask();
+    }
   };
 
   const moveToRecycleBin = (id, fromInbox = false) => {
@@ -1072,6 +1116,7 @@ const DayPlanner = () => {
       return;
     }
 
+    setIsSyncing(true);
     try {
       // Use proxy to bypass CORS restrictions
       // Note: URL is not encoded because nginx's $arg_url doesn't auto-decode
@@ -1112,6 +1157,8 @@ const DayPlanner = () => {
     } catch (error) {
       if (!silent) setSyncNotification({ type: 'error', message: 'Failed to sync with calendar. Make sure the URL is correct and publicly accessible.' });
       console.error('Sync error:', error);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1565,12 +1612,13 @@ const DayPlanner = () => {
                 <div className="flex flex-col gap-1 items-start">
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => syncUrl ? syncWithCalendar() : setShowSyncSettings(true)}
-                      className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2`}
-                      title={syncUrl ? "Sync now" : "Configure calendar sync"}
+                      onClick={() => !isSyncing && (syncUrl ? syncWithCalendar() : setShowSyncSettings(true))}
+                      disabled={isSyncing}
+                      className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center gap-2 ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      title={isSyncing ? "Syncing..." : (syncUrl ? "Sync now" : "Configure calendar sync")}
                     >
-                      <RefreshCw size={18} className={textSecondary} />
-                      <span className={`text-sm ${textPrimary}`}>Sync</span>
+                      <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+                      <span className={`text-sm ${textPrimary}`}>{isSyncing ? 'Syncing...' : 'Sync'}</span>
                     </button>
                     {syncUrl && (
                       <button
@@ -1755,7 +1803,29 @@ const DayPlanner = () => {
                             {task.completed && <Check size={10} strokeWidth={3} />}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</div>
+                            {editingTaskId === task.id ? (
+                              <input
+                                type="text"
+                                value={editingTaskText}
+                                onChange={(e) => setEditingTaskText(e.target.value)}
+                                onKeyDown={(e) => handleEditKeyDown(e, true)}
+                                onBlur={() => saveTaskTitle(true)}
+                                autoFocus
+                                className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <div
+                                className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditingTask(task, true);
+                                }}
+                                title="Double-click to edit"
+                              >
+                                {renderTitle(task.title)}
+                              </div>
+                            )}
                             <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
                           </div>
                         </div>
@@ -2141,9 +2211,31 @@ const DayPlanner = () => {
                                   </button>
                                 )}
                                 <Calendar size={14} className="flex-shrink-0" />
-                                <div className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}>
-                                  {renderTitle(task.title)}
-                                </div>
+                                {editingTaskId === task.id ? (
+                                  <input
+                                    type="text"
+                                    value={editingTaskText}
+                                    onChange={(e) => setEditingTaskText(e.target.value)}
+                                    onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                    onBlur={() => saveTaskTitle(false)}
+                                    autoFocus
+                                    className="flex-1 bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <div
+                                    className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                    onDoubleClick={(e) => {
+                                      if (!isImported) {
+                                        e.stopPropagation();
+                                        startEditingTask(task, false);
+                                      }
+                                    }}
+                                    title={!isImported ? "Double-click to edit" : undefined}
+                                  >
+                                    {renderTitle(task.title)}
+                                  </div>
+                                )}
                               </div>
                               {!isImported && (
                                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -2276,9 +2368,31 @@ const DayPlanner = () => {
                                 </button>
                               )}
                               <div className="flex-1 min-w-0">
-                                <div className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''}`}>
-                                  {renderTitle(task.title)}
-                                </div>
+                                {editingTaskId === task.id ? (
+                                  <input
+                                    type="text"
+                                    value={editingTaskText}
+                                    onChange={(e) => setEditingTaskText(e.target.value)}
+                                    onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                    onBlur={() => saveTaskTitle(false)}
+                                    autoFocus
+                                    className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <div
+                                    className={`font-semibold text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                    onDoubleClick={(e) => {
+                                      if (!isImported) {
+                                        e.stopPropagation();
+                                        startEditingTask(task, false);
+                                      }
+                                    }}
+                                    title={!isImported ? "Double-click to edit" : undefined}
+                                  >
+                                    {renderTitle(task.title)}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-start gap-1 flex-shrink-0">
