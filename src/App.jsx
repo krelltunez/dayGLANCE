@@ -1073,17 +1073,28 @@ const DayPlanner = () => {
     const lines = icsContent.split('\n').map(line => line.trim());
     const events = [];
     let currentEvent = null;
+    let currentType = null; // 'event' or 'todo'
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
       if (line === 'BEGIN:VEVENT') {
         currentEvent = {};
-      } else if (line === 'END:VEVENT' && currentEvent) {
+        currentType = 'event';
+      } else if (line === 'BEGIN:VTODO') {
+        currentEvent = {};
+        currentType = 'todo';
+      } else if ((line === 'END:VEVENT' || line === 'END:VTODO') && currentEvent) {
+        // For VTODOs, use DUE as dtstart if no DTSTART present
+        if (currentType === 'todo' && !currentEvent.dtstart && currentEvent.due) {
+          currentEvent.dtstart = currentEvent.due;
+          currentEvent.isAllDay = currentEvent.dueIsAllDay;
+        }
         if (currentEvent.summary && currentEvent.dtstart) {
           events.push(currentEvent);
         }
         currentEvent = null;
+        currentType = null;
       } else if (currentEvent) {
         if (line.startsWith('SUMMARY:')) {
           currentEvent.summary = line.substring(8);
@@ -1097,6 +1108,13 @@ const DayPlanner = () => {
         } else if (line.startsWith('DTEND')) {
           const dateStr = line.split(':')[1];
           currentEvent.dtend = dateStr;
+        } else if (line.startsWith('DUE')) {
+          // Handle VTODO due dates
+          if (line.includes('VALUE=DATE') || line.split(':')[1]?.length === 8) {
+            currentEvent.dueIsAllDay = true;
+          }
+          const dateStr = line.split(':')[1];
+          currentEvent.due = dateStr;
         } else if (line.startsWith('UID:')) {
           currentEvent.uid = line.substring(4);
         }
