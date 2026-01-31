@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -63,6 +63,7 @@ const DayPlanner = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
+  const [expandedTaskMenu, setExpandedTaskMenu] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showMonthView, setShowMonthView] = useState(false);
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
@@ -78,6 +79,8 @@ const DayPlanner = () => {
   const [weather, setWeather] = useState(null);
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
+  const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
+  const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
@@ -132,6 +135,21 @@ const DayPlanner = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMonthView]);
 
+  // Close task menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (expandedTaskMenu && !e.target.closest('.task-menu-container')) {
+        setExpandedTaskMenu(null);
+      }
+      if (showColorPicker && !e.target.closest('.color-picker-container')) {
+        setShowColorPicker(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [expandedTaskMenu, showColorPicker]);
+
   // Persist darkMode to localStorage
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
@@ -171,8 +189,8 @@ const DayPlanner = () => {
     if (isToday && calendarRef.current) {
       setTimeout(() => {
         const currentHour = new Date().getHours();
-        // Scroll to show 2 hours before current time (each hour is 160px tall)
-        const scrollPosition = Math.max(0, (currentHour - 2) * 160);
+        // Scroll to show 2 hours before current time (each hour is 161px: 160px height + 1px border)
+        const scrollPosition = Math.max(0, (currentHour - 2) * 161);
         calendarRef.current.scrollTop = scrollPosition;
       }, 100);
     }
@@ -454,18 +472,23 @@ const DayPlanner = () => {
   const calculateConflictPosition = (task, allTasks) => {
     const conflicting = getConflictingTasks(task, allTasks);
     if (conflicting.length === 0) return { left: 2, right: 2, width: null };
-    
+
     const allConflicted = [task, ...conflicting].sort((a, b) => a.id - b.id);
     const index = allConflicted.findIndex(t => t.id === task.id);
     const total = allConflicted.length;
-    
+    const allCompleted = allConflicted.every(t => t.completed);
+
     const widthPercent = 100 / total;
     const leftPercent = widthPercent * index;
-    
+
+    // Use tighter margins when all completed (no red border to account for)
+    const margin = allCompleted ? '0.125rem' : '0.25rem';
+    const totalMargin = allCompleted ? '0.25rem' : '0.5rem';
+
     return {
-      left: `calc(${leftPercent}% + 0.25rem)`,
+      left: `calc(${leftPercent}% + ${margin})`,
       right: 'auto',
-      width: `calc(${widthPercent}% - 0.5rem)`
+      width: `calc(${widthPercent}% - ${totalMargin})`
     };
   };
 
@@ -768,18 +791,33 @@ const DayPlanner = () => {
     setShowAddTask(true);
   };
 
+  // Helper function to convert cursor Y position to time
+  const getTimeFromCursorPosition = (e, options = {}) => {
+    const { roundTo = 15, maxMinutes = 23 * 60 + 45, taskDuration = 0 } = options;
+    const rect = calendarRef.current.getBoundingClientRect();
+    const scrollTop = calendarRef.current.scrollTop;
+    // Subtract 12px offset so cursor tip aligns with the time (more natural feel)
+    const y = Math.max(0, e.clientY - rect.top + scrollTop - 12);
+
+    // Each hour is 161px (160px content + 1px border)
+    const hourFromTop = Math.floor(y / 161);
+    const pixelsIntoHour = y - (hourFromTop * 161);
+    const minutesIntoHour = (Math.min(pixelsIntoHour, 160) / 160) * 60;
+    const totalMinutesFromTop = hourFromTop * 60 + minutesIntoHour;
+
+    // Round to nearest interval
+    const totalMinutesRounded = Math.round(totalMinutesFromTop / roundTo) * roundTo;
+    const hours = Math.floor(totalMinutesRounded / 60) + firstHour;
+    const minutes = totalMinutesRounded % 60;
+
+    const totalMinutes = Math.max(0, Math.min(maxMinutes - taskDuration, hours * 60 + minutes));
+    return minutesToTime(totalMinutes);
+  };
+
   const openNewTaskAtTime = (e, targetDate = null) => {
     // Only trigger if clicking on the empty calendar area, not on tasks
     if (e.target.classList.contains('calendar-slot')) {
-      const rect = calendarRef.current.getBoundingClientRect();
-      const scrollTop = calendarRef.current.scrollTop;
-      const y = e.clientY - rect.top + scrollTop;
-
-      const totalMinutesFromTop = (y / 160) * 60;
-      const clickHours = Math.floor(totalMinutesFromTop / 60) + firstHour;
-      const minutes = Math.round((totalMinutesFromTop % 60) / 15) * 15;
-      const totalMinutes = Math.max(0, Math.min(23 * 60 + 45, clickHours * 60 + minutes));
-      const clickedTime = minutesToTime(totalMinutes);
+      const clickedTime = getTimeFromCursorPosition(e);
 
       setNewTask({
         title: '',
@@ -790,6 +828,23 @@ const DayPlanner = () => {
       });
       setShowAddTask(true);
     }
+  };
+
+  const handleCalendarMouseMove = (e, targetDate) => {
+    if (draggedTask) return; // Don't show hover preview while dragging
+    if (!e.target.classList.contains('calendar-slot')) {
+      setHoverPreviewTime(null);
+      setHoverPreviewDate(null);
+      return;
+    }
+    const time = getTimeFromCursorPosition(e);
+    setHoverPreviewTime(time);
+    setHoverPreviewDate(targetDate);
+  };
+
+  const handleCalendarMouseLeave = () => {
+    setHoverPreviewTime(null);
+    setHoverPreviewDate(null);
   };
 
   const calculateTaskPosition = (task) => {
@@ -815,21 +870,11 @@ const DayPlanner = () => {
 
     // Show preview time while dragging
     if (draggedTask && calendarRef.current) {
-      const calendarRect = calendarRef.current.getBoundingClientRect();
-      const scrollTop = calendarRef.current.scrollTop;
-      const y = e.clientY - calendarRect.top + scrollTop;
-
-      // Calculate total minutes from the top of the calendar
-      const totalMinutesFromTop = (y / 160) * 60;
-
-      // Round to nearest 15 minutes FIRST, then calculate hours
-      const totalMinutesRounded = Math.round(totalMinutesFromTop / 15) * 15;
-      const hours = Math.floor(totalMinutesRounded / 60);
-      const minutes = totalMinutesRounded % 60;
-
-      const dragHours = hours + firstHour;
-      const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dragHours * 60 + minutes));
-      setDragPreviewTime(minutesToTime(totalMinutes));
+      const time = getTimeFromCursorPosition(e, {
+        maxMinutes: 24 * 60,
+        taskDuration: draggedTask.duration
+      });
+      setDragPreviewTime(time);
 
       // Track which date column we're dragging over
       if (targetDate) {
@@ -842,28 +887,10 @@ const DayPlanner = () => {
     e.preventDefault();
     if (!draggedTask) return;
 
-    const calendarElement = calendarRef.current;
-    const rect = calendarElement.getBoundingClientRect();
-
-    // Get the scroll position of the calendar container
-    const scrollTop = calendarElement.scrollTop;
-
-    // Calculate position relative to the top of the scrollable content
-    const y = e.clientY - rect.top + scrollTop;
-
-    // Calculate total minutes from the top of the calendar
-    const totalMinutesFromTop = (y / 160) * 60;
-
-    // Round to nearest 15 minutes FIRST, then calculate hours
-    const totalMinutesRounded = Math.round(totalMinutesFromTop / 15) * 15;
-    const hours = Math.floor(totalMinutesRounded / 60);
-    const minutes = totalMinutesRounded % 60;
-
-    const dropHours = hours + firstHour;
-
-    // Ensure time is within bounds
-    const totalMinutes = Math.max(0, Math.min(24 * 60 - draggedTask.duration, dropHours * 60 + minutes));
-    const startTime = minutesToTime(totalMinutes);
+    const startTime = getTimeFromCursorPosition(e, {
+      maxMinutes: 24 * 60,
+      taskDuration: draggedTask.duration
+    });
 
     // Use the target date from the column, falling back to dragPreviewDate or selectedDate
     const dropDate = targetDate || dragPreviewDate || selectedDate;
@@ -1934,7 +1961,7 @@ const DayPlanner = () => {
                             >
                               <Palette size={14} />
                               {showColorPicker === task.id && (
-                                <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                <div className="color-picker-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                   <div className="grid grid-cols-3 gap-1">
                                     {colors.map((color) => (
                                       <button
@@ -2282,7 +2309,7 @@ const DayPlanner = () => {
             <div
               ref={calendarRef}
               className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll ${darkMode ? 'dark-scrollbar' : ''}`}
-              style={{ height: '1200px' }}
+              style={{ height: '1168px' }}
             >
               {/* Date headers row - sticky at top */}
               <div className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
@@ -2381,6 +2408,8 @@ const DayPlanner = () => {
                           onDragOver={(e) => handleDragOver(e, date)}
                           onDrop={(e) => handleDropOnCalendar(e, date)}
                           onClick={(e) => openNewTaskAtTime(e, date)}
+                          onMouseMove={(e) => handleCalendarMouseMove(e, date)}
+                          onMouseLeave={handleCalendarMouseLeave}
                         ></div>
                       ))}
                     </div>
@@ -2430,13 +2459,69 @@ const DayPlanner = () => {
                           const isVeryShort = height < 20;
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                          const isNarrow = conflictPos.width !== null;
+                          const isShort = task.duration <= 15;
+
+                          // Action buttons component (reused in different layouts)
+                          const ActionButtons = ({ inMenu = false }) => (
+                            <>
+                              <button
+                                onClick={() => postponeTask(task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Postpone to tomorrow"
+                              >
+                                <SkipForward size={14} />
+                                {inMenu && <span className="text-xs">Postpone</span>}
+                              </button>
+                              <button
+                                onClick={() => moveToInbox(task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Move to Inbox"
+                              >
+                                <Inbox size={14} />
+                                {inMenu && <span className="text-xs">To Inbox</span>}
+                              </button>
+                              <button
+                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors relative ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                              >
+                                <Palette size={14} />
+                                {inMenu && <span className="text-xs">Color</span>}
+                                {showColorPicker === task.id && (
+                                  <div className="color-picker-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {colors.map((color) => (
+                                        <button
+                                          key={color.class}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            changeTaskColor(task.id, color.class, false);
+                                          }}
+                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                          title={color.name}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => moveToRecycleBin(task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Move to Recycle Bin"
+                              >
+                                <Trash2 size={14} />
+                                {inMenu && <span className="text-xs">Delete</span>}
+                              </button>
+                            </>
+                          );
 
                           return (
                             <div
                               key={task.id}
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
-                              className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
+                              className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -2448,17 +2533,18 @@ const DayPlanner = () => {
                               }}
                             >
                               <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                {/* Narrow short tasks (15min with conflicts): compact layout with ... menu */}
+                                {isNarrow && isShort ? (
+                                  <div className="flex items-center gap-1">
                                     {(!isImported || task.isTaskCalendar) && (
                                       <button
                                         onClick={() => toggleComplete(task.id)}
-                                        className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                       >
                                         {task.completed && <Check size={10} strokeWidth={3} />}
                                       </button>
                                     )}
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 overflow-hidden">
                                       {editingTaskId === task.id ? (
                                         <input
                                           type="text"
@@ -2467,80 +2553,139 @@ const DayPlanner = () => {
                                           onKeyDown={(e) => handleEditKeyDown(e, false)}
                                           onBlur={() => saveTaskTitle(false)}
                                           autoFocus
-                                          className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                          className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
                                           onClick={(e) => e.stopPropagation()}
                                         />
                                       ) : (
                                         <div
-                                          className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                          className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                           onDoubleClick={(e) => {
                                             if (!isImported) {
                                               e.stopPropagation();
                                               startEditingTask(task, false);
                                             }
                                           }}
-                                          title={!isImported ? "Double-click to edit" : undefined}
+                                          title={task.title}
                                         >
                                           {renderTitle(task.title)}
                                         </div>
                                       )}
                                     </div>
-                                  </div>
-                                  <div className="flex items-start gap-1 flex-shrink-0">
-                                    <div className="text-xs opacity-90 whitespace-nowrap mr-1 mt-0.5 flex items-center gap-1">
-                                      <Clock size={12} />
-                                      {task.startTime} • {task.duration}min
-                                    </div>
                                     {!isImported && (
-                                      <>
-                                        <button
-                                          onClick={() => postponeTask(task.id)}
-                                          className="hover:bg-white/20 rounded p-1 transition-colors"
-                                          title="Postpone to tomorrow"
-                                        >
-                                          <SkipForward size={14} />
-                                        </button>
-                                        <button
-                                          onClick={() => moveToInbox(task.id)}
-                                          className="hover:bg-white/20 rounded p-1 transition-colors"
-                                          title="Move to Inbox"
-                                        >
-                                          <Inbox size={14} />
-                                        </button>
-                                        <button
-                                          onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                          className="hover:bg-white/20 rounded p-1 transition-colors relative"
-                                        >
-                                          <Palette size={14} />
-                                          {showColorPicker === task.id && (
-                                            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                              <div className="grid grid-cols-3 gap-1">
-                                                {colors.map((color) => (
-                                                  <button
-                                                    key={color.class}
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      changeTaskColor(task.id, color.class, false);
-                                                    }}
-                                                    className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                                    title={color.name}
-                                                  />
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </button>
-                                        <button
-                                          onClick={() => moveToRecycleBin(task.id)}
-                                          className="hover:bg-white/20 rounded p-1 transition-colors"
-                                          title="Move to Recycle Bin"
-                                        >
-                                          <Trash2 size={14} />
-                                        </button>
-                                      </>
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
+                                      >
+                                        <MoreHorizontal size={14} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <ActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
                                     )}
                                   </div>
-                                </div>
+                                ) : isNarrow && !isShort ? (
+                                  /* Narrow tall tasks (30min+ with conflicts): two-row layout */
+                                  <>
+                                    <div className="flex items-start gap-1">
+                                      {(!isImported || task.isTaskCalendar) && (
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                        >
+                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                        </button>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        {editingTaskId === task.id ? (
+                                          <input
+                                            type="text"
+                                            value={editingTaskText}
+                                            onChange={(e) => setEditingTaskText(e.target.value)}
+                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                            onBlur={() => saveTaskTitle(false)}
+                                            autoFocus
+                                            className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <div
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                            onDoubleClick={(e) => {
+                                              if (!isImported) {
+                                                e.stopPropagation();
+                                                startEditingTask(task, false);
+                                              }
+                                            }}
+                                            title={!isImported ? "Double-click to edit" : undefined}
+                                          >
+                                            {renderTitle(task.title)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-1 mt-1">
+                                      <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
+                                        <Clock size={10} />
+                                        {task.startTime} • {task.duration}m
+                                      </div>
+                                      {!isImported && (
+                                        <div className="flex items-center gap-0.5">
+                                          <ActionButtons />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  /* Full-width tasks: original single-row layout */
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                                      {(!isImported || task.isTaskCalendar) && (
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                        >
+                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                        </button>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        {editingTaskId === task.id ? (
+                                          <input
+                                            type="text"
+                                            value={editingTaskText}
+                                            onChange={(e) => setEditingTaskText(e.target.value)}
+                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                            onBlur={() => saveTaskTitle(false)}
+                                            autoFocus
+                                            className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <div
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                            onDoubleClick={(e) => {
+                                              if (!isImported) {
+                                                e.stopPropagation();
+                                                startEditingTask(task, false);
+                                              }
+                                            }}
+                                            title={!isImported ? "Double-click to edit" : undefined}
+                                          >
+                                            {renderTitle(task.title)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start gap-1 flex-shrink-0">
+                                      <div className="text-xs opacity-90 whitespace-nowrap mr-1 mt-0.5 flex items-center gap-1">
+                                        <Clock size={12} />
+                                        {task.startTime} • {task.duration}min
+                                      </div>
+                                      {!isImported && <ActionButtons />}
+                                    </div>
+                                  </div>
+                                )}
                                 {/* Resize handle at bottom - solid white for visibility */}
                                 {!isVeryShort && !isImported && (
                                   <div
@@ -2555,6 +2700,21 @@ const DayPlanner = () => {
                             </div>
                           );
                         })}
+
+                        {/* Hover preview line - shows where a new task would start */}
+                        {hoverPreviewTime && !draggedTask && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
+                          <div
+                            className="absolute left-0 right-0 pointer-events-none z-10 flex items-center"
+                            style={{
+                              top: `${(Math.floor(timeToMinutes(hoverPreviewTime) / 60) * 161) + (timeToMinutes(hoverPreviewTime) % 60 * 160 / 60)}px`
+                            }}
+                          >
+                            <div className="flex-1 h-0.5 bg-blue-400/60"></div>
+                            <div className="bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded ml-1 mr-1">
+                              {hoverPreviewTime}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Drag preview - only show in the column being dragged over */}
                         {dragPreviewTime && draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === dateStr && (
