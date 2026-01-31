@@ -2298,7 +2298,7 @@ const DayPlanner = () => {
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnCalendar}
                 onClick={openNewTaskAtTime}
-                className="relative overflow-y-auto"
+                className={`relative overflow-y-auto ${darkMode ? 'dark-scrollbar' : ''}`}
                 style={{ height: '1120px' }}
               >
                 {hours.map((hour, index) => (
