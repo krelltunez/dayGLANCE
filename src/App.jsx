@@ -49,6 +49,7 @@ const DayPlanner = () => {
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const calendarRef = useRef(null);
   const currentTimeRef = useRef(null);
+  const priorityTimeouts = useRef({});
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -67,14 +68,16 @@ const DayPlanner = () => {
   const durationOptions = Array.from({ length: 9 }, (_, i) => (i + 1) * 15); // 15 to 120 minutes
 
   const extractTags = (title) => {
-    const matches = title.match(/#(\w+)/g);
+    // Only match tags that start with a letter (not pure numbers)
+    const matches = title.match(/#([a-zA-Z]\w*)/g);
     return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
   };
 
   const renderTitle = (title) => {
-    const parts = title.split(/(#\w+)/g);
+    // Only style tags that start with a letter (not pure numbers)
+    const parts = title.split(/(#[a-zA-Z]\w*)/g);
     return parts.map((part, i) => {
-      if (part.match(/^#\w+$/)) {
+      if (part.match(/^#[a-zA-Z]\w*$/)) {
         return <span key={i} className="text-xs italic opacity-75">{part}</span>;
       }
       return part;
@@ -129,7 +132,7 @@ const DayPlanner = () => {
     if (!syncUrl) return;
 
     const syncTimer = setInterval(() => {
-      syncWithCalendar();
+      syncWithCalendar({ silent: true });
     }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(syncTimer);
@@ -211,7 +214,7 @@ const DayPlanner = () => {
     try {
       // Using Open-Meteo API (free, no API key needed)
       // Erie, CO coordinates: 40.0503, -105.0497
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.0503&longitude=-105.0497&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=5');
+      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.0503&longitude=-105.0497&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=6');
       const data = await response.json();
       
       if (data.current && data.daily) {
@@ -220,13 +223,12 @@ const DayPlanner = () => {
           daily: data.daily.weather_code
         });
         
-        // Build forecast array for next 5 days
+        // Build forecast array for next 5 days (starting from tomorrow)
         const forecast = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 1; i <= 5; i++) {
           const date = new Date(data.daily.time[i]);
-          const dayName = i === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' });
           forecast.push({
-            day: dayName,
+            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
             high: Math.round(data.daily.temperature_2m_max[i]),
             low: Math.round(data.daily.temperature_2m_min[i]),
             icon: getWeatherIcon(data.daily.weather_code[i]),
@@ -421,7 +423,7 @@ const DayPlanner = () => {
     if (code === 1) return '🌤️'; // Mainly clear
     if (code === 2) return '⛅'; // Partly cloudy
     if (code === 3) return '☁️'; // Overcast
-    if ([45, 48].includes(code)) return '🌫️'; // Fog
+    if ([45, 48].includes(code)) return '🌁'; // Fog
     if ([51, 53, 55].includes(code)) return '🌦️'; // Drizzle
     if ([56, 57].includes(code)) return '🌧️'; // Freezing drizzle
     if ([61, 63, 65].includes(code)) return '🌧️'; // Rain
@@ -518,8 +520,13 @@ const DayPlanner = () => {
     // Update visual immediately
     setPendingPriorities(prev => ({ ...prev, [taskId]: newPriority }));
 
+    // Cancel any pending timeout for this task
+    if (priorityTimeouts.current[taskId]) {
+      clearTimeout(priorityTimeouts.current[taskId]);
+    }
+
     // Update actual priority (triggers reorder) after delay
-    setTimeout(() => {
+    priorityTimeouts.current[taskId] = setTimeout(() => {
       setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, priority: newPriority } : t
       ));
@@ -527,6 +534,7 @@ const DayPlanner = () => {
         const { [taskId]: _, ...rest } = prev;
         return rest;
       });
+      delete priorityTimeouts.current[taskId];
     }, 500);
   };
 
@@ -1052,9 +1060,9 @@ const DayPlanner = () => {
     reader.readAsText(file);
   };
 
-  const syncWithCalendar = async () => {
+  const syncWithCalendar = async ({ silent = false } = {}) => {
     if (!syncUrl) {
-      alert('Please enter a calendar URL in sync settings');
+      if (!silent) alert('Please enter a calendar URL in sync settings');
       return;
     }
 
@@ -1064,10 +1072,10 @@ const DayPlanner = () => {
       const proxyUrl = `/api/calendar-proxy/?url=${syncUrl}`;
       const response = await fetch(proxyUrl);
       if (!response.ok) throw new Error('Failed to fetch calendar');
-      
+
       const icsContent = await response.text();
       const events = parseICS(icsContent);
-      
+
       const importedTasks = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
         const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
@@ -1094,9 +1102,9 @@ const DayPlanner = () => {
       // Remove old imported events and add the fresh ones
       const nonImportedTasks = tasks.filter(t => !t.imported);
       setTasks([...nonImportedTasks, ...importedTasks]);
-      alert(`Synced ${importedTasks.length} events from calendar`);
+      if (!silent) alert(`Synced ${importedTasks.length} events from calendar`);
     } catch (error) {
-      alert('Failed to sync with calendar. Make sure the URL is correct and publicly accessible.');
+      if (!silent) alert('Failed to sync with calendar. Make sure the URL is correct and publicly accessible.');
       console.error('Sync error:', error);
     }
   };
@@ -1389,10 +1397,13 @@ const DayPlanner = () => {
   }, [allTags]);
 
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
+  // Tasks with no tags are always shown (they can't be filtered by tags)
   const filterByTags = (taskList) => {
     if (selectedTags.length === 0) return taskList;
     return taskList.filter(task => {
       const taskTags = extractTags(task.title);
+      // Always show tasks with no tags (like imported events)
+      if (taskTags.length === 0) return true;
       return selectedTags.some(tag => taskTags.includes(tag));
     });
   };
