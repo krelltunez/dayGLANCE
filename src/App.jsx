@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash } from 'lucide-react';
 
 const DayPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -25,8 +25,13 @@ const DayPlanner = () => {
       inbox: false,
       dailySummary: false,
       allTimeSummary: false,
-      recycleBin: false
+      recycleBin: false,
+      tags: false
     };
+  });
+  const [selectedTags, setSelectedTags] = useState(() => {
+    const saved = localStorage.getItem('day-planner-selected-tags');
+    return saved ? JSON.parse(saved) : [];
   });
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
@@ -60,6 +65,11 @@ const DayPlanner = () => {
   ];
   const durationOptions = Array.from({ length: 9 }, (_, i) => (i + 1) * 15); // 15 to 120 minutes
 
+  const extractTags = (title) => {
+    const matches = title.match(/#(\w+)/g);
+    return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
+  };
+
   useEffect(() => {
     loadData();
     fetchWeather(); // FIX 1: Call fetchWeather on mount
@@ -89,6 +99,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('minimizedSections', JSON.stringify(minimizedSections));
   }, [minimizedSections]);
+
+  // Persist selectedTags to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-selected-tags', JSON.stringify(selectedTags));
+  }, [selectedTags]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -470,6 +485,18 @@ const DayPlanner = () => {
       ...prev,
       [sectionName]: !prev[sectionName]
     }));
+  };
+
+  const toggleTag = (tag) => {
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  const clearTagFilter = () => {
+    setSelectedTags([]);
   };
 
   const calculateConflictPosition = (task, allTasks) => {
@@ -1311,6 +1338,28 @@ const DayPlanner = () => {
   };
 
   const todayTasks = tasks.filter(t => t.date === dateToString(selectedDate));
+
+  // Extract all unique tags from all tasks
+  const allTags = useMemo(() => {
+    const tagSet = new Set();
+    [...tasks, ...unscheduledTasks].forEach(task => {
+      extractTags(task.title).forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [tasks, unscheduledTasks]);
+
+  // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
+  const filterByTags = (taskList) => {
+    if (selectedTags.length === 0) return taskList;
+    return taskList.filter(task => {
+      const taskTags = extractTags(task.title);
+      return selectedTags.some(tag => taskTags.includes(tag));
+    });
+  };
+
+  const filteredUnscheduledTasks = filterByTags(unscheduledTasks);
+  const filteredTodayTasks = filterByTags(todayTasks);
+
   // Calculate all-time stats (excluding imported events)
   const nonImportedTasks = tasks.filter(t => !t.imported);
   const todayNonImportedTasks = todayTasks.filter(t => !t.imported);
@@ -1623,12 +1672,16 @@ const DayPlanner = () => {
                 <div
                   onDragOver={handleDragOver}
                   onDrop={handleDropOnInbox}
-                  className={`space-y-2 ${unscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
+                  className={`space-y-2 ${filteredUnscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
                 >
-                  {unscheduledTasks.length === 0 ? (
-                    <p className={`text-sm ${textSecondary} text-center`}>Drag tasks here to unschedule them</p>
+                  {filteredUnscheduledTasks.length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center`}>
+                      {unscheduledTasks.length === 0
+                        ? "Drag tasks here to unschedule them"
+                        : "No tasks match selected tags"}
+                    </p>
                   ) : (
-                    unscheduledTasks.map(task => (
+                    filteredUnscheduledTasks.map(task => (
                     <div
                       key={task.id}
                       draggable
@@ -1691,6 +1744,55 @@ const DayPlanner = () => {
               )}
             </div>
 
+            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
+                  <Hash size={18} />
+                  Tags
+                </h3>
+                <div className="flex items-center gap-2">
+                  {selectedTags.length > 0 && (
+                    <button
+                      onClick={clearTagFilter}
+                      className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    onClick={() => toggleSection('tags')}
+                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                    title={minimizedSections.tags ? "Expand" : "Minimize"}
+                  >
+                    {minimizedSections.tags ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                  </button>
+                </div>
+              </div>
+              {!minimizedSections.tags && (
+                <div className={`text-sm ${textSecondary}`}>
+                  {allTags.length === 0 ? (
+                    <p className="text-center py-2">Add #tags to task titles</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {allTags.map(tag => (
+                        <label
+                          key={tag}
+                          className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedTags.includes(tag)}
+                            onChange={() => toggleTag(tag)}
+                            className="rounded"
+                          />
+                          <span>#{tag}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
               <div className="flex items-center justify-between mb-2">
@@ -1939,11 +2041,11 @@ const DayPlanner = () => {
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-hidden`}>
               {/* FIX 3: All-day tasks section at the top */}
-              {todayTasks.filter(t => t.isAllDay).length > 0 && (
+              {filteredTodayTasks.filter(t => t.isAllDay).length > 0 && (
                 <div className={`border-b ${borderClass} p-2 ${cardBg}`}>
                   <div className={`text-xs font-semibold ${textSecondary} mb-2 px-2`}>ALL DAY</div>
                   <div className="space-y-2">
-                    {todayTasks.filter(t => t.isAllDay).map((task) => {
+                    {filteredTodayTasks.filter(t => t.isAllDay).map((task) => {
                       const isImported = task.imported;
                       return (
                         <div
@@ -2065,10 +2167,10 @@ const DayPlanner = () => {
                     </div>
                   )}
 
-                  {todayTasks.filter(t => !t.isAllDay).map((task) => {
+                  {filteredTodayTasks.filter(t => !t.isAllDay).map((task) => {
                     const { top, height } = calculateTaskPosition(task);
                     const isConflicted = conflicts.some(c => c.includes(task.id));
-                    const conflictPos = calculateConflictPosition(task, todayTasks.filter(t => !t.isAllDay));
+                    const conflictPos = calculateConflictPosition(task, filteredTodayTasks.filter(t => !t.isAllDay));
                     const isVeryShort = height < 20;
                     const isImported = task.imported;
 
