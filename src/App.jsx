@@ -1348,6 +1348,14 @@ const DayPlanner = () => {
     return Array.from(tagSet).sort();
   }, [tasks, unscheduledTasks]);
 
+  // Auto-select new tags when they appear
+  useEffect(() => {
+    const newTags = allTags.filter(tag => !selectedTags.includes(tag));
+    if (newTags.length > 0) {
+      setSelectedTags(prev => [...prev, ...newTags]);
+    }
+  }, [allTags]);
+
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
   const filterByTags = (taskList) => {
     if (selectedTags.length === 0) return taskList;
@@ -1785,7 +1793,7 @@ const DayPlanner = () => {
                             onChange={() => toggleTag(tag)}
                             className="rounded"
                           />
-                          <span>#{tag}</span>
+                          <span>{tag}</span>
                         </label>
                       ))}
                     </div>
