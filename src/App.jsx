@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -76,6 +76,9 @@ const DayPlanner = () => {
   const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [pendingBackupFile, setPendingBackupFile] = useState(null);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [showBackupMenu, setShowBackupMenu] = useState(false);
   const [weather, setWeather] = useState(null);
   const [dailyContent, setDailyContent] = useState({
     dadJoke: null,
@@ -718,7 +721,7 @@ const DayPlanner = () => {
         setNewTask({
           title: '',
           startTime: getNextQuarterHour(),
-          duration: 15,
+          duration: 30,
           date: dateToString(selectedDate),
           isAllDay: false,
           openInInbox: false
@@ -731,7 +734,7 @@ const DayPlanner = () => {
         e.preventDefault();
         setNewTask({
           title: '',
-          duration: 15,
+          duration: 30,
           openInInbox: true
         });
         setShowAddTask(true);
@@ -1240,6 +1243,80 @@ const DayPlanner = () => {
       setShowImportModal(false);
     };
     reader.readAsText(pendingImportFile);
+  };
+
+  // Export all app data as a JSON backup file
+  const exportBackup = () => {
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data: {
+        tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
+        unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
+        recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
+        darkMode: JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'),
+        syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
+        taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
+        completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
+        selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
+        minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `day-planner-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Handle backup file selection
+  const handleBackupFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPendingBackupFile(file);
+    setShowBackupMenu(false);
+    setShowRestoreConfirm(true);
+    e.target.value = '';
+  };
+
+  // Restore data from backup file
+  const restoreBackup = () => {
+    if (!pendingBackupFile) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const backup = JSON.parse(e.target.result);
+
+        // Validate structure
+        if (!backup.data || !backup.version) {
+          throw new Error('Invalid backup file format');
+        }
+
+        // Restore all data
+        const { data } = backup;
+        if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
+        if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
+        if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
+        if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
+        if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
+        if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
+        if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
+        if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
+        if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
+
+        // Reload app to reflect changes
+        window.location.reload();
+      } catch (err) {
+        alert('Failed to restore backup: ' + err.message);
+        setPendingBackupFile(null);
+        setShowRestoreConfirm(false);
+      }
+    };
+    reader.readAsText(pendingBackupFile);
   };
 
   // Returns { success: boolean, count?: number, error?: string }
@@ -1879,7 +1956,7 @@ const DayPlanner = () => {
               })()}
 
               <div className="flex items-center gap-3 ml-auto">
-                <div className="flex flex-col gap-1">
+                <div className="grid grid-cols-2 gap-1">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => {
@@ -1907,18 +1984,28 @@ const DayPlanner = () => {
                       </button>
                     )}
                   </div>
+                  <button
+                    onClick={() => setDarkMode(!darkMode)}
+                    className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2`}
+                    title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                  >
+                    {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
+                    <span className={`text-sm ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
+                  </button>
                   <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
                     <Upload size={18} className={textSecondary} />
                     <span className={`text-sm ${textPrimary}`}>Import iCal</span>
                     <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
                   </label>
+                  <button
+                    onClick={() => setShowBackupMenu(true)}
+                    className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2`}
+                    title="Backup or restore data"
+                  >
+                    <Save size={18} className={textSecondary} />
+                    <span className={`text-sm ${textPrimary}`}>Backup</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`p-2 rounded-lg ${hoverBg}`}
-                >
-                  {darkMode ? <Sun size={20} className={textSecondary} /> : <Moon size={20} className={textSecondary} />}
-                </button>
               </div>
             </div>
           </div>
@@ -2858,6 +2945,89 @@ const DayPlanner = () => {
                 className={`px-4 py-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBackupMenu && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowBackupMenu(false)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                <Save size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Backup & Restore</h3>
+            </div>
+            <p className={`${textSecondary} mb-4`}>
+              Export your data to a file or restore from a previous backup.
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => { exportBackup(); setShowBackupMenu(false); }}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium flex items-center gap-2">
+                  <Upload size={16} className="rotate-180" />
+                  Export Backup
+                </div>
+                <div className={`text-sm ${textSecondary}`}>Download all tasks and settings as JSON</div>
+              </button>
+              <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
+                <div className="font-medium flex items-center gap-2">
+                  <Upload size={16} />
+                  Restore Backup
+                </div>
+                <div className={`text-sm ${textSecondary}`}>Load data from a backup file</div>
+                <input type="file" accept=".json" onChange={handleBackupFileSelect} className="hidden" />
+              </label>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setShowBackupMenu(false)}
+                className={`px-4 py-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRestoreConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowRestoreConfirm(false); setPendingBackupFile(null); }}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
+                <AlertCircle size={20} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Restore Backup</h3>
+            </div>
+            <p className={`${textSecondary} mb-2`}>
+              Restore from "{pendingBackupFile?.name}"?
+            </p>
+            <p className={`${textSecondary} mb-6 text-sm`}>
+              This will replace all your current tasks, inbox items, recycle bin, and settings with the data from this backup. The page will reload after restoration.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowRestoreConfirm(false); setPendingBackupFile(null); }}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={restoreBackup}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+              >
+                Restore
               </button>
             </div>
           </div>
