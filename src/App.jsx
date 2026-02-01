@@ -77,11 +77,19 @@ const DayPlanner = () => {
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [dailyContent, setDailyContent] = useState({
+    dadJoke: null,
+    funFact: null,
+    quote: null,
+    history: null
+  });
+  const [contentRotation, setContentRotation] = useState(0);
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
   const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
   const calendarRef = useRef(null);
+  const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
 
@@ -121,6 +129,14 @@ const DayPlanner = () => {
   useEffect(() => {
     loadData();
     fetchWeather();
+    fetchAllDailyContent();
+
+    // Rotate content every 15 minutes
+    const rotationInterval = setInterval(() => {
+      setContentRotation(prev => (prev + 1) % 4);
+    }, 15 * 60 * 1000);
+
+    return () => clearInterval(rotationInterval);
   }, []);
 
   // Close month view when clicking outside
@@ -309,6 +325,66 @@ const DayPlanner = () => {
         forecast: []
       });
     }
+  };
+
+  const fetchAllDailyContent = async () => {
+    const today = new Date().toDateString();
+    const cached = localStorage.getItem('dailyContent');
+
+    if (cached) {
+      const { content, date } = JSON.parse(cached);
+      if (date === today) {
+        setDailyContent(content);
+        return;
+      }
+    }
+
+    const content = { dadJoke: null, funFact: null, quote: null, history: null };
+
+    // Fetch dad joke
+    try {
+      const response = await fetch('https://icanhazdadjoke.com/', {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await response.json();
+      if (data.joke) content.dadJoke = data.joke;
+    } catch (error) {
+      console.error('Failed to fetch dad joke:', error);
+    }
+
+    // Fetch fun fact
+    try {
+      const response = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random?language=en');
+      const data = await response.json();
+      if (data.text) content.funFact = data.text;
+    } catch (error) {
+      console.error('Failed to fetch fun fact:', error);
+    }
+
+    // Fetch quote
+    try {
+      const response = await fetch('https://api.quotable.io/random');
+      const data = await response.json();
+      if (data.content) content.quote = { text: data.content, author: data.author };
+    } catch (error) {
+      console.error('Failed to fetch quote:', error);
+    }
+
+    // Fetch this day in history
+    try {
+      const now = new Date();
+      const response = await fetch(`https://history.muffinlabs.com/date/${now.getMonth() + 1}/${now.getDate()}`);
+      const data = await response.json();
+      if (data.data?.Events?.length > 0) {
+        const randomEvent = data.data.Events[Math.floor(Math.random() * data.data.Events.length)];
+        content.history = { year: randomEvent.year, text: randomEvent.text };
+      }
+    } catch (error) {
+      console.error('Failed to fetch history:', error);
+    }
+
+    setDailyContent(content);
+    localStorage.setItem('dailyContent', JSON.stringify({ content, date: today }));
   };
 
   const getTaskCalendarStyle = (task, isDarkMode) => {
@@ -628,6 +704,44 @@ const DayPlanner = () => {
     }
   };
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      // Don't trigger if typing in an input or textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+
+      // 'n' for new scheduled task
+      if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setNewTask({
+          title: '',
+          startTime: getNextQuarterHour(),
+          duration: 15,
+          date: dateToString(selectedDate),
+          isAllDay: false,
+          openInInbox: false
+        });
+        setShowAddTask(true);
+      }
+
+      // 'i' for new inbox task
+      if (e.key === 'i' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setNewTask({
+          title: '',
+          duration: 15,
+          openInInbox: true
+        });
+        setShowAddTask(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [selectedDate]);
+
   const moveToRecycleBin = (id, fromInbox = false) => {
     const task = fromInbox 
       ? unscheduledTasks.find(t => t.id === id)
@@ -796,8 +910,10 @@ const DayPlanner = () => {
     const { roundTo = 15, maxMinutes = 23 * 60 + 45, taskDuration = 0 } = options;
     const rect = calendarRef.current.getBoundingClientRect();
     const scrollTop = calendarRef.current.scrollTop;
-    // Subtract 12px offset so cursor tip aligns with the time (more natural feel)
-    const y = Math.max(0, e.clientY - rect.top + scrollTop - 12);
+    // Get header height (distance from container top to time grid top in content space)
+    const headerHeight = timeGridRef.current ? timeGridRef.current.offsetTop : 0;
+    // Calculate y position relative to the time grid content
+    const y = Math.max(0, e.clientY - rect.top + scrollTop - headerHeight);
 
     // Each hour is 161px (160px content + 1px border)
     const hourFromTop = Math.floor(y / 161);
@@ -1739,6 +1855,29 @@ const DayPlanner = () => {
                 </>
               )}
 
+              {/* Rotating Daily Content - shows 2 of 4 content types */}
+              {(() => {
+                const contentItems = [
+                  { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
+                  { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
+                  { key: 'quote', icon: '💬', label: 'Quote', content: dailyContent.quote ? `"${dailyContent.quote.text}" — ${dailyContent.quote.author}` : null },
+                  { key: 'history', icon: '📜', label: 'This Day in History', content: dailyContent.history ? `${dailyContent.history.year}: ${dailyContent.history.text}` : null }
+                ].filter(item => item.content);
+
+                if (contentItems.length === 0) return null;
+
+                const idx1 = contentRotation % contentItems.length;
+                const idx2 = (contentRotation + 1) % contentItems.length;
+                const visibleItems = contentItems.length === 1 ? [contentItems[0]] : [contentItems[idx1], contentItems[idx2]];
+
+                return visibleItems.map(item => (
+                  <div key={item.key} className={`flex-1 max-w-md h-[92px] px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden`}>
+                    <div className={`text-xs font-semibold ${textSecondary} mb-1`}>{item.icon} {item.label}</div>
+                    <div className={`text-sm ${textPrimary} leading-snug line-clamp-3`}>{item.content}</div>
+                  </div>
+                ));
+              })()}
+
               <div className="flex items-center gap-3 ml-auto">
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-1">
@@ -2189,126 +2328,9 @@ const DayPlanner = () => {
           </div>
 
           <div className="flex-1 min-w-0">
-            {showAddTask && (
-              <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-6`}>
-                <h3 className={`font-semibold ${textPrimary} mb-4`}>New Task</h3>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Task title"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                  />
-                  <div className="grid grid-cols-6 gap-3">
-                    {!newTask.openInInbox && (
-                      <>
-                        <div>
-                          <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
-                          <button
-                            onClick={() => setShowDatePicker(true)}
-                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                          >
-                            {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
-                          </button>
-                        </div>
-                        <div>
-                          <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
-                          <button
-                            onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
-                            disabled={newTask.isAllDay}
-                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          >
-                            {newTask.isAllDay ? 'All Day' : newTask.startTime}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                    <div className={newTask.openInInbox ? 'col-span-3' : ''}>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
-                      <select
-                        value={newTask.duration}
-                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
-                        disabled={newTask.isAllDay}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {durationOptions.map(minutes => (
-                          <option key={minutes} value={minutes}>
-                            {minutes} min
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className={newTask.openInInbox ? 'col-span-3' : ''}>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowColorPicker('newTask')}
-                          className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
-                        />
-                        {showColorPicker === 'newTask' && (
-                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass} min-w-[120px]`}>
-                            <div className="grid grid-cols-3 gap-1">
-                              {colors.map((color) => (
-                                <button
-                                  key={color.class}
-                                  onClick={() => {
-                                    setNewTask({ ...newTask, color: color.class });
-                                    setShowColorPicker(null);
-                                  }}
-                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
-                                  title={color.name}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {!newTask.openInInbox && (
-                      <div className="col-span-2">
-                        <label className={`block text-sm ${textSecondary} mb-1`}>All Day Event</label>
-                        <label className="flex items-center h-10 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={newTask.isAllDay}
-                            onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                          <span className={`ml-2 text-sm ${textPrimary}`}>Full day reminder</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => addTask(newTask.openInInbox || false)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      {newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
-                    </button>
-                    {!newTask.openInInbox && (
-                      <button
-                        onClick={() => addTask(true)}
-                        className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
-                      >
-                        Add to Inbox
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setShowAddTask(false)}
-                      className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div
               ref={calendarRef}
-              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll ${darkMode ? 'dark-scrollbar' : ''}`}
+              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll ${darkMode ? 'dark-scrollbar' : ''} relative`}
               style={{ height: '1168px' }}
             >
               {/* Date headers row - sticky at top */}
@@ -2392,12 +2414,12 @@ const DayPlanner = () => {
               )}
 
               {/* Main calendar grid */}
-              <div className="relative">
+              <div ref={timeGridRef} className="relative">
                 {hours.map((hour, index) => (
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
                     <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
-                      <div className={`w-20 flex-shrink-0 px-3 text-sm ${textSecondary} border-r ${borderClass} flex items-center`}>
+                      <div className={`w-20 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass}`}>
                         {hour.toString().padStart(2, '0')}:00
                       </div>
                       {visibleDates.map((date, idx) => (
@@ -2704,13 +2726,13 @@ const DayPlanner = () => {
                         {/* Hover preview line - shows where a new task would start */}
                         {hoverPreviewTime && !draggedTask && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
                           <div
-                            className="absolute left-0 right-0 pointer-events-none z-10 flex items-center"
+                            className="absolute left-0 right-0 pointer-events-none z-10"
                             style={{
                               top: `${(Math.floor(timeToMinutes(hoverPreviewTime) / 60) * 161) + (timeToMinutes(hoverPreviewTime) % 60 * 160 / 60)}px`
                             }}
                           >
-                            <div className="flex-1 h-0.5 bg-blue-400/60"></div>
-                            <div className="bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded ml-1 mr-1">
+                            <div className="absolute left-0 right-12 h-0.5 bg-blue-400/60"></div>
+                            <div className="absolute right-1 bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded -translate-y-1/2">
                               {hoverPreviewTime}
                             </div>
                           </div>
@@ -2883,6 +2905,160 @@ const DayPlanner = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* New Task Modal */}
+      {showAddTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddTask(false)}>
+          <form
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const addToInbox = e.nativeEvent.submitter?.dataset.inbox === 'true' || newTask.openInInbox;
+              addTask(addToInbox);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setShowAddTask(false);
+              } else if (e.key === 'Enter' && e.shiftKey && !newTask.openInInbox) {
+                e.preventDefault();
+                addTask(true);
+              } else if (e.key === ' ' && e.target.tagName !== 'INPUT') {
+                // Prevent SPACE from activating buttons
+                e.preventDefault();
+              }
+            }}
+          >
+            <h3 className={`font-semibold ${textPrimary} mb-4 text-lg`}>
+              {newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
+            </h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Task title (press Enter to add)"
+                value={newTask.title}
+                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                autoFocus
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+              />
+              <div className={`grid ${newTask.openInInbox ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+                {!newTask.openInInbox && (
+                  <>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowDatePicker(true)}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      >
+                        {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
+                      </button>
+                    </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
+                      <button
+                        type="button"
+                        onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
+                        disabled={newTask.isAllDay}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {newTask.isAllDay ? 'All Day' : newTask.startTime}
+                      </button>
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                  <select
+                    value={newTask.duration}
+                    onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                    disabled={newTask.isAllDay}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {durationOptions.map(minutes => (
+                      <option key={minutes} value={minutes}>
+                        {minutes} min
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowColorPicker('newTask')}
+                      className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
+                    />
+                    {showColorPicker === 'newTask' && (
+                      <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass} min-w-[120px]`}>
+                        <div className="grid grid-cols-3 gap-1">
+                          {colors.map((color) => (
+                            <button
+                              type="button"
+                              key={color.class}
+                              onClick={() => {
+                                setNewTask({ ...newTask, color: color.class });
+                                setShowColorPicker(null);
+                              }}
+                              className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                              title={color.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {!newTask.openInInbox && (
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
+                    <label className="flex items-center h-10 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newTask.isAllDay}
+                        onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
+                </button>
+                {!newTask.openInInbox && (
+                  <button
+                    type="submit"
+                    data-inbox="true"
+                    className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+                  >
+                    Add to Inbox
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAddTask(false)}
+                  className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className={`text-xs ${textSecondary} text-center`}>
+                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Enter</kbd> add to {newTask.openInInbox ? 'inbox' : 'schedule'}
+                {!newTask.openInInbox && <> • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Shift+Enter</kbd> add to inbox</>}
+                {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Esc</kbd> cancel
+              </div>
+            </div>
+          </form>
         </div>
       )}
     </div>
