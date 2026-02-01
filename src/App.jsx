@@ -129,6 +129,11 @@ const DayPlanner = () => {
     });
   };
 
+  const renderTitleWithoutTags = (title) => {
+    // Remove tags and trim extra whitespace
+    return title.replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
+  };
+
   useEffect(() => {
     loadData();
     fetchWeather();
@@ -550,15 +555,70 @@ const DayPlanner = () => {
 
   const calculateConflictPosition = (task, allTasks) => {
     const conflicting = getConflictingTasks(task, allTasks);
-    if (conflicting.length === 0) return { left: 2, right: 2, width: null };
+    if (conflicting.length === 0) return { left: 2, right: 2, width: null, totalColumns: 1 };
 
-    const allConflicted = [task, ...conflicting].sort((a, b) => a.id - b.id);
-    const index = allConflicted.findIndex(t => t.id === task.id);
-    const total = allConflicted.length;
-    const allCompleted = allConflicted.every(t => t.completed);
+    // Build the full conflict cluster using transitive closure
+    const buildConflictCluster = (startTask) => {
+      const cluster = new Set([startTask.id]);
+      const queue = [startTask];
 
-    const widthPercent = 100 / total;
-    const leftPercent = widthPercent * index;
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const currentConflicts = getConflictingTasks(current, allTasks);
+        for (const t of currentConflicts) {
+          if (!cluster.has(t.id)) {
+            cluster.add(t.id);
+            queue.push(t);
+          }
+        }
+      }
+
+      return allTasks.filter(t => cluster.has(t.id));
+    };
+
+    const cluster = buildConflictCluster(task);
+
+    // Sort by start time, then by duration (longer first), then by id for stability
+    const sorted = [...cluster].sort((a, b) => {
+      const aStart = timeToMinutes(a.startTime);
+      const bStart = timeToMinutes(b.startTime);
+      if (aStart !== bStart) return aStart - bStart;
+      if (a.duration !== b.duration) return b.duration - a.duration;
+      return a.id - b.id;
+    });
+
+    // Greedy column assignment: place each task in the first column where it fits
+    const columns = []; // Each column tracks the end time of the last task in it
+    const taskColumns = new Map();
+
+    for (const t of sorted) {
+      const tStart = timeToMinutes(t.startTime);
+      const tEnd = tStart + t.duration;
+
+      // Find first column where this task fits (doesn't overlap)
+      let placed = false;
+      for (let col = 0; col < columns.length; col++) {
+        if (columns[col] <= tStart) {
+          columns[col] = tEnd;
+          taskColumns.set(t.id, col);
+          placed = true;
+          break;
+        }
+      }
+
+      // If no column fits, create a new one
+      if (!placed) {
+        taskColumns.set(t.id, columns.length);
+        columns.push(tEnd);
+      }
+    }
+
+    const totalColumns = columns.length;
+    const column = taskColumns.get(task.id);
+    const allCompleted = cluster.every(t => t.completed);
+
+    const widthPercent = 100 / totalColumns;
+    const leftPercent = widthPercent * column;
 
     // Use tighter margins when all completed (no red border to account for)
     const margin = allCompleted ? '0.125rem' : '0.25rem';
@@ -567,8 +627,68 @@ const DayPlanner = () => {
     return {
       left: `calc(${leftPercent}% + ${margin})`,
       right: 'auto',
-      width: `calc(${widthPercent}% - ${totalMargin})`
+      width: `calc(${widthPercent}% - ${totalMargin})`,
+      totalColumns
     };
+  };
+
+  const wouldExceedMaxColumns = (droppedTask, startTime, dropDateStr, maxColumns = 3) => {
+    // Get existing tasks for this date, excluding the dropped task if it's already scheduled
+    const existingTasks = tasks.filter(t => t.date === dropDateStr && t.id !== droppedTask.id && !t.isAllDay);
+
+    // Create a hypothetical task with the new position
+    const hypotheticalTask = { ...droppedTask, startTime, date: dropDateStr };
+    const allTasks = [...existingTasks, hypotheticalTask];
+
+    // Check if this task would conflict with anything
+    const conflicting = getConflictingTasks(hypotheticalTask, allTasks);
+    if (conflicting.length === 0) return false;
+
+    // Build conflict cluster and calculate columns (same logic as calculateConflictPosition)
+    const buildCluster = (startTask) => {
+      const cluster = new Set([startTask.id]);
+      const queue = [startTask];
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const currentConflicts = getConflictingTasks(current, allTasks);
+        for (const t of currentConflicts) {
+          if (!cluster.has(t.id)) {
+            cluster.add(t.id);
+            queue.push(t);
+          }
+        }
+      }
+      return allTasks.filter(t => cluster.has(t.id));
+    };
+
+    const cluster = buildCluster(hypotheticalTask);
+    const sorted = [...cluster].sort((a, b) => {
+      const aStart = timeToMinutes(a.startTime);
+      const bStart = timeToMinutes(b.startTime);
+      if (aStart !== bStart) return aStart - bStart;
+      if (a.duration !== b.duration) return b.duration - a.duration;
+      return a.id - b.id;
+    });
+
+    // Greedy column assignment
+    const columns = [];
+    for (const t of sorted) {
+      const tStart = timeToMinutes(t.startTime);
+      const tEnd = tStart + t.duration;
+      let placed = false;
+      for (let col = 0; col < columns.length; col++) {
+        if (columns[col] <= tStart) {
+          columns[col] = tEnd;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.push(tEnd);
+      }
+    }
+
+    return columns.length > maxColumns;
   };
 
   const addTask = (toInbox = false) => {
@@ -1014,6 +1134,15 @@ const DayPlanner = () => {
     // Use the target date from the column, falling back to dragPreviewDate or selectedDate
     const dropDate = targetDate || dragPreviewDate || selectedDate;
     const dropDateStr = dateToString(dropDate);
+
+    // Prevent drops that would create 4+ side-by-side tasks
+    if (wouldExceedMaxColumns(draggedTask, startTime, dropDateStr)) {
+      setDraggedTask(null);
+      setDragSource(null);
+      setDragPreviewTime(null);
+      setDragPreviewDate(null);
+      return;
+    }
 
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
@@ -1551,8 +1680,8 @@ const DayPlanner = () => {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-        <div 
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
+        <div
           className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border`}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1648,8 +1777,8 @@ const DayPlanner = () => {
     const today = dateToString(new Date());
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-        <div 
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
+        <div
           className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
           onClick={(e) => e.stopPropagation()}
         >
@@ -2569,6 +2698,7 @@ const DayPlanner = () => {
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                           const isNarrow = conflictPos.width !== null;
+                          const isVeryNarrow = conflictPos.totalColumns >= 3;
                           const isShort = task.duration <= 15;
 
                           // Action buttons component (reused in different layouts)
@@ -2630,6 +2760,8 @@ const DayPlanner = () => {
                               key={task.id}
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              onDragOver={(e) => handleDragOver(e, date)}
+                              onDrop={(e) => handleDropOnCalendar(e, date)}
                               className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
                               style={{
                                 top: `${top}px`,
@@ -2642,61 +2774,72 @@ const DayPlanner = () => {
                               }}
                             >
                               <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
-                                {/* Narrow short tasks (15min with conflicts): compact layout with ... menu */}
-                                {isNarrow && isShort ? (
-                                  <div className="flex items-center gap-1">
-                                    {(!isImported || task.isTaskCalendar) && (
-                                      <button
-                                        onClick={() => toggleComplete(task.id)}
-                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                      >
-                                        {task.completed && <Check size={10} strokeWidth={3} />}
-                                      </button>
-                                    )}
-                                    <div className="flex-1 min-w-0 overflow-hidden">
-                                      {editingTaskId === task.id ? (
-                                        <input
-                                          type="text"
-                                          value={editingTaskText}
-                                          onChange={(e) => setEditingTaskText(e.target.value)}
-                                          onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                          onBlur={() => saveTaskTitle(false)}
-                                          autoFocus
-                                          className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      ) : (
-                                        <div
-                                          className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                          onDoubleClick={(e) => {
-                                            if (!isImported) {
-                                              e.stopPropagation();
-                                              startEditingTask(task, false);
-                                            }
-                                          }}
-                                          title={task.title}
+                                {/* Narrow/very narrow tasks: compact two-row layout with ... menu */}
+                                {(isNarrow && isShort) || isVeryNarrow ? (
+                                  <div>
+                                    <div className="flex items-center gap-1">
+                                      {(!isImported || task.isTaskCalendar) && (
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                         >
-                                          {renderTitle(task.title)}
-                                        </div>
+                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                        </button>
                                       )}
-                                    </div>
-                                    {!isImported && (
-                                      <button
-                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                        className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
-                                      >
-                                        <MoreHorizontal size={14} />
-                                        {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                            <ActionButtons inMenu={true} />
+                                      <div className="flex-1 min-w-0 overflow-hidden">
+                                        {editingTaskId === task.id ? (
+                                          <input
+                                            type="text"
+                                            value={editingTaskText}
+                                            onChange={(e) => setEditingTaskText(e.target.value)}
+                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                            onBlur={() => saveTaskTitle(false)}
+                                            autoFocus
+                                            className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <div
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                            onDoubleClick={(e) => {
+                                              if (!isImported) {
+                                                e.stopPropagation();
+                                                startEditingTask(task, false);
+                                              }
+                                            }}
+                                            title={task.title}
+                                          >
+                                            {renderTitleWithoutTags(task.title)}
                                           </div>
                                         )}
-                                      </button>
-                                    )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                                      <div className="flex-1 min-w-0 overflow-hidden">
+                                        {extractTags(task.title).length > 0 && (
+                                          <div className="text-xs italic opacity-75 truncate">
+                                            {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {!isImported && (
+                                        <button
+                                          onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                          className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
+                                        >
+                                          <MoreHorizontal size={14} />
+                                          {expandedTaskMenu === task.id && (
+                                            <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                              <ActionButtons inMenu={true} />
+                                            </div>
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                ) : isNarrow && !isShort ? (
-                                  /* Narrow tall tasks (30min+ with conflicts): two-row layout */
-                                  <>
+                                ) : isNarrow && !isShort && !isVeryNarrow ? (
+                                  /* Narrow tall tasks (30min+ with 2-column conflicts): two-row layout */
+                                  <div>
                                     <div className="flex items-start gap-1">
                                       {(!isImported || task.isTaskCalendar) && (
                                         <button
@@ -2729,11 +2872,16 @@ const DayPlanner = () => {
                                             }}
                                             title={!isImported ? "Double-click to edit" : undefined}
                                           >
-                                            {renderTitle(task.title)}
+                                            {renderTitleWithoutTags(task.title)}
                                           </div>
                                         )}
                                       </div>
                                     </div>
+                                    {extractTags(task.title).length > 0 && (
+                                      <div className="text-xs italic opacity-75 truncate mt-0.5">
+                                        {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                      </div>
+                                    )}
                                     <div className="flex items-center justify-between gap-1 mt-1">
                                       <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
                                         <Clock size={10} />
@@ -2745,7 +2893,7 @@ const DayPlanner = () => {
                                         </div>
                                       )}
                                     </div>
-                                  </>
+                                  </div>
                                 ) : (
                                   /* Full-width tasks: original single-row layout */
                                   <div className="flex items-start justify-between gap-2">
@@ -3157,7 +3305,7 @@ const DayPlanner = () => {
                 </div>
                 <div>
                   <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
-                  <div className="relative">
+                  <div className="relative color-picker-container">
                     <button
                       type="button"
                       onClick={() => setShowColorPicker('newTask')}
