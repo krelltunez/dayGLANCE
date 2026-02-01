@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -95,6 +95,7 @@ const DayPlanner = () => {
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
   const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
   const calendarRef = useRef(null);
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
@@ -114,7 +115,7 @@ const DayPlanner = () => {
     { name: 'Teal', class: 'bg-teal-500' },
     { name: 'Yellow', class: 'bg-yellow-500' },
   ];
-  const durationOptions = Array.from({ length: 9 }, (_, i) => (i + 1) * 15); // 15 to 120 minutes
+  const durationOptions = [15, 30, 45, 60, 90, 120];
 
   const extractTags = (title) => {
     // Only match tags that start with a letter (not pure numbers)
@@ -136,6 +137,13 @@ const DayPlanner = () => {
   const renderTitleWithoutTags = (title) => {
     // Remove tags and trim extra whitespace
     return title.replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  const TITLE_MAX_LENGTH = 32;
+
+  // Check if title (excluding tags) is within limit
+  const isTitleWithinLimit = (title) => {
+    return renderTitleWithoutTags(title).length <= TITLE_MAX_LENGTH;
   };
 
   useEffect(() => {
@@ -1107,13 +1115,19 @@ const DayPlanner = () => {
     setHoverPreviewDate(null);
   };
 
+  // Convert minutes from midnight to pixel position (accounting for 1px borders between hours)
+  const minutesToPosition = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours * 161 + mins * 160 / 60; // 160px per hour + 1px border
+  };
+
   const calculateTaskPosition = (task) => {
     const startMinutes = timeToMinutes(task.startTime);
-    const startHour = Math.floor(startMinutes / 60);
-    const minutesIntoHour = startMinutes % 60;
-    // 160px per hour + 1px border per hour above this one
-    const top = startHour * 160 + startHour + (minutesIntoHour * 160 / 60);
-    const height = (task.duration * 160 / 60);
+    const endMinutes = startMinutes + task.duration;
+    const top = Math.round(minutesToPosition(startMinutes));
+    const endPos = Math.round(minutesToPosition(endMinutes));
+    const height = endPos - top - 1; // -1 for consistent tiny gap between tasks
     return { top, height };
   };
 
@@ -1244,25 +1258,27 @@ const DayPlanner = () => {
   const handleResizeStart = (task, e) => {
     e.stopPropagation();
     e.preventDefault();
-    
+    setIsResizing(true);
+
     const startY = e.clientY;
     const startDuration = task.duration;
-    
+
     const handleMouseMove = (moveEvent) => {
       const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
       const newDuration = Math.max(15, startDuration + deltaMinutes);
-      
-      setTasks(prevTasks => prevTasks.map(t => 
+
+      setTasks(prevTasks => prevTasks.map(t =>
         t.id === task.id ? { ...t, duration: newDuration } : t
       ));
     };
-    
+
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      setIsResizing(false);
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
@@ -1962,9 +1978,9 @@ const DayPlanner = () => {
     <div className={`min-h-screen ${bgClass}`}>
       <div className={`${cardBg} border-b ${borderClass}`}>
         <div className="max-w-[2000px] mx-auto px-6 py-4">
-          <div className="flex gap-6">
+          <div className="flex gap-4">
             {/* Sidebar area - date navigator centered with Today button below */}
-            <div className={`${sidebarCollapsed ? 'w-16' : 'w-72'} flex-shrink-0 transition-[width] duration-200 relative`} style={{ height: '76px' }}>
+            <div className={`${sidebarCollapsed ? 'w-[59px]' : 'w-72'} flex-shrink-0 transition-[width] duration-200 relative`} style={{ height: '76px' }}>
               {/* Collapsed date navigator */}
               <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                 <button onClick={() => changeDate(-1)} className={`p-0.5 rounded ${hoverBg}`}>
@@ -2238,49 +2254,56 @@ const DayPlanner = () => {
           </div>
         )}
 
-        <div className="flex gap-6">
-          <div className={`${sidebarCollapsed ? 'w-16' : 'w-72'} flex-shrink-0 transition-[width] duration-200 flex flex-col overflow-hidden`} style={{ height: '1168px' }}>
+        <div className="flex gap-4">
+          <div className={`${sidebarCollapsed ? 'w-[59px]' : 'w-72'} flex-shrink-0 transition-[width] duration-200 flex flex-col`} style={{ height: '1168px' }}>
             {sidebarCollapsed ? (
               /* Collapsed sidebar - icon-only buttons */
               <div className="flex flex-col gap-2 flex-1">
-                {/* Schedule and Inbox buttons - icon only */}
+                {/* Action buttons - matching expanded view */}
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={openNewTaskForm}
-                    className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Scheduled Task"
                   >
-                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="1" y="5" width="16" height="16" rx="2" ry="2"/>
-                      <line x1="13" y1="3" x2="13" y2="7"/>
-                      <line x1="5" y1="3" x2="5" y2="7"/>
-                      <line x1="1" y1="10" x2="17" y2="10"/>
-                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
-                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
-                    </svg>
+                    <CalendarPlus size={24} />
                   </button>
                   <button
                     onClick={openNewInboxTask}
-                    className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Add to Inbox"
                   >
-                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3.45 6.11L0 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 12.76 5H4.24a2 2 0 0 0-1.79 1.11z"/>
-                      <polyline points="18 13 13 13 11 16 7 16 5 13 0 13"/>
-                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
-                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
-                    </svg>
+                    <MailPlus size={24} />
+                  </button>
+                  <button
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
+                    title="Coming soon"
+                  >
+                    <UserPlus size={24} />
+                  </button>
+                  <button
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
+                    title="Coming soon"
+                  >
+                    <BrainCircuit size={24} />
+                  </button>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Expand sidebar"
+                  >
+                    <ChevronsRight size={24} />
                   </button>
                 </div>
 
                 {/* Section icons - clicking expands sidebar */}
-                <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-2 flex flex-col items-center gap-2`}>
+                <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} w-[51px] py-2 flex flex-col items-center gap-2`}>
                   <button
                     onClick={() => setSidebarCollapsed(false)}
                     className={`p-2 rounded ${hoverBg} relative`}
                     title="Inbox"
                   >
-                    <Inbox size={20} className={textSecondary} />
+                    <Mail size={20} className={textSecondary} />
                     {unscheduledTasks.length > 0 && (
                       <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                         {unscheduledTasks.length > 9 ? '9+' : unscheduledTasks.length}
@@ -2314,59 +2337,57 @@ const DayPlanner = () => {
                     )}
                   </button>
                 </div>
-
-                {/* Expand toggle at bottom */}
-                <button
-                  onClick={() => setSidebarCollapsed(false)}
-                  className={`flex-shrink-0 mt-auto p-2 rounded-lg ${cardBg} border ${borderClass} shadow-sm ${hoverBg} self-end`}
-                  title="Expand sidebar"
-                >
-                  <ChevronsRight size={20} className={textSecondary} />
-                </button>
               </div>
             ) : (
               /* Expanded sidebar - full content */
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className={`flex-1 min-h-0 overflow-y-auto pr-1 ${darkMode ? 'dark-scrollbar' : ''}`}>
+              <div className="flex-1 min-h-0">
+                <div className={`h-full overflow-y-auto w-[calc(100%+14px)] ${darkMode ? 'dark-scrollbar' : ''}`}>
+                <div className="w-72">
                 <div className={`flex gap-2 mb-4`}>
+                  {/* CalendarPlus - new scheduled task */}
                   <button
                     onClick={openNewTaskForm}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Scheduled Task"
                   >
-                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {/* Calendar body - moved further left */}
-                      <rect x="1" y="5" width="16" height="16" rx="2" ry="2"/>
-                      <line x1="13" y1="3" x2="13" y2="7"/>
-                      <line x1="5" y1="3" x2="5" y2="7"/>
-                      <line x1="1" y1="10" x2="17" y2="10"/>
-                      {/* Plus sign - stays where it is */}
-                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
-                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
-                    </svg>
-                    <span className="font-medium">Schedule</span>
+                    <CalendarPlus size={24} />
                   </button>
+                  {/* InboxPlus - add to inbox */}
                   <button
                     onClick={openNewInboxTask}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Add to Inbox"
                   >
-                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {/* Inbox body - moved left, not truncated */}
-                      <path d="M3.45 6.11L0 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 12.76 5H4.24a2 2 0 0 0-1.79 1.11z"/>
-                      <polyline points="18 13 13 13 11 16 7 16 5 13 0 13"/>
-                      {/* Plus sign - positioned to fit in viewBox */}
-                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
-                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
-                    </svg>
-                    <span className="font-medium">Inbox</span>
+                    <MailPlus size={24} />
+                  </button>
+                  {/* Placeholder 1 */}
+                  <button
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
+                    title="Coming soon"
+                  >
+                    <UserPlus size={24} />
+                  </button>
+                  {/* Placeholder 2 */}
+                  <button
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
+                    title="Coming soon"
+                  >
+                    <BrainCircuit size={24} />
+                  </button>
+                  {/* Collapse sidebar */}
+                  <button
+                    onClick={() => setSidebarCollapsed(true)}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Collapse sidebar"
+                  >
+                    <ChevronsLeft size={24} />
                   </button>
                 </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <Inbox size={18} />
+                  <Mail size={18} />
                   Inbox
                 </h3>
                 <div className="flex items-center gap-2">
@@ -2414,7 +2435,7 @@ const DayPlanner = () => {
                               <input
                                 type="text"
                                 value={editingTaskText}
-                                onChange={(e) => setEditingTaskText(e.target.value)}
+                                onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
                                 onKeyDown={(e) => handleEditKeyDown(e, true)}
                                 onBlur={() => saveTaskTitle(true)}
                                 autoFocus
@@ -2535,20 +2556,23 @@ const DayPlanner = () => {
                     <p className="text-center py-2">Add #tags to task titles</p>
                   ) : (
                     <div className="space-y-1">
-                      {allTags.map(tag => (
-                        <label
-                          key={tag}
-                          className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedTags.includes(tag)}
-                            onChange={() => toggleTag(tag)}
-                            className="rounded"
-                          />
-                          <span>{tag}</span>
-                        </label>
-                      ))}
+                      {allTags.map(tag => {
+                        const tagCount = tasks.filter(t => extractTags(t.title).includes(tag)).length;
+                        return (
+                          <label
+                            key={tag}
+                            className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTags.includes(tag)}
+                              onChange={() => toggleTag(tag)}
+                              className="rounded"
+                            />
+                            <span>{tag} <span className={`text-xs ${textSecondary}`}>({tagCount})</span></span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2682,15 +2706,7 @@ const DayPlanner = () => {
               )}
             </div>
                 </div>
-
-                {/* Collapse toggle at bottom */}
-                <button
-                  onClick={() => setSidebarCollapsed(true)}
-                  className={`flex-shrink-0 mt-2 p-2 rounded-lg ${cardBg} border ${borderClass} shadow-sm ${hoverBg} self-end`}
-                  title="Collapse sidebar"
-                >
-                  <ChevronsLeft size={20} className={textSecondary} />
-                </button>
+                </div>
               </div>
             )}
           </div>
@@ -2846,13 +2862,27 @@ const DayPlanner = () => {
                           const { top, height } = calculateTaskPosition(task);
                           const isConflicted = conflicts.some(c => c.includes(task.id));
                           const conflictPos = calculateConflictPosition(task, dayTasks);
-                          const isVeryShort = height < 20;
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                           const hasConflict = conflictPos.width !== null;
-                          const isNarrow = hasConflict || visibleDays >= 2;
-                          const isVeryNarrow = conflictPos.totalColumns >= 3 || visibleDays === 3;
-                          const isShort = task.duration <= 15;
+
+                          // Height-based tiers
+                          const isMicroHeight = height < 35;  // ~13min or less
+                          const isShortHeight = height < 55;  // ~20min or less
+                          const isMediumHeight = height < 80; // ~30min or less
+
+                          // Width-based tiers (narrower = more constrained)
+                          const isVeryNarrowWidth = conflictPos.totalColumns >= 3 || visibleDays === 1;
+                          const isNarrowWidth = hasConflict || visibleDays <= 2;
+
+                          // Combined layout modes
+                          // Micro: very short height, or short+very narrow - single line, minimal info
+                          const useMicroLayout = isMicroHeight || (isShortHeight && isVeryNarrowWidth);
+                          // Compact: short height (regardless of width), or very narrow - two rows, truncated
+                          const useCompactLayout = !useMicroLayout && (isShortHeight || isVeryNarrowWidth);
+                          // Medium: narrow width or medium height - title wraps, has time row
+                          const useMediumLayout = !useMicroLayout && !useCompactLayout && (isNarrowWidth || isMediumHeight);
+                          // Full layout is the default when none of the above apply
 
                           // Action buttons component (reused in different layouts)
                           const ActionButtons = ({ inMenu = false }) => (
@@ -2915,83 +2945,109 @@ const DayPlanner = () => {
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} overflow-visible`}
+                              className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
-                                minHeight: '40px',
+                                minHeight: useMicroLayout ? '27px' : '39px',
                                 left: conflictPos.left,
                                 right: conflictPos.right,
                                 width: conflictPos.width,
                                 ...taskCalendarStyle
                               }}
                             >
-                              <div className={`p-2 h-full flex flex-col text-white ${isVeryShort ? 'justify-center' : 'justify-between'}`}>
-                                {/* Narrow/very narrow tasks: compact two-row layout with ... menu */}
-                                {(isNarrow && isShort) || isVeryNarrow ? (
-                                  <div>
-                                    <div className="flex items-center gap-1">
-                                      {(!isImported || task.isTaskCalendar) && (
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                        >
-                                          {task.completed && <Check size={10} strokeWidth={3} />}
-                                        </button>
-                                      )}
-                                      <div className="flex-1 min-w-0 overflow-hidden">
-                                        {editingTaskId === task.id ? (
-                                          <input
-                                            type="text"
-                                            value={editingTaskText}
-                                            onChange={(e) => setEditingTaskText(e.target.value)}
-                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                            onBlur={() => saveTaskTitle(false)}
-                                            autoFocus
-                                            className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                        ) : (
-                                          <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                            onDoubleClick={(e) => {
-                                              if (!isImported) {
-                                                e.stopPropagation();
-                                                startEditingTask(task, false);
-                                              }
-                                            }}
-                                            title={task.title}
-                                          >
-                                            {renderTitleWithoutTags(task.title)}
+                              <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : 'justify-between'} rounded-lg`}>
+                                {/* MICRO LAYOUT: Single line - checkbox + truncated title + ... menu */}
+                                {useMicroLayout ? (
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    {(!isImported || task.isTaskCalendar) && (
+                                      <button
+                                        onClick={() => toggleComplete(task.id)}
+                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                      >
+                                        {task.completed && <Check size={8} strokeWidth={3} />}
+                                      </button>
+                                    )}
+                                    <div
+                                      className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-xs leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                      onDoubleClick={(e) => {
+                                        if (!isImported) {
+                                          e.stopPropagation();
+                                          startEditingTask(task, false);
+                                        }
+                                      }}
+                                      title={task.title}
+                                    >
+                                      {renderTitleWithoutTags(task.title)}
+                                    </div>
+                                    {!isImported && (
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
+                                      >
+                                        <MoreHorizontal size={12} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute bottom-full right-0 mb-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <ActionButtons inMenu={true} />
                                           </div>
                                         )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-1 mt-0.5">
-                                      <div className="flex-1 min-w-0 overflow-hidden">
-                                        {extractTags(task.title).length > 0 && (
-                                          <div className="text-xs italic opacity-75 truncate">
-                                            {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
-                                          </div>
-                                        )}
-                                      </div>
-                                      {!isImported && (
-                                        <button
-                                          onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                          className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
-                                        >
-                                          <MoreHorizontal size={14} />
-                                          {expandedTaskMenu === task.id && (
-                                            <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                              <ActionButtons inMenu={true} />
-                                            </div>
-                                          )}
-                                        </button>
-                                      )}
-                                    </div>
+                                      </button>
+                                    )}
                                   </div>
-                                ) : isNarrow && !isShort && !isVeryNarrow ? (
-                                  /* Narrow tall tasks (30min+ with 2-column conflicts): two-row layout */
+                                ) : useCompactLayout ? (
+                                  /* COMPACT LAYOUT: Single row - checkbox, truncated title, ... menu */
+                                  <div className="flex items-center gap-1">
+                                    {(!isImported || task.isTaskCalendar) && (
+                                      <button
+                                        onClick={() => toggleComplete(task.id)}
+                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                      >
+                                        {task.completed && <Check size={10} strokeWidth={3} />}
+                                      </button>
+                                    )}
+                                    <div className="flex-1 min-w-0 overflow-hidden">
+                                      {editingTaskId === task.id ? (
+                                        <input
+                                          type="text"
+                                          value={editingTaskText}
+                                          onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
+                                          onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                          onBlur={() => saveTaskTitle(false)}
+                                          autoFocus
+                                          className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      ) : (
+                                        <div
+                                          className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                          onDoubleClick={(e) => {
+                                            if (!isImported) {
+                                              e.stopPropagation();
+                                              startEditingTask(task, false);
+                                            }
+                                          }}
+                                          title={task.title}
+                                        >
+                                          {renderTitleWithoutTags(task.title)}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {!isImported && (
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
+                                      >
+                                        <MoreHorizontal size={14} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute bottom-full right-0 mb-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <ActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : useMediumLayout ? (
+                                  /* MEDIUM LAYOUT: Title can wrap (clamped), tags, time, and ... menu or compact actions */
                                   <div>
                                     <div className="flex items-start gap-1">
                                       {(!isImported || task.isTaskCalendar) && (
@@ -3007,7 +3063,7 @@ const DayPlanner = () => {
                                           <input
                                             type="text"
                                             value={editingTaskText}
-                                            onChange={(e) => setEditingTaskText(e.target.value)}
+                                            onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
                                             onKeyDown={(e) => handleEditKeyDown(e, false)}
                                             onBlur={() => saveTaskTitle(false)}
                                             autoFocus
@@ -3016,14 +3072,14 @@ const DayPlanner = () => {
                                           />
                                         ) : (
                                           <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                             onDoubleClick={(e) => {
                                               if (!isImported) {
                                                 e.stopPropagation();
                                                 startEditingTask(task, false);
                                               }
                                             }}
-                                            title={!isImported ? "Double-click to edit" : undefined}
+                                            title={task.title}
                                           >
                                             {renderTitleWithoutTags(task.title)}
                                           </div>
@@ -3035,20 +3091,28 @@ const DayPlanner = () => {
                                         {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
                                       </div>
                                     )}
-                                    <div className="flex items-center justify-between gap-1 mt-1">
+                                    <div className="flex items-center justify-between gap-1 mt-auto">
                                       <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
                                         <Clock size={10} />
                                         {task.startTime} • {task.duration}m
                                       </div>
                                       {!isImported && (
-                                        <div className="flex items-center gap-0.5">
-                                          <ActionButtons />
-                                        </div>
+                                        <button
+                                          onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                          className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
+                                        >
+                                          <MoreHorizontal size={14} />
+                                          {expandedTaskMenu === task.id && (
+                                            <div className="task-menu-container absolute bottom-full right-0 mb-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                              <ActionButtons inMenu={true} />
+                                            </div>
+                                          )}
+                                        </button>
                                       )}
                                     </div>
                                   </div>
                                 ) : (
-                                  /* Full-width tasks: original single-row layout */
+                                  /* FULL LAYOUT: Title can wrap, tags inline, time and full action buttons */
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-start gap-2 flex-1 min-w-0">
                                       {(!isImported || task.isTaskCalendar) && (
@@ -3064,7 +3128,7 @@ const DayPlanner = () => {
                                           <input
                                             type="text"
                                             value={editingTaskText}
-                                            onChange={(e) => setEditingTaskText(e.target.value)}
+                                            onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
                                             onKeyDown={(e) => handleEditKeyDown(e, false)}
                                             onBlur={() => saveTaskTitle(false)}
                                             autoFocus
@@ -3097,13 +3161,13 @@ const DayPlanner = () => {
                                   </div>
                                 )}
                                 {/* Resize handle at bottom - solid white for visibility */}
-                                {!isVeryShort && !isImported && (
+                                {!useMicroLayout && !isImported && (
                                   <div
                                     onMouseDown={(e) => handleResizeStart(task, e)}
-                                    className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
+                                    className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
                                     style={{ marginBottom: '-4px' }}
                                   >
-                                    <div className="w-8 h-1 bg-white rounded-full"></div>
+                                    <div className="w-12 h-1 bg-white rounded-full"></div>
                                   </div>
                                 )}
                               </div>
@@ -3112,7 +3176,7 @@ const DayPlanner = () => {
                         })}
 
                         {/* Hover preview line - shows where a new task would start */}
-                        {hoverPreviewTime && !draggedTask && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
+                        {hoverPreviewTime && !draggedTask && !isResizing && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
                           <div
                             className="absolute left-0 right-0 pointer-events-none z-10"
                             style={{
@@ -3144,7 +3208,7 @@ const DayPlanner = () => {
                               style={{
                                 top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60)}px`,
                                 height: `${draggedTask.duration * 160 / 60}px`,
-                                minHeight: '40px'
+                                minHeight: '39px'
                               }}
                             >
                             </div>
@@ -3411,7 +3475,7 @@ const DayPlanner = () => {
                 type="text"
                 placeholder="Task title (press Enter to add)"
                 value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                onChange={(e) => isTitleWithinLimit(e.target.value) && setNewTask({ ...newTask, title: e.target.value })}
                 autoFocus
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
               />
