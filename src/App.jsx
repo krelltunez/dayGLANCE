@@ -1955,8 +1955,8 @@ const DayPlanner = () => {
                 ));
               })()}
 
-              <div className="flex items-center gap-3 ml-auto">
-                <div className="grid grid-cols-2 gap-1">
+              <div className="flex items-center gap-1 ml-auto">
+                <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => {
@@ -1984,26 +1984,26 @@ const DayPlanner = () => {
                       </button>
                     )}
                   </div>
-                  <button
-                    onClick={() => setDarkMode(!darkMode)}
-                    className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2`}
-                    title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-                  >
-                    {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
-                    <span className={`text-sm ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
-                  </button>
                   <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
                     <Upload size={18} className={textSecondary} />
                     <span className={`text-sm ${textPrimary}`}>Import iCal</span>
                     <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
                   </label>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => setDarkMode(!darkMode)}
+                    className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                    title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                  >
+                    {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
+                  </button>
                   <button
                     onClick={() => setShowBackupMenu(true)}
-                    className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2`}
+                    className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
                     title="Backup or restore data"
                   >
                     <Save size={18} className={textSecondary} />
-                    <span className={`text-sm ${textPrimary}`}>Backup</span>
                   </button>
                 </div>
               </div>
