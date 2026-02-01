@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -1914,11 +1914,13 @@ const DayPlanner = () => {
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
   // Tasks with no tags are always shown (they can't be filtered by tags)
   const filterByTags = (taskList) => {
-    if (selectedTags.length === 0) return taskList;
     return taskList.filter(task => {
       const taskTags = extractTags(task.title);
-      // Always show tasks with no tags (like imported events)
-      if (taskTags.length === 0) return true;
+      // Always show untagged tasks and imported events
+      if (taskTags.length === 0 || task.imported) return true;
+      // If no tags are selected, hide tagged tasks
+      if (selectedTags.length === 0) return false;
+      // Show tagged tasks only if they match a selected tag
       return selectedTags.some(tag => taskTags.includes(tag));
     });
   };
@@ -2313,19 +2315,19 @@ const DayPlanner = () => {
                   </button>
                 </div>
 
-                {/* Hamburger toggle at bottom */}
+                {/* Expand toggle at bottom */}
                 <button
                   onClick={() => setSidebarCollapsed(false)}
-                  className={`mt-auto p-2 rounded ${hoverBg} self-end`}
+                  className={`flex-shrink-0 mt-auto p-2 rounded-lg ${cardBg} border ${borderClass} shadow-sm ${hoverBg} self-end`}
                   title="Expand sidebar"
                 >
-                  <Menu size={20} className={textSecondary} />
+                  <ChevronsRight size={20} className={textSecondary} />
                 </button>
               </div>
             ) : (
               /* Expanded sidebar - full content */
-              <div className="flex flex-col flex-1">
-                <div>
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className={`flex-1 min-h-0 overflow-y-auto pr-1 ${darkMode ? 'dark-scrollbar' : ''}`}>
                 <div className={`flex gap-2 mb-4`}>
                   <button
                     onClick={openNewTaskForm}
@@ -2681,13 +2683,13 @@ const DayPlanner = () => {
             </div>
                 </div>
 
-                {/* Hamburger toggle at bottom */}
+                {/* Collapse toggle at bottom */}
                 <button
                   onClick={() => setSidebarCollapsed(true)}
-                  className={`mt-auto p-2 rounded ${hoverBg} self-end`}
+                  className={`flex-shrink-0 mt-2 p-2 rounded-lg ${cardBg} border ${borderClass} shadow-sm ${hoverBg} self-end`}
                   title="Collapse sidebar"
                 >
-                  <Menu size={20} className={textSecondary} />
+                  <ChevronsLeft size={20} className={textSecondary} />
                 </button>
               </div>
             )}
@@ -2847,8 +2849,9 @@ const DayPlanner = () => {
                           const isVeryShort = height < 20;
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
-                          const isNarrow = conflictPos.width !== null;
-                          const isVeryNarrow = conflictPos.totalColumns >= 3;
+                          const hasConflict = conflictPos.width !== null;
+                          const isNarrow = hasConflict || visibleDays >= 2;
+                          const isVeryNarrow = conflictPos.totalColumns >= 3 || visibleDays === 3;
                           const isShort = task.duration <= 15;
 
                           // Action buttons component (reused in different layouts)
