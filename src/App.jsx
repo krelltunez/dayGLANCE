@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -87,6 +87,10 @@ const DayPlanner = () => {
     history: null
   });
   const [contentRotation, setContentRotation] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
@@ -144,13 +148,21 @@ const DayPlanner = () => {
       setContentRotation(prev => (prev + 1) % 4);
     }, 15 * 60 * 1000);
 
-    return () => clearInterval(rotationInterval);
+    // Refresh weather every hour
+    const weatherInterval = setInterval(() => {
+      fetchWeather();
+    }, 60 * 60 * 1000);
+
+    return () => {
+      clearInterval(rotationInterval);
+      clearInterval(weatherInterval);
+    };
   }, []);
 
   // Close month view when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (showMonthView && !e.target.closest('.month-view-container')) {
+      if (showMonthView && !e.target.closest('.month-view-container') && !e.target.closest('.month-view-toggle')) {
         setShowMonthView(false);
       }
     };
@@ -188,6 +200,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-selected-tags', JSON.stringify(selectedTags));
   }, [selectedTags]);
+
+  // Persist sidebarCollapsed to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -526,6 +543,10 @@ const DayPlanner = () => {
     setSelectedTags([]);
   };
 
+  const selectAllTags = () => {
+    setSelectedTags([...allTags]);
+  };
+
   const cyclePriority = (taskId) => {
     const task = unscheduledTasks.find(t => t.id === taskId);
     const currentPriority = pendingPriorities[taskId] ?? task?.priority ?? 0;
@@ -758,14 +779,14 @@ const DayPlanner = () => {
 
   const postponeTask = (id) => {
     const task = tasks.find(t => t.id === id);
-    if (!task || !task.startTime) return; // Only postpone scheduled tasks
-    
-    // Calculate next day's date
-    const nextDay = new Date(selectedDate);
+    if (!task || !task.startTime || !task.date) return; // Only postpone scheduled tasks
+
+    // Calculate next day's date based on task's current date
+    const nextDay = new Date(task.date + 'T12:00:00');
     nextDay.setDate(nextDay.getDate() + 1);
-    
+
     // Update the task with the new date (same time)
-    setTasks(tasks.map(t => 
+    setTasks(tasks.map(t =>
       t.id === id ? { ...t, date: nextDay.toISOString().split('T')[0] } : t
     ));
   };
@@ -1941,94 +1962,114 @@ const DayPlanner = () => {
         <div className="max-w-[2000px] mx-auto px-6 py-4">
           <div className="flex gap-6">
             {/* Sidebar area - date navigator centered with Today button below */}
-            <div className="w-72 flex-shrink-0 flex flex-col items-center">
-              <div className="flex items-center gap-2 relative">
-                <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
-                  <ChevronLeft size={20} className={textSecondary} />
+            <div className={`${sidebarCollapsed ? 'w-16' : 'w-72'} flex-shrink-0 transition-[width] duration-200 relative`} style={{ height: '76px' }}>
+              {/* Collapsed date navigator */}
+              <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <button onClick={() => changeDate(-1)} className={`p-0.5 rounded ${hoverBg}`}>
+                  <ChevronLeft size={16} className={textSecondary} />
                 </button>
                 <button
-                  onClick={() => {
-                    if (!showMonthView) setViewedMonth(new Date(selectedDate));
-                    setShowMonthView(!showMonthView);
-                  }}
-                  className={`${textPrimary} font-bold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
+                  onClick={goToToday}
+                  className={`p-1 rounded ${hoverBg}`}
+                  title="Go to today"
                 >
-                  {formatDateRange(visibleDates)}
+                  <Calendar size={20} className={textSecondary} />
                 </button>
-                <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg}`}>
-                  <ChevronRight size={20} className={textSecondary} />
+                <button onClick={() => changeDate(1)} className={`p-0.5 rounded ${hoverBg}`}>
+                  <ChevronRight size={16} className={textSecondary} />
                 </button>
-
-                {/* Month View Popup */}
-                {showMonthView && (
-                  <div className={`month-view-container absolute top-full left-1/2 -translate-x-1/2 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }}
-                        className={`p-1 rounded ${hoverBg}`}
-                      >
-                        <ChevronLeft size={18} className={textSecondary} />
-                      </button>
-                      <div className={`font-bold ${textPrimary}`}>
-                        {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }}
-                        className={`p-1 rounded ${hoverBg}`}
-                      >
-                        <ChevronRight size={18} className={textSecondary} />
-                      </button>
-                    </div>
-
-                    {/* Day headers */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                        <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Calendar days */}
-                    <div className="grid grid-cols-7 gap-1">
-                      {getMonthDays().map((day, index) => {
-                        const isDayToday = day && day.toDateString() === new Date().toDateString();
-                        const isSelected = day && day.toDateString() === selectedDate.toDateString();
-                        const hasTasks = hasTasksOnDate(day);
-
-                        return (
-                          <button
-                            key={index}
-                            onClick={() => day && goToDate(day)}
-                            disabled={!day}
-                            className={`
-                              h-10 rounded text-sm relative
-                              ${!day ? 'invisible' : ''}
-                              ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
-                              ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
-                              ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
-                              ${!day ? '' : 'cursor-pointer'}
-                            `}
-                          >
-                            {day && day.getDate()}
-                            {hasTasks && (
-                              <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
-              <button
-                onClick={goToToday}
-                className="mt-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Today
-              </button>
+
+              {/* Expanded date navigator */}
+              <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                <div className="flex items-center gap-2 relative">
+                    <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
+                      <ChevronLeft size={20} className={textSecondary} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                        setShowMonthView(!showMonthView);
+                      }}
+                      className={`month-view-toggle ${textPrimary} font-bold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
+                    >
+                      {formatDateRange(visibleDates)}
+                    </button>
+                    <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg}`}>
+                      <ChevronRight size={20} className={textSecondary} />
+                    </button>
+
+                    {/* Month View Popup */}
+                    {showMonthView && (
+                      <div className={`month-view-container absolute top-full left-1/2 -translate-x-1/2 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }}
+                            className={`p-1 rounded ${hoverBg}`}
+                          >
+                            <ChevronLeft size={18} className={textSecondary} />
+                          </button>
+                          <div className={`font-bold ${textPrimary}`}>
+                            {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }}
+                            className={`p-1 rounded ${hoverBg}`}
+                          >
+                            <ChevronRight size={18} className={textSecondary} />
+                          </button>
+                        </div>
+
+                        {/* Day headers */}
+                        <div className="grid grid-cols-7 gap-1 mb-2">
+                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                            <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
+                              {day}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Calendar days */}
+                        <div className="grid grid-cols-7 gap-1">
+                          {getMonthDays().map((day, index) => {
+                            const isDayToday = day && day.toDateString() === new Date().toDateString();
+                            const isSelected = day && day.toDateString() === selectedDate.toDateString();
+                            const hasTasks = hasTasksOnDate(day);
+
+                            return (
+                              <button
+                                key={index}
+                                onClick={() => day && goToDate(day)}
+                                disabled={!day}
+                                className={`
+                                  h-10 rounded text-sm relative
+                                  ${!day ? 'invisible' : ''}
+                                  ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
+                                  ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
+                                  ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
+                                  ${!day ? '' : 'cursor-pointer'}
+                                `}
+                              >
+                                {day && day.getDate()}
+                                {hasTasks && (
+                                  <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                </div>
+                <button
+                  onClick={goToToday}
+                  className="mt-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Today
+                </button>
+              </div>
             </div>
             {/* Calendar area - weather aligned with left edge */}
             <div className="flex-1 flex items-center gap-6">
@@ -2043,8 +2084,8 @@ const DayPlanner = () => {
                     </div>
                   </div>
                   
-                  {/* 5-day forecast */}
-                  {weather.forecast && weather.forecast.length > 0 && (
+                  {/* 5-day forecast (hidden in narrow mode) */}
+                  {visibleDays > 1 && weather.forecast && weather.forecast.length > 0 && (
                     <div className={`flex items-center gap-2`}>
                       {weather.forecast.map((day, index) => (
                         <div key={index} className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
@@ -2061,8 +2102,8 @@ const DayPlanner = () => {
                 </>
               )}
 
-              {/* Rotating Daily Content - shows 2 of 4 content types */}
-              {(() => {
+              {/* Rotating Daily Content - shows 2 of 4 content types (widescreen only) */}
+              {visibleDays === 3 && (() => {
                 const contentItems = [
                   { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
                   { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
@@ -2196,41 +2237,129 @@ const DayPlanner = () => {
         )}
 
         <div className="flex gap-6">
-          <div className="w-72 flex-shrink-0">
-            <div className={`flex gap-2 mb-4`}>
-              <button
-                onClick={openNewTaskForm}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                title="New Scheduled Task"
-              >
-                <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {/* Calendar body - moved further left */}
-                  <rect x="1" y="5" width="16" height="16" rx="2" ry="2"/>
-                  <line x1="13" y1="3" x2="13" y2="7"/>
-                  <line x1="5" y1="3" x2="5" y2="7"/>
-                  <line x1="1" y1="10" x2="17" y2="10"/>
-                  {/* Plus sign - stays where it is */}
-                  <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
-                  <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
-                </svg>
-                <span className="font-medium">Schedule</span>
-              </button>
-              <button
-                onClick={openNewInboxTask}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                title="Add to Inbox"
-              >
-                <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {/* Inbox body - moved left, not truncated */}
-                  <path d="M3.45 6.11L0 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 12.76 5H4.24a2 2 0 0 0-1.79 1.11z"/>
-                  <polyline points="18 13 13 13 11 16 7 16 5 13 0 13"/>
-                  {/* Plus sign - positioned to fit in viewBox */}
-                  <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
-                  <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
-                </svg>
-                <span className="font-medium">Inbox</span>
-              </button>
-            </div>
+          <div className={`${sidebarCollapsed ? 'w-16' : 'w-72'} flex-shrink-0 transition-[width] duration-200 flex flex-col overflow-hidden`} style={{ height: '1168px' }}>
+            {sidebarCollapsed ? (
+              /* Collapsed sidebar - icon-only buttons */
+              <div className="flex flex-col gap-2 flex-1">
+                {/* Schedule and Inbox buttons - icon only */}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={openNewTaskForm}
+                    className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="New Scheduled Task"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="1" y="5" width="16" height="16" rx="2" ry="2"/>
+                      <line x1="13" y1="3" x2="13" y2="7"/>
+                      <line x1="5" y1="3" x2="5" y2="7"/>
+                      <line x1="1" y1="10" x2="17" y2="10"/>
+                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
+                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={openNewInboxTask}
+                    className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Add to Inbox"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3.45 6.11L0 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 12.76 5H4.24a2 2 0 0 0-1.79 1.11z"/>
+                      <polyline points="18 13 13 13 11 16 7 16 5 13 0 13"/>
+                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
+                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Section icons - clicking expands sidebar */}
+                <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-2 flex flex-col items-center gap-2`}>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className={`p-2 rounded ${hoverBg} relative`}
+                    title="Inbox"
+                  >
+                    <Inbox size={20} className={textSecondary} />
+                    {unscheduledTasks.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                        {unscheduledTasks.length > 9 ? '9+' : unscheduledTasks.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className={`p-2 rounded ${hoverBg}`}
+                    title="Tags"
+                  >
+                    <Hash size={20} className={textSecondary} />
+                  </button>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className={`p-2 rounded ${hoverBg}`}
+                    title="Daily Summary"
+                  >
+                    <BarChart3 size={20} className={textSecondary} />
+                  </button>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className={`p-2 rounded ${hoverBg} relative`}
+                    title="Recycle Bin"
+                  >
+                    <Trash2 size={20} className={textSecondary} />
+                    {recycleBin.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                        {recycleBin.length > 9 ? '9+' : recycleBin.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Hamburger toggle at bottom */}
+                <button
+                  onClick={() => setSidebarCollapsed(false)}
+                  className={`mt-auto p-2 rounded ${hoverBg} self-end`}
+                  title="Expand sidebar"
+                >
+                  <Menu size={20} className={textSecondary} />
+                </button>
+              </div>
+            ) : (
+              /* Expanded sidebar - full content */
+              <div className="flex flex-col flex-1">
+                <div>
+                <div className={`flex gap-2 mb-4`}>
+                  <button
+                    onClick={openNewTaskForm}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="New Scheduled Task"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {/* Calendar body - moved further left */}
+                      <rect x="1" y="5" width="16" height="16" rx="2" ry="2"/>
+                      <line x1="13" y1="3" x2="13" y2="7"/>
+                      <line x1="5" y1="3" x2="5" y2="7"/>
+                      <line x1="1" y1="10" x2="17" y2="10"/>
+                      {/* Plus sign - stays where it is */}
+                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
+                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
+                    </svg>
+                    <span className="font-medium">Schedule</span>
+                  </button>
+                  <button
+                    onClick={openNewInboxTask}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Add to Inbox"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 26 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {/* Inbox body - moved left, not truncated */}
+                      <path d="M3.45 6.11L0 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 12.76 5H4.24a2 2 0 0 0-1.79 1.11z"/>
+                      <polyline points="18 13 13 13 11 16 7 16 5 13 0 13"/>
+                      {/* Plus sign - positioned to fit in viewBox */}
+                      <line x1="21" y1="1" x2="21" y2="6" stroke="white" strokeWidth="2.5"/>
+                      <line x1="18.5" y1="3.5" x2="23.5" y2="3.5" stroke="white" strokeWidth="2.5"/>
+                    </svg>
+                    <span className="font-medium">Inbox</span>
+                  </button>
+                </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
               <div className="flex items-center justify-between mb-4">
@@ -2254,10 +2383,10 @@ const DayPlanner = () => {
                 <div
                   onDragOver={handleDragOver}
                   onDrop={handleDropOnInbox}
-                  className={`space-y-2 ${filteredUnscheduledTasks.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
+                  className="space-y-2"
                 >
                   {filteredUnscheduledTasks.length === 0 ? (
-                    <p className={`text-sm ${textSecondary} text-center`}>
+                    <p className={`text-sm ${textSecondary} text-center py-2`}>
                       {unscheduledTasks.length === 0
                         ? "Drag tasks here to unschedule them"
                         : "No tasks match selected tags"}
@@ -2372,13 +2501,22 @@ const DayPlanner = () => {
                   Tags
                 </h3>
                 <div className="flex items-center gap-2">
-                  {selectedTags.length > 0 && (
-                    <button
-                      onClick={clearTagFilter}
-                      className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
-                    >
-                      Clear
-                    </button>
+                  {allTags.length > 0 && (
+                    allTags.every(tag => selectedTags.includes(tag)) ? (
+                      <button
+                        onClick={clearTagFilter}
+                        className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
+                      >
+                        Clear
+                      </button>
+                    ) : (
+                      <button
+                        onClick={selectAllTags}
+                        className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
+                      >
+                        Select All
+                      </button>
+                    )
                   )}
                   <button
                     onClick={() => toggleSection('tags')}
@@ -2491,10 +2629,10 @@ const DayPlanner = () => {
                   <div
                     onDragOver={handleDragOver}
                     onDrop={handleDropOnRecycleBin}
-                    className={`space-y-2 mb-3 ${recycleBin.length === 0 ? 'min-h-[100px] flex items-center justify-center' : ''}`}
+                    className="space-y-2"
                   >
                     {recycleBin.length === 0 ? (
-                      <p className={`text-sm ${textSecondary} text-center`}>Drag tasks here to delete them</p>
+                      <p className={`text-sm ${textSecondary} text-center py-2`}>Drag tasks here to delete them</p>
                     ) : (
                       recycleBin.map(task => (
                         <div
@@ -2533,7 +2671,7 @@ const DayPlanner = () => {
                   {recycleBin.length > 0 && (
                     <button
                       onClick={emptyRecycleBin}
-                      className={`w-full px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium`}
+                      className={`w-full mt-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium`}
                     >
                       Empty Recycle Bin
                     </button>
@@ -2541,6 +2679,18 @@ const DayPlanner = () => {
                 </>
               )}
             </div>
+                </div>
+
+                {/* Hamburger toggle at bottom */}
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className={`mt-auto p-2 rounded ${hoverBg} self-end`}
+                  title="Collapse sidebar"
+                >
+                  <Menu size={20} className={textSecondary} />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 min-w-0">
