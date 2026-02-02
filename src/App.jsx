@@ -3260,6 +3260,7 @@ const DayPlanner = () => {
                     <div className="space-y-1">
                       {allTags.map(tag => {
                         const tagCount = [...tasks, ...unscheduledTasks].filter(t => !t.completed && extractTags(t.title).includes(tag)).length;
+                        if (tagCount === 0) return null;
                         return (
                           <label
                             key={tag}
@@ -3301,6 +3302,11 @@ const DayPlanner = () => {
                   <div>{todayCompletedTasks.length} tasks completed</div>
                   <div>{Math.floor(todayCompletedMinutes / 60)}h {todayCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(todayPlannedMinutes / 60)}h {todayPlannedMinutes % 60}m time planned</div>
+                  {todayNonImportedTasks.length > 0 && (
+                    <div className="pt-1">
+                      <div className="font-semibold">{Math.round((todayCompletedTasks.length / todayNonImportedTasks.length) * 100)}% completion rate</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3321,10 +3327,10 @@ const DayPlanner = () => {
               </div>
               {!minimizedSections.allTimeSummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
-                  <div>{nonImportedTasks.length} total tasks</div>
-                  <div>{allCompletedTasks.length} completed</div>
+                  <div>{nonImportedTasks.length} tasks scheduled</div>
+                  <div>{allCompletedTasks.length} tasks completed</div>
                   <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
-                  <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m total planned</div>
+                  <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
                   {nonImportedTasks.length > 0 && (
                     <div className="pt-1">
                       <div className="font-semibold">{Math.round((allCompletedTasks.length / nonImportedTasks.length) * 100)}% completion rate</div>
