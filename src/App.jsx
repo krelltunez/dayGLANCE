@@ -3380,7 +3380,7 @@ const DayPlanner = () => {
                           <div className="flex items-start justify-between text-white">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium truncate">{renderTitle(task.title)}</div>
+                                <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
                                 <div className="text-xs opacity-75 mt-1">
                                   {task._deletedFrom === 'inbox' ? (
                                     <>Inbox • {task.duration}min</>
@@ -3586,14 +3586,15 @@ const DayPlanner = () => {
                           const isVeryNarrowWidth = taskWidth < 120;
                           const isNarrowWidth = taskWidth < 200;
 
-                          // Combined layout modes
-                          // Micro: very short height, or short+very narrow - single line, minimal info
-                          const useMicroLayout = isMicroHeight || (isShortHeight && isVeryNarrowWidth);
-                          // Compact: short height (regardless of width), or very narrow - two rows, truncated
-                          const useCompactLayout = !useMicroLayout && (isShortHeight || isVeryNarrowWidth);
-                          // Medium: narrow width or medium height - title wraps, has time row
-                          const useMediumLayout = !useMicroLayout && !useCompactLayout && (isNarrowWidth || isMediumHeight);
-                          // Full layout is the default when none of the above apply
+                          // Combined layout modes - height constraints only apply when width is also limited
+                          // Wide tasks (>= 200px) always get full layout regardless of height
+                          // Micro: micro height AND narrow, or short AND very narrow
+                          const useMicroLayout = (isMicroHeight && isNarrowWidth) || (isShortHeight && isVeryNarrowWidth);
+                          // Compact: very narrow (but not micro), or short AND narrow
+                          const useCompactLayout = !useMicroLayout && (isVeryNarrowWidth || (isShortHeight && isNarrowWidth));
+                          // Medium: narrow width (but not compact or micro)
+                          const useMediumLayout = !useMicroLayout && !useCompactLayout && isNarrowWidth;
+                          // Full layout is the default when none of the above apply (wide tasks)
 
                           // Action buttons component (reused in different layouts)
                           const ActionButtons = ({ inMenu = false }) => (
@@ -3670,12 +3671,12 @@ const DayPlanner = () => {
                                 ...taskCalendarStyle
                               }}
                             >
-                              <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : 'justify-between'} rounded-lg`}>
+                              <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : 'justify-between'} rounded-lg relative`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
                                   <div className="flex items-center justify-between gap-2">
                                     <div
-                                      className={`font-semibold ${useMicroLayout || useCompactLayout || useMediumLayout ? 'text-sm' : 'text-base'} leading-tight truncate flex-1 min-w-0`}
+                                      className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
                                       title={task.title}
                                     >
                                       {renderTitleWithoutTags(task.title)}
@@ -3686,122 +3687,70 @@ const DayPlanner = () => {
                                     </div>
                                   </div>
                                 ) : useMicroLayout ? (
-                                  /* MICRO LAYOUT: Single line - checkbox + truncated title + ... menu */
-                                  <div className="flex items-center gap-1 min-w-0">
-                                    {(!isImported || task.isTaskCalendar) && (
-                                      <button
-                                        onClick={() => toggleComplete(task.id)}
-                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                      >
-                                        {task.completed && <Check size={8} strokeWidth={3} />}
-                                      </button>
-                                    )}
-                                    <div
-                                      className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                      onDoubleClick={(e) => {
-                                        if (!isImported) {
-                                          e.stopPropagation();
-                                          startEditingTask(task, false);
-                                        }
-                                      }}
-                                      title={task.title}
-                                    >
-                                      {renderTitleWithoutTags(task.title)}
-                                    </div>
+                                  /* MICRO LAYOUT: Single line - checkbox + truncated title + ... menu in top-right */
+                                  <>
                                     {!isImported && (
                                       <button
                                         onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                        className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
+                                        className="task-menu-container absolute top-0.5 right-0.5 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
                                       >
                                         <MoreHorizontal size={12} />
                                         {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute bottom-full right-0 mb-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
                                             <ActionButtons inMenu={true} />
                                           </div>
                                         )}
                                       </button>
                                     )}
-                                  </div>
-                                ) : useCompactLayout ? (
-                                  /* COMPACT LAYOUT: Single row - checkbox, truncated title, ... menu */
-                                  <div className="flex items-center gap-1">
-                                    {(!isImported || task.isTaskCalendar) && (
-                                      <button
-                                        onClick={() => toggleComplete(task.id)}
-                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                      >
-                                        {task.completed && <Check size={10} strokeWidth={3} />}
-                                      </button>
-                                    )}
-                                    <div className="flex-1 min-w-0 overflow-hidden">
-                                      {editingTaskId === task.id ? (
-                                        <div className="relative tag-autocomplete-container">
-                                          <input
-                                            type="text"
-                                            value={editingTaskText}
-                                            onChange={(e) => handleEditInputChange(e, false)}
-                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                            onBlur={() => {
-                                              setTimeout(() => {
-                                                if (!showSuggestions) {
-                                                  saveTaskTitle(false);
-                                                }
-                                              }, 100);
-                                            }}
-                                            autoFocus
-                                            className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                          {showSuggestions && suggestionContext === 'editing' && (
-                                            <SuggestionAutocomplete
-                                              suggestions={suggestions}
-                                              selectedIndex={selectedSuggestionIndex}
-                                              onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
-                                            />
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div
-                                          className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                          onDoubleClick={(e) => {
-                                            if (!isImported) {
-                                              e.stopPropagation();
-                                              startEditingTask(task, false);
-                                            }
-                                          }}
-                                          title={task.title}
-                                        >
-                                          {renderTitleWithoutTags(task.title)}
-                                        </div>
-                                      )}
-                                    </div>
-                                    {!isImported && (
-                                      <button
-                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                        className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
-                                      >
-                                        <MoreHorizontal size={14} />
-                                        {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute bottom-full right-0 mb-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                            <ActionButtons inMenu={true} />
-                                          </div>
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : useMediumLayout ? (
-                                  /* MEDIUM LAYOUT: Title can wrap (clamped), tags, time, and ... menu or compact actions */
-                                  <div>
-                                    <div className="flex items-start gap-1">
+                                    <div className="flex items-center gap-1 min-w-0 pr-5">
                                       {(!isImported || task.isTaskCalendar) && (
                                         <button
                                           onClick={() => toggleComplete(task.id)}
-                                          className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                        >
+                                          {task.completed && <Check size={8} strokeWidth={3} />}
+                                        </button>
+                                      )}
+                                      <div
+                                        className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                        onDoubleClick={(e) => {
+                                          if (!isImported) {
+                                            e.stopPropagation();
+                                            startEditingTask(task, false);
+                                          }
+                                        }}
+                                        title={task.title}
+                                      >
+                                        {renderTitleWithoutTags(task.title)}
+                                      </div>
+                                    </div>
+                                  </>
+                                ) : useCompactLayout ? (
+                                  /* COMPACT LAYOUT: Single row - checkbox, truncated title, ... menu in top-right */
+                                  <>
+                                    {!isImported && (
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container absolute top-1 right-1 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
+                                      >
+                                        <MoreHorizontal size={14} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <ActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
+                                    )}
+                                    <div className="flex items-center gap-1 pr-5">
+                                      {(!isImported || task.isTaskCalendar) && (
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                         >
                                           {task.completed && <Check size={10} strokeWidth={3} />}
                                         </button>
                                       )}
-                                      <div className="flex-1 min-w-0">
+                                      <div className="flex-1 min-w-0 overflow-hidden">
                                         {editingTaskId === task.id ? (
                                           <div className="relative tag-autocomplete-container">
                                             <input
@@ -3817,7 +3766,7 @@ const DayPlanner = () => {
                                                 }, 100);
                                               }}
                                               autoFocus
-                                              className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                              className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
                                               onClick={(e) => e.stopPropagation()}
                                             />
                                             {showSuggestions && suggestionContext === 'editing' && (
@@ -3830,7 +3779,7 @@ const DayPlanner = () => {
                                           </div>
                                         ) : (
                                           <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                             onDoubleClick={(e) => {
                                               if (!isImported) {
                                                 e.stopPropagation();
@@ -3844,31 +3793,89 @@ const DayPlanner = () => {
                                         )}
                                       </div>
                                     </div>
-                                    {extractTags(task.title).length > 0 && (
-                                      <div className="text-xs italic opacity-75 truncate mt-0.5">
-                                        {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
-                                      </div>
+                                  </>
+                                ) : useMediumLayout ? (
+                                  /* MEDIUM LAYOUT: Title can wrap (clamped), tags, time, ... menu in top-right */
+                                  <>
+                                    {!isImported && (
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container absolute top-1 right-1 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
+                                      >
+                                        <MoreHorizontal size={14} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <ActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
                                     )}
-                                    <div className="flex items-center justify-between gap-1 mt-auto">
-                                      <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
-                                        <Clock size={10} />
-                                        {task.startTime} • {task.duration}m
-                                      </div>
-                                      {!isImported && (
-                                        <button
-                                          onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                          className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors flex-shrink-0 relative"
-                                        >
-                                          <MoreHorizontal size={14} />
-                                          {expandedTaskMenu === task.id && (
-                                            <div className="task-menu-container absolute bottom-full right-0 mb-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                              <ActionButtons inMenu={true} />
+                                    <div className="pr-5">
+                                      <div className="flex items-start gap-1">
+                                        {(!isImported || task.isTaskCalendar) && (
+                                          <button
+                                            onClick={() => toggleComplete(task.id)}
+                                            className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                          >
+                                            {task.completed && <Check size={10} strokeWidth={3} />}
+                                          </button>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          {editingTaskId === task.id ? (
+                                            <div className="relative tag-autocomplete-container">
+                                              <input
+                                                type="text"
+                                                value={editingTaskText}
+                                                onChange={(e) => handleEditInputChange(e, false)}
+                                                onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                                onBlur={() => {
+                                                  setTimeout(() => {
+                                                    if (!showSuggestions) {
+                                                      saveTaskTitle(false);
+                                                    }
+                                                  }, 100);
+                                                }}
+                                                autoFocus
+                                                className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                              {showSuggestions && suggestionContext === 'editing' && (
+                                                <SuggestionAutocomplete
+                                                  suggestions={suggestions}
+                                                  selectedIndex={selectedSuggestionIndex}
+                                                  onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
+                                                />
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div
+                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                              onDoubleClick={(e) => {
+                                                if (!isImported) {
+                                                  e.stopPropagation();
+                                                  startEditingTask(task, false);
+                                                }
+                                              }}
+                                              title={task.title}
+                                            >
+                                              {renderTitleWithoutTags(task.title)}
                                             </div>
                                           )}
-                                        </button>
+                                        </div>
+                                      </div>
+                                      {extractTags(task.title).length > 0 && (
+                                        <div className="text-xs italic opacity-75 truncate mt-0.5">
+                                          {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                        </div>
                                       )}
+                                      <div className="flex items-center gap-1 mt-auto">
+                                        <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
+                                          <Clock size={10} />
+                                          {task.startTime} • {task.duration}m
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
+                                  </>
                                 ) : (
                                   /* FULL LAYOUT: Title can wrap, tags inline, time and full action buttons */
                                   <div className="flex items-start justify-between gap-2">
@@ -3897,7 +3904,7 @@ const DayPlanner = () => {
                                                 }, 100);
                                               }}
                                               autoFocus
-                                              className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                              className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
                                               onClick={(e) => e.stopPropagation()}
                                             />
                                             {showSuggestions && suggestionContext === 'editing' && (
@@ -3910,7 +3917,7 @@ const DayPlanner = () => {
                                           </div>
                                         ) : (
                                           <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                             onDoubleClick={(e) => {
                                               if (!isImported) {
                                                 e.stopPropagation();
