@@ -786,7 +786,8 @@ const DayPlanner = () => {
 
   const checkConflicts = () => {
     const dateStr = dateToString(selectedDate);
-    const todayTasks = tasks.filter(t => t.date === dateStr && !t.isAllDay); // Exclude all-day tasks
+    // Exclude all-day tasks and imported events (not task calendar) from conflict detection
+    const todayTasks = tasks.filter(t => t.date === dateStr && !t.isAllDay && (!t.imported || t.isTaskCalendar));
     const newConflicts = [];
 
     for (let i = 0; i < todayTasks.length; i++) {
@@ -871,7 +872,12 @@ const DayPlanner = () => {
   };
 
   const calculateConflictPosition = (task, allTasks) => {
-    const conflicting = getConflictingTasks(task, allTasks);
+    // Imported events (not task calendar) are excluded from layout logic - always full width
+    if (task.imported && !task.isTaskCalendar) return { left: 2, right: 2, width: null, totalColumns: 1 };
+
+    // Filter out imported events from conflict calculations
+    const nonImportedTasks = allTasks.filter(t => !t.imported || t.isTaskCalendar);
+    const conflicting = getConflictingTasks(task, nonImportedTasks);
     if (conflicting.length === 0) return { left: 2, right: 2, width: null, totalColumns: 1 };
 
     // Build the full conflict cluster using transitive closure
@@ -881,7 +887,7 @@ const DayPlanner = () => {
 
       while (queue.length > 0) {
         const current = queue.shift();
-        const currentConflicts = getConflictingTasks(current, allTasks);
+        const currentConflicts = getConflictingTasks(current, nonImportedTasks);
         for (const t of currentConflicts) {
           if (!cluster.has(t.id)) {
             cluster.add(t.id);
@@ -890,7 +896,7 @@ const DayPlanner = () => {
         }
       }
 
-      return allTasks.filter(t => cluster.has(t.id));
+      return nonImportedTasks.filter(t => cluster.has(t.id));
     };
 
     const cluster = buildConflictCluster(task);
@@ -951,7 +957,8 @@ const DayPlanner = () => {
 
   const wouldExceedMaxColumns = (droppedTask, startTime, dropDateStr, maxColumns = 3) => {
     // Get existing tasks for this date, excluding the dropped task if it's already scheduled
-    const existingTasks = tasks.filter(t => t.date === dropDateStr && t.id !== droppedTask.id && !t.isAllDay);
+    // Also exclude imported events (not task calendar) from conflict calculations
+    const existingTasks = tasks.filter(t => t.date === dropDateStr && t.id !== droppedTask.id && !t.isAllDay && (!t.imported || t.isTaskCalendar));
 
     // Create a hypothetical task with the new position
     const hypotheticalTask = { ...droppedTask, startTime, date: dropDateStr };
@@ -2993,11 +3000,11 @@ const DayPlanner = () => {
                 </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
-              <div className="flex items-center justify-between mb-4">
+              <div className={`flex items-center justify-between ${minimizedSections.inbox ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mail size={18} />
                   Inbox
-                  {!minimizedSections.inbox && (
+                  {!minimizedSections.inbox && unscheduledTasks.length > 0 && (
                     <button
                       onClick={() => setInboxPriorityFilter(prev => (prev + 1) % 4)}
                       className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors ml-1`}
@@ -3019,9 +3026,11 @@ const DayPlanner = () => {
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm ${textSecondary}`}>
-                    {inboxPriorityFilter > 0 ? `${filteredUnscheduledTasks.length}/` : ''}{unscheduledTasks.length}
-                  </span>
+                  {unscheduledTasks.length > 0 && (
+                    <span className={`text-sm ${textSecondary}`}>
+                      {inboxPriorityFilter > 0 ? `${filteredUnscheduledTasks.length}/` : ''}{unscheduledTasks.length}
+                    </span>
+                  )}
                   <button
                     onClick={() => toggleSection('inbox')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -3164,7 +3173,7 @@ const DayPlanner = () => {
             </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className="flex items-center justify-between mb-2">
+              <div className={`flex items-center justify-between ${minimizedSections.tags ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Hash size={18} />
                   Tags
@@ -3226,7 +3235,7 @@ const DayPlanner = () => {
             </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className="flex items-center justify-between mb-2">
+              <div className={`flex items-center justify-between ${minimizedSections.dailySummary ? '' : 'mb-2'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <BarChart3 size={18} />
                   Daily Summary
@@ -3250,7 +3259,7 @@ const DayPlanner = () => {
             </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className="flex items-center justify-between mb-3">
+              <div className={`flex items-center justify-between ${minimizedSections.allTimeSummary ? '' : 'mb-2'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <BarChart3 size={18} />
                   All Time Summary
@@ -3279,13 +3288,15 @@ const DayPlanner = () => {
             </div>
 
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className="flex items-center justify-between mb-4">
+              <div className={`flex items-center justify-between ${minimizedSections.recycleBin ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Trash2 size={18} />
                   Recycle Bin
                 </h3>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
+                  {recycleBin.length > 0 && (
+                    <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
+                  )}
                   <button
                     onClick={() => toggleSection('recycleBin')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -3603,8 +3614,22 @@ const DayPlanner = () => {
                               }}
                             >
                               <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : 'justify-between'} rounded-lg`}>
-                                {/* MICRO LAYOUT: Single line - checkbox + truncated title + ... menu */}
-                                {useMicroLayout ? (
+                                {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
+                                {isImported && !task.isTaskCalendar ? (
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div
+                                      className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
+                                      title={task.title}
+                                    >
+                                      {renderTitleWithoutTags(task.title)}
+                                    </div>
+                                    <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
+                                      <Clock size={10} />
+                                      {task.startTime} • {task.duration}m
+                                    </div>
+                                  </div>
+                                ) : useMicroLayout ? (
+                                  /* MICRO LAYOUT: Single line - checkbox + truncated title + ... menu */
                                   <div className="flex items-center gap-1 min-w-0">
                                     {(!isImported || task.isTaskCalendar) && (
                                       <button
@@ -3615,7 +3640,7 @@ const DayPlanner = () => {
                                       </button>
                                     )}
                                     <div
-                                      className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-xs leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                      className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                       onDoubleClick={(e) => {
                                         if (!isImported) {
                                           e.stopPropagation();
