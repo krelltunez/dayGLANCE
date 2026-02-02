@@ -96,7 +96,14 @@ const DayPlanner = () => {
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
   const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [inboxPriorityFilter, setInboxPriorityFilter] = useState(0); // 0 = show all, 1-3 = show >= that priority
+  const [suggestions, setSuggestions] = useState([]); // Array of { type: 'tag'|'date'|'time', value, display, ... }
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionContext, setSuggestionContext] = useState(null); // 'newTask' | 'editing'
   const calendarRef = useRef(null);
+  const newTaskInputRef = useRef(null);
+  const editingInputRef = useRef(null);
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
@@ -144,6 +151,287 @@ const DayPlanner = () => {
   // Check if title (excluding tags) is within limit
   const isTitleWithinLimit = (title) => {
     return renderTitleWithoutTags(title).length <= TITLE_MAX_LENGTH;
+  };
+
+  // Extract partial tag being typed at cursor position
+  const getPartialTag = (text, cursorPos) => {
+    // Scan backwards from cursor to find #
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '#') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Only match if partial starts with a letter (valid tag format)
+        if (partial === '' || /^[a-zA-Z]\w*$/.test(partial)) {
+          return { tag: partial.toLowerCase(), startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit a space or other non-word character (except # which we're looking for)
+      if (!/\w/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Filter tags matching partial (case-insensitive prefix match)
+  const getFilteredTags = (partial, allTagsList) => {
+    if (!partial && partial !== '') return [];
+    const lowerPartial = partial.toLowerCase();
+    return allTagsList
+      .filter(tag => tag.toLowerCase().startsWith(lowerPartial))
+      .sort();
+  };
+
+  // Replace partial tag with completed tag
+  const applyTagCompletion = (text, cursorPos, selectedTag) => {
+    const partialInfo = getPartialTag(text, cursorPos);
+    if (!partialInfo) return { text, newCursorPos: cursorPos };
+
+    const before = text.slice(0, partialInfo.startIndex);
+    const after = text.slice(cursorPos);
+    const completedTag = `#${selectedTag}`;
+    const newText = before + completedTag + after;
+    const newCursorPos = before.length + completedTag.length;
+
+    return { text: newText, newCursorPos };
+  };
+
+  // Extract partial date being typed at cursor position (triggered by @)
+  const getPartialDate = (text, cursorPos) => {
+    // Scan backwards from cursor to find @
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '@') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Allow letters, numbers, spaces, slashes, dashes for date input
+        if (partial === '' || /^[\w\s\/\-,]*$/.test(partial)) {
+          return { partial, startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit certain characters that wouldn't be part of a date
+      if (/[#~]/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Extract partial time being typed at cursor position (triggered by ~)
+  const getPartialTime = (text, cursorPos) => {
+    // Scan backwards from cursor to find ~
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '~') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Allow letters, numbers, colons, spaces for time input
+        if (partial === '' || /^[\w\s:]*$/.test(partial)) {
+          return { partial, startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit certain characters that wouldn't be part of a time
+      if (/[#@]/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Parse flexible date formats and return parsed date info
+  const parseFlexibleDate = (partial) => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const currentYear = today.getFullYear();
+    const lowerPartial = partial.toLowerCase().trim();
+
+    // Natural language dates
+    if (lowerPartial === 'today' || lowerPartial === 'tod') {
+      return { date: today, display: 'Today' };
+    }
+    if (lowerPartial === 'tomorrow' || lowerPartial === 'tom') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return { date: tomorrow, display: 'Tomorrow' };
+    }
+    if (lowerPartial === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { date: yesterday, display: 'Yesterday' };
+    }
+
+    // Day names (next occurrence)
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayAbbrevs = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    let dayIndex = dayNames.findIndex(d => d.startsWith(lowerPartial));
+    if (dayIndex === -1) dayIndex = dayAbbrevs.findIndex(d => d === lowerPartial);
+    if (dayIndex !== -1) {
+      const targetDate = new Date(today);
+      const currentDay = today.getDay();
+      let daysToAdd = dayIndex - currentDay;
+      if (daysToAdd <= 0) daysToAdd += 7; // Next occurrence
+      targetDate.setDate(targetDate.getDate() + daysToAdd);
+      return { date: targetDate, display: dayNames[dayIndex].charAt(0).toUpperCase() + dayNames[dayIndex].slice(1) };
+    }
+
+    // "next week" - same day next week
+    if (lowerPartial === 'next week') {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      return { date: nextWeek, display: 'Next week' };
+    }
+
+    // "next monday", "next tuesday", etc.
+    const nextDayMatch = lowerPartial.match(/^next\s+(\w+)$/);
+    if (nextDayMatch) {
+      const dayName = nextDayMatch[1];
+      let idx = dayNames.findIndex(d => d.startsWith(dayName));
+      if (idx === -1) idx = dayAbbrevs.findIndex(d => d === dayName);
+      if (idx !== -1) {
+        const targetDate = new Date(today);
+        const currentDay = today.getDay();
+        let daysToAdd = idx - currentDay;
+        if (daysToAdd <= 0) daysToAdd += 7;
+        targetDate.setDate(targetDate.getDate() + daysToAdd);
+        return { date: targetDate, display: `Next ${dayNames[idx]}` };
+      }
+    }
+
+    // Month names
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const monthAbbrevs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+    // "Feb 15" or "February 15" or "Feb 15 2026" or "February 15, 2026"
+    const monthDayMatch = lowerPartial.match(/^(\w+)\s+(\d{1,2})(?:[,\s]+(\d{4}))?$/);
+    if (monthDayMatch) {
+      const [, monthStr, dayStr, yearStr] = monthDayMatch;
+      let monthIdx = monthNames.findIndex(m => m.startsWith(monthStr));
+      if (monthIdx === -1) monthIdx = monthAbbrevs.findIndex(m => m === monthStr);
+      if (monthIdx !== -1) {
+        const day = parseInt(dayStr, 10);
+        const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+        if (day >= 1 && day <= 31) {
+          const targetDate = new Date(year, monthIdx, day, 12, 0, 0);
+          if (!isNaN(targetDate.getTime())) {
+            return { date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+          }
+        }
+      }
+    }
+
+    // MM-DD-YYYY or MM-DD
+    const dashMatch = partial.match(/^(\d{1,2})-(\d{1,2})(?:-(\d{4}))?$/);
+    if (dashMatch) {
+      const [, monthStr, dayStr, yearStr] = dashMatch;
+      const month = parseInt(monthStr, 10);
+      const day = parseInt(dayStr, 10);
+      const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const targetDate = new Date(year, month - 1, day, 12, 0, 0);
+        if (!isNaN(targetDate.getTime())) {
+          return { date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+        }
+      }
+    }
+
+    // M/D/YYYY or M/D
+    const slashMatch = partial.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+    if (slashMatch) {
+      const [, monthStr, dayStr, yearStr] = slashMatch;
+      const month = parseInt(monthStr, 10);
+      const day = parseInt(dayStr, 10);
+      const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const targetDate = new Date(year, month - 1, day, 12, 0, 0);
+        if (!isNaN(targetDate.getTime())) {
+          return { date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Parse flexible time formats and return parsed time info
+  const parseFlexibleTime = (partial) => {
+    const lowerPartial = partial.toLowerCase().trim();
+
+    // Natural language times
+    if (lowerPartial === 'noon') {
+      return { time: '12:00', display: '12:00 PM (Noon)' };
+    }
+    if (lowerPartial === 'midnight') {
+      return { time: '00:00', display: '12:00 AM (Midnight)' };
+    }
+    if (lowerPartial === 'morning' || lowerPartial === 'morn') {
+      return { time: '09:00', display: '9:00 AM' };
+    }
+    if (lowerPartial === 'afternoon') {
+      return { time: '14:00', display: '2:00 PM' };
+    }
+    if (lowerPartial === 'evening' || lowerPartial === 'eve') {
+      return { time: '18:00', display: '6:00 PM' };
+    }
+    if (lowerPartial === 'night') {
+      return { time: '21:00', display: '9:00 PM' };
+    }
+
+    // Military time: HH:MM or H:MM
+    const militaryMatch = partial.match(/^(\d{1,2}):(\d{2})$/);
+    if (militaryMatch) {
+      const hours = parseInt(militaryMatch[1], 10);
+      const minutes = militaryMatch[2];
+      if (hours >= 0 && hours <= 23) {
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
+        const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        return { time: timeStr, display: `${displayHour}:${minutes} ${ampm}` };
+      }
+    }
+
+    // 12-hour format: 2pm, 2:30pm, 2:30 pm, 2 pm
+    const twelveHourMatch = lowerPartial.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+    if (twelveHourMatch) {
+      let hours = parseInt(twelveHourMatch[1], 10);
+      const minutes = twelveHourMatch[2] || '00';
+      const ampm = twelveHourMatch[3];
+
+      if (hours >= 1 && hours <= 12 && parseInt(minutes, 10) <= 59) {
+        // Convert to 24-hour
+        if (ampm === 'pm' && hours !== 12) hours += 12;
+        if (ampm === 'am' && hours === 12) hours = 0;
+
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
+        const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        const displayAmpm = hours >= 12 ? 'PM' : 'AM';
+        return { time: timeStr, display: `${displayHour}:${minutes} ${displayAmpm}` };
+      }
+    }
+
+    return null;
+  };
+
+  // Format time for display (12-hour format)
+  const formatTimeDisplay = (timeStr) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  // Remove detected date/time from title text
+  const removeFromTitle = (text, startIndex, endIndex) => {
+    const before = text.slice(0, startIndex);
+    const after = text.slice(endIndex);
+    // Clean up extra spaces
+    return (before + after).replace(/\s+/g, ' ').trim();
   };
 
   useEffect(() => {
@@ -817,6 +1105,10 @@ const DayPlanner = () => {
 
   const startEditingTask = (task, isInbox = false) => {
     if (task.imported) return; // Don't allow editing imported tasks
+    // Reset any existing tag suggestions
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setSelectedSuggestionIndex(0);
     setEditingTaskId(task.id);
     setEditingTaskText(task.title);
   };
@@ -839,14 +1131,44 @@ const DayPlanner = () => {
 
     setEditingTaskId(null);
     setEditingTaskText('');
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setSelectedSuggestionIndex(0);
   };
 
   const cancelEditingTask = () => {
     setEditingTaskId(null);
     setEditingTaskText('');
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setSelectedSuggestionIndex(0);
   };
 
   const handleEditKeyDown = (e, isInbox = false) => {
+    // Handle autocomplete keyboard navigation
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        const selected = suggestions[selectedSuggestionIndex];
+        applySuggestionForEdit(selected, e.target, isInbox);
+        return;
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev + 1) % suggestions.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+        setSuggestions([]);
+        setSelectedSuggestionIndex(0);
+        return;
+      }
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       saveTaskTitle(isInbox);
@@ -855,6 +1177,253 @@ const DayPlanner = () => {
       cancelEditingTask();
     }
   };
+
+  // Apply a suggestion for editing a task
+  const applySuggestionForEdit = (suggestion, inputElement, isInbox) => {
+    if (suggestion.type === 'tag') {
+      // Complete the tag
+      const cursorPos = inputElement?.selectionStart || editingTaskText.length;
+      const { text: newText, newCursorPos } = applyTagCompletion(editingTaskText, cursorPos, suggestion.value);
+      setEditingTaskText(newText);
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+      setTimeout(() => {
+        if (inputElement) {
+          inputElement.selectionStart = newCursorPos;
+          inputElement.selectionEnd = newCursorPos;
+        }
+      }, 0);
+    } else if (suggestion.type === 'date' || suggestion.type === 'time') {
+      // Remove the date/time from title and update the task
+      const newTitle = removeFromTitle(editingTaskText, suggestion.startIndex, suggestion.endIndex);
+      setEditingTaskText(newTitle);
+
+      // Update the task's date or time
+      if (isInbox) {
+        setUnscheduledTasks(unscheduledTasks.map(t => {
+          if (t.id === editingTaskId) {
+            if (suggestion.type === 'date') {
+              return { ...t, title: newTitle, scheduledDate: suggestion.value };
+            } else {
+              return { ...t, title: newTitle, scheduledTime: suggestion.value };
+            }
+          }
+          return t;
+        }));
+      } else {
+        setTasks(tasks.map(t => {
+          if (t.id === editingTaskId) {
+            if (suggestion.type === 'date') {
+              return { ...t, title: newTitle, date: suggestion.value };
+            } else {
+              return { ...t, title: newTitle, startTime: suggestion.value };
+            }
+          }
+          return t;
+        }));
+      }
+
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+
+      setTimeout(() => {
+        if (inputElement) {
+          inputElement.focus();
+        }
+      }, 0);
+    }
+  };
+
+  // Build suggestions from text (tags, dates, times)
+  const buildSuggestions = (text, cursorPos) => {
+    const allSuggestions = [];
+
+    // Check for partial tag at cursor (triggered by #)
+    const tagInfo = getPartialTag(text, cursorPos);
+    if (tagInfo) {
+      const filtered = getFilteredTags(tagInfo.tag, allTags);
+      filtered.forEach(tag => {
+        allSuggestions.push({
+          type: 'tag',
+          value: tag,
+          display: tag,
+          startIndex: tagInfo.startIndex,
+          endIndex: cursorPos
+        });
+      });
+    }
+
+    // Check for partial date at cursor (triggered by @)
+    const dateInfo = getPartialDate(text, cursorPos);
+    if (dateInfo) {
+      const parsed = parseFlexibleDate(dateInfo.partial);
+      if (parsed) {
+        const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
+        allSuggestions.push({
+          type: 'date',
+          value: dateStr,
+          display: parsed.display,
+          startIndex: dateInfo.startIndex,
+          endIndex: cursorPos
+        });
+      }
+    }
+
+    // Check for partial time at cursor (triggered by ~)
+    const timeInfo = getPartialTime(text, cursorPos);
+    if (timeInfo) {
+      const parsed = parseFlexibleTime(timeInfo.partial);
+      if (parsed) {
+        allSuggestions.push({
+          type: 'time',
+          value: parsed.time,
+          display: parsed.display,
+          startIndex: timeInfo.startIndex,
+          endIndex: cursorPos
+        });
+      }
+    }
+
+    return allSuggestions;
+  };
+
+  // Handle suggestions for editing task input
+  const handleEditInputChange = (e, isInbox = false) => {
+    const value = e.target.value;
+    if (!isTitleWithinLimit(value)) return;
+
+    setEditingTaskText(value);
+    editingInputRef.current = e.target;
+
+    const cursorPos = e.target.selectionStart;
+    const allSuggestions = buildSuggestions(value, cursorPos);
+
+    if (allSuggestions.length > 0) {
+      setSuggestions(allSuggestions);
+      setSelectedSuggestionIndex(0);
+      setShowSuggestions(true);
+      setSuggestionContext('editing');
+    } else {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  };
+
+  // Handle suggestions for new task input
+  const handleNewTaskInputChange = (e) => {
+    const value = e.target.value;
+    if (!isTitleWithinLimit(value)) return;
+
+    setNewTask({ ...newTask, title: value });
+
+    const cursorPos = e.target.selectionStart;
+    const allSuggestions = buildSuggestions(value, cursorPos);
+
+    if (allSuggestions.length > 0) {
+      setSuggestions(allSuggestions);
+      setSelectedSuggestionIndex(0);
+      setShowSuggestions(true);
+      setSuggestionContext('newTask');
+    } else {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  };
+
+  // Handle keyboard for new task input with suggestions
+  const handleNewTaskInputKeyDown = (e) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const selected = suggestions[selectedSuggestionIndex];
+        applySuggestionForNewTask(selected);
+        return;
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev + 1) % suggestions.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+        setSuggestions([]);
+        setSelectedSuggestionIndex(0);
+        return;
+      }
+    }
+  };
+
+  // Apply a suggestion for new task
+  const applySuggestionForNewTask = (suggestion) => {
+    if (suggestion.type === 'tag') {
+      // Complete the tag
+      const cursorPos = newTaskInputRef.current?.selectionStart || newTask.title.length;
+      const { text: newText, newCursorPos } = applyTagCompletion(newTask.title, cursorPos, suggestion.value);
+      setNewTask({ ...newTask, title: newText });
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+      setTimeout(() => {
+        if (newTaskInputRef.current) {
+          newTaskInputRef.current.selectionStart = newCursorPos;
+          newTaskInputRef.current.selectionEnd = newCursorPos;
+        }
+      }, 0);
+    } else if (suggestion.type === 'date') {
+      // Remove the date from title and set task date
+      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
+      setNewTask({ ...newTask, title: newTitle, date: suggestion.value });
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+      setTimeout(() => {
+        if (newTaskInputRef.current) {
+          newTaskInputRef.current.focus();
+        }
+      }, 0);
+    } else if (suggestion.type === 'time') {
+      // Remove the time from title and set task start time
+      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
+      setNewTask({ ...newTask, title: newTitle, startTime: suggestion.value });
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+      setTimeout(() => {
+        if (newTaskInputRef.current) {
+          newTaskInputRef.current.focus();
+        }
+      }, 0);
+    }
+  };
+
+  // Close tag suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showSuggestions && !e.target.closest('.tag-autocomplete-container')) {
+        setShowSuggestions(false);
+        setSuggestions([]);
+        setSelectedSuggestionIndex(0);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSuggestions]);
+
+  // Reset tag suggestions when add task modal closes
+  useEffect(() => {
+    if (!showAddTask) {
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+    }
+  }, [showAddTask]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -1910,6 +2479,44 @@ const DayPlanner = () => {
     return Array.from(tagSet).sort();
   }, [tasks, unscheduledTasks]);
 
+  // Autocomplete dropdown component for tags, dates, and times
+  const SuggestionAutocomplete = ({ suggestions, selectedIndex, onSelect }) => {
+    if (suggestions.length === 0) return null;
+
+    const getIcon = (type) => {
+      switch (type) {
+        case 'date': return <Calendar size={14} className="flex-shrink-0" />;
+        case 'time': return <Clock size={14} className="flex-shrink-0" />;
+        default: return <Hash size={14} className="flex-shrink-0" />;
+      }
+    };
+
+    return (
+      <div className={`absolute top-full left-0 mt-1 ${cardBg} rounded-lg p-1 z-50 shadow-xl border ${borderClass} min-w-[160px] max-h-40 overflow-y-auto`}>
+        {suggestions.map((suggestion, index) => (
+          <button
+            key={`${suggestion.type}-${suggestion.value}-${index}`}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSelect(suggestion);
+            }}
+            onMouseDown={(e) => e.preventDefault()} // Prevent blur before click
+            className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 ${
+              index === selectedIndex
+                ? 'bg-blue-500 text-white'
+                : `${textPrimary} ${hoverBg}`
+            }`}
+          >
+            {getIcon(suggestion.type)}
+            <span className="truncate">{suggestion.display}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   // Compute array of visible dates based on selectedDate and visibleDays
   const visibleDates = useMemo(() => {
     return Array.from({ length: visibleDays }, (_, i) => {
@@ -1942,6 +2549,7 @@ const DayPlanner = () => {
   };
 
   const filteredUnscheduledTasks = filterByTags(unscheduledTasks)
+    .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
 
@@ -2389,9 +2997,31 @@ const DayPlanner = () => {
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mail size={18} />
                   Inbox
+                  {!minimizedSections.inbox && (
+                    <button
+                      onClick={() => setInboxPriorityFilter(prev => (prev + 1) % 4)}
+                      className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors ml-1`}
+                      title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
+                    >
+                      {[0, 1, 2].map(i => (
+                        <span
+                          key={i}
+                          className={`w-2 h-0.5 rounded-full ${
+                            inboxPriorityFilter === 0
+                              ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                              : i < inboxPriorityFilter
+                                ? 'bg-blue-500'
+                                : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                          }`}
+                        />
+                      ))}
+                    </button>
+                  )}
                 </h3>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm ${textSecondary}`}>{unscheduledTasks.length}</span>
+                  <span className={`text-sm ${textSecondary}`}>
+                    {inboxPriorityFilter > 0 ? `${filteredUnscheduledTasks.length}/` : ''}{unscheduledTasks.length}
+                  </span>
                   <button
                     onClick={() => toggleSection('inbox')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -2412,7 +3042,7 @@ const DayPlanner = () => {
                     <p className={`text-sm ${textSecondary} text-center py-2`}>
                       {unscheduledTasks.length === 0
                         ? "Drag tasks here to unschedule them"
-                        : "No tasks match selected tags"}
+                        : "No tasks match current filter"}
                     </p>
                   ) : (
                     filteredUnscheduledTasks.map(task => (
@@ -2432,16 +3062,32 @@ const DayPlanner = () => {
                           </button>
                           <div className="flex-1 min-w-0">
                             {editingTaskId === task.id ? (
-                              <input
-                                type="text"
-                                value={editingTaskText}
-                                onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
-                                onKeyDown={(e) => handleEditKeyDown(e, true)}
-                                onBlur={() => saveTaskTitle(true)}
-                                autoFocus
-                                className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                onClick={(e) => e.stopPropagation()}
-                              />
+                              <div className="relative tag-autocomplete-container">
+                                <input
+                                  type="text"
+                                  value={editingTaskText}
+                                  onChange={(e) => handleEditInputChange(e, true)}
+                                  onKeyDown={(e) => handleEditKeyDown(e, true)}
+                                  onBlur={() => {
+                                    // Delay blur to allow click on autocomplete
+                                    setTimeout(() => {
+                                      if (!showSuggestions) {
+                                        saveTaskTitle(true);
+                                      }
+                                    }, 100);
+                                  }}
+                                  autoFocus
+                                  className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                {showSuggestions && suggestionContext === 'editing' && (
+                                  <SuggestionAutocomplete
+                                    suggestions={suggestions}
+                                    selectedIndex={selectedSuggestionIndex}
+                                    onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, true)}
+                                  />
+                                )}
+                              </div>
                             ) : (
                               <div
                                 className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
@@ -2524,7 +3170,7 @@ const DayPlanner = () => {
                   Tags
                 </h3>
                 <div className="flex items-center gap-2">
-                  {allTags.length > 0 && (
+                  {!minimizedSections.tags && allTags.length > 0 && (
                     allTags.every(tag => selectedTags.includes(tag)) ? (
                       <button
                         onClick={clearTagFilter}
@@ -3007,16 +3653,31 @@ const DayPlanner = () => {
                                     )}
                                     <div className="flex-1 min-w-0 overflow-hidden">
                                       {editingTaskId === task.id ? (
-                                        <input
-                                          type="text"
-                                          value={editingTaskText}
-                                          onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
-                                          onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                          onBlur={() => saveTaskTitle(false)}
-                                          autoFocus
-                                          className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
+                                        <div className="relative tag-autocomplete-container">
+                                          <input
+                                            type="text"
+                                            value={editingTaskText}
+                                            onChange={(e) => handleEditInputChange(e, false)}
+                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                            onBlur={() => {
+                                              setTimeout(() => {
+                                                if (!showSuggestions) {
+                                                  saveTaskTitle(false);
+                                                }
+                                              }, 100);
+                                            }}
+                                            autoFocus
+                                            className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                          {showSuggestions && suggestionContext === 'editing' && (
+                                            <SuggestionAutocomplete
+                                              suggestions={suggestions}
+                                              selectedIndex={selectedSuggestionIndex}
+                                              onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
+                                            />
+                                          )}
+                                        </div>
                                       ) : (
                                         <div
                                           className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
@@ -3060,16 +3721,31 @@ const DayPlanner = () => {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         {editingTaskId === task.id ? (
-                                          <input
-                                            type="text"
-                                            value={editingTaskText}
-                                            onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
-                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                            onBlur={() => saveTaskTitle(false)}
-                                            autoFocus
-                                            className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
+                                          <div className="relative tag-autocomplete-container">
+                                            <input
+                                              type="text"
+                                              value={editingTaskText}
+                                              onChange={(e) => handleEditInputChange(e, false)}
+                                              onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                              onBlur={() => {
+                                                setTimeout(() => {
+                                                  if (!showSuggestions) {
+                                                    saveTaskTitle(false);
+                                                  }
+                                                }, 100);
+                                              }}
+                                              autoFocus
+                                              className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                            {showSuggestions && suggestionContext === 'editing' && (
+                                              <SuggestionAutocomplete
+                                                suggestions={suggestions}
+                                                selectedIndex={selectedSuggestionIndex}
+                                                onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
+                                              />
+                                            )}
+                                          </div>
                                         ) : (
                                           <div
                                             className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
@@ -3125,16 +3801,31 @@ const DayPlanner = () => {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         {editingTaskId === task.id ? (
-                                          <input
-                                            type="text"
-                                            value={editingTaskText}
-                                            onChange={(e) => isTitleWithinLimit(e.target.value) && setEditingTaskText(e.target.value)}
-                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                            onBlur={() => saveTaskTitle(false)}
-                                            autoFocus
-                                            className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
+                                          <div className="relative tag-autocomplete-container">
+                                            <input
+                                              type="text"
+                                              value={editingTaskText}
+                                              onChange={(e) => handleEditInputChange(e, false)}
+                                              onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                              onBlur={() => {
+                                                setTimeout(() => {
+                                                  if (!showSuggestions) {
+                                                    saveTaskTitle(false);
+                                                  }
+                                                }, 100);
+                                              }}
+                                              autoFocus
+                                              className="w-full bg-white/20 text-white font-semibold text-base px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                            {showSuggestions && suggestionContext === 'editing' && (
+                                              <SuggestionAutocomplete
+                                                suggestions={suggestions}
+                                                selectedIndex={selectedSuggestionIndex}
+                                                onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
+                                              />
+                                            )}
+                                          </div>
                                         ) : (
                                           <div
                                             className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-base leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
@@ -3471,14 +4162,25 @@ const DayPlanner = () => {
               {newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
             </h3>
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Task title (press Enter to add)"
-                value={newTask.title}
-                onChange={(e) => isTitleWithinLimit(e.target.value) && setNewTask({ ...newTask, title: e.target.value })}
-                autoFocus
-                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-              />
+              <div className="relative tag-autocomplete-container">
+                <input
+                  ref={newTaskInputRef}
+                  type="text"
+                  placeholder="Task title (press Enter to add)"
+                  value={newTask.title}
+                  onChange={handleNewTaskInputChange}
+                  onKeyDown={handleNewTaskInputKeyDown}
+                  autoFocus
+                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                />
+                {showSuggestions && suggestionContext === 'newTask' && (
+                  <SuggestionAutocomplete
+                    suggestions={suggestions}
+                    selectedIndex={selectedSuggestionIndex}
+                    onSelect={applySuggestionForNewTask}
+                  />
+                )}
+              </div>
               <div className={`grid ${newTask.openInInbox ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
                 {!newTask.openInInbox && (
                   <>
