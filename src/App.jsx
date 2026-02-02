@@ -107,6 +107,8 @@ const DayPlanner = () => {
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
+  const taskElementRefs = useRef({});
+  const [taskWidths, setTaskWidths] = useState({});
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -123,6 +125,50 @@ const DayPlanner = () => {
     { name: 'Yellow', class: 'bg-yellow-500' },
   ];
   const durationOptions = [15, 30, 45, 60, 90, 120];
+
+  // Measure task widths using ResizeObserver
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      const newWidths = {};
+      let hasChanges = false;
+
+      for (const entry of entries) {
+        const taskId = entry.target.dataset.taskId;
+        if (taskId) {
+          const width = entry.contentRect.width;
+          if (taskWidths[taskId] !== width) {
+            newWidths[taskId] = width;
+            hasChanges = true;
+          }
+        }
+      }
+
+      if (hasChanges) {
+        setTaskWidths(prev => ({ ...prev, ...newWidths }));
+      }
+    });
+
+    // Observe all registered task elements
+    Object.values(taskElementRefs.current).forEach(el => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [tasks, visibleDays]); // Re-setup when tasks or visible days change
+
+  // Ref callback for task elements
+  const setTaskRef = (taskId) => (element) => {
+    if (element) {
+      taskElementRefs.current[taskId] = element;
+      // Measure immediately on first attach
+      const width = element.offsetWidth;
+      if (taskWidths[taskId] !== width) {
+        setTaskWidths(prev => ({ ...prev, [taskId]: width }));
+      }
+    } else {
+      delete taskElementRefs.current[taskId];
+    }
+  };
 
   const extractTags = (title) => {
     // Only match tags that start with a letter (not pure numbers)
@@ -2555,7 +2601,8 @@ const DayPlanner = () => {
     });
   };
 
-  const filteredUnscheduledTasks = filterByTags(unscheduledTasks)
+  // Inbox tasks are not filtered by tags, only by priority
+  const filteredUnscheduledTasks = unscheduledTasks
     .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
@@ -3212,7 +3259,7 @@ const DayPlanner = () => {
                   ) : (
                     <div className="space-y-1">
                       {allTags.map(tag => {
-                        const tagCount = tasks.filter(t => extractTags(t.title).includes(tag)).length;
+                        const tagCount = [...tasks, ...unscheduledTasks].filter(t => !t.completed && extractTags(t.title).includes(tag)).length;
                         return (
                           <label
                             key={tag}
@@ -3521,16 +3568,17 @@ const DayPlanner = () => {
                           const conflictPos = calculateConflictPosition(task, dayTasks);
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
-                          const hasConflict = conflictPos.width !== null;
 
-                          // Height-based tiers
-                          const isMicroHeight = height < 35;  // ~13min or less
-                          const isShortHeight = height < 55;  // ~20min or less
-                          const isMediumHeight = height < 80; // ~30min or less
+                          // Height-based tiers (160px/hour: 15min=39px, 30min=79px, 45min=119px)
+                          const isMicroHeight = height < 40;  // 15min tasks
+                          const isShortHeight = height < 80;  // 15-30min tasks
+                          const isMediumHeight = height < 120; // 15-45min tasks
 
-                          // Width-based tiers (narrower = more constrained)
-                          const isVeryNarrowWidth = conflictPos.totalColumns >= 3 || visibleDays === 1;
-                          const isNarrowWidth = hasConflict || visibleDays <= 2;
+                          // Width-based tiers using measured pixel width
+                          const taskWidth = taskWidths[task.id];
+                          const isMeasured = taskWidth !== undefined;
+                          const isVeryNarrowWidth = taskWidth < 120;
+                          const isNarrowWidth = taskWidth < 200;
 
                           // Combined layout modes
                           // Micro: very short height, or short+very narrow - single line, minimal info
@@ -3598,6 +3646,8 @@ const DayPlanner = () => {
                           return (
                             <div
                               key={task.id}
+                              ref={setTaskRef(task.id)}
+                              data-task-id={task.id}
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragOver={(e) => handleDragOver(e, date)}
@@ -3610,6 +3660,7 @@ const DayPlanner = () => {
                                 left: conflictPos.left,
                                 right: conflictPos.right,
                                 width: conflictPos.width,
+                                visibility: isMeasured ? 'visible' : 'hidden',
                                 ...taskCalendarStyle
                               }}
                             >
@@ -3618,7 +3669,7 @@ const DayPlanner = () => {
                                 {isImported && !task.isTaskCalendar ? (
                                   <div className="flex items-center justify-between gap-2">
                                     <div
-                                      className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
+                                      className={`font-semibold ${useMicroLayout || useCompactLayout || useMediumLayout ? 'text-sm' : 'text-base'} leading-tight truncate flex-1 min-w-0`}
                                       title={task.title}
                                     >
                                       {renderTitleWithoutTags(task.title)}
