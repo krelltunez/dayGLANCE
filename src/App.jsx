@@ -897,14 +897,13 @@ const DayPlanner = () => {
     });
   };
 
-  // Check if a task placement would conflict with imported calendar events
+  // Check if a task placement would conflict with imported calendar events or reminders
   // Returns { conflicted: boolean, adjustedStartTime: string, conflictingEvent: task }
   const getAdjustedTimeForImportedConflicts = (taskId, startTime, duration, dateStr) => {
-    // Get all imported calendar events (not task calendar) for this date
+    // Get all imported calendar events and task calendar reminders for this date
     const importedEvents = tasks.filter(t =>
       t.date === dateStr &&
       t.imported &&
-      !t.isTaskCalendar &&
       !t.isAllDay &&
       t.id !== taskId
     );
@@ -1182,6 +1181,7 @@ const DayPlanner = () => {
         if (conflicted && conflictingEvent) {
           setSyncNotification({
             type: 'info',
+            title: 'Task Rescheduled',
             message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
           });
         }
@@ -1390,6 +1390,7 @@ const DayPlanner = () => {
             if (conflicted && conflictingEvent) {
               setSyncNotification({
                 type: 'info',
+                title: 'Task Rescheduled',
                 message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
               });
             }
@@ -1892,6 +1893,13 @@ const DayPlanner = () => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+    setDragSource(null);
+    setDragPreviewTime(null);
+    setDragPreviewDate(null);
+  };
+
   const handleDragOver = (e, targetDate = null) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -1972,6 +1980,7 @@ const DayPlanner = () => {
     if (conflicted && conflictingEvent) {
       setSyncNotification({
         type: 'info',
+        title: 'Task Rescheduled',
         message: `Task moved to ${startTime} to avoid conflict with "${conflictingEvent.title}"`
       });
     }
@@ -2025,6 +2034,44 @@ const DayPlanner = () => {
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
+  };
+
+  const handleDropOnDateHeader = (e, targetDate) => {
+    e.preventDefault();
+    if (!draggedTask) return;
+
+    const dropDateStr = dateToString(targetDate);
+
+    if (dragSource === 'inbox') {
+      setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+      const { priority, ...taskWithoutPriority } = draggedTask;
+      setTasks([...tasks, {
+        ...taskWithoutPriority,
+        startTime: '00:00',
+        date: dropDateStr,
+        isAllDay: true
+      }]);
+    } else if (dragSource === 'calendar') {
+      setTasks(tasks.map(t =>
+        t.id === draggedTask.id
+          ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
+          : t
+      ));
+    } else if (dragSource === 'recycleBin') {
+      const { _deletedFrom, ...cleanTask } = draggedTask;
+      setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
+      setTasks([...tasks, {
+        ...cleanTask,
+        startTime: '00:00',
+        date: dropDateStr,
+        isAllDay: true
+      }]);
+    }
+
+    setDraggedTask(null);
+    setDragSource(null);
+    setDragPreviewTime(null);
+    setDragPreviewDate(null);
   };
 
   const handleResizeStart = (task, e) => {
@@ -3266,6 +3313,7 @@ const DayPlanner = () => {
                       key={task.id}
                       draggable
                       onDragStart={(e) => handleDragStart(task, 'inbox', e)}
+                      onDragEnd={handleDragEnd}
                       className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
                     >
                       <div className="flex items-start justify-between text-white">
@@ -3321,16 +3369,18 @@ const DayPlanner = () => {
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <div className="flex items-start gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowColorPicker(showColorPicker === task.id ? null : task.id);
-                              }}
-                              className="hover:bg-white/20 rounded p-1 transition-colors relative"
-                            >
-                              <Palette size={14} />
+                            <div className="color-picker-container relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowColorPicker(showColorPicker === task.id ? null : task.id);
+                                }}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                              >
+                                <Palette size={14} />
+                              </button>
                               {showColorPicker === task.id && (
-                                <div className="color-picker-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                   <div className="grid grid-cols-3 gap-1">
                                     {colors.map((color) => (
                                       <button
@@ -3346,7 +3396,7 @@ const DayPlanner = () => {
                                   </div>
                                 </div>
                               )}
-                            </button>
+                            </div>
                             <button
                               onClick={() => moveToRecycleBin(task.id, true)}
                               className="hover:bg-white/20 rounded p-1"
@@ -3535,6 +3585,7 @@ const DayPlanner = () => {
                           key={task.id}
                           draggable
                           onDragStart={(e) => handleDragStart(task, 'recycleBin', e)}
+                          onDragEnd={handleDragEnd}
                           className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative cursor-move`}
                         >
                           <div className="flex items-start justify-between text-white">
@@ -3595,7 +3646,20 @@ const DayPlanner = () => {
                   return (
                     <div
                       key={dateToString(date)}
-                      className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg}`}
+                      className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`} ${draggedTask ? (darkMode ? 'hover:bg-green-900/50' : 'hover:bg-green-100') : ''}`}
+                      onClick={() => {
+                        setNewTask({
+                          title: '',
+                          startTime: getNextQuarterHour(),
+                          duration: 30,
+                          date: dateToString(date),
+                          isAllDay: true
+                        });
+                        setShowAddTask(true);
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDropOnDateHeader(e, date)}
+                      title={draggedTask ? "Drop to make all-day task" : "Click to add all-day task"}
                     >
                       <div className={`font-bold ${isDateToday ? 'text-blue-600' : textPrimary}`}>
                         {formatShortDate(date)}
@@ -3626,6 +3690,7 @@ const DayPlanner = () => {
                               key={task.id}
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              onDragEnd={handleDragEnd}
                               className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
                               style={taskCalendarStyle}
                             >
@@ -3775,14 +3840,16 @@ const DayPlanner = () => {
                                 <Inbox size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
-                              <button
-                                onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors relative ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                              >
-                                <Palette size={14} />
-                                {inMenu && <span className="text-xs">Color</span>}
+                              <div className="color-picker-container relative">
+                                <button
+                                  onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                >
+                                  <Palette size={14} />
+                                  {inMenu && <span className="text-xs">Color</span>}
+                                </button>
                                 {showColorPicker === task.id && (
-                                  <div className="color-picker-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                     <div className="grid grid-cols-3 gap-1">
                                       {colors.map((color) => (
                                         <button
@@ -3798,7 +3865,7 @@ const DayPlanner = () => {
                                     </div>
                                   </div>
                                 )}
-                              </button>
+                              </div>
                               <button
                                 onClick={() => moveToRecycleBin(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -3817,6 +3884,7 @@ const DayPlanner = () => {
                               data-task-id={task.id}
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
                               className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''}`}
@@ -4360,7 +4428,8 @@ const DayPlanner = () => {
                 )}
               </div>
               <h3 className={`text-lg font-semibold ${textPrimary}`}>
-                {syncNotification.type === 'success' ? 'Sync Complete' :
+                {syncNotification.title ? syncNotification.title :
+                 syncNotification.type === 'success' ? 'Sync Complete' :
                  syncNotification.type === 'error' ? 'Sync Failed' : 'Calendar Sync'}
               </h3>
             </div>
@@ -4476,7 +4545,7 @@ const DayPlanner = () => {
                   <div className="relative color-picker-container">
                     <button
                       type="button"
-                      onClick={() => setShowColorPicker('newTask')}
+                      onClick={() => setShowColorPicker(showColorPicker === 'newTask' ? null : 'newTask')}
                       className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
                     />
                     {showColorPicker === 'newTask' && (
