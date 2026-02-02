@@ -96,7 +96,10 @@ const DayPlanner = () => {
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
   const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
-  const [inboxPriorityFilter, setInboxPriorityFilter] = useState(0); // 0 = show all, 1-3 = show >= that priority
+  const [inboxPriorityFilter, setInboxPriorityFilter] = useState(() => {
+    const saved = localStorage.getItem('inboxPriorityFilter');
+    return saved ? JSON.parse(saved) : 0;
+  }); // 0 = show all, 1-3 = show >= that priority
   const [suggestions, setSuggestions] = useState([]); // Array of { type: 'tag'|'date'|'time', value, display, ... }
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -548,12 +551,39 @@ const DayPlanner = () => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
+  // Persist inboxPriorityFilter to localStorage
+  useEffect(() => {
+    localStorage.setItem('inboxPriorityFilter', JSON.stringify(inboxPriorityFilter));
+  }, [inboxPriorityFilter]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  // Auto-refresh page at midnight (00:00:01) to reset the timeline to the new day
+  useEffect(() => {
+    const calculateMsUntilMidnight = () => {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setDate(midnight.getDate() + 1);
+      midnight.setHours(0, 0, 1, 0); // 00:00:01
+      return midnight.getTime() - now.getTime();
+    };
+
+    const scheduleRefresh = () => {
+      const msUntilMidnight = calculateMsUntilMidnight();
+      return setTimeout(() => {
+        window.location.reload();
+      }, msUntilMidnight);
+    };
+
+    const midnightTimer = scheduleRefresh();
+
+    return () => clearTimeout(midnightTimer);
   }, []);
 
   // Auto-sync calendars every 15 minutes when URLs are configured
@@ -858,13 +888,71 @@ const DayPlanner = () => {
   const getConflictingTasks = (task, allTasks) => {
     const start = timeToMinutes(task.startTime);
     const end = start + task.duration;
-    
+
     return allTasks.filter(t => {
       if (t.id === task.id) return false;
       const tStart = timeToMinutes(t.startTime);
       const tEnd = tStart + t.duration;
       return start < tEnd && end > tStart;
     });
+  };
+
+  // Check if a task placement would conflict with imported calendar events
+  // Returns { conflicted: boolean, adjustedStartTime: string, conflictingEvent: task }
+  const getAdjustedTimeForImportedConflicts = (taskId, startTime, duration, dateStr) => {
+    // Get all imported calendar events (not task calendar) for this date
+    const importedEvents = tasks.filter(t =>
+      t.date === dateStr &&
+      t.imported &&
+      !t.isTaskCalendar &&
+      !t.isAllDay &&
+      t.id !== taskId
+    );
+
+    if (importedEvents.length === 0) {
+      return { conflicted: false, adjustedStartTime: startTime, conflictingEvent: null };
+    }
+
+    let currentStart = timeToMinutes(startTime);
+    let currentEnd = currentStart + duration;
+    let conflictingEvent = null;
+    let wasAdjusted = false;
+
+    // Keep adjusting until no conflicts with imported events
+    let maxIterations = 100; // Prevent infinite loops
+    while (maxIterations > 0) {
+      maxIterations--;
+      let foundConflict = false;
+
+      for (const event of importedEvents) {
+        const eventStart = timeToMinutes(event.startTime);
+        const eventEnd = eventStart + event.duration;
+
+        // Check for overlap
+        if (currentStart < eventEnd && currentEnd > eventStart) {
+          foundConflict = true;
+          wasAdjusted = true;
+          conflictingEvent = event;
+          // Move to end of this event
+          currentStart = eventEnd;
+          currentEnd = currentStart + duration;
+          break;
+        }
+      }
+
+      if (!foundConflict) break;
+    }
+
+    // Cap at end of day
+    if (currentStart >= 24 * 60) {
+      currentStart = 24 * 60 - duration;
+    }
+
+    return {
+      conflicted: wasAdjusted,
+      adjustedStartTime: minutesToTime(currentStart),
+      conflictingEvent
+    };
   };
 
   const toggleSection = (sectionName) => {
@@ -1063,8 +1151,9 @@ const DayPlanner = () => {
 
   const addTask = (toInbox = false) => {
     if (newTask.title.trim()) {
+      const taskId = Date.now();
       const task = {
-        id: Date.now(),
+        id: taskId,
         title: newTask.title,
         duration: newTask.duration,
         color: newTask.color || colors[0].class,
@@ -1075,13 +1164,29 @@ const DayPlanner = () => {
       if (toInbox) {
         setUnscheduledTasks([...unscheduledTasks, { ...task, priority: 0 }]);
       } else {
+        const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
+        const taskDate = newTask.date || dateToString(selectedDate);
+
+        // Check for conflicts with imported calendar events (not for all-day tasks)
+        const { conflicted, adjustedStartTime, conflictingEvent } = newTask.isAllDay
+          ? { conflicted: false, adjustedStartTime: requestedStartTime, conflictingEvent: null }
+          : getAdjustedTimeForImportedConflicts(taskId, requestedStartTime, newTask.duration, taskDate);
+
         setTasks([...tasks, {
           ...task,
-          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-          date: newTask.date || dateToString(selectedDate)
+          startTime: adjustedStartTime,
+          date: taskDate
         }]);
+
+        // Show notification if task was rescheduled to avoid calendar conflict
+        if (conflicted && conflictingEvent) {
+          setSyncNotification({
+            type: 'info',
+            message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
+          });
+        }
       }
-      
+
       setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false });
       setShowAddTask(false);
     }
@@ -1265,16 +1370,43 @@ const DayPlanner = () => {
           return t;
         }));
       } else {
-        setTasks(tasks.map(t => {
-          if (t.id === editingTaskId) {
-            if (suggestion.type === 'date') {
-              return { ...t, title: newTitle, date: suggestion.value };
-            } else {
-              return { ...t, title: newTitle, startTime: suggestion.value };
+        // For calendar tasks, check for conflicts with imported events when changing time
+        if (suggestion.type === 'time') {
+          const editingTask = tasks.find(t => t.id === editingTaskId);
+          if (editingTask && !editingTask.isAllDay) {
+            const { conflicted, adjustedStartTime, conflictingEvent } = getAdjustedTimeForImportedConflicts(
+              editingTaskId,
+              suggestion.value,
+              editingTask.duration,
+              editingTask.date
+            );
+
+            setTasks(tasks.map(t =>
+              t.id === editingTaskId
+                ? { ...t, title: newTitle, startTime: adjustedStartTime }
+                : t
+            ));
+
+            if (conflicted && conflictingEvent) {
+              setSyncNotification({
+                type: 'info',
+                message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
+              });
             }
+          } else {
+            setTasks(tasks.map(t =>
+              t.id === editingTaskId
+                ? { ...t, title: newTitle, startTime: suggestion.value }
+                : t
+            ));
           }
-          return t;
-        }));
+        } else {
+          setTasks(tasks.map(t =>
+            t.id === editingTaskId
+              ? { ...t, title: newTitle, date: suggestion.value }
+              : t
+          ));
+        }
       }
 
       setShowSuggestions(false);
@@ -1783,7 +1915,7 @@ const DayPlanner = () => {
     e.preventDefault();
     if (!draggedTask) return;
 
-    const startTime = getTimeFromCursorPosition(e, {
+    const requestedStartTime = getTimeFromCursorPosition(e, {
       maxMinutes: 24 * 60,
       taskDuration: draggedTask.duration
     });
@@ -1791,6 +1923,16 @@ const DayPlanner = () => {
     // Use the target date from the column, falling back to dragPreviewDate or selectedDate
     const dropDate = targetDate || dragPreviewDate || selectedDate;
     const dropDateStr = dateToString(dropDate);
+
+    // Check for conflicts with imported calendar events and adjust if needed
+    const { conflicted, adjustedStartTime, conflictingEvent } = getAdjustedTimeForImportedConflicts(
+      draggedTask.id,
+      requestedStartTime,
+      draggedTask.duration,
+      dropDateStr
+    );
+
+    const startTime = adjustedStartTime;
 
     // Prevent drops that would create 4+ side-by-side tasks
     if (wouldExceedMaxColumns(draggedTask, startTime, dropDateStr)) {
@@ -1824,6 +1966,14 @@ const DayPlanner = () => {
         startTime,
         date: dropDateStr
       }]);
+    }
+
+    // Show notification if task was rescheduled to avoid calendar conflict
+    if (conflicted && conflictingEvent) {
+      setSyncNotification({
+        type: 'info',
+        message: `Task moved to ${startTime} to avoid conflict with "${conflictingEvent.title}"`
+      });
     }
 
     setDraggedTask(null);
@@ -1996,6 +2146,11 @@ const DayPlanner = () => {
       const icsContent = event.target.result;
       const events = parseICS(icsContent);
 
+      // Read fresh completedTaskUids from localStorage to avoid stale closure
+      const freshCompletedUids = new Set(
+        JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]')
+      );
+
       const importedTasks = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
         const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
@@ -2012,7 +2167,7 @@ const DayPlanner = () => {
           duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
           date: dateToString(startDate),
           color: asTaskCalendar ? 'task-calendar' : 'bg-gray-600',
-          completed: asTaskCalendar ? completedTaskUids.has(event.uid) : false,
+          completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
           imported: true,
           isTaskCalendar: asTaskCalendar,
           isAllDay: isAllDay
@@ -2173,6 +2328,11 @@ const DayPlanner = () => {
       const icsContent = await response.text();
       const events = parseICS(icsContent);
 
+      // Read fresh completedTaskUids from localStorage to avoid stale closure
+      const freshCompletedUids = new Set(
+        JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]')
+      );
+
       const taskCalendarItems = events.map(event => {
         const startDate = parseDatetime(event.dtstart);
         const endDate = event.dtend ? parseDatetime(event.dtend) : null;
@@ -2189,7 +2349,7 @@ const DayPlanner = () => {
           duration: isAllDay ? 60 : (duration > 0 ? duration : 15),
           date: dateToString(startDate),
           color: 'task-calendar',
-          completed: completedTaskUids.has(event.uid),
+          completed: freshCompletedUids.has(event.uid),
           imported: true,
           isTaskCalendar: true,
           isAllDay: isAllDay
