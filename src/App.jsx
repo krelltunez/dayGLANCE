@@ -66,6 +66,8 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [expandedTaskMenu, setExpandedTaskMenu] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
+  const [showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker] = useState(false); // Deadline dropdown for new inbox task
   const [showMonthView, setShowMonthView] = useState(false);
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
@@ -1230,7 +1232,11 @@ const DayPlanner = () => {
       };
 
       if (toInbox) {
-        setUnscheduledTasks([...unscheduledTasks, { ...task, priority: 0 }]);
+        const inboxTask = { ...task, priority: 0 };
+        if (newTask.deadline) {
+          inboxTask.deadline = newTask.deadline;
+        }
+        setUnscheduledTasks([...unscheduledTasks, inboxTask]);
       } else {
         const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
         const taskDate = newTask.date || dateToString(selectedDate);
@@ -1871,13 +1877,14 @@ const DayPlanner = () => {
   };
 
   const openNewInboxTask = () => {
-    setNewTask({ 
-      title: '', 
-      startTime: getNextQuarterHour(), 
+    setNewTask({
+      title: '',
+      startTime: getNextQuarterHour(),
       duration: 30,
       date: dateToString(selectedDate),
       isAllDay: false,
-      openInInbox: true
+      openInInbox: true,
+      deadline: null
     });
     setShowAddTask(true);
   };
@@ -2114,9 +2121,9 @@ const DayPlanner = () => {
   const handleDropOnInbox = (e) => {
     e.preventDefault();
     if (!draggedTask) return;
-    
-    // Only allow calendar, recycle bin, and overdue scheduled tasks to be moved to inbox
-    if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue') return;
+
+    // Only allow calendar, recycle bin, overdue scheduled tasks, and inbox tasks with deadlines to be moved to inbox
+    if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue' && !(dragSource === 'inbox' && draggedTask.deadline)) return;
 
     if (dragSource === 'calendar') {
       setTasks(tasks.filter(t => t.id !== draggedTask.id));
@@ -2131,6 +2138,9 @@ const DayPlanner = () => {
       setTasks(tasks.filter(t => t.id !== draggedTask.id));
       const { startTime, date, _overdueType, ...taskWithoutSchedule } = draggedTask;
       setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+    } else if (dragSource === 'inbox' && draggedTask.deadline) {
+      // Clear deadline from inbox task (moving from all-day section back to inbox)
+      clearDeadline(draggedTask.id);
     }
     // Note: overdue deadline tasks are already in inbox, so no action needed
 
@@ -2646,18 +2656,13 @@ const DayPlanner = () => {
     nextWeek.setDate(nextWeek.getDate() + 7);
     const nextWeekStr = dateToString(nextWeek);
 
-    const [showCustomPicker, setShowCustomPicker] = useState(false);
-    const [customDate, setCustomDate] = useState(() => {
-      if (currentDeadline) return currentDeadline;
-      return todayStr;
-    });
-
     const handleQuickOption = (dateStr) => {
       setDeadline(taskId, dateStr);
     };
 
-    const handleCustomConfirm = () => {
-      setDeadline(taskId, customDate);
+    const handlePickDate = () => {
+      setDeadlinePickerTaskId(taskId);
+      onClose();
     };
 
     return (
@@ -2666,74 +2671,49 @@ const DayPlanner = () => {
           className={`${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px]`}
           onClick={(e) => e.stopPropagation()}
         >
-          {!showCustomPicker ? (
-            <div className="space-y-1">
-              <button
-                onClick={() => handleQuickOption(todayStr)}
-                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
-              >
-                <Calendar size={14} />
-                Today
-              </button>
-              <button
-                onClick={() => handleQuickOption(tomorrowStr)}
-                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
-              >
-                <Calendar size={14} />
-                Tomorrow
-              </button>
-              <button
-                onClick={() => handleQuickOption(nextWeekStr)}
-                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
-              >
-                <Calendar size={14} />
-                Next week
-              </button>
-              <div className={`border-t ${borderClass} my-1`}></div>
-              <button
-                onClick={() => setShowCustomPicker(true)}
-                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
-              >
-                <Calendar size={14} />
-                Pick date...
-              </button>
-              {currentDeadline && (
-                <>
-                  <div className={`border-t ${borderClass} my-1`}></div>
-                  <button
-                    onClick={() => clearDeadline(taskId)}
-                    className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}
-                  >
-                    <X size={14} />
-                    Clear deadline
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="p-2">
-              <input
-                type="date"
-                value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className={`w-full px-2 py-1 rounded border ${borderClass} ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} text-sm mb-2`}
-              />
-              <div className="flex gap-2">
+          <div className="space-y-1">
+            <button
+              onClick={() => handleQuickOption(todayStr)}
+              className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+            >
+              <Calendar size={14} />
+              Today
+            </button>
+            <button
+              onClick={() => handleQuickOption(tomorrowStr)}
+              className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+            >
+              <Calendar size={14} />
+              Tomorrow
+            </button>
+            <button
+              onClick={() => handleQuickOption(nextWeekStr)}
+              className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+            >
+              <Calendar size={14} />
+              Next week
+            </button>
+            <div className={`border-t ${borderClass} my-1`}></div>
+            <button
+              onClick={handlePickDate}
+              className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+            >
+              <Calendar size={14} />
+              Pick date...
+            </button>
+            {currentDeadline && (
+              <>
+                <div className={`border-t ${borderClass} my-1`}></div>
                 <button
-                  onClick={() => setShowCustomPicker(false)}
-                  className={`flex-1 px-2 py-1 rounded text-sm ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary}`}
+                  onClick={() => clearDeadline(taskId)}
+                  className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}
                 >
-                  Back
+                  <X size={14} />
+                  Clear deadline
                 </button>
-                <button
-                  onClick={handleCustomConfirm}
-                  className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                >
-                  Set
-                </button>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -3009,14 +2989,15 @@ const DayPlanner = () => {
 
   const todayTasks = tasks.filter(t => t.date === dateToString(selectedDate));
 
-  // Extract all unique tags from all tasks
+  // Extract all unique tags from calendar tasks that are affected by tag filtering
+  // (excludes imported events since they bypass filtering, excludes completed tasks)
   const allTags = useMemo(() => {
     const tagSet = new Set();
-    [...tasks, ...unscheduledTasks].forEach(task => {
+    tasks.filter(t => !t.completed && !t.imported).forEach(task => {
       extractTags(task.title).forEach(tag => tagSet.add(tag));
     });
     return Array.from(tagSet).sort();
-  }, [tasks, unscheduledTasks]);
+  }, [tasks]);
 
   // Autocomplete dropdown component for tags, dates, and times
   const SuggestionAutocomplete = ({ suggestions, selectedIndex, onSelect }) => {
@@ -3105,13 +3086,16 @@ const DayPlanner = () => {
 
   // Calculate all-time stats (excluding imported events)
   const nonImportedTasks = tasks.filter(t => !t.imported);
-  const todayNonImportedTasks = todayTasks.filter(t => !t.imported);
-  const todayCompletedTasks = todayNonImportedTasks.filter(t => t.completed);
   const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
   const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
   const totalScheduledMinutes = nonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
-  const todayCompletedMinutes = todayCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
-  const todayPlannedMinutes = todayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
+
+  // Daily Summary stats - always use actual current date, not selected date
+  const actualTodayTasks = tasks.filter(t => t.date === getTodayStr());
+  const actualTodayNonImportedTasks = actualTodayTasks.filter(t => !t.imported);
+  const actualTodayCompletedTasks = actualTodayNonImportedTasks.filter(t => t.completed);
+  const actualTodayCompletedMinutes = actualTodayCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
+  const actualTodayPlannedMinutes = actualTodayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -3423,7 +3407,7 @@ const DayPlanner = () => {
                   <button
                     onClick={openNewInboxTask}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Add to Inbox"
+                    title="New Inbox Task"
                   >
                     <MailPlus size={24} />
                   </button>
@@ -3520,7 +3504,7 @@ const DayPlanner = () => {
                   <button
                     onClick={openNewInboxTask}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Add to Inbox"
+                    title="New Inbox Task"
                   >
                     <MailPlus size={24} />
                   </button>
@@ -3606,6 +3590,19 @@ const DayPlanner = () => {
                             </div>
                           </div>
                           <div className="flex items-start gap-1 flex-shrink-0">
+                            {task._overdueType === 'scheduled' && (
+                              <button
+                                onClick={() => {
+                                  setTasks(tasks.filter(t => t.id !== task.id));
+                                  const { startTime, date, _overdueType, ...taskWithoutSchedule } = task;
+                                  setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+                                }}
+                                className="hover:bg-white/20 rounded p-1"
+                                title="Move to Inbox"
+                              >
+                                <Mail size={14} />
+                              </button>
+                            )}
                             <button
                               onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
                               className="hover:bg-white/20 rounded p-1"
@@ -3622,7 +3619,16 @@ const DayPlanner = () => {
               </div>
             )}
 
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
+            <div
+              onDragOver={handleDragOverInbox}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setDragOverInbox(false);
+                }
+              }}
+              onDrop={handleDropOnInbox}
+              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4 transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-900/40 ring-2 ring-inset ring-green-400' : 'bg-green-100 ring-2 ring-inset ring-green-500') : ''}`}
+            >
               <div className={`flex items-center justify-between ${minimizedSections.inbox ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mail size={18} />
@@ -3665,16 +3671,7 @@ const DayPlanner = () => {
               </div>
               
               {!minimizedSections.inbox && (
-                <div
-                  onDragOver={handleDragOverInbox}
-                  onDragLeave={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget)) {
-                      setDragOverInbox(false);
-                    }
-                  }}
-                  onDrop={handleDropOnInbox}
-                  className={`space-y-2 rounded-lg transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-700/30 ring-2 ring-inset ring-green-400' : 'bg-green-100 ring-2 ring-inset ring-green-500') : ''}`}
-                >
+                <div className="space-y-2">
                   {filteredUnscheduledTasks.length === 0 ? (
                     <p className={`text-sm ${textSecondary} text-center py-2`}>
                       {unscheduledTasks.length === 0
@@ -3873,7 +3870,7 @@ const DayPlanner = () => {
                   ) : (
                     <div className="space-y-1">
                       {allTags.map(tag => {
-                        const tagCount = [...tasks, ...unscheduledTasks].filter(t => !t.completed && extractTags(t.title).includes(tag)).length;
+                        const tagCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
                         if (tagCount === 0) return null;
                         return (
                           <label
@@ -3912,13 +3909,13 @@ const DayPlanner = () => {
               </div>
               {!minimizedSections.dailySummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
-                  <div>{todayNonImportedTasks.length} tasks scheduled</div>
-                  <div>{todayCompletedTasks.length} tasks completed</div>
-                  <div>{Math.floor(todayCompletedMinutes / 60)}h {todayCompletedMinutes % 60}m time spent</div>
-                  <div>{Math.floor(todayPlannedMinutes / 60)}h {todayPlannedMinutes % 60}m time planned</div>
-                  {todayNonImportedTasks.length > 0 && (
+                  <div>{actualTodayNonImportedTasks.length} tasks scheduled</div>
+                  <div>{actualTodayCompletedTasks.length} tasks completed</div>
+                  <div>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m time spent</div>
+                  <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
+                  {actualTodayNonImportedTasks.length > 0 && (
                     <div className="pt-1">
-                      <div className="font-semibold">{Math.round((todayCompletedTasks.length / todayNonImportedTasks.length) * 100)}% completion rate</div>
+                      <div className="font-semibold">{Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
                     </div>
                   )}
                 </div>
@@ -3954,7 +3951,16 @@ const DayPlanner = () => {
               )}
             </div>
 
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
+            <div
+              onDragOver={handleDragOverRecycleBin}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setDragOverRecycleBin(false);
+                }
+              }}
+              onDrop={handleDropOnRecycleBin}
+              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4 transition-colors ${dragOverRecycleBin ? (darkMode ? 'bg-red-900/40 ring-2 ring-inset ring-red-400' : 'bg-red-100 ring-2 ring-inset ring-red-500') : ''}`}
+            >
               <div className={`flex items-center justify-between ${minimizedSections.recycleBin ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Trash2 size={18} />
@@ -3976,16 +3982,7 @@ const DayPlanner = () => {
               
               {!minimizedSections.recycleBin && (
                 <>
-                  <div
-                    onDragOver={handleDragOverRecycleBin}
-                    onDragLeave={(e) => {
-                      if (!e.currentTarget.contains(e.relatedTarget)) {
-                        setDragOverRecycleBin(false);
-                      }
-                    }}
-                    onDrop={handleDropOnRecycleBin}
-                    className={`space-y-2 rounded-lg transition-colors ${dragOverRecycleBin ? (darkMode ? 'bg-red-700/30 ring-2 ring-inset ring-red-400' : 'bg-red-100 ring-2 ring-inset ring-red-500') : ''}`}
-                  >
+                  <div className="space-y-2">
                     {recycleBin.length === 0 ? (
                       <p className={`text-sm ${textSecondary} text-center py-2`}>Drag tasks here to delete them</p>
                     ) : (
@@ -4286,6 +4283,13 @@ const DayPlanner = () => {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  <button
+                                    onClick={() => clearDeadline(task.id)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Move to Inbox"
+                                  >
+                                    <Mail size={14} />
+                                  </button>
                                   <button
                                     onClick={() => moveToRecycleBin(task.id, true)}
                                     className="hover:bg-white/20 rounded p-1 transition-colors"
@@ -4830,6 +4834,23 @@ const DayPlanner = () => {
         />
       )}
 
+      {deadlinePickerTaskId && (
+        <DatePicker
+          value={deadlinePickerTaskId === 'newTask'
+            ? (newTask.deadline || dateToString(new Date()))
+            : (unscheduledTasks.find(t => t.id === deadlinePickerTaskId)?.deadline || dateToString(new Date()))}
+          onChange={(date) => {
+            if (deadlinePickerTaskId === 'newTask') {
+              setNewTask({ ...newTask, deadline: date });
+            } else {
+              setDeadline(deadlinePickerTaskId, date);
+            }
+            setDeadlinePickerTaskId(null);
+          }}
+          onClose={() => setDeadlinePickerTaskId(null)}
+        />
+      )}
+
       {showEmptyBinConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmptyBinConfirm(false)}>
           <div
@@ -5036,7 +5057,7 @@ const DayPlanner = () => {
 
       {/* New Task Modal */}
       {showAddTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddTask(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}>
           <form
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
@@ -5044,14 +5065,13 @@ const DayPlanner = () => {
               e.preventDefault();
               const addToInbox = e.nativeEvent.submitter?.dataset.inbox === 'true' || newTask.openInInbox;
               addTask(addToInbox);
+              setShowNewTaskDeadlinePicker(false);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.preventDefault();
                 setShowAddTask(false);
-              } else if (e.key === 'Enter' && e.shiftKey && !newTask.openInInbox) {
-                e.preventDefault();
-                addTask(true);
+                setShowNewTaskDeadlinePicker(false);
               } else if (e.key === ' ' && e.target.tagName !== 'INPUT') {
                 // Prevent SPACE from activating buttons
                 e.preventDefault();
@@ -5082,8 +5102,154 @@ const DayPlanner = () => {
                 )}
               </div>
               <div className={`grid ${newTask.openInInbox ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
-                {!newTask.openInInbox && (
+                {newTask.openInInbox ? (
                   <>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                      <div className="relative color-picker-container">
+                        <button
+                          type="button"
+                          onClick={() => setShowColorPicker(showColorPicker === 'newTask' ? null : 'newTask')}
+                          className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
+                        />
+                        {showColorPicker === 'newTask' && (
+                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass} min-w-[120px]`}>
+                            <div className="grid grid-cols-3 gap-1">
+                              {colors.map((color) => (
+                                <button
+                                  type="button"
+                                  key={color.class}
+                                  onClick={() => {
+                                    setNewTask({ ...newTask, color: color.class });
+                                    setShowColorPicker(null);
+                                  }}
+                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                  title={color.name}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Deadline</label>
+                      <div className="relative deadline-picker-container">
+                        <button
+                          type="button"
+                          onClick={() => setShowNewTaskDeadlinePicker(!showNewTaskDeadlinePicker)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} flex items-center gap-2`}
+                        >
+                          <Calendar size={14} className={textSecondary} />
+                          {newTask.deadline
+                            ? new Date(newTask.deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : 'None'}
+                        </button>
+                        {showNewTaskDeadlinePicker && (
+                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px] z-20`}>
+                            <div className="space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewTask({ ...newTask, deadline: dateToString(new Date()) });
+                                  setShowNewTaskDeadlinePicker(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+                              >
+                                <Calendar size={14} />
+                                Today
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  setNewTask({ ...newTask, deadline: dateToString(tomorrow) });
+                                  setShowNewTaskDeadlinePicker(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+                              >
+                                <Calendar size={14} />
+                                Tomorrow
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextWeek = new Date();
+                                  nextWeek.setDate(nextWeek.getDate() + 7);
+                                  setNewTask({ ...newTask, deadline: dateToString(nextWeek) });
+                                  setShowNewTaskDeadlinePicker(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+                              >
+                                <Calendar size={14} />
+                                Next week
+                              </button>
+                              <div className={`border-t ${borderClass} my-1`}></div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNewTaskDeadlinePicker(false);
+                                  setDeadlinePickerTaskId('newTask');
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+                              >
+                                <Calendar size={14} />
+                                Pick date...
+                              </button>
+                              {newTask.deadline && (
+                                <>
+                                  <div className={`border-t ${borderClass} my-1`}></div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setNewTask({ ...newTask, deadline: null });
+                                      setShowNewTaskDeadlinePicker(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}
+                                  >
+                                    <X size={14} />
+                                    Clear deadline
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Row 1: Color, Date, Recurrence */}
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                      <div className="relative color-picker-container">
+                        <button
+                          type="button"
+                          onClick={() => setShowColorPicker(showColorPicker === 'newTask' ? null : 'newTask')}
+                          className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
+                        />
+                        {showColorPicker === 'newTask' && (
+                          <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass} min-w-[120px]`}>
+                            <div className="grid grid-cols-3 gap-1">
+                              {colors.map((color) => (
+                                <button
+                                  type="button"
+                                  key={color.class}
+                                  onClick={() => {
+                                    setNewTask({ ...newTask, color: color.class });
+                                    setShowColorPicker(null);
+                                  }}
+                                  className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
+                                  title={color.name}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
                       <button
@@ -5095,6 +5261,17 @@ const DayPlanner = () => {
                       </button>
                     </div>
                     <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
+                      <button
+                        type="button"
+                        disabled
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} opacity-50 cursor-not-allowed`}
+                      >
+                        None
+                      </button>
+                    </div>
+                    {/* Row 2: Time, Duration, All Day */}
+                    <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
                       <button
                         type="button"
@@ -5105,64 +5282,34 @@ const DayPlanner = () => {
                         {newTask.isAllDay ? 'All Day' : newTask.startTime}
                       </button>
                     </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                      <select
+                        value={newTask.duration}
+                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                        disabled={newTask.isAllDay}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {durationOptions.map(minutes => (
+                          <option key={minutes} value={minutes}>
+                            {minutes} min
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
+                      <label className="flex items-center h-10 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newTask.isAllDay}
+                          onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
+                      </label>
+                    </div>
                   </>
-                )}
-                <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
-                  <select
-                    value={newTask.duration}
-                    onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
-                    disabled={newTask.isAllDay}
-                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {durationOptions.map(minutes => (
-                      <option key={minutes} value={minutes}>
-                        {minutes} min
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
-                  <div className="relative color-picker-container">
-                    <button
-                      type="button"
-                      onClick={() => setShowColorPicker(showColorPicker === 'newTask' ? null : 'newTask')}
-                      className={`w-full h-10 ${newTask.color || colors[0].class} rounded-lg border ${borderClass}`}
-                    />
-                    {showColorPicker === 'newTask' && (
-                      <div className={`absolute top-12 left-0 ${cardBg} rounded-lg p-2 shadow-xl z-20 border ${borderClass} min-w-[120px]`}>
-                        <div className="grid grid-cols-3 gap-1">
-                          {colors.map((color) => (
-                            <button
-                              type="button"
-                              key={color.class}
-                              onClick={() => {
-                                setNewTask({ ...newTask, color: color.class });
-                                setShowColorPicker(null);
-                              }}
-                              className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform`}
-                              title={color.name}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {!newTask.openInInbox && (
-                  <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
-                    <label className="flex items-center h-10 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={newTask.isAllDay}
-                        onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
-                    </label>
-                  </div>
                 )}
               </div>
               <div className="flex gap-2 pt-2">
@@ -5172,18 +5319,9 @@ const DayPlanner = () => {
                 >
                   {newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
                 </button>
-                {!newTask.openInInbox && (
-                  <button
-                    type="submit"
-                    data-inbox="true"
-                    className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
-                  >
-                    Add to Inbox
-                  </button>
-                )}
                 <button
                   type="button"
-                  onClick={() => setShowAddTask(false)}
+                  onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}
                   className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
                 >
                   Cancel
@@ -5191,7 +5329,6 @@ const DayPlanner = () => {
               </div>
               <div className={`text-xs ${textSecondary} text-center`}>
                 <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Enter</kbd> add to {newTask.openInInbox ? 'inbox' : 'schedule'}
-                {!newTask.openInInbox && <> • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Shift+Enter</kbd> add to inbox</>}
                 {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Esc</kbd> cancel
               </div>
             </div>
