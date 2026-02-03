@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail, AlertTriangle } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -46,6 +46,7 @@ const DayPlanner = () => {
   const [minimizedSections, setMinimizedSections] = useState(() => {
     const saved = localStorage.getItem('minimizedSections');
     return saved ? JSON.parse(saved) : {
+      overdue: false,
       inbox: false,
       dailySummary: false,
       allTimeSummary: false,
@@ -93,6 +94,9 @@ const DayPlanner = () => {
   });
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
+  const [dragOverAllDay, setDragOverAllDay] = useState(null);
+  const [dragOverInbox, setDragOverInbox] = useState(false);
+  const [dragOverRecycleBin, setDragOverRecycleBin] = useState(false);
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
   const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -104,6 +108,7 @@ const DayPlanner = () => {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionContext, setSuggestionContext] = useState(null); // 'newTask' | 'editing'
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(null); // task id or null
   const calendarRef = useRef(null);
   const newTaskInputRef = useRef(null);
   const editingInputRef = useRef(null);
@@ -525,11 +530,14 @@ const DayPlanner = () => {
       if (showColorPicker && !e.target.closest('.color-picker-container')) {
         setShowColorPicker(null);
       }
+      if (showDeadlinePicker && !e.target.closest('.deadline-picker-container')) {
+        setShowDeadlinePicker(null);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [expandedTaskMenu, showColorPicker]);
+  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker]);
 
   // Persist darkMode to localStorage
   useEffect(() => {
@@ -977,6 +985,67 @@ const DayPlanner = () => {
     setSelectedTags([...allTags]);
   };
 
+  // Get today's date string for overdue comparisons
+  const getTodayStr = () => dateToString(new Date());
+
+  // Get overdue tasks: incomplete scheduled tasks from past dates + inbox tasks with past deadlines
+  const getOverdueTasks = () => {
+    const todayStr = getTodayStr();
+
+    // Incomplete scheduled tasks from past dates (not imported events)
+    const overdueScheduled = tasks.filter(t =>
+      t.date < todayStr &&
+      !t.completed &&
+      !t.imported
+    ).map(t => ({ ...t, _overdueType: 'scheduled' }));
+
+    // Inbox tasks with past deadlines
+    const overdueDeadlines = unscheduledTasks.filter(t =>
+      t.deadline && t.deadline < todayStr
+    ).map(t => ({ ...t, _overdueType: 'deadline' }));
+
+    return [...overdueScheduled, ...overdueDeadlines];
+  };
+
+  // Get inbox tasks with deadlines for a specific date (not overdue)
+  const getDeadlineTasksForDate = (dateStr) => {
+    const todayStr = getTodayStr();
+    return unscheduledTasks.filter(t =>
+      t.deadline === dateStr && t.deadline >= todayStr
+    );
+  };
+
+  // Set deadline on inbox task
+  const setDeadline = (taskId, deadline) => {
+    setUnscheduledTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, deadline } : t
+    ));
+    setShowDeadlinePicker(null);
+  };
+
+  // Clear deadline from inbox task
+  const clearDeadline = (taskId) => {
+    setUnscheduledTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, deadline: null } : t
+    ));
+    setShowDeadlinePicker(null);
+  };
+
+  // Format deadline date for display
+  const formatDeadlineDate = (deadline) => {
+    if (!deadline) return null;
+    const todayStr = getTodayStr();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = dateToString(tomorrow);
+
+    if (deadline === todayStr) return 'Today';
+    if (deadline === tomorrowStr) return 'Tomorrow';
+
+    const date = new Date(deadline + 'T12:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   const cyclePriority = (taskId) => {
     const task = unscheduledTasks.find(t => t.id === taskId);
     const currentPriority = pendingPriorities[taskId] ?? task?.priority ?? 0;
@@ -1254,7 +1323,8 @@ const DayPlanner = () => {
       ...task,
       startTime: null,
       date: null,
-      isAllDay: false
+      isAllDay: false,
+      priority: task.priority || 0
     };
 
     setTasks(tasks.filter(t => t.id !== id));
@@ -1898,11 +1968,19 @@ const DayPlanner = () => {
     setDragSource(null);
     setDragPreviewTime(null);
     setDragPreviewDate(null);
+    setDragOverAllDay(null);
+    setDragOverInbox(false);
+    setDragOverRecycleBin(false);
   };
 
   const handleDragOver = (e, targetDate = null) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+
+    // Clear other drop indicators when back in timeline
+    setDragOverAllDay(null);
+    setDragOverInbox(false);
+    setDragOverRecycleBin(false);
 
     // Show preview time while dragging
     if (draggedTask && calendarRef.current) {
@@ -1917,6 +1995,26 @@ const DayPlanner = () => {
         setDragPreviewDate(targetDate);
       }
     }
+  };
+
+  const handleDragOverInbox = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    // Clear timeline preview when over inbox
+    setDragPreviewTime(null);
+    setDragOverAllDay(null);
+    setDragOverRecycleBin(false);
+    setDragOverInbox(true);
+  };
+
+  const handleDragOverRecycleBin = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    // Clear timeline preview when over recycle bin
+    setDragPreviewTime(null);
+    setDragOverAllDay(null);
+    setDragOverInbox(false);
+    setDragOverRecycleBin(true);
   };
 
   const handleDropOnCalendar = (e, targetDate = null) => {
@@ -1953,16 +2051,17 @@ const DayPlanner = () => {
 
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
-      const { priority, ...taskWithoutPriority } = draggedTask;
+      const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
       setTasks([...tasks, {
-        ...taskWithoutPriority,
+        ...taskWithoutPriorityAndDeadline,
         startTime,
-        date: dropDateStr
+        date: dropDateStr,
+        isAllDay: false
       }]);
     } else if (dragSource === 'calendar') {
       setTasks(tasks.map(t =>
         t.id === draggedTask.id
-          ? { ...t, startTime, date: dropDateStr }
+          ? { ...t, startTime, date: dropDateStr, isAllDay: false }
           : t
       ));
     } else if (dragSource === 'recycleBin') {
@@ -1972,8 +2071,29 @@ const DayPlanner = () => {
       setTasks([...tasks, {
         ...cleanTask,
         startTime,
-        date: dropDateStr
+        date: dropDateStr,
+        isAllDay: false
       }]);
+    } else if (dragSource === 'overdue') {
+      // Handle overdue tasks - they can be scheduled or deadline tasks
+      if (draggedTask._overdueType === 'scheduled') {
+        // Reschedule an existing scheduled task
+        setTasks(tasks.map(t =>
+          t.id === draggedTask.id
+            ? { ...t, startTime, date: dropDateStr, isAllDay: false }
+            : t
+        ));
+      } else if (draggedTask._overdueType === 'deadline') {
+        // Schedule an overdue inbox task - remove from inbox, add to calendar
+        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+        const { priority, deadline, _overdueType, ...taskWithoutMeta } = draggedTask;
+        setTasks([...tasks, {
+          ...taskWithoutMeta,
+          startTime,
+          date: dropDateStr,
+          isAllDay: false
+        }]);
+      }
     }
 
     // Show notification if task was rescheduled to avoid calendar conflict
@@ -1995,45 +2115,76 @@ const DayPlanner = () => {
     e.preventDefault();
     if (!draggedTask) return;
     
-    // Only allow calendar and recycle bin tasks to be moved to inbox
-    if (dragSource !== 'calendar' && dragSource !== 'recycleBin') return;
+    // Only allow calendar, recycle bin, and overdue scheduled tasks to be moved to inbox
+    if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue') return;
 
     if (dragSource === 'calendar') {
       setTasks(tasks.filter(t => t.id !== draggedTask.id));
       const { startTime, date, ...taskWithoutSchedule } = draggedTask;
-      setUnscheduledTasks([...unscheduledTasks, taskWithoutSchedule]);
+      setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
     } else if (dragSource === 'recycleBin') {
       setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
       const { _deletedFrom, startTime, date, ...taskWithoutSchedule } = draggedTask;
-      setUnscheduledTasks([...unscheduledTasks, taskWithoutSchedule]);
+      setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+    } else if (dragSource === 'overdue' && draggedTask._overdueType === 'scheduled') {
+      // Move overdue scheduled task back to inbox
+      setTasks(tasks.filter(t => t.id !== draggedTask.id));
+      const { startTime, date, _overdueType, ...taskWithoutSchedule } = draggedTask;
+      setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
     }
-    
+    // Note: overdue deadline tasks are already in inbox, so no action needed
+
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
+    setDragOverInbox(false);
   };
 
   const handleDropOnRecycleBin = (e) => {
     e.preventDefault();
     if (!draggedTask) return;
 
+    // Determine source and clean up task metadata
+    let deletedFrom = 'calendar';
+    let cleanTask = { ...draggedTask };
+
+    if (dragSource === 'inbox') {
+      deletedFrom = 'inbox';
+    } else if (dragSource === 'overdue') {
+      if (draggedTask._overdueType === 'scheduled') {
+        deletedFrom = 'calendar';
+      } else {
+        deletedFrom = 'inbox';
+      }
+      // Remove overdue metadata
+      const { _overdueType, ...rest } = cleanTask;
+      cleanTask = rest;
+    }
+
     // Add to recycle bin with metadata about where it came from
     const taskWithMeta = {
-      ...draggedTask,
-      _deletedFrom: dragSource === 'inbox' ? 'inbox' : 'calendar'
+      ...cleanTask,
+      _deletedFrom: deletedFrom
     };
     setRecycleBin([...recycleBin, taskWithMeta]);
-    
+
     // Remove from original location
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
     } else if (dragSource === 'calendar') {
       setTasks(tasks.filter(t => t.id !== draggedTask.id));
+    } else if (dragSource === 'overdue') {
+      if (draggedTask._overdueType === 'scheduled') {
+        setTasks(tasks.filter(t => t.id !== draggedTask.id));
+      } else {
+        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+      }
     }
-    
+
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
+    setDragOverRecycleBin(false);
   };
 
   const handleDropOnDateHeader = (e, targetDate) => {
@@ -2044,9 +2195,9 @@ const DayPlanner = () => {
 
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
-      const { priority, ...taskWithoutPriority } = draggedTask;
+      const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
       setTasks([...tasks, {
-        ...taskWithoutPriority,
+        ...taskWithoutPriorityAndDeadline,
         startTime: '00:00',
         date: dropDateStr,
         isAllDay: true
@@ -2066,12 +2217,33 @@ const DayPlanner = () => {
         date: dropDateStr,
         isAllDay: true
       }]);
+    } else if (dragSource === 'overdue') {
+      // Handle overdue tasks - they can be scheduled or deadline tasks
+      if (draggedTask._overdueType === 'scheduled') {
+        // Reschedule an existing scheduled task to a new all-day slot
+        setTasks(tasks.map(t =>
+          t.id === draggedTask.id
+            ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
+            : t
+        ));
+      } else if (draggedTask._overdueType === 'deadline') {
+        // Schedule an overdue inbox task - remove from inbox, add to calendar
+        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+        const { priority, deadline, _overdueType, ...taskWithoutMeta } = draggedTask;
+        setTasks([...tasks, {
+          ...taskWithoutMeta,
+          startTime: '00:00',
+          date: dropDateStr,
+          isAllDay: true
+        }]);
+      }
     }
 
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
     setDragPreviewDate(null);
+    setDragOverAllDay(null);
   };
 
   const handleResizeStart = (task, e) => {
@@ -2460,6 +2632,113 @@ const DayPlanner = () => {
     }
   };
 
+  // Deadline picker popover for inbox tasks
+  const DeadlinePickerPopover = ({ taskId, currentDeadline, onClose }) => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const todayStr = dateToString(today);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = dateToString(tomorrow);
+
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const nextWeekStr = dateToString(nextWeek);
+
+    const [showCustomPicker, setShowCustomPicker] = useState(false);
+    const [customDate, setCustomDate] = useState(() => {
+      if (currentDeadline) return currentDeadline;
+      return todayStr;
+    });
+
+    const handleQuickOption = (dateStr) => {
+      setDeadline(taskId, dateStr);
+    };
+
+    const handleCustomConfirm = () => {
+      setDeadline(taskId, customDate);
+    };
+
+    return (
+      <div className="deadline-picker-container absolute top-full right-0 mt-1 z-30">
+        <div
+          className={`${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px]`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {!showCustomPicker ? (
+            <div className="space-y-1">
+              <button
+                onClick={() => handleQuickOption(todayStr)}
+                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+              >
+                <Calendar size={14} />
+                Today
+              </button>
+              <button
+                onClick={() => handleQuickOption(tomorrowStr)}
+                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+              >
+                <Calendar size={14} />
+                Tomorrow
+              </button>
+              <button
+                onClick={() => handleQuickOption(nextWeekStr)}
+                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+              >
+                <Calendar size={14} />
+                Next week
+              </button>
+              <div className={`border-t ${borderClass} my-1`}></div>
+              <button
+                onClick={() => setShowCustomPicker(true)}
+                className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
+              >
+                <Calendar size={14} />
+                Pick date...
+              </button>
+              {currentDeadline && (
+                <>
+                  <div className={`border-t ${borderClass} my-1`}></div>
+                  <button
+                    onClick={() => clearDeadline(taskId)}
+                    className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}
+                  >
+                    <X size={14} />
+                    Clear deadline
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="p-2">
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className={`w-full px-2 py-1 rounded border ${borderClass} ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} text-sm mb-2`}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCustomPicker(false)}
+                  className={`flex-1 px-2 py-1 rounded text-sm ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary}`}
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleCustomConfirm}
+                  className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                >
+                  Set
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const ClockTimePicker = ({ value, onChange, onClose }) => {
     const [selectedHour, setSelectedHour] = useState(parseInt(value.split(':')[0]));
     const [selectedMinute, setSelectedMinute] = useState(parseInt(value.split(':')[1]));
@@ -2809,7 +3088,11 @@ const DayPlanner = () => {
   };
 
   // Inbox tasks are not filtered by tags, only by priority
-  const filteredUnscheduledTasks = unscheduledTasks
+  // Exclude tasks with overdue deadlines (they appear in Overdue section)
+  const todayStr = getTodayStr();
+  const nonOverdueInboxTasks = unscheduledTasks
+    .filter(task => !task.deadline || task.deadline >= todayStr);
+  const filteredUnscheduledTasks = nonOverdueInboxTasks
     .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
@@ -3167,15 +3450,27 @@ const DayPlanner = () => {
 
                 {/* Section icons - clicking expands sidebar */}
                 <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} w-[51px] py-2 flex flex-col items-center gap-2`}>
+                  {getOverdueTasks().length > 0 && (
+                    <button
+                      onClick={() => setSidebarCollapsed(false)}
+                      className={`p-2 rounded ${hoverBg} relative`}
+                      title="Overdue"
+                    >
+                      <AlertTriangle size={20} className="text-orange-500" />
+                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                        {getOverdueTasks().length > 9 ? '9+' : getOverdueTasks().length}
+                      </span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setSidebarCollapsed(false)}
                     className={`p-2 rounded ${hoverBg} relative`}
                     title="Inbox"
                   >
                     <Mail size={20} className={textSecondary} />
-                    {unscheduledTasks.length > 0 && (
+                    {filteredUnscheduledTasks.length > 0 && (
                       <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {unscheduledTasks.length > 9 ? '9+' : unscheduledTasks.length}
+                        {filteredUnscheduledTasks.length > 9 ? '9+' : filteredUnscheduledTasks.length}
                       </span>
                     )}
                   </button>
@@ -3253,12 +3548,86 @@ const DayPlanner = () => {
                   </button>
                 </div>
 
+            {/* Overdue Tasks Section */}
+            {getOverdueTasks().length > 0 && (
+              <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} border-orange-500/50 p-4 mb-4`}>
+                <div className={`flex items-center justify-between ${minimizedSections.overdue ? '' : 'mb-4'}`}>
+                  <h3 className={`font-semibold text-orange-500 flex items-center gap-2`}>
+                    <AlertTriangle size={18} />
+                    Overdue
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm text-orange-500`}>{getOverdueTasks().length}</span>
+                    <button
+                      onClick={() => toggleSection('overdue')}
+                      className={`text-orange-500 hover:text-orange-400 transition-colors`}
+                      title={minimizedSections.overdue ? "Expand" : "Minimize"}
+                    >
+                      {minimizedSections.overdue ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {!minimizedSections.overdue && (
+                  <div className="space-y-2">
+                    {getOverdueTasks().map(task => (
+                      <div
+                        key={task.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(task, 'overdue', e)}
+                        onDragEnd={handleDragEnd}
+                        className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative border-2 border-orange-500/50`}
+                      >
+                        <div className="flex items-start justify-between text-white">
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
+                            <button
+                              onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
+                              className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                            >
+                              {task.completed && <Check size={10} strokeWidth={3} />}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>
+                                {renderTitle(task.title)}
+                              </div>
+                              <div className="text-xs opacity-90 mt-1 flex items-center gap-1">
+                                {task._overdueType === 'scheduled' ? (
+                                  <>
+                                    <Clock size={10} />
+                                    {task.date} {task.isAllDay ? '' : `• ${task.startTime}`}
+                                  </>
+                                ) : (
+                                  <>
+                                    <AlertCircle size={10} />
+                                    Due: {formatDeadlineDate(task.deadline)}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
+                              className="hover:bg-white/20 rounded p-1"
+                              title="Move to Recycle Bin"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
               <div className={`flex items-center justify-between ${minimizedSections.inbox ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mail size={18} />
                   Inbox
-                  {!minimizedSections.inbox && unscheduledTasks.length > 0 && (
+                  {!minimizedSections.inbox && nonOverdueInboxTasks.length > 0 && (
                     <button
                       onClick={() => setInboxPriorityFilter(prev => (prev + 1) % 4)}
                       className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors ml-1`}
@@ -3280,9 +3649,9 @@ const DayPlanner = () => {
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
-                  {unscheduledTasks.length > 0 && (
+                  {filteredUnscheduledTasks.length > 0 && (
                     <span className={`text-sm ${textSecondary}`}>
-                      {inboxPriorityFilter > 0 ? `${filteredUnscheduledTasks.length}/` : ''}{unscheduledTasks.length}
+                      {filteredUnscheduledTasks.length}
                     </span>
                   )}
                   <button
@@ -3297,15 +3666,22 @@ const DayPlanner = () => {
               
               {!minimizedSections.inbox && (
                 <div
-                  onDragOver={handleDragOver}
+                  onDragOver={handleDragOverInbox}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) {
+                      setDragOverInbox(false);
+                    }
+                  }}
                   onDrop={handleDropOnInbox}
-                  className="space-y-2"
+                  className={`space-y-2 rounded-lg transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-700/30 ring-2 ring-inset ring-green-400' : 'bg-green-100 ring-2 ring-inset ring-green-500') : ''}`}
                 >
                   {filteredUnscheduledTasks.length === 0 ? (
                     <p className={`text-sm ${textSecondary} text-center py-2`}>
                       {unscheduledTasks.length === 0
                         ? "Drag tasks here to unschedule them"
-                        : "No tasks match current filter"}
+                        : nonOverdueInboxTasks.length === 0
+                          ? "All tasks have overdue deadlines"
+                          : "No tasks match current filter"}
                     </p>
                   ) : (
                     filteredUnscheduledTasks.map(task => (
@@ -3364,11 +3740,39 @@ const DayPlanner = () => {
                                 {renderTitle(task.title)}
                               </div>
                             )}
-                            <div className="text-xs opacity-90 mt-1">{task.duration} min</div>
+                            <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
+                              <span>{task.duration} min</span>
+                              {task.deadline && (
+                                <span className="flex items-center gap-1">
+                                  <AlertCircle size={10} />
+                                  {formatDeadlineDate(task.deadline)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <div className="flex items-start gap-1">
+                            {/* Deadline picker */}
+                            <div className="deadline-picker-container relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                }}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                              >
+                                <Calendar size={14} />
+                              </button>
+                              {showDeadlinePicker === task.id && (
+                                <DeadlinePickerPopover
+                                  taskId={task.id}
+                                  currentDeadline={task.deadline}
+                                  onClose={() => setShowDeadlinePicker(null)}
+                                />
+                              )}
+                            </div>
                             <div className="color-picker-container relative">
                               <button
                                 onClick={(e) => {
@@ -3573,9 +3977,14 @@ const DayPlanner = () => {
               {!minimizedSections.recycleBin && (
                 <>
                   <div
-                    onDragOver={handleDragOver}
+                    onDragOver={handleDragOverRecycleBin}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget)) {
+                        setDragOverRecycleBin(false);
+                      }
+                    }}
                     onDrop={handleDropOnRecycleBin}
-                    className="space-y-2"
+                    className={`space-y-2 rounded-lg transition-colors ${dragOverRecycleBin ? (darkMode ? 'bg-red-700/30 ring-2 ring-inset ring-red-400' : 'bg-red-100 ring-2 ring-inset ring-red-500') : ''}`}
                   >
                     {recycleBin.length === 0 ? (
                       <p className={`text-sm ${textSecondary} text-center py-2`}>Drag tasks here to delete them</p>
@@ -3643,21 +4052,33 @@ const DayPlanner = () => {
                 <div className={`w-20 flex-shrink-0 border-r ${borderClass}`}></div>
                 {visibleDates.map((date, idx) => {
                   const isDateToday = dateToString(date) === dateToString(new Date());
+                  const dateStr = dateToString(date);
+                  const isDragOverThis = dragOverAllDay === dateStr;
                   return (
                     <div
-                      key={dateToString(date)}
-                      className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`} ${draggedTask ? (darkMode ? 'hover:bg-green-900/50' : 'hover:bg-green-100') : ''}`}
+                      key={dateStr}
+                      className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`} ${isDragOverThis ? (darkMode ? 'bg-green-700 ring-2 ring-inset ring-green-400' : 'bg-green-200 ring-2 ring-inset ring-green-500') : ''}`}
                       onClick={() => {
                         setNewTask({
                           title: '',
                           startTime: getNextQuarterHour(),
                           duration: 30,
-                          date: dateToString(date),
+                          date: dateStr,
                           isAllDay: true
                         });
                         setShowAddTask(true);
                       }}
                       onDragOver={(e) => e.preventDefault()}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        setDragOverAllDay(dateStr);
+                        setDragPreviewTime(null);
+                      }}
+                      onDragLeave={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget)) {
+                          setDragOverAllDay(null);
+                        }
+                      }}
                       onDrop={(e) => handleDropOnDateHeader(e, date)}
                       title={draggedTask ? "Drop to make all-day task" : "Click to add all-day task"}
                     >
@@ -3670,17 +4091,32 @@ const DayPlanner = () => {
               </div>
 
               {/* All-day tasks section - sticky below date headers */}
-              {visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay)) && (
+              {visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) && (
                 <div className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
                   <div className={`w-20 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
                     ALL DAY
                   </div>
                   {visibleDates.map((date, idx) => {
                     const dayTasks = getTasksForDate(date).filter(t => t.isAllDay);
+                    const dateStr = dateToString(date);
+                    const deadlineTasks = getDeadlineTasksForDate(dateStr);
+                    const isDragOverThis = dragOverAllDay === dateStr;
                     return (
                       <div
-                        key={dateToString(date)}
-                        className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+                        key={dateStr}
+                        className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDragEnter={(e) => {
+                          e.preventDefault();
+                          setDragOverAllDay(dateStr);
+                          setDragPreviewTime(null);
+                        }}
+                        onDragLeave={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget)) {
+                            setDragOverAllDay(null);
+                          }
+                        }}
+                        onDrop={(e) => handleDropOnDateHeader(e, date)}
                       >
                         {dayTasks.map((task) => {
                           const isImported = task.imported;
@@ -3754,6 +4190,13 @@ const DayPlanner = () => {
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDragEnter={(e) => {
+                                e.preventDefault();
+                                setDragOverAllDay(dateStr);
+                                setDragPreviewTime(null);
+                              }}
+                              onDrop={(e) => handleDropOnDateHeader(e, date)}
                               className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
                               style={taskCalendarStyle}
                             >
@@ -3808,6 +4251,53 @@ const DayPlanner = () => {
                             </div>
                           );
                         })}
+
+                        {/* Deadline tasks from inbox */}
+                        {deadlineTasks.map((task) => (
+                          <div
+                            key={`deadline-${task.id}`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(task, 'inbox', e)}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDragEnter={(e) => {
+                              e.preventDefault();
+                              setDragOverAllDay(dateStr);
+                              setDragPreviewTime(null);
+                            }}
+                            onDrop={(e) => handleDropOnDateHeader(e, date)}
+                            className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
+                          >
+                            <div className="p-2 text-white">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <button
+                                    onClick={() => toggleComplete(task.id, true)}
+                                    className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                  >
+                                    {task.completed && <Check size={10} strokeWidth={3} />}
+                                  </button>
+                                  <AlertCircle size={14} className="flex-shrink-0" />
+                                  <div
+                                    className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}
+                                    title={task.title}
+                                  >
+                                    {renderTitle(task.title)}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  <button
+                                    onClick={() => moveToRecycleBin(task.id, true)}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Move to Recycle Bin"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
@@ -3815,7 +4305,17 @@ const DayPlanner = () => {
               )}
 
               {/* Main calendar grid */}
-              <div ref={timeGridRef} className="relative">
+              <div
+                ref={timeGridRef}
+                className="relative"
+                onDragLeave={(e) => {
+                  // Clear preview when leaving the calendar grid entirely
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setDragPreviewTime(null);
+                    setDragPreviewDate(null);
+                  }
+                }}
+              >
                 {hours.map((hour, index) => (
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
