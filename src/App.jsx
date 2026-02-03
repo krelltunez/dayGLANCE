@@ -3685,6 +3685,63 @@ const DayPlanner = () => {
                         {dayTasks.map((task) => {
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+
+                          // Action buttons for all-day tasks (same as regular scheduled tasks)
+                          const AllDayActionButtons = ({ inMenu = false }) => (
+                            <>
+                              <button
+                                onClick={() => postponeTask(task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Postpone to tomorrow"
+                              >
+                                <SkipForward size={14} />
+                                {inMenu && <span className="text-xs">Postpone</span>}
+                              </button>
+                              <button
+                                onClick={() => moveToInbox(task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Move to Inbox"
+                              >
+                                <Inbox size={14} />
+                                {inMenu && <span className="text-xs">To Inbox</span>}
+                              </button>
+                              <div className="color-picker-container relative">
+                                <button
+                                  onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                >
+                                  <Palette size={14} />
+                                  {inMenu && <span className="text-xs">Color</span>}
+                                </button>
+                                {showColorPicker === task.id && (
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {colors.map((color) => (
+                                        <button
+                                          key={color.class}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            changeTaskColor(task.id, color.class, false);
+                                          }}
+                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                          title={color.name}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => moveToRecycleBin(task.id)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Move to Recycle Bin"
+                              >
+                                <Trash2 size={14} />
+                                {inMenu && <span className="text-xs">Delete</span>}
+                              </button>
+                            </>
+                          );
+
                           return (
                             <div
                               key={task.id}
@@ -3707,18 +3764,29 @@ const DayPlanner = () => {
                                     )}
                                     <Calendar size={14} className="flex-shrink-0" />
                                     <div
-                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''}`}
+                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                      onDoubleClick={(e) => {
+                                        if (!isImported) {
+                                          e.stopPropagation();
+                                          startEditingTask(task, false);
+                                        }
+                                      }}
+                                      title={task.title}
                                     >
                                       {renderTitle(task.title)}
                                     </div>
                                   </div>
                                   {!isImported && (
                                     <button
-                                      onClick={() => moveToRecycleBin(task.id)}
-                                      className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                      title="Move to Recycle Bin"
+                                      onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                      className="task-menu-container hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
                                     >
-                                      <Trash2 size={14} />
+                                      <MoreHorizontal size={14} />
+                                      {expandedTaskMenu === task.id && (
+                                        <div className="task-menu-container absolute top-full right-2 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                          <AllDayActionButtons inMenu={true} />
+                                        </div>
+                                      )}
                                     </button>
                                   )}
                                 </div>
