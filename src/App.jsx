@@ -3742,9 +3742,15 @@ const DayPlanner = () => {
                             </>
                           );
 
+                          // Width-based layout for all-day tasks (no height concern)
+                          const allDayTaskWidth = taskWidths[task.id];
+                          const useFullLayout = allDayTaskWidth >= 200;
+
                           return (
                             <div
                               key={task.id}
+                              ref={setTaskRef(task.id)}
+                              data-task-id={task.id}
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
@@ -3777,17 +3783,25 @@ const DayPlanner = () => {
                                     </div>
                                   </div>
                                   {!isImported && (
-                                    <button
-                                      onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                      className="task-menu-container hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                    >
-                                      <MoreHorizontal size={14} />
-                                      {expandedTaskMenu === task.id && (
-                                        <div className="task-menu-container absolute top-full right-2 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                          <AllDayActionButtons inMenu={true} />
-                                        </div>
-                                      )}
-                                    </button>
+                                    useFullLayout ? (
+                                      // Full layout: show action buttons inline
+                                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                                        <AllDayActionButtons />
+                                      </div>
+                                    ) : (
+                                      // Compact layout: show overflow menu
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                      >
+                                        <MoreHorizontal size={14} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute top-full right-2 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <AllDayActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
+                                    )
                                   )}
                                 </div>
                               </div>
