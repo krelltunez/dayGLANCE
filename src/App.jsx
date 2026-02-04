@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail, AlertTriangle } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -22,6 +22,294 @@ const useVisibleDays = () => {
   }, []);
 
   return visibleDays;
+};
+
+// URL detection regex for notes
+const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+
+// Check if entire text is just a URL (with optional whitespace)
+const isOnlyUrl = (text) => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  const match = trimmed.match(URL_REGEX);
+  return match && match.length === 1 && match[0] === trimmed;
+};
+
+// Render formatted text with URLs, **bold**, *italic*, __underline__
+const renderFormattedText = (text) => {
+  if (!text) return null;
+
+  const elements = [];
+  let lastIndex = 0;
+  let key = 0;
+
+  // Combined regex for all formatting: **bold**, *italic*, __underline__, URLs
+  const formatRegex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(__(.+?)__)|(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+  let match;
+
+  while ((match = formatRegex.exec(text)) !== null) {
+    // Add text before match
+    if (match.index > lastIndex) {
+      elements.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+    }
+
+    if (match[1]) {
+      // **bold**
+      elements.push(<strong key={key++}>{match[2]}</strong>);
+    } else if (match[3]) {
+      // *italic*
+      elements.push(<em key={key++}>{match[4]}</em>);
+    } else if (match[5]) {
+      // __underline__
+      elements.push(<span key={key++} className="underline">{match[6]}</span>);
+    } else if (match[7]) {
+      // URL
+      elements.push(
+        <a
+          key={key++}
+          href={match[7]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-400 hover:text-blue-300 underline break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {match[7]}
+        </a>
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    elements.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+  }
+
+  return elements;
+};
+
+// Check if task has any notes or subtasks
+const hasNotesOrSubtasks = (task) => {
+  return (task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0);
+};
+
+// Notes & Subtasks Panel component - defined outside DayPlanner to prevent remount on re-render
+const NotesSubtasksPanel = ({
+  task,
+  isInbox,
+  darkMode,
+  updateTaskNotes,
+  addSubtask,
+  toggleSubtask,
+  deleteSubtask,
+  updateSubtaskTitle
+}) => {
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const [editingSubtaskText, setEditingSubtaskText] = useState('');
+  const [localNotes, setLocalNotes] = useState(task.notes || '');
+  const [localSubtaskText, setLocalSubtaskText] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(!task.notes); // Edit mode only if no content
+  const localNotesRef = useRef(localNotes);
+  const taskNotesRef = useRef(task.notes || '');
+  const taskIdRef = useRef(task.id);
+  const isInboxRef = useRef(isInbox);
+  const updateTaskNotesRef = useRef(updateTaskNotes);
+
+  // Keep refs in sync
+  useEffect(() => {
+    localNotesRef.current = localNotes;
+  }, [localNotes]);
+
+  useEffect(() => {
+    taskNotesRef.current = task.notes || '';
+  }, [task.notes]);
+
+  useEffect(() => {
+    taskIdRef.current = task.id;
+    isInboxRef.current = isInbox;
+  }, [task.id, isInbox]);
+
+  useEffect(() => {
+    updateTaskNotesRef.current = updateTaskNotes;
+  }, [updateTaskNotes]);
+
+  // Sync local notes with task notes when task changes (e.g., switching between tasks)
+  useEffect(() => {
+    setLocalNotes(task.notes || '');
+    setIsEditingNotes(!task.notes); // Edit mode only if no content
+  }, [task.id]);
+
+  // Save notes on unmount only (e.g., when ESC is pressed or panel closes)
+  useEffect(() => {
+    return () => {
+      if (localNotesRef.current !== taskNotesRef.current) {
+        updateTaskNotesRef.current(taskIdRef.current, localNotesRef.current, isInboxRef.current);
+      }
+    };
+  }, []); // Empty deps = only runs on mount/unmount
+
+  const handleNotesChange = (e) => {
+    setLocalNotes(e.target.value);
+  };
+
+  const handleNotesKeyDown = (e) => {
+    // SHIFT+ENTER switches to preview mode
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      // Save notes and switch to preview
+      if (localNotes !== (task.notes || '')) {
+        updateTaskNotes(task.id, localNotes, isInbox);
+      }
+      if (localNotes) {
+        setIsEditingNotes(false);
+      }
+    }
+  };
+
+  const handleNotesBlur = () => {
+    // Save notes on blur
+    if (localNotes !== (task.notes || '')) {
+      updateTaskNotes(task.id, localNotes, isInbox);
+    }
+  };
+
+  const handleAddSubtask = (e) => {
+    e.preventDefault();
+    if (localSubtaskText.trim()) {
+      addSubtask(task.id, localSubtaskText, isInbox);
+      setLocalSubtaskText('');
+    }
+  };
+
+  const startEditingSubtask = (subtask) => {
+    setEditingSubtaskId(subtask.id);
+    setEditingSubtaskText(subtask.title);
+  };
+
+  const saveSubtaskEdit = () => {
+    if (editingSubtaskText.trim()) {
+      updateSubtaskTitle(task.id, editingSubtaskId, editingSubtaskText.trim(), isInbox);
+    }
+    setEditingSubtaskId(null);
+    setEditingSubtaskText('');
+  };
+
+  const urlOnlyNote = isOnlyUrl(localNotes);
+  const noteUrl = urlOnlyNote ? localNotes.trim() : null;
+
+  return (
+    <div
+      className={`mt-2 p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Notes section */}
+      <div className="mb-3">
+        <div className="text-xs font-semibold opacity-75 mb-1">Notes</div>
+        {isEditingNotes ? (
+          <textarea
+            value={localNotes}
+            onChange={handleNotesChange}
+            onKeyDown={handleNotesKeyDown}
+            onBlur={handleNotesBlur}
+            placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter for preview"
+            className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 resize-none placeholder:text-white/40`}
+            rows={3}
+            autoFocus
+          />
+        ) : (
+          <div
+            onClick={() => setIsEditingNotes(true)}
+            className="text-sm whitespace-pre-wrap cursor-text min-h-[4.5rem] p-2 rounded bg-white/10 hover:bg-white/15"
+          >
+            {urlOnlyNote ? (
+              <a
+                href={noteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink size={14} />
+                Open Link
+              </a>
+            ) : (
+              renderFormattedText(localNotes)
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Subtasks section */}
+      <div>
+        <div className="text-xs font-semibold opacity-75 mb-1">
+          Subtasks {task.subtasks?.length > 0 && `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`}
+        </div>
+
+        {/* Subtasks list */}
+        {task.subtasks?.length > 0 && (
+          <div className="space-y-1 mb-2">
+            {task.subtasks.map((subtask) => (
+              <div
+                key={subtask.id}
+                className="flex items-center gap-2 group"
+              >
+                <button
+                  onClick={() => toggleSubtask(task.id, subtask.id, isInbox)}
+                  className={`rounded flex-shrink-0 ${subtask.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                >
+                  {subtask.completed && <Check size={10} strokeWidth={3} />}
+                </button>
+                {editingSubtaskId === subtask.id ? (
+                  <input
+                    type="text"
+                    value={editingSubtaskText}
+                    onChange={(e) => setEditingSubtaskText(e.target.value)}
+                    onBlur={saveSubtaskEdit}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveSubtaskEdit();
+                      if (e.key === 'Escape') {
+                        setEditingSubtaskId(null);
+                        setEditingSubtaskText('');
+                      }
+                    }}
+                    autoFocus
+                    className="flex-1 bg-white/20 text-white text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                  />
+                ) : (
+                  <span
+                    className={`flex-1 text-sm ${subtask.completed ? 'line-through opacity-60' : ''} cursor-text`}
+                    onDoubleClick={() => startEditingSubtask(subtask)}
+                  >
+                    {subtask.title}
+                  </span>
+                )}
+                <button
+                  onClick={() => deleteSubtask(task.id, subtask.id, isInbox)}
+                  className="opacity-0 group-hover:opacity-100 hover:bg-white/20 rounded p-0.5 transition-opacity"
+                  title="Delete subtask"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add subtask input */}
+        <form onSubmit={handleAddSubtask} className="flex items-center gap-2">
+          <Plus size={14} className="opacity-50" />
+          <input
+            type="text"
+            value={localSubtaskText}
+            onChange={(e) => setLocalSubtaskText(e.target.value)}
+            placeholder="Add subtask..."
+            className="flex-1 bg-transparent text-white text-sm px-1 py-0.5 outline-none placeholder:text-white/40 border-b border-transparent focus:border-white/30"
+          />
+        </form>
+      </div>
+    </div>
+  );
 };
 
 const DayPlanner = () => {
@@ -65,6 +353,7 @@ const DayPlanner = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [expandedTaskMenu, setExpandedTaskMenu] = useState(null);
+  const [expandedNotesTaskId, setExpandedNotesTaskId] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker] = useState(false); // Deadline dropdown for new inbox task
@@ -587,11 +876,27 @@ const DayPlanner = () => {
       if (showDeadlinePicker && !e.target.closest('.deadline-picker-container')) {
         setShowDeadlinePicker(null);
       }
+      // Notes panel only closes on ESC - no click-outside closing
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [expandedTaskMenu, showColorPicker, showDeadlinePicker]);
+
+  // Close notes panel on ESC
+  useEffect(() => {
+    if (!expandedNotesTaskId) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setExpandedNotesTaskId(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [expandedNotesTaskId]);
 
   // Persist darkMode to localStorage
   useEffect(() => {
@@ -687,10 +992,22 @@ const DayPlanner = () => {
       const completedTaskUidsData = localStorage.getItem('day-planner-task-completed-uids');
 
       if (tasksData) {
-        setTasks(JSON.parse(tasksData));
+        // Add default notes and subtasks for existing tasks
+        const parsedTasks = JSON.parse(tasksData).map(t => ({
+          ...t,
+          notes: t.notes ?? '',
+          subtasks: t.subtasks ?? []
+        }));
+        setTasks(parsedTasks);
       }
       if (unscheduledData) {
-        setUnscheduledTasks(JSON.parse(unscheduledData));
+        // Add default notes and subtasks for existing inbox tasks
+        const parsedUnscheduled = JSON.parse(unscheduledData).map(t => ({
+          ...t,
+          notes: t.notes ?? '',
+          subtasks: t.subtasks ?? []
+        }));
+        setUnscheduledTasks(parsedUnscheduled);
       }
       if (recycleBinData) {
         setRecycleBin(JSON.parse(recycleBinData));
@@ -1280,7 +1597,9 @@ const DayPlanner = () => {
         duration: newTask.duration,
         color: newTask.color || colors[0].class,
         completed: false,
-        isAllDay: newTask.isAllDay || false
+        isAllDay: newTask.isAllDay || false,
+        notes: '',
+        subtasks: []
       };
 
       if (toInbox) {
@@ -1428,6 +1747,99 @@ const DayPlanner = () => {
     setShowSuggestions(false);
     setSuggestions([]);
     setSelectedSuggestionIndex(0);
+  };
+
+  // Notes & Subtasks CRUD functions
+  const updateTaskNotes = (taskId, notes, isInbox) => {
+    if (isInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(t =>
+        t.id === taskId ? { ...t, notes } : t
+      ));
+    } else {
+      setTasks(tasks.map(t =>
+        t.id === taskId ? { ...t, notes } : t
+      ));
+    }
+  };
+
+  const addSubtask = (taskId, title, isInbox) => {
+    if (!title.trim()) return;
+    const newSubtask = {
+      id: Date.now().toString(),
+      title: title.trim(),
+      completed: false
+    };
+    if (isInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(t =>
+        t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
+      ));
+    } else {
+      setTasks(tasks.map(t =>
+        t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
+      ));
+    }
+  };
+
+  const toggleSubtask = (taskId, subtaskId, isInbox) => {
+    if (isInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(t =>
+        t.id === taskId ? {
+          ...t,
+          subtasks: (t.subtasks || []).map(st =>
+            st.id === subtaskId ? { ...st, completed: !st.completed } : st
+          )
+        } : t
+      ));
+    } else {
+      setTasks(tasks.map(t =>
+        t.id === taskId ? {
+          ...t,
+          subtasks: (t.subtasks || []).map(st =>
+            st.id === subtaskId ? { ...st, completed: !st.completed } : st
+          )
+        } : t
+      ));
+    }
+  };
+
+  const deleteSubtask = (taskId, subtaskId, isInbox) => {
+    if (isInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(t =>
+        t.id === taskId ? {
+          ...t,
+          subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
+        } : t
+      ));
+    } else {
+      setTasks(tasks.map(t =>
+        t.id === taskId ? {
+          ...t,
+          subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
+        } : t
+      ));
+    }
+  };
+
+  const updateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
+    if (isInbox) {
+      setUnscheduledTasks(unscheduledTasks.map(t =>
+        t.id === taskId ? {
+          ...t,
+          subtasks: (t.subtasks || []).map(st =>
+            st.id === subtaskId ? { ...st, title: newTitle } : st
+          )
+        } : t
+      ));
+    } else {
+      setTasks(tasks.map(t =>
+        t.id === taskId ? {
+          ...t,
+          subtasks: (t.subtasks || []).map(st =>
+            st.id === subtaskId ? { ...st, title: newTitle } : st
+          )
+        } : t
+      ));
+    }
   };
 
   const handleEditKeyDown = (e, isInbox = false) => {
@@ -1892,11 +2304,15 @@ const DayPlanner = () => {
   }, [selectedDate]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
-    const task = fromInbox 
+    const task = fromInbox
       ? unscheduledTasks.find(t => t.id === id)
       : tasks.find(t => t.id === id);
-    
+
     if (task) {
+      // Close notes panel if this task was expanded
+      if (expandedNotesTaskId === id) {
+        setExpandedNotesTaskId(null);
+      }
       // Store original location with the task
       const taskWithMeta = {
         ...task,
@@ -2134,6 +2550,7 @@ const DayPlanner = () => {
     setDraggedTask(task);
     setDragSource(source);
     setDragPreviewTime(null);
+    setExpandedNotesTaskId(null); // Close notes panel when dragging
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -3986,144 +4403,172 @@ const DayPlanner = () => {
                     filteredUnscheduledTasks.map(task => (
                     <div
                       key={task.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(task, 'inbox', e)}
-                      onDragEnd={handleDragEnd}
-                      className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
+                      className="notes-panel-container"
                     >
-                      <div className="flex items-start justify-between text-white">
-                        <div className="flex items-start gap-2 flex-1 min-w-0">
-                          <button
-                            onClick={() => toggleComplete(task.id, true)}
-                            className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                          >
-                            {task.completed && <Check size={10} strokeWidth={3} />}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            {editingTaskId === task.id ? (
-                              <div className="relative tag-autocomplete-container">
-                                <input
-                                  type="text"
-                                  value={editingTaskText}
-                                  onChange={(e) => handleEditInputChange(e, true)}
-                                  onKeyDown={(e) => handleEditKeyDown(e, true)}
-                                  onBlur={() => {
-                                    // Delay blur to allow click on autocomplete
-                                    setTimeout(() => {
-                                      if (!showSuggestions) {
-                                        saveTaskTitle(true);
-                                      }
-                                    }, 100);
+                      <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(task, 'inbox', e)}
+                        onDragEnd={handleDragEnd}
+                        className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
+                      >
+                        <div className="flex items-start justify-between text-white">
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
+                            <button
+                              onClick={() => toggleComplete(task.id, true)}
+                              className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                            >
+                              {task.completed && <Check size={10} strokeWidth={3} />}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              {editingTaskId === task.id ? (
+                                <div className="relative tag-autocomplete-container">
+                                  <input
+                                    type="text"
+                                    value={editingTaskText}
+                                    onChange={(e) => handleEditInputChange(e, true)}
+                                    onKeyDown={(e) => handleEditKeyDown(e, true)}
+                                    onBlur={() => {
+                                      // Delay blur to allow click on autocomplete
+                                      setTimeout(() => {
+                                        if (!showSuggestions) {
+                                          saveTaskTitle(true);
+                                        }
+                                      }, 100);
+                                    }}
+                                    autoFocus
+                                    className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  {showSuggestions && suggestionContext === 'editing' && (
+                                    <SuggestionAutocomplete
+                                      suggestions={suggestions}
+                                      selectedIndex={selectedSuggestionIndex}
+                                      onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, true)}
+                                    />
+                                  )}
+                                </div>
+                              ) : (
+                                <div
+                                  className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditingTask(task, true);
                                   }}
-                                  autoFocus
-                                  className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                {showSuggestions && suggestionContext === 'editing' && (
-                                  <SuggestionAutocomplete
-                                    suggestions={suggestions}
-                                    selectedIndex={selectedSuggestionIndex}
-                                    onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, true)}
+                                  title="Double-click to edit"
+                                >
+                                  {renderTitle(task.title)}
+                                </div>
+                              )}
+                              <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
+                                <span>{task.duration} min</span>
+                                {task.deadline && (
+                                  <span className="flex items-center gap-1">
+                                    <AlertCircle size={10} />
+                                    {formatDeadlineDate(task.deadline)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <div className="flex items-start gap-1">
+                              {/* Notes button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                }}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                title="Notes & subtasks"
+                              >
+                                <FileText size={14} />
+                              </button>
+                              {/* Deadline picker */}
+                              <div className="deadline-picker-container relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                  }}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                  title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                >
+                                  <Calendar size={14} />
+                                </button>
+                                {showDeadlinePicker === task.id && (
+                                  <DeadlinePickerPopover
+                                    taskId={task.id}
+                                    currentDeadline={task.deadline}
+                                    onClose={() => setShowDeadlinePicker(null)}
                                   />
                                 )}
                               </div>
-                            ) : (
-                              <div
-                                className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
-                                onDoubleClick={(e) => {
-                                  e.stopPropagation();
-                                  startEditingTask(task, true);
-                                }}
-                                title="Double-click to edit"
-                              >
-                                {renderTitle(task.title)}
-                              </div>
-                            )}
-                            <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
-                              <span>{task.duration} min</span>
-                              {task.deadline && (
-                                <span className="flex items-center gap-1">
-                                  <AlertCircle size={10} />
-                                  {formatDeadlineDate(task.deadline)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                          <div className="flex items-start gap-1">
-                            {/* Deadline picker */}
-                            <div className="deadline-picker-container relative">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
-                                }}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
-                                title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
-                              >
-                                <Calendar size={14} />
-                              </button>
-                              {showDeadlinePicker === task.id && (
-                                <DeadlinePickerPopover
-                                  taskId={task.id}
-                                  currentDeadline={task.deadline}
-                                  onClose={() => setShowDeadlinePicker(null)}
-                                />
-                              )}
-                            </div>
-                            <div className="color-picker-container relative">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowColorPicker(showColorPicker === task.id ? null : task.id);
-                                }}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                              >
-                                <Palette size={14} />
-                              </button>
-                              {showColorPicker === task.id && (
-                                <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                  <div className="grid grid-cols-3 gap-1">
-                                    {colors.map((color) => (
-                                      <button
-                                        key={color.class}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          changeTaskColor(task.id, color.class, true);
-                                        }}
-                                        className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                        title={color.name}
-                                      />
-                                    ))}
+                              <div className="color-picker-container relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowColorPicker(showColorPicker === task.id ? null : task.id);
+                                  }}
+                                  className="hover:bg-white/20 rounded p-1 transition-colors"
+                                >
+                                  <Palette size={14} />
+                                </button>
+                                {showColorPicker === task.id && (
+                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {colors.map((color) => (
+                                        <button
+                                          key={color.class}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            changeTaskColor(task.id, color.class, true);
+                                          }}
+                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
+                                          title={color.name}
+                                        />
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
+                              </div>
+                              <button
+                                onClick={() => moveToRecycleBin(task.id, true)}
+                                className="hover:bg-white/20 rounded p-1"
+                                title="Move to Recycle Bin"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                             <button
-                              onClick={() => moveToRecycleBin(task.id, true)}
-                              className="hover:bg-white/20 rounded p-1"
-                              title="Move to Recycle Bin"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                cyclePriority(task.id);
+                              }}
+                              className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 mt-1 transition-colors"
+                              title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
                             >
-                              <Trash2 size={14} />
+                              {[0, 1, 2].map(i => (
+                                <span
+                                  key={i}
+                                  className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
+                                />
+                              ))}
                             </button>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              cyclePriority(task.id);
-                            }}
-                            className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 mt-1 transition-colors"
-                            title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
-                          >
-                            {[0, 1, 2].map(i => (
-                              <span
-                                key={i}
-                                className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
-                              />
-                            ))}
-                          </button>
                         </div>
+                        {/* Notes panel - inline below task */}
+                        {expandedNotesTaskId === task.id && (
+                          <NotesSubtasksPanel
+                            task={task}
+                            isInbox={true}
+                            darkMode={darkMode}
+                            updateTaskNotes={updateTaskNotes}
+                            addSubtask={addSubtask}
+                            toggleSubtask={toggleSubtask}
+                            deleteSubtask={deleteSubtask}
+                            updateSubtaskTitle={updateSubtaskTitle}
+                          />
+                        )}
                       </div>
                     </div>
                   ))
@@ -4425,6 +4870,17 @@ const DayPlanner = () => {
                           const AllDayActionButtons = ({ inMenu = false }) => (
                             <>
                               <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                }}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                title="Notes & subtasks"
+                              >
+                                <FileText size={14} />
+                                {inMenu && <span className="text-xs">Notes</span>}
+                              </button>
+                              <button
                                 onClick={() => postponeTask(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
                                 title="Postpone to tomorrow"
@@ -4437,7 +4893,7 @@ const DayPlanner = () => {
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
                                 title="Move to Inbox"
                               >
-                                <Inbox size={14} />
+                                <Mail size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
                               <div className="color-picker-container relative">
@@ -4496,7 +4952,7 @@ const DayPlanner = () => {
                                 setDragPreviewTime(null);
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
-                              className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
+                              className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
                               style={taskCalendarStyle}
                             >
                               <div className="p-2 text-white">
@@ -4547,6 +5003,21 @@ const DayPlanner = () => {
                                   )}
                                 </div>
                               </div>
+                              {/* Notes panel for all-day tasks */}
+                              {expandedNotesTaskId === task.id && !isImported && (
+                                <div className="notes-panel-container">
+                                  <NotesSubtasksPanel
+                                    task={task}
+                                    isInbox={false}
+                                    darkMode={darkMode}
+                                    updateTaskNotes={updateTaskNotes}
+                                    addSubtask={addSubtask}
+                                    toggleSubtask={toggleSubtask}
+                                    deleteSubtask={deleteSubtask}
+                                    updateSubtaskTitle={updateSubtaskTitle}
+                                  />
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -4565,7 +5036,7 @@ const DayPlanner = () => {
                               setDragPreviewTime(null);
                             }}
                             onDrop={(e) => handleDropOnDateHeader(e, date)}
-                            className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
+                            className={`notes-panel-container ${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
                           >
                             <div className="p-2 text-white">
                               <div className="flex items-center justify-between gap-2">
@@ -4586,6 +5057,16 @@ const DayPlanner = () => {
                                 </div>
                                 <div className="flex items-center gap-0.5 flex-shrink-0">
                                   <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                    title="Notes & subtasks"
+                                  >
+                                    <FileText size={14} />
+                                  </button>
+                                  <button
                                     onClick={() => clearDeadline(task.id)}
                                     className="hover:bg-white/20 rounded p-1 transition-colors"
                                     title="Move to Inbox"
@@ -4602,6 +5083,21 @@ const DayPlanner = () => {
                                 </div>
                               </div>
                             </div>
+                            {/* Notes panel for deadline tasks */}
+                            {expandedNotesTaskId === task.id && (
+                              <div className="notes-panel-container">
+                                <NotesSubtasksPanel
+                                  task={task}
+                                  isInbox={true}
+                                  darkMode={darkMode}
+                                  updateTaskNotes={updateTaskNotes}
+                                  addSubtask={addSubtask}
+                                  toggleSubtask={toggleSubtask}
+                                  deleteSubtask={deleteSubtask}
+                                  updateSubtaskTitle={updateSubtaskTitle}
+                                />
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -4713,6 +5209,17 @@ const DayPlanner = () => {
                           const ActionButtons = ({ inMenu = false }) => (
                             <>
                               <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                }}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                title="Notes & subtasks"
+                              >
+                                <FileText size={14} />
+                                {inMenu && <span className="text-xs">Notes</span>}
+                              </button>
+                              <button
                                 onClick={() => postponeTask(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
                                 title="Postpone to tomorrow"
@@ -4725,7 +5232,7 @@ const DayPlanner = () => {
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
                                 title="Move to Inbox"
                               >
-                                <Inbox size={14} />
+                                <Mail size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
                               <div className="color-picker-container relative">
@@ -4775,7 +5282,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -5066,6 +5573,30 @@ const DayPlanner = () => {
                                     <div className="w-12 h-1 bg-white rounded-full"></div>
                                   </div>
                                 )}
+                                {/* Notes panel - floating below task (or above for 22:00+ hour) */}
+                                {expandedNotesTaskId === task.id && !isImported && (() => {
+                                  const hour = parseInt(task.startTime?.split(':')[0] || '0', 10);
+                                  const showAbove = hour >= 22;
+                                  return (
+                                    <div
+                                      className="notes-panel-container absolute left-0 right-0 z-40"
+                                      style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+                                    >
+                                      <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
+                                        <NotesSubtasksPanel
+                                          task={task}
+                                          isInbox={false}
+                                          darkMode={darkMode}
+                                          updateTaskNotes={updateTaskNotes}
+                                          addSubtask={addSubtask}
+                                          toggleSubtask={toggleSubtask}
+                                          deleteSubtask={deleteSubtask}
+                                          updateSubtaskTitle={updateSubtaskTitle}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           );
@@ -5374,6 +5905,10 @@ const DayPlanner = () => {
                 e.preventDefault();
                 setShowAddTask(false);
                 setShowNewTaskDeadlinePicker(false);
+              } else if (e.key === '%' && !newTask.openInInbox) {
+                // '%' toggles Full Day for scheduled tasks
+                e.preventDefault();
+                setNewTask({ ...newTask, isAllDay: !newTask.isAllDay });
               } else if (e.key === ' ' && e.target.tagName !== 'INPUT') {
                 // Prevent SPACE from activating buttons
                 e.preventDefault();
