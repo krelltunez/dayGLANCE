@@ -263,14 +263,14 @@ const DayPlanner = () => {
       const char = text[startIndex];
       if (char === '@') {
         const partial = text.slice(startIndex + 1, cursorPos);
-        // Allow letters, numbers, spaces, slashes, dashes for date input
-        if (partial === '' || /^[\w\s\/\-,]*$/.test(partial)) {
+        // Require at least 1 character after @ and allow letters, numbers, spaces, slashes, dashes
+        if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
           return { partial, startIndex };
         }
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a date
-      if (/[#~]/.test(char)) {
+      if (/[#~!]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -286,14 +286,37 @@ const DayPlanner = () => {
       const char = text[startIndex];
       if (char === '~') {
         const partial = text.slice(startIndex + 1, cursorPos);
-        // Allow letters, numbers, colons, spaces for time input
-        if (partial === '' || /^[\w\s:]*$/.test(partial)) {
+        // Require at least 1 character after ~ and allow letters, numbers, colons, spaces
+        if (partial.length >= 1 && /^[\w\s:]*$/.test(partial)) {
           return { partial, startIndex };
         }
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a time
-      if (/[#@]/.test(char)) {
+      if (/[#@!]/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Extract partial deadline being typed at cursor position (triggered by !)
+  const getPartialDeadline = (text, cursorPos) => {
+    // Scan backwards from cursor to find !
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '!') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Require at least 1 character after ! and allow letters, numbers, spaces, slashes, dashes
+        if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
+          return { partial, startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit certain characters that wouldn't be part of a deadline
+      if (/[#@~]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -1381,9 +1404,11 @@ const DayPlanner = () => {
   const handleEditKeyDown = (e, isInbox = false) => {
     // Handle autocomplete keyboard navigation
     if (showSuggestions && suggestions.length > 0) {
-      if (e.key === 'Tab' || e.key === 'Enter') {
+      const selected = suggestions[selectedSuggestionIndex];
+      // Tab, Enter, or Space (for date/time/deadline only) accepts the suggestion
+      if (e.key === 'Tab' || e.key === 'Enter' ||
+          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline'))) {
         e.preventDefault();
-        const selected = suggestions[selectedSuggestionIndex];
         applySuggestionForEdit(selected, e.target, isInbox);
         return;
       } else if (e.key === 'ArrowDown') {
@@ -1495,6 +1520,30 @@ const DayPlanner = () => {
           inputElement.focus();
         }
       }, 0);
+    } else if (suggestion.type === 'deadline') {
+      // Remove the deadline from title and update the inbox task's deadline
+      const newTitle = removeFromTitle(editingTaskText, suggestion.startIndex, suggestion.endIndex);
+      setEditingTaskText(newTitle);
+
+      // Only inbox tasks can have deadlines
+      if (isInbox) {
+        setUnscheduledTasks(unscheduledTasks.map(t => {
+          if (t.id === editingTaskId) {
+            return { ...t, title: newTitle, deadline: suggestion.value };
+          }
+          return t;
+        }));
+      }
+
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+
+      setTimeout(() => {
+        if (inputElement) {
+          inputElement.focus();
+        }
+      }, 0);
     }
   };
 
@@ -1543,6 +1592,22 @@ const DayPlanner = () => {
           value: parsed.time,
           display: parsed.display,
           startIndex: timeInfo.startIndex,
+          endIndex: cursorPos
+        });
+      }
+    }
+
+    // Check for partial deadline at cursor (triggered by !)
+    const deadlineInfo = getPartialDeadline(text, cursorPos);
+    if (deadlineInfo) {
+      const parsed = parseFlexibleDate(deadlineInfo.partial);
+      if (parsed) {
+        const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
+        allSuggestions.push({
+          type: 'deadline',
+          value: dateStr,
+          display: `Deadline: ${parsed.display}`,
+          startIndex: deadlineInfo.startIndex,
           endIndex: cursorPos
         });
       }
@@ -1597,10 +1662,12 @@ const DayPlanner = () => {
   // Handle keyboard for new task input with suggestions
   const handleNewTaskInputKeyDown = (e) => {
     if (showSuggestions && suggestions.length > 0) {
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+      const selected = suggestions[selectedSuggestionIndex];
+      // Tab, Enter, or Space (for date/time/deadline only) accepts the suggestion
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey) ||
+          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline'))) {
         e.preventDefault();
         e.stopPropagation();
-        const selected = suggestions[selectedSuggestionIndex];
         applySuggestionForNewTask(selected);
         return;
       } else if (e.key === 'ArrowDown') {
@@ -1653,6 +1720,18 @@ const DayPlanner = () => {
       // Remove the time from title and set task start time
       const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
       setNewTask({ ...newTask, title: newTitle, startTime: suggestion.value });
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+      setTimeout(() => {
+        if (newTaskInputRef.current) {
+          newTaskInputRef.current.focus();
+        }
+      }, 0);
+    } else if (suggestion.type === 'deadline') {
+      // Remove the deadline from title and set task deadline
+      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
+      setNewTask({ ...newTask, title: newTitle, deadline: suggestion.value });
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
@@ -2138,11 +2217,13 @@ const DayPlanner = () => {
       setTasks(tasks.filter(t => t.id !== draggedTask.id));
       const { startTime, date, _overdueType, ...taskWithoutSchedule } = draggedTask;
       setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+    } else if (dragSource === 'overdue' && draggedTask._overdueType === 'deadline') {
+      // Clear deadline from overdue inbox task to move it back to regular inbox view
+      clearDeadline(draggedTask.id);
     } else if (dragSource === 'inbox' && draggedTask.deadline) {
       // Clear deadline from inbox task (moving from all-day section back to inbox)
       clearDeadline(draggedTask.id);
     }
-    // Note: overdue deadline tasks are already in inbox, so no action needed
 
     setDraggedTask(null);
     setDragSource(null);
@@ -2644,6 +2725,16 @@ const DayPlanner = () => {
 
   // Deadline picker popover for inbox tasks
   const DeadlinePickerPopover = ({ taskId, currentDeadline, onClose }) => {
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [calendarPos, setCalendarPos] = useState({ x: 0, y: 0 });
+    const [viewDate, setViewDate] = useState(() => {
+      if (currentDeadline) {
+        const parts = currentDeadline.split('-');
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+      }
+      return new Date();
+    });
+
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const todayStr = dateToString(today);
@@ -2660,10 +2751,122 @@ const DayPlanner = () => {
       setDeadline(taskId, dateStr);
     };
 
-    const handlePickDate = () => {
-      setDeadlinePickerTaskId(taskId);
-      onClose();
+    const getDaysInMonth = () => {
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDayOfWeek = firstDay.getDay();
+
+      const days = [];
+      for (let i = 0; i < startingDayOfWeek; i++) {
+        days.push(null);
+      }
+      for (let i = 1; i <= daysInMonth; i++) {
+        days.push(new Date(year, month, i));
+      }
+      return days;
     };
+
+    const changeMonth = (delta) => {
+      setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1));
+    };
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    if (showCalendar) {
+      const days = getDaysInMonth();
+      return (
+        <div
+            className="deadline-picker-container fixed z-[9999]"
+            style={{ left: calendarPos.x - 130, top: calendarPos.y - 150 }}
+          >
+          <div
+            className={`${cardBg} rounded-lg shadow-xl border ${borderClass} p-3 w-[260px]`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => changeMonth(-1)}
+                className={`p-1 rounded ${hoverBg}`}
+              >
+                <ChevronLeft size={16} className={textSecondary} />
+              </button>
+              <span className={`text-sm font-semibold ${textPrimary}`}>
+                {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
+              </span>
+              <button
+                onClick={() => changeMonth(1)}
+                className={`p-1 rounded ${hoverBg}`}
+              >
+                <ChevronRight size={16} className={textSecondary} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5 mb-1">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                <div key={i} className={`text-center text-xs font-semibold p-1 ${textSecondary}`}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5">
+              {days.map((day, index) => {
+                if (!day) {
+                  return <div key={`empty-${index}`} className="p-1"></div>;
+                }
+                const dayStr = dateToString(day);
+                const isSelected = dayStr === currentDeadline;
+                const isToday = dayStr === todayStr;
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setDeadline(taskId, dayStr);
+                      onClose();
+                    }}
+                    className={`p-1 text-center text-sm rounded transition-colors ${
+                      isSelected
+                        ? 'bg-blue-600 text-white font-bold'
+                        : isToday
+                          ? darkMode ? 'bg-blue-900 text-blue-200 font-semibold' : 'bg-blue-100 text-blue-900 font-semibold'
+                          : darkMode
+                            ? 'hover:bg-gray-700 text-gray-300'
+                            : 'hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {day.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className={`border-t ${borderClass} mt-2 pt-2 flex gap-2`}>
+              <button
+                onClick={() => setShowCalendar(false)}
+                className={`flex-1 px-2 py-1 text-sm rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              >
+                Back
+              </button>
+              {currentDeadline && (
+                <button
+                  onClick={() => {
+                    clearDeadline(taskId);
+                    onClose();
+                  }}
+                  className="flex-1 px-2 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="deadline-picker-container absolute top-full right-0 mt-1 z-30">
@@ -2695,7 +2898,10 @@ const DayPlanner = () => {
             </button>
             <div className={`border-t ${borderClass} my-1`}></div>
             <button
-              onClick={handlePickDate}
+              onClick={(e) => {
+                setCalendarPos({ x: e.clientX, y: e.clientY });
+                setShowCalendar(true);
+              }}
               className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
             >
               <Calendar size={14} />
@@ -3590,7 +3796,7 @@ const DayPlanner = () => {
                             </div>
                           </div>
                           <div className="flex items-start gap-1 flex-shrink-0">
-                            {task._overdueType === 'scheduled' && (
+                            {task._overdueType === 'scheduled' ? (
                               <button
                                 onClick={() => {
                                   setTasks(tasks.filter(t => t.id !== task.id));
@@ -3599,6 +3805,14 @@ const DayPlanner = () => {
                                 }}
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox"
+                              >
+                                <Mail size={14} />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => clearDeadline(task.id)}
+                                className="hover:bg-white/20 rounded p-1"
+                                title="Move to Inbox (clear deadline)"
                               >
                                 <Mail size={14} />
                               </button>
