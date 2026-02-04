@@ -270,7 +270,7 @@ const DayPlanner = () => {
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a date
-      if (/[#~!]/.test(char)) {
+      if (/[#~!$]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -293,7 +293,7 @@ const DayPlanner = () => {
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a time
-      if (/[#@!]/.test(char)) {
+      if (/[#@!$]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -301,27 +301,56 @@ const DayPlanner = () => {
     return null;
   };
 
-  // Extract partial deadline being typed at cursor position (triggered by !)
+  // Extract partial deadline being typed at cursor position (triggered by $)
   const getPartialDeadline = (text, cursorPos) => {
-    // Scan backwards from cursor to find !
+    // Scan backwards from cursor to find $
     let startIndex = cursorPos - 1;
     while (startIndex >= 0) {
       const char = text[startIndex];
-      if (char === '!') {
+      if (char === '$') {
         const partial = text.slice(startIndex + 1, cursorPos);
-        // Require at least 1 character after ! and allow letters, numbers, spaces, slashes, dashes
+        // Require at least 1 character after $ and allow letters, numbers, spaces, slashes, dashes
         if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
           return { partial, startIndex };
         }
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a deadline
-      if (/[#@~]/.test(char)) {
+      if (/[#@~!]/.test(char)) {
         return null;
       }
       startIndex--;
     }
     return null;
+  };
+
+  // Extract priority being typed at cursor position (triggered by !, !!, or !!!)
+  const getPartialPriority = (text, cursorPos) => {
+    // Scan backwards from cursor to count consecutive ! marks
+    let endIndex = cursorPos;
+    let startIndex = cursorPos - 1;
+    let count = 0;
+
+    while (startIndex >= 0 && text[startIndex] === '!') {
+      count++;
+      startIndex--;
+    }
+
+    if (count === 0) return null;
+
+    // Require ! to be preceded by whitespace or start of string
+    if (startIndex >= 0 && !/\s/.test(text[startIndex])) {
+      return null;
+    }
+
+    // Cap at 3
+    const priority = Math.min(count, 3);
+
+    return {
+      count: priority,
+      startIndex: startIndex + 1,
+      endIndex
+    };
   };
 
   // Parse flexible date formats and return parsed date info
@@ -509,8 +538,8 @@ const DayPlanner = () => {
   const removeFromTitle = (text, startIndex, endIndex) => {
     const before = text.slice(0, startIndex);
     const after = text.slice(endIndex);
-    // Clean up extra spaces
-    return (before + after).replace(/\s+/g, ' ').trim();
+    // Clean up multiple spaces but preserve single trailing space for chaining
+    return (before + after).replace(/\s+/g, ' ').trimStart();
   };
 
   useEffect(() => {
@@ -1255,7 +1284,7 @@ const DayPlanner = () => {
       };
 
       if (toInbox) {
-        const inboxTask = { ...task, priority: 0 };
+        const inboxTask = { ...task, priority: newTask.priority ?? 0 };
         if (newTask.deadline) {
           inboxTask.deadline = newTask.deadline;
         }
@@ -1405,9 +1434,9 @@ const DayPlanner = () => {
     // Handle autocomplete keyboard navigation
     if (showSuggestions && suggestions.length > 0) {
       const selected = suggestions[selectedSuggestionIndex];
-      // Tab, Enter, or Space (for date/time/deadline only) accepts the suggestion
+      // Tab, Enter, or Space (for date/time/deadline/priority) accepts the suggestion
       if (e.key === 'Tab' || e.key === 'Enter' ||
-          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline'))) {
+          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline' || selected.type === 'priority'))) {
         e.preventDefault();
         applySuggestionForEdit(selected, e.target, isInbox);
         return;
@@ -1544,11 +1573,36 @@ const DayPlanner = () => {
           inputElement.focus();
         }
       }, 0);
+    } else if (suggestion.type === 'priority') {
+      // Remove the priority markers from title and update the inbox task's priority
+      const newTitle = removeFromTitle(editingTaskText, suggestion.startIndex, suggestion.endIndex);
+      setEditingTaskText(newTitle);
+
+      // Only inbox tasks can have priority
+      if (isInbox) {
+        setUnscheduledTasks(unscheduledTasks.map(t => {
+          if (t.id === editingTaskId) {
+            return { ...t, title: newTitle, priority: suggestion.value };
+          }
+          return t;
+        }));
+      }
+
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+
+      setTimeout(() => {
+        if (inputElement) {
+          inputElement.focus();
+        }
+      }, 0);
     }
   };
 
   // Build suggestions from text (tags, dates, times)
-  const buildSuggestions = (text, cursorPos) => {
+  // isInbox: when true, skip date (@) and time (~) suggestions since inbox tasks don't get scheduled
+  const buildSuggestions = (text, cursorPos, isInbox = false) => {
     const allSuggestions = [];
 
     // Check for partial tag at cursor (triggered by #)
@@ -1566,54 +1620,75 @@ const DayPlanner = () => {
       });
     }
 
-    // Check for partial date at cursor (triggered by @)
-    const dateInfo = getPartialDate(text, cursorPos);
-    if (dateInfo) {
-      const parsed = parseFlexibleDate(dateInfo.partial);
-      if (parsed) {
-        const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
+    // Check for partial date at cursor (triggered by @) - skip for inbox tasks
+    if (!isInbox) {
+      const dateInfo = getPartialDate(text, cursorPos);
+      if (dateInfo) {
+        const parsed = parseFlexibleDate(dateInfo.partial);
+        if (parsed) {
+          const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
+          allSuggestions.push({
+            type: 'date',
+            value: dateStr,
+            display: parsed.display,
+            startIndex: dateInfo.startIndex,
+            endIndex: cursorPos
+          });
+        }
+      }
+    }
+
+    // Check for partial time at cursor (triggered by ~) - skip for inbox tasks
+    if (!isInbox) {
+      const timeInfo = getPartialTime(text, cursorPos);
+      if (timeInfo) {
+        const parsed = parseFlexibleTime(timeInfo.partial);
+        if (parsed) {
+          allSuggestions.push({
+            type: 'time',
+            value: parsed.time,
+            display: parsed.display,
+            startIndex: timeInfo.startIndex,
+            endIndex: cursorPos
+          });
+        }
+      }
+    }
+
+    // Check for partial deadline at cursor (triggered by $) - only for inbox tasks
+    if (isInbox) {
+      const deadlineInfo = getPartialDeadline(text, cursorPos);
+      if (deadlineInfo) {
+        const parsed = parseFlexibleDate(deadlineInfo.partial);
+        if (parsed) {
+          const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
+          allSuggestions.push({
+            type: 'deadline',
+            value: dateStr,
+            display: `Deadline: ${parsed.display}`,
+            startIndex: deadlineInfo.startIndex,
+            endIndex: cursorPos
+          });
+        }
+      }
+    }
+
+    // Check for priority at cursor (triggered by !, !!, !!!) - only for inbox tasks
+    if (isInbox) {
+      const priorityInfo = getPartialPriority(text, cursorPos);
+      if (priorityInfo) {
+        const priorityLabels = ['Low priority (!)', 'Medium priority (!!)', 'High priority (!!!)'];
         allSuggestions.push({
-          type: 'date',
-          value: dateStr,
-          display: parsed.display,
-          startIndex: dateInfo.startIndex,
-          endIndex: cursorPos
+          type: 'priority',
+          value: priorityInfo.count,
+          display: priorityLabels[priorityInfo.count - 1],
+          startIndex: priorityInfo.startIndex,
+          endIndex: priorityInfo.endIndex
         });
       }
     }
 
-    // Check for partial time at cursor (triggered by ~)
-    const timeInfo = getPartialTime(text, cursorPos);
-    if (timeInfo) {
-      const parsed = parseFlexibleTime(timeInfo.partial);
-      if (parsed) {
-        allSuggestions.push({
-          type: 'time',
-          value: parsed.time,
-          display: parsed.display,
-          startIndex: timeInfo.startIndex,
-          endIndex: cursorPos
-        });
-      }
-    }
-
-    // Check for partial deadline at cursor (triggered by !)
-    const deadlineInfo = getPartialDeadline(text, cursorPos);
-    if (deadlineInfo) {
-      const parsed = parseFlexibleDate(deadlineInfo.partial);
-      if (parsed) {
-        const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
-        allSuggestions.push({
-          type: 'deadline',
-          value: dateStr,
-          display: `Deadline: ${parsed.display}`,
-          startIndex: deadlineInfo.startIndex,
-          endIndex: cursorPos
-        });
-      }
-    }
-
-    return allSuggestions;
+    return allSuggestions
   };
 
   // Handle suggestions for editing task input
@@ -1625,7 +1700,7 @@ const DayPlanner = () => {
     editingInputRef.current = e.target;
 
     const cursorPos = e.target.selectionStart;
-    const allSuggestions = buildSuggestions(value, cursorPos);
+    const allSuggestions = buildSuggestions(value, cursorPos, isInbox);
 
     if (allSuggestions.length > 0) {
       setSuggestions(allSuggestions);
@@ -1646,7 +1721,7 @@ const DayPlanner = () => {
     setNewTask({ ...newTask, title: value });
 
     const cursorPos = e.target.selectionStart;
-    const allSuggestions = buildSuggestions(value, cursorPos);
+    const allSuggestions = buildSuggestions(value, cursorPos, newTask.openInInbox);
 
     if (allSuggestions.length > 0) {
       setSuggestions(allSuggestions);
@@ -1663,9 +1738,9 @@ const DayPlanner = () => {
   const handleNewTaskInputKeyDown = (e) => {
     if (showSuggestions && suggestions.length > 0) {
       const selected = suggestions[selectedSuggestionIndex];
-      // Tab, Enter, or Space (for date/time/deadline only) accepts the suggestion
+      // Tab, Enter, or Space (for date/time/deadline/priority) accepts the suggestion
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey) ||
-          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline'))) {
+          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline' || selected.type === 'priority'))) {
         e.preventDefault();
         e.stopPropagation();
         applySuggestionForNewTask(selected);
@@ -1732,6 +1807,18 @@ const DayPlanner = () => {
       // Remove the deadline from title and set task deadline
       const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
       setNewTask({ ...newTask, title: newTitle, deadline: suggestion.value });
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setSelectedSuggestionIndex(0);
+      setTimeout(() => {
+        if (newTaskInputRef.current) {
+          newTaskInputRef.current.focus();
+        }
+      }, 0);
+    } else if (suggestion.type === 'priority') {
+      // Remove the priority markers from title and set task priority
+      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
+      setNewTask({ ...newTask, title: newTitle, priority: suggestion.value });
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
@@ -1963,7 +2050,8 @@ const DayPlanner = () => {
       date: dateToString(selectedDate),
       isAllDay: false,
       openInInbox: true,
-      deadline: null
+      deadline: null,
+      priority: 0
     });
     setShowAddTask(true);
   };
@@ -5300,7 +5388,7 @@ const DayPlanner = () => {
                 <input
                   ref={newTaskInputRef}
                   type="text"
-                  placeholder="Task title (press Enter to add)"
+                  placeholder={newTask.openInInbox ? "Task title (#tag, $deadline, !priority)" : "Task title (#tag, @date, ~time)"}
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
                   onKeyDown={handleNewTaskInputKeyDown}
@@ -5315,7 +5403,7 @@ const DayPlanner = () => {
                   />
                 )}
               </div>
-              <div className={`grid ${newTask.openInInbox ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+              <div className="grid grid-cols-3 gap-3">
                 {newTask.openInInbox ? (
                   <>
                     <div>
@@ -5345,6 +5433,22 @@ const DayPlanner = () => {
                           </div>
                         )}
                       </div>
+                    </div>
+                    <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Priority</label>
+                      <button
+                        type="button"
+                        onClick={() => setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
+                        className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1`}
+                        title={['No priority', 'Low priority', 'Medium priority', 'High priority'][newTask.priority || 0]}
+                      >
+                        {[1, 2, 3].map((level) => (
+                          <div
+                            key={level}
+                            className={`w-4 h-1 rounded-full ${(newTask.priority || 0) >= level ? 'bg-orange-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                          />
+                        ))}
+                      </button>
                     </div>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Deadline</label>
