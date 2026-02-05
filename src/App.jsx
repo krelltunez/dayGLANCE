@@ -332,7 +332,7 @@ const NotesSubtasksPanel = ({
 const DayPlanner = () => {
   const visibleDays = useVisibleDays();
   const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
+    const saved = localStorage.getItem('day-planner-darkmode');
     return saved ? JSON.parse(saved) : false;
   });
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -342,6 +342,7 @@ const DayPlanner = () => {
   });
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
+  const [dataLoaded, setDataLoaded] = useState(false); // Track if initial data has been loaded
   const [recycleBin, setRecycleBin] = useState([]);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
@@ -419,10 +420,8 @@ const DayPlanner = () => {
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
-  // Onboarding state
-  const [showWelcome, setShowWelcome] = useState(() => {
-    return localStorage.getItem('welcomeDismissed') !== 'true';
-  });
+  // Onboarding state - start false, set true after data loads if zero tasks
+  const [showWelcome, setShowWelcome] = useState(false);
   const [sectionInfoDismissed, setSectionInfoDismissed] = useState(() => {
     const saved = localStorage.getItem('sectionInfoDismissed');
     return saved ? JSON.parse(saved) : { inbox: false, tags: false, recycleBin: false };
@@ -955,7 +954,7 @@ const DayPlanner = () => {
 
   // Persist darkMode to localStorage
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
   }, [darkMode]);
 
   // Persist minimizedSections to localStorage
@@ -1225,6 +1224,7 @@ const DayPlanner = () => {
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
+    setDataLoaded(true);
   };
 
   const saveData = () => {
@@ -4044,8 +4044,8 @@ const DayPlanner = () => {
     return realScheduledTasks.length === 0 && realInboxTasks.length === 0;
   }, [tasks, unscheduledTasks]);
 
-  // Show onboarding when user has zero real tasks OR hasn't completed/dismissed (but not if they clicked "I'm Good to Go")
-  const showOnboarding = !onboardingComplete && (hasZeroRealTasks || (!gettingStartedDismissed && !allGettingStartedComplete));
+  // Show onboarding when user has zero real tasks (and data is loaded, to prevent flash)
+  const showOnboarding = dataLoaded && !onboardingComplete && hasZeroRealTasks;
 
   // Persist welcome dismissal only when user has real tasks
   useEffect(() => {
@@ -4056,7 +4056,7 @@ const DayPlanner = () => {
 
   // Show welcome only on initial load with zero tasks (not when zeroing out during session)
   useEffect(() => {
-    if (!hasCheckedInitialWelcome.current) {
+    if (dataLoaded && !hasCheckedInitialWelcome.current) {
       hasCheckedInitialWelcome.current = true;
       if (hasZeroRealTasks) {
         setShowWelcome(true);
@@ -4065,7 +4065,7 @@ const DayPlanner = () => {
         setShowWelcome(false);
       }
     }
-  }, [hasZeroRealTasks]);
+  }, [dataLoaded, hasZeroRealTasks]);
 
   // Autocomplete dropdown component for tags, dates, and times
   const SuggestionAutocomplete = ({ suggestions, selectedIndex, onSelect }) => {
@@ -4785,7 +4785,7 @@ const DayPlanner = () => {
                       {filteredUnscheduledTasks.length}
                     </span>
                   )}
-                  {!onboardingComplete && (hasZeroRealTasks || !sectionInfoDismissed.inbox) && (
+                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && (
                     <button
                       onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'inbox' ? null : 'inbox')}
                       className={`${expandedSectionInfo === 'inbox' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
@@ -5100,7 +5100,7 @@ const DayPlanner = () => {
                       </button>
                     )
                   )}
-                  {!onboardingComplete && (hasZeroRealTasks || !sectionInfoDismissed.tags) && (
+                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && (
                     <button
                       onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'tags' ? null : 'tags')}
                       className={`${expandedSectionInfo === 'tags' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
@@ -5254,7 +5254,7 @@ const DayPlanner = () => {
                   {recycleBin.length > 0 && (
                     <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
                   )}
-                  {!onboardingComplete && (hasZeroRealTasks || !sectionInfoDismissed.recycleBin) && (
+                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && (
                     <button
                       onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'recycleBin' ? null : 'recycleBin')}
                       className={`${expandedSectionInfo === 'recycleBin' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
