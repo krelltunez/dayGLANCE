@@ -1,7 +1,7 @@
 services:
-  day-planner:
+  dayglance:
     build: .
-    container_name: day-planner
+    container_name: dayglance
     restart: unless-stopped
     ports:
       - "6767:80"
