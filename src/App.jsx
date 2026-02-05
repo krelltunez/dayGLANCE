@@ -4160,8 +4160,8 @@ const DayPlanner = () => {
       if (t.date !== today || t.isAllDay) return false;
       const [h, m] = (t.startTime || '0:0').split(':').map(Number);
       const endMinutes = h * 60 + m + (t.duration || 0);
-      // Show future/in-progress tasks, and past tasks only if incomplete
-      if (endMinutes <= nowMinutes) return !t.completed;
+      // Past: hide completed tasks and imported calendar events; keep incomplete user/task-calendar tasks
+      if (endMinutes <= nowMinutes) return !t.completed && !(t.imported && !t.isTaskCalendar);
       return true;
     }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
