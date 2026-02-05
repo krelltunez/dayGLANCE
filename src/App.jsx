@@ -458,6 +458,7 @@ const DayPlanner = () => {
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
+  const autoScrollInterval = useRef(null); // For drag auto-scroll
   const taskElementRefs = useRef({});
   const [taskWidths, setTaskWidths] = useState({});
 
@@ -2820,6 +2821,11 @@ const DayPlanner = () => {
     setDragOverAllDay(null);
     setDragOverInbox(false);
     setDragOverRecycleBin(false);
+    // Clear auto-scroll
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
   };
 
   const handleDragOver = (e, targetDate = null) => {
@@ -2843,6 +2849,42 @@ const DayPlanner = () => {
       if (targetDate) {
         setDragPreviewDate(targetDate);
       }
+
+      // Auto-scroll when dragging near top/bottom of time grid
+      const calendarRect = calendarRef.current.getBoundingClientRect();
+      const timeGridTop = timeGridRef.current ? timeGridRef.current.getBoundingClientRect().top : calendarRect.top;
+      const scrollZoneSize = 60; // pixels from edge to trigger scroll
+      const scrollSpeed = 8; // pixels per frame
+
+      const cursorY = e.clientY;
+      const distanceFromTop = cursorY - Math.max(timeGridTop, calendarRect.top);
+      const distanceFromBottom = calendarRect.bottom - cursorY;
+
+      // Clear any existing scroll interval
+      if (autoScrollInterval.current) {
+        clearInterval(autoScrollInterval.current);
+        autoScrollInterval.current = null;
+      }
+
+      // Start scrolling if in scroll zone (but only within the time grid area, not the header)
+      if (cursorY > timeGridTop && distanceFromTop < scrollZoneSize && calendarRef.current.scrollTop > 0) {
+        // Scroll up
+        autoScrollInterval.current = setInterval(() => {
+          if (calendarRef.current) {
+            calendarRef.current.scrollTop -= scrollSpeed;
+          }
+        }, 16);
+      } else if (distanceFromBottom < scrollZoneSize && distanceFromBottom > 0) {
+        // Scroll down
+        autoScrollInterval.current = setInterval(() => {
+          if (calendarRef.current) {
+            const maxScroll = calendarRef.current.scrollHeight - calendarRef.current.clientHeight;
+            if (calendarRef.current.scrollTop < maxScroll) {
+              calendarRef.current.scrollTop += scrollSpeed;
+            }
+          }
+        }, 16);
+      }
     }
   };
 
@@ -2854,6 +2896,11 @@ const DayPlanner = () => {
     setDragOverAllDay(null);
     setDragOverRecycleBin(false);
     setDragOverInbox(true);
+    // Clear auto-scroll when over inbox
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
   };
 
   const handleDragOverRecycleBin = (e) => {
@@ -2864,6 +2911,11 @@ const DayPlanner = () => {
     setDragOverAllDay(null);
     setDragOverInbox(false);
     setDragOverRecycleBin(true);
+    // Clear auto-scroll when over recycle bin
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
   };
 
   const handleDropOnCalendar = (e, targetDate = null) => {
@@ -5345,6 +5397,11 @@ const DayPlanner = () => {
                         e.preventDefault();
                         setDragOverAllDay(dateStr);
                         setDragPreviewTime(null);
+                        // Clear auto-scroll when over date header
+                        if (autoScrollInterval.current) {
+                          clearInterval(autoScrollInterval.current);
+                          autoScrollInterval.current = null;
+                        }
                       }}
                       onDragLeave={(e) => {
                         if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -5382,6 +5439,11 @@ const DayPlanner = () => {
                           e.preventDefault();
                           setDragOverAllDay(dateStr);
                           setDragPreviewTime(null);
+                          // Clear auto-scroll when over all-day area
+                          if (autoScrollInterval.current) {
+                            clearInterval(autoScrollInterval.current);
+                            autoScrollInterval.current = null;
+                          }
                         }}
                         onDragLeave={(e) => {
                           if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -5497,6 +5559,11 @@ const DayPlanner = () => {
                                 e.preventDefault();
                                 setDragOverAllDay(dateStr);
                                 setDragPreviewTime(null);
+                                // Clear auto-scroll when over all-day task
+                                if (autoScrollInterval.current) {
+                                  clearInterval(autoScrollInterval.current);
+                                  autoScrollInterval.current = null;
+                                }
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
                               className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
@@ -5587,6 +5654,11 @@ const DayPlanner = () => {
                               e.preventDefault();
                               setDragOverAllDay(dateStr);
                               setDragPreviewTime(null);
+                              // Clear auto-scroll when over deadline task
+                              if (autoScrollInterval.current) {
+                                clearInterval(autoScrollInterval.current);
+                                autoScrollInterval.current = null;
+                              }
                             }}
                             onDrop={(e) => handleDropOnDateHeader(e, date)}
                             className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
