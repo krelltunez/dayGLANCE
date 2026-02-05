@@ -431,6 +431,7 @@ const DayPlanner = () => {
   const [gettingStartedDismissed, setGettingStartedDismissed] = useState(() => {
     return localStorage.getItem('gettingStartedDismissed') === 'true';
   });
+  const [onboardingComplete, setOnboardingComplete] = useState(false); // Session-only: user clicked "I'm Good to Go"
   const [onboardingProgress, setOnboardingProgress] = useState(() => {
     const saved = localStorage.getItem('onboardingProgress');
     return saved ? JSON.parse(saved) : {
@@ -3991,8 +3992,8 @@ const DayPlanner = () => {
     return realScheduledTasks.length === 0 && realInboxTasks.length === 0;
   }, [tasks, unscheduledTasks]);
 
-  // Show onboarding when user has zero real tasks OR hasn't completed/dismissed
-  const showOnboarding = hasZeroRealTasks || (!gettingStartedDismissed && !allGettingStartedComplete);
+  // Show onboarding when user has zero real tasks OR hasn't completed/dismissed (but not if they clicked "I'm Good to Go")
+  const showOnboarding = !onboardingComplete && (hasZeroRealTasks || (!gettingStartedDismissed && !allGettingStartedComplete));
 
   // Persist welcome dismissal only when user has real tasks
   useEffect(() => {
@@ -4586,10 +4587,8 @@ const DayPlanner = () => {
                     setTasks(prev => prev.filter(t => !t.isExample));
                     setUnscheduledTasks(prev => prev.filter(t => !t.isExample));
                     setRecycleBin(prev => prev.filter(t => !t.isExample));
-                    // Dismiss the ? info buttons
-                    setSectionInfoDismissed({ inbox: true, tags: true, recycleBin: true });
-                    // Dismiss the getting started section
-                    setGettingStartedDismissed(true);
+                    // Mark onboarding as complete (hides Getting Started and ? buttons)
+                    setOnboardingComplete(true);
                   }}
                   className="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >
@@ -4734,7 +4733,7 @@ const DayPlanner = () => {
                       {filteredUnscheduledTasks.length}
                     </span>
                   )}
-                  {(hasZeroRealTasks || !sectionInfoDismissed.inbox) && (
+                  {!onboardingComplete && (hasZeroRealTasks || !sectionInfoDismissed.inbox) && (
                     <button
                       onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'inbox' ? null : 'inbox')}
                       className={`${expandedSectionInfo === 'inbox' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
@@ -5049,7 +5048,7 @@ const DayPlanner = () => {
                       </button>
                     )
                   )}
-                  {(hasZeroRealTasks || !sectionInfoDismissed.tags) && (
+                  {!onboardingComplete && (hasZeroRealTasks || !sectionInfoDismissed.tags) && (
                     <button
                       onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'tags' ? null : 'tags')}
                       className={`${expandedSectionInfo === 'tags' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
@@ -5203,7 +5202,7 @@ const DayPlanner = () => {
                   {recycleBin.length > 0 && (
                     <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
                   )}
-                  {(hasZeroRealTasks || !sectionInfoDismissed.recycleBin) && (
+                  {!onboardingComplete && (hasZeroRealTasks || !sectionInfoDismissed.recycleBin) && (
                     <button
                       onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'recycleBin' ? null : 'recycleBin')}
                       className={`${expandedSectionInfo === 'recycleBin' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
