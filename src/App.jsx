@@ -3298,7 +3298,7 @@ const DayPlanner = () => {
         icalUid: event.uid,
         title: event.summary + titleSuffix,
         startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-        duration: isAllDay ? 60 : (duration > 0 ? duration : (asTaskCalendar ? 15 : 60)),
+        duration: isAllDay ? 60 : (asTaskCalendar ? 15 : (duration > 0 ? duration : 60)),
         date: dateToString(taskDate),
         color: asTaskCalendar ? 'task-calendar' : 'bg-gray-600',
         completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
