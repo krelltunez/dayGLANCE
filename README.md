@@ -1,4 +1,4 @@
-# Day Planner
+# dayGLANCE
 
 A beautiful, feature-rich day planner with time-blocking, task management, and calendar sync capabilities.
 

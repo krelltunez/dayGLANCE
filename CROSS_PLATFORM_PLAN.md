@@ -1,4 +1,4 @@
-# Cross-Platform Day Planner Plan
+# Cross-Platform dayGLANCE Plan
 
 ## Tech Stack
 - **App Framework**: Tauri 2.0
