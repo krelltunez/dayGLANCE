@@ -373,6 +373,8 @@ const DayPlanner = () => {
   const [expandedNotesTaskId, setExpandedNotesTaskId] = useState(null);
   const longPressTriggeredRef = useRef(false); // Track if long press just triggered to prevent click
   const longPressTimerRef = useRef(null);
+  const hasCheckedInitialWelcome = useRef(false); // Track if we've done the initial welcome check
+  const skipOnboardingPersist = useRef(false); // Skip persisting onboarding dismissal (for testing)
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker] = useState(false); // Deadline dropdown for new inbox task
@@ -982,11 +984,13 @@ const DayPlanner = () => {
   // Persist onboarding state to localStorage (handled in effect after hasZeroRealTasks is computed)
 
   useEffect(() => {
-    localStorage.setItem('sectionInfoDismissed', JSON.stringify(sectionInfoDismissed));
+    if (!skipOnboardingPersist.current) {
+      localStorage.setItem('sectionInfoDismissed', JSON.stringify(sectionInfoDismissed));
+    }
   }, [sectionInfoDismissed]);
 
   useEffect(() => {
-    if (gettingStartedDismissed) {
+    if (gettingStartedDismissed && !skipOnboardingPersist.current) {
       localStorage.setItem('gettingStartedDismissed', 'true');
     }
   }, [gettingStartedDismissed]);
@@ -3997,11 +4001,16 @@ const DayPlanner = () => {
     }
   }, [showWelcome, hasZeroRealTasks]);
 
-  // Reset welcome when user has zero tasks (on load or after deleting all tasks)
+  // Show welcome only on initial load with zero tasks (not when zeroing out during session)
   useEffect(() => {
-    if (hasZeroRealTasks) {
-      setShowWelcome(true);
-      localStorage.removeItem('welcomeDismissed');
+    if (!hasCheckedInitialWelcome.current) {
+      hasCheckedInitialWelcome.current = true;
+      if (hasZeroRealTasks) {
+        setShowWelcome(true);
+        localStorage.removeItem('welcomeDismissed');
+      } else {
+        setShowWelcome(false);
+      }
     }
   }, [hasZeroRealTasks]);
 
@@ -4548,13 +4557,6 @@ const DayPlanner = () => {
                     <Sparkles size={18} className="text-blue-500" />
                     Getting Started
                   </h3>
-                  <button
-                    onClick={() => setGettingStartedDismissed(true)}
-                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                    title="Dismiss"
-                  >
-                    <X size={16} />
-                  </button>
                 </div>
                 <div className="space-y-2">
                   {gettingStartedItems.map(item => (
@@ -4576,6 +4578,23 @@ const DayPlanner = () => {
                 <div className={`mt-3 text-xs ${textSecondary}`}>
                   {gettingStartedItems.filter(i => i.completed).length} of {gettingStartedItems.length} complete
                 </div>
+                <button
+                  onClick={() => {
+                    // Skip persisting these changes (for testing - reload will show onboarding again)
+                    skipOnboardingPersist.current = true;
+                    // Remove all example tasks
+                    setTasks(prev => prev.filter(t => !t.isExample));
+                    setUnscheduledTasks(prev => prev.filter(t => !t.isExample));
+                    setRecycleBin(prev => prev.filter(t => !t.isExample));
+                    // Dismiss the ? info buttons
+                    setSectionInfoDismissed({ inbox: true, tags: true, recycleBin: true });
+                    // Dismiss the getting started section
+                    setGettingStartedDismissed(true);
+                  }}
+                  className="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  I'm Good to Go!
+                </button>
               </div>
             )}
 
