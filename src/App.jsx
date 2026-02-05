@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -94,6 +94,22 @@ const hasNotesOrSubtasks = (task) => {
   return (task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0);
 };
 
+// Check if task has only a link (note is URL-only, no subtasks)
+const isLinkOnlyTask = (task) => {
+  if (task.subtasks && task.subtasks.length > 0) return false;
+  return isOnlyUrl(task.notes);
+};
+
+// Get the link URL from a link-only task
+const getLinkUrl = (task) => {
+  return task.notes?.trim() || null;
+};
+
+// Check if task has only subtasks (no notes)
+const hasOnlySubtasks = (task) => {
+  return (!task.notes || !task.notes.trim()) && task.subtasks && task.subtasks.length > 0;
+};
+
 // Notes & Subtasks Panel component - defined outside DayPlanner to prevent remount on re-render
 const NotesSubtasksPanel = ({
   task,
@@ -103,7 +119,8 @@ const NotesSubtasksPanel = ({
   addSubtask,
   toggleSubtask,
   deleteSubtask,
-  updateSubtaskTitle
+  updateSubtaskTitle,
+  compact = true // Use compact mode for inbox, expanded for timeline
 }) => {
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [editingSubtaskText, setEditingSubtaskText] = useState('');
@@ -213,8 +230,8 @@ const NotesSubtasksPanel = ({
             onKeyDown={handleNotesKeyDown}
             onBlur={handleNotesBlur}
             placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter for preview"
-            className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 resize-none placeholder:text-white/40`}
-            rows={3}
+            className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 ${compact ? 'resize-none' : 'resize-y'}`}
+            rows={compact ? 3 : 8}
             autoFocus
           />
         ) : (
@@ -227,11 +244,11 @@ const NotesSubtasksPanel = ({
                 href={noteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium"
+                className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium break-all"
                 onClick={(e) => e.stopPropagation()}
               >
-                <ExternalLink size={14} />
-                Open Link
+                <ExternalLink size={14} className="flex-shrink-0" />
+                {noteUrl}
               </a>
             ) : (
               renderFormattedText(localNotes)
@@ -354,6 +371,8 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [expandedTaskMenu, setExpandedTaskMenu] = useState(null);
   const [expandedNotesTaskId, setExpandedNotesTaskId] = useState(null);
+  const longPressTriggeredRef = useRef(false); // Track if long press just triggered to prevent click
+  const longPressTimerRef = useRef(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker] = useState(false); // Deadline dropdown for new inbox task
@@ -395,6 +414,36 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('inboxPriorityFilter');
     return saved ? JSON.parse(saved) : 0;
   }); // 0 = show all, 1-3 = show >= that priority
+  const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
+    return localStorage.getItem('priorityPromptDismissed') === 'true';
+  });
+  // Onboarding state
+  const [showWelcome, setShowWelcome] = useState(() => {
+    return localStorage.getItem('welcomeDismissed') !== 'true';
+  });
+  const [sectionInfoDismissed, setSectionInfoDismissed] = useState(() => {
+    const saved = localStorage.getItem('sectionInfoDismissed');
+    return saved ? JSON.parse(saved) : { inbox: false, tags: false, recycleBin: false };
+  });
+  const [expandedSectionInfo, setExpandedSectionInfo] = useState(null); // 'inbox' | 'tags' | 'recycleBin' | null
+  const [gettingStartedDismissed, setGettingStartedDismissed] = useState(() => {
+    return localStorage.getItem('gettingStartedDismissed') === 'true';
+  });
+  const [onboardingProgress, setOnboardingProgress] = useState(() => {
+    const saved = localStorage.getItem('onboardingProgress');
+    return saved ? JSON.parse(saved) : {
+      hasAddedInboxTask: false,
+      hasAddedScheduledTask: false,
+      hasDraggedToTimeline: false,
+      hasAddedDeadline: false,
+      hasSetPriority: false,
+      hasAddedNotes: false,
+      hasUsedTags: false,
+      hasUsedActionButtons: false,
+      hasCompletedTask: false,
+      hasSetupSync: false,
+    };
+  });
   const [suggestions, setSuggestions] = useState([]); // Array of { type: 'tag'|'date'|'time', value, display, ... }
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -876,12 +925,14 @@ const DayPlanner = () => {
       if (showDeadlinePicker && !e.target.closest('.deadline-picker-container')) {
         setShowDeadlinePicker(null);
       }
-      // Notes panel only closes on ESC - no click-outside closing
+      if (expandedNotesTaskId && !e.target.closest('.notes-panel-container') && !e.target.closest('.notes-toggle-button')) {
+        setExpandedNotesTaskId(null);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker]);
+  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId]);
 
   // Close notes panel on ESC
   useEffect(() => {
@@ -922,6 +973,34 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('inboxPriorityFilter', JSON.stringify(inboxPriorityFilter));
   }, [inboxPriorityFilter]);
+
+  // Persist priorityPromptDismissed to localStorage
+  useEffect(() => {
+    localStorage.setItem('priorityPromptDismissed', priorityPromptDismissed.toString());
+  }, [priorityPromptDismissed]);
+
+  // Persist onboarding state to localStorage (handled in effect after hasZeroRealTasks is computed)
+
+  useEffect(() => {
+    localStorage.setItem('sectionInfoDismissed', JSON.stringify(sectionInfoDismissed));
+  }, [sectionInfoDismissed]);
+
+  useEffect(() => {
+    if (gettingStartedDismissed) {
+      localStorage.setItem('gettingStartedDismissed', 'true');
+    }
+  }, [gettingStartedDismissed]);
+
+  useEffect(() => {
+    localStorage.setItem('onboardingProgress', JSON.stringify(onboardingProgress));
+  }, [onboardingProgress]);
+
+  // Track for onboarding when sync is set up
+  useEffect(() => {
+    if (!onboardingProgress.hasSetupSync && (syncUrl.trim() || taskCalendarUrl.trim())) {
+      setOnboardingProgress(prev => ({ ...prev, hasSetupSync: true }));
+    }
+  }, [syncUrl, taskCalendarUrl, onboardingProgress.hasSetupSync]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -990,28 +1069,141 @@ const DayPlanner = () => {
       const syncUrlData = localStorage.getItem('day-planner-sync-url');
       const taskCalendarUrlData = localStorage.getItem('day-planner-task-calendar-url');
       const completedTaskUidsData = localStorage.getItem('day-planner-task-completed-uids');
+      const welcomeDismissed = localStorage.getItem('welcomeDismissed') === 'true';
 
-      if (tasksData) {
-        // Add default notes and subtasks for existing tasks
-        const parsedTasks = JSON.parse(tasksData).map(t => ({
-          ...t,
-          notes: t.notes ?? '',
-          subtasks: t.subtasks ?? []
-        }));
+      // Parse existing data
+      const parsedTasks = tasksData ? JSON.parse(tasksData).map(t => ({
+        ...t,
+        notes: t.notes ?? '',
+        subtasks: t.subtasks ?? []
+      })) : [];
+
+      const parsedUnscheduled = unscheduledData ? JSON.parse(unscheduledData).map(t => ({
+        ...t,
+        notes: t.notes ?? '',
+        subtasks: t.subtasks ?? []
+      })) : [];
+
+      // Filter out imported tasks when checking if empty (only count user tasks)
+      const userScheduledTasks = parsedTasks.filter(t => !t.imported);
+      const userInboxTasks = parsedUnscheduled;
+
+      // Show example tasks if both inbox and scheduled are empty (no saved tasks at all)
+      const shouldShowExamples = userScheduledTasks.length === 0 && userInboxTasks.length === 0;
+
+      if (shouldShowExamples) {
+        // Create example tasks
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+        const exampleScheduledTasks = [
+          {
+            id: 'example-scheduled-1',
+            title: 'Example: Morning standup #work',
+            startTime: '09:00',
+            duration: 30,
+            date: todayStr,
+            color: 'bg-blue-500',
+            completed: false,
+            isExample: true,
+            notes: '',
+            subtasks: []
+          },
+          {
+            id: 'example-scheduled-2',
+            title: 'Example: Deep work session #focus',
+            startTime: '10:00',
+            duration: 120,
+            date: todayStr,
+            color: 'bg-purple-500',
+            completed: false,
+            isExample: true,
+            notes: 'Tasks can have notes! Try adding a link:\nhttps://example.com',
+            subtasks: [
+              { id: 'sub-1', title: 'Break down the problem', completed: true },
+              { id: 'sub-2', title: 'Write initial code', completed: false },
+              { id: 'sub-3', title: 'Test and refine', completed: false }
+            ]
+          },
+          {
+            id: 'example-allday-1',
+            title: 'Example: Team offsite #work',
+            startTime: '00:00',
+            duration: 60,
+            date: tomorrowStr,
+            color: 'bg-green-500',
+            completed: false,
+            isAllDay: true,
+            isExample: true,
+            notes: '',
+            subtasks: []
+          }
+        ];
+
+        const exampleInboxTasks = [
+          {
+            id: 'example-inbox-1',
+            title: 'Example: Review quarterly report #work #review',
+            color: 'bg-amber-500',
+            completed: false,
+            priority: 0,
+            isExample: true,
+            notes: '',
+            subtasks: []
+          },
+          {
+            id: 'example-inbox-2',
+            title: 'Example: Submit expense report #admin',
+            color: 'bg-rose-500',
+            completed: false,
+            priority: 0,
+            deadline: tomorrowStr,
+            isExample: true,
+            notes: '',
+            subtasks: []
+          },
+          {
+            id: 'example-inbox-3',
+            title: 'Example: Call mom #personal',
+            color: 'bg-cyan-500',
+            completed: true,
+            priority: 0,
+            isExample: true,
+            notes: '',
+            subtasks: []
+          }
+        ];
+
+        const exampleRecycleBin = [
+          {
+            id: 'example-deleted-1',
+            title: 'Example: Restore me!',
+            color: 'bg-gray-500',
+            completed: false,
+            deletedAt: new Date().toISOString(),
+            _deletedFrom: 'inbox',
+            isExample: true,
+            notes: '',
+            subtasks: []
+          }
+        ];
+
+        // Keep any imported tasks, add example tasks
+        setTasks([...parsedTasks.filter(t => t.imported), ...exampleScheduledTasks]);
+        setUnscheduledTasks(exampleInboxTasks);
+        setRecycleBin(exampleRecycleBin);
+      } else {
+        // Load normally
         setTasks(parsedTasks);
-      }
-      if (unscheduledData) {
-        // Add default notes and subtasks for existing inbox tasks
-        const parsedUnscheduled = JSON.parse(unscheduledData).map(t => ({
-          ...t,
-          notes: t.notes ?? '',
-          subtasks: t.subtasks ?? []
-        }));
         setUnscheduledTasks(parsedUnscheduled);
+        if (recycleBinData) {
+          setRecycleBin(JSON.parse(recycleBinData));
+        }
       }
-      if (recycleBinData) {
-        setRecycleBin(JSON.parse(recycleBinData));
-      }
+
       if (darkModeData) {
         setDarkMode(JSON.parse(darkModeData));
       }
@@ -1392,6 +1584,10 @@ const DayPlanner = () => {
       t.id === taskId ? { ...t, deadline } : t
     ));
     setShowDeadlinePicker(null);
+    // Track for onboarding
+    if (!onboardingProgress.hasAddedDeadline) {
+      setOnboardingProgress(prev => ({ ...prev, hasAddedDeadline: true }));
+    }
   };
 
   // Clear deadline from inbox task
@@ -1424,6 +1620,11 @@ const DayPlanner = () => {
 
     // Update visual immediately
     setPendingPriorities(prev => ({ ...prev, [taskId]: newPriority }));
+
+    // Track for onboarding
+    if (!onboardingProgress.hasSetPriority) {
+      setOnboardingProgress(prev => ({ ...prev, hasSetPriority: true }));
+    }
 
     // Cancel any pending timeout for this task
     if (priorityTimeouts.current[taskId]) {
@@ -1635,6 +1836,18 @@ const DayPlanner = () => {
 
       setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false });
       setShowAddTask(false);
+
+      // Track for onboarding
+      if (toInbox && !onboardingProgress.hasAddedInboxTask) {
+        setOnboardingProgress(prev => ({ ...prev, hasAddedInboxTask: true }));
+      }
+      if (!toInbox && !onboardingProgress.hasAddedScheduledTask) {
+        setOnboardingProgress(prev => ({ ...prev, hasAddedScheduledTask: true }));
+      }
+      // Track if task has tags
+      if (!onboardingProgress.hasUsedTags && extractTags(newTask.title).length > 0) {
+        setOnboardingProgress(prev => ({ ...prev, hasUsedTags: true }));
+      }
     }
   };
 
@@ -1649,9 +1862,21 @@ const DayPlanner = () => {
       ));
     }
     setShowColorPicker(null);
+    // Track for onboarding
+    if (!onboardingProgress.hasUsedActionButtons) {
+      setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
+    }
   };
 
   const toggleComplete = (id, fromInbox = false) => {
+    // Track for onboarding - check if we're completing (not uncompleting) a task
+    const taskToToggle = fromInbox
+      ? unscheduledTasks.find(t => t.id === id)
+      : tasks.find(t => t.id === id);
+    if (!onboardingProgress.hasCompletedTask && taskToToggle && !taskToToggle.completed) {
+      setOnboardingProgress(prev => ({ ...prev, hasCompletedTask: true }));
+    }
+
     if (fromInbox) {
       setUnscheduledTasks(unscheduledTasks.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
@@ -1689,6 +1914,11 @@ const DayPlanner = () => {
     setTasks(tasks.map(t =>
       t.id === id ? { ...t, date: nextDay.toISOString().split('T')[0] } : t
     ));
+
+    // Track for onboarding
+    if (!onboardingProgress.hasUsedActionButtons) {
+      setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
+    }
   };
 
   const moveToInbox = (id) => {
@@ -1706,6 +1936,11 @@ const DayPlanner = () => {
 
     setTasks(tasks.filter(t => t.id !== id));
     setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
+
+    // Track for onboarding
+    if (!onboardingProgress.hasUsedActionButtons) {
+      setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
+    }
   };
 
   const startEditingTask = (task, isInbox = false) => {
@@ -1734,6 +1969,11 @@ const DayPlanner = () => {
       ));
     }
 
+    // Track for onboarding if task has tags
+    if (!onboardingProgress.hasUsedTags && extractTags(editingTaskText.trim()).length > 0) {
+      setOnboardingProgress(prev => ({ ...prev, hasUsedTags: true }));
+    }
+
     setEditingTaskId(null);
     setEditingTaskText('');
     setShowSuggestions(false);
@@ -1752,13 +1992,17 @@ const DayPlanner = () => {
   // Notes & Subtasks CRUD functions
   const updateTaskNotes = (taskId, notes, isInbox) => {
     if (isInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(t =>
+      setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, notes } : t
       ));
     } else {
-      setTasks(tasks.map(t =>
+      setTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, notes } : t
       ));
+    }
+    // Track for onboarding when notes are added (not cleared)
+    if (!onboardingProgress.hasAddedNotes && notes && notes.trim()) {
+      setOnboardingProgress(prev => ({ ...prev, hasAddedNotes: true }));
     }
   };
 
@@ -1770,19 +2014,23 @@ const DayPlanner = () => {
       completed: false
     };
     if (isInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(t =>
+      setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
       ));
     } else {
-      setTasks(tasks.map(t =>
+      setTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
       ));
+    }
+    // Track for onboarding
+    if (!onboardingProgress.hasAddedNotes) {
+      setOnboardingProgress(prev => ({ ...prev, hasAddedNotes: true }));
     }
   };
 
   const toggleSubtask = (taskId, subtaskId, isInbox) => {
     if (isInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(t =>
+      setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? {
           ...t,
           subtasks: (t.subtasks || []).map(st =>
@@ -1791,7 +2039,7 @@ const DayPlanner = () => {
         } : t
       ));
     } else {
-      setTasks(tasks.map(t =>
+      setTasks(prev => prev.map(t =>
         t.id === taskId ? {
           ...t,
           subtasks: (t.subtasks || []).map(st =>
@@ -1804,14 +2052,14 @@ const DayPlanner = () => {
 
   const deleteSubtask = (taskId, subtaskId, isInbox) => {
     if (isInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(t =>
+      setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? {
           ...t,
           subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
         } : t
       ));
     } else {
-      setTasks(tasks.map(t =>
+      setTasks(prev => prev.map(t =>
         t.id === taskId ? {
           ...t,
           subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
@@ -1822,7 +2070,7 @@ const DayPlanner = () => {
 
   const updateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
     if (isInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(t =>
+      setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? {
           ...t,
           subtasks: (t.subtasks || []).map(st =>
@@ -1831,7 +2079,7 @@ const DayPlanner = () => {
         } : t
       ));
     } else {
-      setTasks(tasks.map(t =>
+      setTasks(prev => prev.map(t =>
         t.id === taskId ? {
           ...t,
           subtasks: (t.subtasks || []).map(st =>
@@ -2324,6 +2572,11 @@ const DayPlanner = () => {
       } else {
         setTasks(tasks.filter(t => t.id !== id));
       }
+
+      // Track for onboarding
+      if (!onboardingProgress.hasUsedActionButtons) {
+        setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
+      }
     }
   };
 
@@ -2649,6 +2902,10 @@ const DayPlanner = () => {
         date: dropDateStr,
         isAllDay: false
       }]);
+      // Track for onboarding
+      if (!onboardingProgress.hasDraggedToTimeline) {
+        setOnboardingProgress(prev => ({ ...prev, hasDraggedToTimeline: true }));
+      }
     } else if (dragSource === 'calendar') {
       setTasks(tasks.map(t =>
         t.id === draggedTask.id
@@ -2898,7 +3155,12 @@ const DayPlanner = () => {
         currentType = null;
       } else if (currentEvent) {
         if (line.startsWith('SUMMARY:')) {
-          currentEvent.summary = line.substring(8);
+          // Unescape ICS escape sequences: \, -> , and \; -> ; and \\ -> \ and \n -> newline
+          currentEvent.summary = line.substring(8)
+            .replace(/\\,/g, ',')
+            .replace(/\\;/g, ';')
+            .replace(/\\n/gi, '\n')
+            .replace(/\\\\/g, '\\');
         } else if (line.startsWith('DTSTART')) {
           // Detect all-day events (VALUE=DATE or 8-character date)
           if (line.includes('VALUE=DATE') || line.split(':')[1]?.length === 8) {
@@ -2944,6 +3206,53 @@ const DayPlanner = () => {
     return new Date();
   };
 
+  // Helper to expand multi-day events into separate tasks for each day
+  const expandMultiDayEvent = (event, options = {}) => {
+    const { asTaskCalendar = false, freshCompletedUids = new Set() } = options;
+    const startDate = parseDatetime(event.dtstart);
+    const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
+    const duration = Math.round((endDate - startDate) / (1000 * 60));
+
+    const isAllDay = event.isAllDay ||
+      (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
+
+    // Calculate number of days this event spans
+    const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    // For all-day events, DTEND is exclusive (event on Jan 1-3 has DTEND of Jan 4)
+    const dayCount = isAllDay
+      ? Math.max(1, Math.round((endDateOnly - startDateOnly) / (1000 * 60 * 60 * 24)))
+      : 1;
+
+    const tasks = [];
+    for (let i = 0; i < dayCount; i++) {
+      const taskDate = new Date(startDateOnly);
+      taskDate.setDate(taskDate.getDate() + i);
+
+      const baseId = event.uid || `imported-${Date.now()}-${Math.random()}`;
+      const taskId = dayCount > 1 ? `${baseId}-day${i + 1}` : baseId;
+
+      // Add day indicator for multi-day events
+      const titleSuffix = dayCount > 1 ? ` (Day ${i + 1}/${dayCount})` : '';
+
+      tasks.push({
+        id: taskId,
+        icalUid: event.uid,
+        title: event.summary + titleSuffix,
+        startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
+        duration: isAllDay ? 60 : (duration > 0 ? duration : (asTaskCalendar ? 15 : 60)),
+        date: dateToString(taskDate),
+        color: asTaskCalendar ? 'task-calendar' : 'bg-gray-600',
+        completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
+        imported: true,
+        isTaskCalendar: asTaskCalendar,
+        isAllDay: isAllDay
+      });
+    }
+
+    return tasks;
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -2966,28 +3275,9 @@ const DayPlanner = () => {
         JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]')
       );
 
-      const importedTasks = events.map(event => {
-        const startDate = parseDatetime(event.dtstart);
-        const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
-        const duration = Math.round((endDate - startDate) / (1000 * 60));
-
-        const isAllDay = event.isAllDay ||
-          (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
-
-        return {
-          id: event.uid || `imported-${Date.now()}-${Math.random()}`,
-          icalUid: event.uid,
-          title: event.summary,
-          startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
-          date: dateToString(startDate),
-          color: asTaskCalendar ? 'task-calendar' : 'bg-gray-600',
-          completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
-          imported: true,
-          isTaskCalendar: asTaskCalendar,
-          isAllDay: isAllDay
-        };
-      });
+      const importedTasks = events.flatMap(event =>
+        expandMultiDayEvent(event, { asTaskCalendar, freshCompletedUids })
+      );
 
       if (asTaskCalendar) {
         const nonTaskCalendarTasks = tasks.filter(t => !t.isTaskCalendar);
@@ -3093,28 +3383,9 @@ const DayPlanner = () => {
       const icsContent = await response.text();
       const events = parseICS(icsContent);
 
-      const importedTasks = events.map(event => {
-        const startDate = parseDatetime(event.dtstart);
-        const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
-        const duration = Math.round((endDate - startDate) / (1000 * 60));
-
-        // Detect all-day events: either explicitly marked, or starts at midnight and lasts 24+ hours
-        const isAllDay = event.isAllDay ||
-          (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
-
-        return {
-          id: event.uid || `imported-${Date.now()}-${Math.random()}`,
-          icalUid: event.uid,
-          title: event.summary,
-          startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: isAllDay ? 60 : (duration > 0 ? duration : 60),
-          date: dateToString(startDate),
-          color: 'bg-gray-600',
-          completed: false,
-          imported: true,
-          isAllDay: isAllDay
-        };
-      });
+      const importedTasks = events.flatMap(event =>
+        expandMultiDayEvent(event, { asTaskCalendar: false })
+      );
 
       // Remove old regular imported events (not task calendar) and add the fresh ones
       // Use functional form to avoid stale closure when both syncs run in parallel
@@ -3148,28 +3419,9 @@ const DayPlanner = () => {
         JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]')
       );
 
-      const taskCalendarItems = events.map(event => {
-        const startDate = parseDatetime(event.dtstart);
-        const endDate = event.dtend ? parseDatetime(event.dtend) : null;
-        const duration = endDate ? Math.round((endDate - startDate) / (1000 * 60)) : 0;
-
-        const isAllDay = event.isAllDay ||
-          (startDate.getHours() === 0 && startDate.getMinutes() === 0 && duration >= 1440);
-
-        return {
-          id: event.uid || `task-cal-${Date.now()}-${Math.random()}`,
-          icalUid: event.uid,
-          title: event.summary,
-          startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
-          duration: isAllDay ? 60 : (duration > 0 ? duration : 15),
-          date: dateToString(startDate),
-          color: 'task-calendar',
-          completed: freshCompletedUids.has(event.uid),
-          imported: true,
-          isTaskCalendar: true,
-          isAllDay: isAllDay
-        };
-      });
+      const taskCalendarItems = events.flatMap(event =>
+        expandMultiDayEvent(event, { asTaskCalendar: true, freshCompletedUids })
+      );
 
       // Remove old task calendar items and add the fresh ones (preserve regular imports + user tasks)
       // Use functional form to avoid stale closure when both syncs run in parallel
@@ -3710,6 +3962,49 @@ const DayPlanner = () => {
     return Array.from(tagSet).sort();
   }, [tasks]);
 
+  // Getting Started checklist - uses persistent progress tracking
+  const gettingStartedItems = useMemo(() => {
+    return [
+      { id: 'inbox', label: 'Add your first inbox task', completed: onboardingProgress.hasAddedInboxTask },
+      { id: 'scheduled', label: 'Add your first scheduled task', completed: onboardingProgress.hasAddedScheduledTask },
+      { id: 'drag', label: 'Drag a task to the timeline', completed: onboardingProgress.hasDraggedToTimeline },
+      { id: 'deadline', label: 'Add a deadline to an inbox task', completed: onboardingProgress.hasAddedDeadline },
+      { id: 'priority', label: 'Set a priority on an inbox task', completed: onboardingProgress.hasSetPriority },
+      { id: 'notes', label: 'Add notes or subtasks to a task', completed: onboardingProgress.hasAddedNotes },
+      { id: 'tags', label: 'Use #tags in a task title', completed: onboardingProgress.hasUsedTags },
+      { id: 'actions', label: 'Use the action buttons on a task', completed: onboardingProgress.hasUsedActionButtons },
+      { id: 'complete', label: 'Complete a task', completed: onboardingProgress.hasCompletedTask },
+      { id: 'sync', label: 'Set up calendar sync', completed: onboardingProgress.hasSetupSync },
+    ];
+  }, [onboardingProgress]);
+
+  const allGettingStartedComplete = gettingStartedItems.every(item => item.completed);
+
+  // Check if user has zero real tasks (for showing onboarding)
+  const hasZeroRealTasks = useMemo(() => {
+    const realScheduledTasks = tasks.filter(t => !t.isExample && !t.imported);
+    const realInboxTasks = unscheduledTasks.filter(t => !t.isExample);
+    return realScheduledTasks.length === 0 && realInboxTasks.length === 0;
+  }, [tasks, unscheduledTasks]);
+
+  // Show onboarding when user has zero real tasks OR hasn't completed/dismissed
+  const showOnboarding = hasZeroRealTasks || (!gettingStartedDismissed && !allGettingStartedComplete);
+
+  // Persist welcome dismissal only when user has real tasks
+  useEffect(() => {
+    if (!showWelcome && !hasZeroRealTasks) {
+      localStorage.setItem('welcomeDismissed', 'true');
+    }
+  }, [showWelcome, hasZeroRealTasks]);
+
+  // Reset welcome when user has zero tasks (on load or after deleting all tasks)
+  useEffect(() => {
+    if (hasZeroRealTasks) {
+      setShowWelcome(true);
+      localStorage.removeItem('welcomeDismissed');
+    }
+  }, [hasZeroRealTasks]);
+
   // Autocomplete dropdown component for tags, dates, and times
   const SuggestionAutocomplete = ({ suggestions, selectedIndex, onSelect }) => {
     if (suggestions.length === 0) return null;
@@ -3780,11 +4075,13 @@ const DayPlanner = () => {
   };
 
   // Inbox tasks are not filtered by tags, only by priority
+  // Exclude tasks with deadlines (they appear in the timeline all-day area)
   // Exclude tasks with overdue deadlines (they appear in Overdue section)
   const todayStr = getTodayStr();
   const nonOverdueInboxTasks = unscheduledTasks
     .filter(task => !task.deadline || task.deadline >= todayStr);
   const filteredUnscheduledTasks = nonOverdueInboxTasks
+    .filter(task => !task.deadline) // Exclude deadline tasks - they're shown in timeline
     .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
@@ -4243,6 +4540,45 @@ const DayPlanner = () => {
                   </button>
                 </div>
 
+            {/* Getting Started Checklist */}
+            {showOnboarding && (
+              <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
+                    <Sparkles size={18} className="text-blue-500" />
+                    Getting Started
+                  </h3>
+                  <button
+                    onClick={() => setGettingStartedDismissed(true)}
+                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                    title="Dismiss"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {gettingStartedItems.map(item => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-2 text-sm ${item.completed ? textSecondary : textPrimary}`}
+                    >
+                      <div className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center ${
+                        item.completed
+                          ? 'bg-green-500 text-white'
+                          : `border-2 ${darkMode ? 'border-gray-600' : 'border-gray-300'}`
+                      }`}>
+                        {item.completed && <Check size={10} strokeWidth={3} />}
+                      </div>
+                      <span className={item.completed ? 'line-through' : ''}>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className={`mt-3 text-xs ${textSecondary}`}>
+                  {gettingStartedItems.filter(i => i.completed).length} of {gettingStartedItems.length} complete
+                </div>
+              </div>
+            )}
+
             {/* Overdue Tasks Section */}
             {getOverdueTasks().length > 0 && (
               <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} border-orange-500/50 p-4 mb-4`}>
@@ -4352,7 +4688,7 @@ const DayPlanner = () => {
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mail size={18} />
                   Inbox
-                  {!minimizedSections.inbox && nonOverdueInboxTasks.length > 0 && (
+                  {!minimizedSections.inbox && nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
                     <button
                       onClick={() => setInboxPriorityFilter(prev => (prev + 1) % 4)}
                       className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors ml-1`}
@@ -4379,6 +4715,15 @@ const DayPlanner = () => {
                       {filteredUnscheduledTasks.length}
                     </span>
                   )}
+                  {(hasZeroRealTasks || !sectionInfoDismissed.inbox) && (
+                    <button
+                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'inbox' ? null : 'inbox')}
+                      className={`${expandedSectionInfo === 'inbox' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
+                      title="How to use Inbox"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleSection('inbox')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -4388,8 +4733,63 @@ const DayPlanner = () => {
                   </button>
                 </div>
               </div>
-              
+
+              {/* Inbox info popup */}
+              {expandedSectionInfo === 'inbox' && (
+                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                  <div className="flex items-start gap-2">
+                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                        Inbox Tips
+                      </p>
+                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
+                        <li>Drag inbox tasks to the timeline to schedule them</li>
+                        <li>Set priorities with the bars icon (filter with the header control)</li>
+                        <li>Add deadlines by clicking the calendar icon on an inbox task</li>
+                        <li>Add notes or subtasks by clicking the paper icon</li>
+                      </ul>
+                      <button
+                        onClick={() => {
+                          setExpandedSectionInfo(null);
+                          setSectionInfoDismissed(prev => ({ ...prev, inbox: true }));
+                        }}
+                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
+                      >
+                        Got it, don't show again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {!minimizedSections.inbox && (
+                <>
+                  {/* Priority prompt for unprioritized inbox */}
+                  {!priorityPromptDismissed &&
+                   nonOverdueInboxTasks.filter(t => !t.deadline).length > 5 &&
+                   nonOverdueInboxTasks.filter(t => !t.deadline).every(t => !t.priority || t.priority === 0) && (
+                    <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                      <div className="flex items-start gap-2">
+                        <AlertCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                            Prioritize your inbox
+                          </p>
+                          <p className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'}`}>
+                            You have {nonOverdueInboxTasks.filter(t => !t.deadline).length} tasks without priorities.
+                            Set priorities (click the bars on each task) then use the filter above to focus on what matters most.
+                          </p>
+                          <button
+                            onClick={() => setPriorityPromptDismissed(true)}
+                            className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
+                          >
+                            Don't show again
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 <div className="space-y-2">
                   {filteredUnscheduledTasks.length === 0 ? (
                     <p className={`text-sm ${textSecondary} text-center py-2`}>
@@ -4409,8 +4809,13 @@ const DayPlanner = () => {
                         draggable
                         onDragStart={(e) => handleDragStart(task, 'inbox', e)}
                         onDragEnd={handleDragEnd}
-                        className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative`}
+                        className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                       >
+                        {task.isExample && (
+                          <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                            Example
+                          </span>
+                        )}
                         <div className="flex items-start justify-between text-white">
                           <div className="flex items-start gap-2 flex-1 min-w-0">
                             <button
@@ -4472,16 +4877,38 @@ const DayPlanner = () => {
                           </div>
                           <div className="flex flex-col items-end gap-1 flex-shrink-0">
                             <div className="flex items-start gap-1">
-                              {/* Notes button */}
+                              {/* Notes button - opens link directly if link-only, long press to edit */}
                               <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => {
+                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                }}
+                                onMouseLeave={() => {
+                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    }
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  }
                                 }}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                title="Notes & subtasks"
+                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                               >
-                                <FileText size={14} />
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                               </button>
                               {/* Deadline picker */}
                               <div className="deadline-picker-container relative">
@@ -4510,6 +4937,7 @@ const DayPlanner = () => {
                                     setShowColorPicker(showColorPicker === task.id ? null : task.id);
                                   }}
                                   className="hover:bg-white/20 rounded p-1 transition-colors"
+                                  title="Change color"
                                 >
                                   <Palette size={14} />
                                 </button>
@@ -4574,6 +5002,7 @@ const DayPlanner = () => {
                   ))
                 )}
                 </div>
+                </>
               )}
             </div>
 
@@ -4601,6 +5030,15 @@ const DayPlanner = () => {
                       </button>
                     )
                   )}
+                  {(hasZeroRealTasks || !sectionInfoDismissed.tags) && (
+                    <button
+                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'tags' ? null : 'tags')}
+                      className={`${expandedSectionInfo === 'tags' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
+                      title="How to use Tags"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleSection('tags')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -4610,6 +5048,35 @@ const DayPlanner = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Tags info popup */}
+              {expandedSectionInfo === 'tags' && (
+                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                  <div className="flex items-start gap-2">
+                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                        Tags Tips
+                      </p>
+                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
+                        <li>Add #tags in task titles (e.g., "Meeting #work #urgent")</li>
+                        <li>Check or uncheck tags to filter the tasks visible on the timeline</li>
+                        <li>Tag counts show incomplete tasks only</li>
+                      </ul>
+                      <button
+                        onClick={() => {
+                          setExpandedSectionInfo(null);
+                          setSectionInfoDismissed(prev => ({ ...prev, tags: true }));
+                        }}
+                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
+                      >
+                        Got it, don't show again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {!minimizedSections.tags && (
                 <div className={`text-sm ${textSecondary}`}>
                   {allTags.length === 0 ? (
@@ -4717,6 +5184,15 @@ const DayPlanner = () => {
                   {recycleBin.length > 0 && (
                     <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
                   )}
+                  {(hasZeroRealTasks || !sectionInfoDismissed.recycleBin) && (
+                    <button
+                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'recycleBin' ? null : 'recycleBin')}
+                      className={`${expandedSectionInfo === 'recycleBin' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
+                      title="How to use Recycle Bin"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleSection('recycleBin')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -4726,7 +5202,36 @@ const DayPlanner = () => {
                   </button>
                 </div>
               </div>
-              
+
+              {/* Recycle Bin info popup */}
+              {expandedSectionInfo === 'recycleBin' && (
+                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                  <div className="flex items-start gap-2">
+                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                        Recycle Bin Tips
+                      </p>
+                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
+                        <li>Deleted tasks are kept in the recycle bin for 30 days</li>
+                        <li>Drag tasks back to Inbox or timeline to restore</li>
+                        <li>Click the restore icon (↩) on any task to restore it</li>
+                        <li>Use "Empty Bin" to permanently delete all items</li>
+                      </ul>
+                      <button
+                        onClick={() => {
+                          setExpandedSectionInfo(null);
+                          setSectionInfoDismissed(prev => ({ ...prev, recycleBin: true }));
+                        }}
+                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
+                      >
+                        Got it, don't show again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {!minimizedSections.recycleBin && (
                 <>
                   <div className="space-y-2">
@@ -4739,8 +5244,13 @@ const DayPlanner = () => {
                           draggable
                           onDragStart={(e) => handleDragStart(task, 'recycleBin', e)}
                           onDragEnd={handleDragEnd}
-                          className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative cursor-move`}
+                          className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative cursor-move ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                         >
+                          {task.isExample && (
+                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                              Example
+                            </span>
+                          )}
                           <div className="flex items-start justify-between text-white">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
                               <div className="flex-1 min-w-0">
@@ -4870,15 +5380,33 @@ const DayPlanner = () => {
                           const AllDayActionButtons = ({ inMenu = false }) => (
                             <>
                               <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    }
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  }
                                 }}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                title="Notes & subtasks"
+                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                               >
-                                <FileText size={14} />
-                                {inMenu && <span className="text-xs">Notes</span>}
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                               </button>
                               <button
                                 onClick={() => postponeTask(task.id)}
@@ -4900,6 +5428,7 @@ const DayPlanner = () => {
                                 <button
                                   onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
                                   className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Change color"
                                 >
                                   <Palette size={14} />
                                   {inMenu && <span className="text-xs">Color</span>}
@@ -4952,9 +5481,14 @@ const DayPlanner = () => {
                                 setDragPreviewTime(null);
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
-                              className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative`}
+                              className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={taskCalendarStyle}
                             >
+                              {task.isExample && (
+                                <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                                  Example
+                                </span>
+                              )}
                               <div className="p-2 text-white">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -5015,6 +5549,7 @@ const DayPlanner = () => {
                                     toggleSubtask={toggleSubtask}
                                     deleteSubtask={deleteSubtask}
                                     updateSubtaskTitle={updateSubtaskTitle}
+                                    compact={false}
                                   />
                                 </div>
                               )}
@@ -5036,8 +5571,13 @@ const DayPlanner = () => {
                               setDragPreviewTime(null);
                             }}
                             onDrop={(e) => handleDropOnDateHeader(e, date)}
-                            className={`notes-panel-container ${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
+                            className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
                           >
+                            {task.isExample && (
+                              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                                Example
+                              </span>
+                            )}
                             <div className="p-2 text-white">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -5057,14 +5597,32 @@ const DayPlanner = () => {
                                 </div>
                                 <div className="flex items-center gap-0.5 flex-shrink-0">
                                   <button
+                                    onMouseDown={() => {
+                                      if (isLinkOnlyTask(task)) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
+                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        }, 500);
+                                      }
+                                    }}
+                                    onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      if (isLinkOnlyTask(task)) {
+                                        if (!longPressTriggeredRef.current) {
+                                          window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                        }
+                                        longPressTriggeredRef.current = false;
+                                      } else {
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }
                                     }}
-                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                    title="Notes & subtasks"
+                                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                    title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                                   >
-                                    <FileText size={14} />
+                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                   </button>
                                   <button
                                     onClick={() => clearDeadline(task.id)}
@@ -5209,15 +5767,33 @@ const DayPlanner = () => {
                           const ActionButtons = ({ inMenu = false }) => (
                             <>
                               <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    }
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  }
                                 }}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                title="Notes & subtasks"
+                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                               >
-                                <FileText size={14} />
-                                {inMenu && <span className="text-xs">Notes</span>}
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                               </button>
                               <button
                                 onClick={() => postponeTask(task.id)}
@@ -5239,6 +5815,7 @@ const DayPlanner = () => {
                                 <button
                                   onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
                                   className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Change color"
                                 >
                                   <Palette size={14} />
                                   {inMenu && <span className="text-xs">Color</span>}
@@ -5282,7 +5859,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -5294,6 +5871,11 @@ const DayPlanner = () => {
                                 ...taskCalendarStyle
                               }}
                             >
+                              {task.isExample && (
+                                <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                                  Example
+                                </span>
+                              )}
                               <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : 'justify-between'} rounded-lg relative`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
@@ -5592,6 +6174,7 @@ const DayPlanner = () => {
                                           toggleSubtask={toggleSubtask}
                                           deleteSubtask={deleteSubtask}
                                           updateSubtaskTitle={updateSubtaskTitle}
+                                          compact={false}
                                         />
                                       </div>
                                     </div>
@@ -5605,7 +6188,7 @@ const DayPlanner = () => {
                         {/* Hover preview line - shows where a new task would start */}
                         {hoverPreviewTime && !draggedTask && !isResizing && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
                           <div
-                            className="absolute left-0 right-0 pointer-events-none z-10"
+                            className="absolute left-0 right-0 pointer-events-none z-30"
                             style={{
                               top: `${(Math.floor(timeToMinutes(hoverPreviewTime) / 60) * 161) + (timeToMinutes(hoverPreviewTime) % 60 * 160 / 60)}px`
                             }}
@@ -6186,6 +6769,121 @@ const DayPlanner = () => {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Welcome Modal for New Users */}
+      {showWelcome && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWelcome(false)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                <Sparkles size={24} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h2 className={`text-xl font-bold ${textPrimary}`}>Welcome to Day Planner!</h2>
+                <p className={`text-sm ${textSecondary}`}>Let's get you started</p>
+              </div>
+            </div>
+
+            <div className={`space-y-4 ${textPrimary}`}>
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
+                  Two Ways to Add Tasks
+                </h3>
+                <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
+                      <CalendarPlus size={16} />
+                    </span>
+                    <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time slot (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>N</kbd>)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
+                      <MailPlus size={16} />
+                    </span>
+                    <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>I</kbd>)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
+                  Interacting with Tasks
+                </h3>
+                <ul className={`text-sm ${textSecondary} ml-8 space-y-1 list-disc list-inside`}>
+                  <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
+                  <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
+                  <li>Drag tasks from Inbox to timeline to schedule them</li>
+                  <li>Drag the bottom edge of a task to resize its duration</li>
+                  <li>Double-click a task title to edit it</li>
+                  <li>Drag tasks to Recycle Bin to delete them</li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
+                  Sync Your Calendar
+                </h3>
+                <p className={`text-sm ${textSecondary} ml-8`}>
+                  Click <Upload size={14} className="inline mx-1" /> in the top bar to import iCal files, or <Link size={14} className="inline mx-1" /> to sync with a calendar URL (Google, Outlook, etc.).
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
+                  Settings & Backup
+                </h3>
+                <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
+                      {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
+                    </span>
+                    <span>Toggle between <strong className={textPrimary}>light and dark mode</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
+                      <Save size={16} className={textPrimary} />
+                    </span>
+                    <span><strong className={textPrimary}>Backup & restore</strong> your data as a JSON file</span>
+                  </div>
+                  <p className="text-xs opacity-75 mt-1">Your data is stored locally in your browser. Use backup to transfer between devices or keep a safe copy.</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
+                  More to Come
+                </h3>
+                <p className={`text-sm ${textSecondary} ml-8`}>
+                  <strong className={textPrimary}>Recurring tasks</strong>, <strong className={textPrimary}>routines</strong>, and <strong className={textPrimary}>goals</strong> are coming soon! You may notice placeholders here and there for future functionality.
+                </p>
+              </div>
+
+              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                <p className={`text-sm ${textSecondary}`}>
+                  <strong className={textPrimary}>QUICK TIP:</strong> Look for <HelpCircle size={14} className="inline text-blue-500 mx-0.5" /> icons in the sidebar for tips on how to use each section.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowWelcome(false)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              >
+                Get Started
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
