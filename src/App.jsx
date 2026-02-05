@@ -354,6 +354,7 @@ const DayPlanner = () => {
     return saved ? JSON.parse(saved) : {
       overdue: false,
       inbox: false,
+      dayglance: false,
       dailySummary: false,
       allTimeSummary: false,
       recycleBin: false,
@@ -3372,7 +3373,7 @@ const DayPlanner = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `day-planner-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `dayglance-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -4148,6 +4149,21 @@ const DayPlanner = () => {
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
 
+  // Compute today's agenda for dayGLANCE section
+  const todayAgenda = useMemo(() => {
+    const today = getTodayStr();
+    const allDay = tasks.filter(t => t.date === today && t.isAllDay);
+    const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today);
+    const scheduled = tasks.filter(t => t.date === today && !t.isAllDay)
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+    return [
+      ...deadlines.map(t => ({ ...t, _agendaType: 'deadline' })),
+      ...allDay.map(t => ({ ...t, _agendaType: 'allday' })),
+      ...scheduled.map(t => ({ ...t, _agendaType: 'scheduled' })),
+    ];
+  }, [tasks, unscheduledTasks]);
+
   // Helper to get tasks for a specific date (must be after filterByTags)
   const getTasksForDate = (date) => {
     const dateStr = dateToString(date);
@@ -4743,6 +4759,49 @@ const DayPlanner = () => {
                 )}
               </div>
             )}
+
+            {/* dayGLANCE Agenda Section */}
+            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
+              <div className={`flex items-center justify-between ${minimizedSections.dayglance ? '' : 'mb-3'}`}>
+                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
+                  <Calendar size={18} />
+                  dayGLANCE
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${textSecondary}`}>{todayAgenda.length}</span>
+                  <button
+                    onClick={() => toggleSection('dayglance')}
+                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
+                    title={minimizedSections.dayglance ? "Expand" : "Minimize"}
+                  >
+                    {minimizedSections.dayglance ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {!minimizedSections.dayglance && (
+                todayAgenda.length === 0 ? (
+                  <p className={`text-sm ${textSecondary} italic`}>No tasks scheduled for today</p>
+                ) : (
+                  <div className="space-y-1">
+                    {todayAgenda.map(task => (
+                      <div
+                        key={`${task._agendaType}-${task.id}`}
+                        className={`flex items-center gap-2 py-1 ${task.completed ? 'opacity-50' : ''}`}
+                      >
+                        <span className={`text-xs font-mono w-14 flex-shrink-0 ${textSecondary} text-right`}>
+                          {task._agendaType === 'allday' ? 'ALL DAY' : task._agendaType === 'deadline' ? 'DUE' : task.startTime || '—'}
+                        </span>
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.imported && !task.isTaskCalendar ? 'bg-gray-400' : (task.color === 'task-calendar' ? 'bg-gray-400' : task.color)}`}></span>
+                        <span className={`text-sm truncate ${textPrimary} ${task.completed ? 'line-through' : ''}`}>
+                          {renderTitleWithoutTags(task.title)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
 
             <div
               onDragOver={handleDragOverInbox}
@@ -6874,7 +6933,7 @@ const DayPlanner = () => {
                 <Sparkles size={24} className="text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 className={`text-xl font-bold ${textPrimary}`}>Welcome to Day Planner!</h2>
+                <h2 className={`text-xl font-bold ${textPrimary}`}>Welcome to dayGLANCE!</h2>
                 <p className={`text-sm ${textSecondary}`}>Let's get you started</p>
               </div>
             </div>
