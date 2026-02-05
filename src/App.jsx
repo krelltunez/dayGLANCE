@@ -4149,20 +4149,26 @@ const DayPlanner = () => {
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
 
-  // Compute today's agenda for dayGLANCE section
+  // Compute today's agenda for dayGLANCE section (excludes past events)
   const todayAgenda = useMemo(() => {
     const today = getTodayStr();
-    const allDay = tasks.filter(t => t.date === today && t.isAllDay);
-    const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today);
-    const scheduled = tasks.filter(t => t.date === today && !t.isAllDay)
-      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+    const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+    const allDay = tasks.filter(t => t.date === today && t.isAllDay && !t.completed);
+    const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today && !t.completed);
+    const scheduled = tasks.filter(t => {
+      if (t.date !== today || t.isAllDay) return false;
+      const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+      const endMinutes = h * 60 + m + (t.duration || 0);
+      return endMinutes > nowMinutes;
+    }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
     return [
       ...deadlines.map(t => ({ ...t, _agendaType: 'deadline' })),
       ...allDay.map(t => ({ ...t, _agendaType: 'allday' })),
       ...scheduled.map(t => ({ ...t, _agendaType: 'scheduled' })),
     ];
-  }, [tasks, unscheduledTasks]);
+  }, [tasks, unscheduledTasks, currentTime]);
 
   // Helper to get tasks for a specific date (must be after filterByTags)
   const getTasksForDate = (date) => {
@@ -4784,20 +4790,46 @@ const DayPlanner = () => {
                   <p className={`text-sm ${textSecondary} italic`}>No tasks scheduled for today</p>
                 ) : (
                   <div className="space-y-1">
-                    {todayAgenda.map(task => (
-                      <div
-                        key={`${task._agendaType}-${task.id}`}
-                        className={`flex items-center gap-2 py-1 ${task.completed ? 'opacity-50' : ''}`}
-                      >
-                        <span className={`text-xs font-mono w-14 flex-shrink-0 ${textSecondary} text-right`}>
-                          {task._agendaType === 'allday' ? 'ALL DAY' : task._agendaType === 'deadline' ? 'DUE' : task.startTime || '—'}
-                        </span>
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.imported && !task.isTaskCalendar ? 'bg-gray-400' : (task.color === 'task-calendar' ? 'bg-gray-400' : task.color)}`}></span>
-                        <span className={`text-sm truncate ${textPrimary} ${task.completed ? 'line-through' : ''}`}>
-                          {renderTitleWithoutTags(task.title)}
-                        </span>
-                      </div>
-                    ))}
+                    {todayAgenda.map(task => {
+                      const colorClass = task.imported && !task.isTaskCalendar ? 'bg-gray-400' : (task.color === 'task-calendar' ? 'bg-gray-400' : task.color);
+                      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                      let timeLabel = '';
+                      let relativeLabel = '';
+                      if (task._agendaType === 'allday') {
+                        timeLabel = 'ALL DAY';
+                      } else if (task._agendaType === 'deadline') {
+                        timeLabel = 'DUE';
+                      } else {
+                        const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                        const startMin = h * 60 + m;
+                        const endMin = startMin + (task.duration || 0);
+                        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                        const endM = String(endMin % 60).padStart(2, '0');
+                        timeLabel = `${task.startTime} – ${endH}:${endM}`;
+                        const diff = startMin - nowMin;
+                        if (diff > 0) {
+                          relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                        } else if (diff === 0) {
+                          relativeLabel = 'now';
+                        }
+                      }
+                      return (
+                        <div
+                          key={`${task._agendaType}-${task.id}`}
+                          className={`flex gap-2 py-1.5 ${task.completed ? 'opacity-50' : ''}`}
+                        >
+                          <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`}></div>
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-sm font-semibold truncate ${textPrimary} ${task.completed ? 'line-through' : ''}`}>
+                              {renderTitleWithoutTags(task.title)}
+                            </div>
+                            <div className={`text-xs ${textSecondary}`}>
+                              {timeLabel}{relativeLabel ? `, ${relativeLabel}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )
               )}
