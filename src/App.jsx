@@ -4811,6 +4811,10 @@ const DayPlanner = () => {
                           relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
                         } else if (diff === 0) {
                           relativeLabel = 'now';
+                        } else if (nowMin < endMin && !task.completed) {
+                          relativeLabel = 'In Progress';
+                        } else if (nowMin >= endMin && !task.completed) {
+                          relativeLabel = 'Overdue';
                         }
                       }
                       return (
@@ -4824,7 +4828,7 @@ const DayPlanner = () => {
                               {renderTitleWithoutTags(task.title)}
                             </div>
                             <div className={`text-xs ${textSecondary}`}>
-                              {timeLabel}{relativeLabel ? `, ${relativeLabel}` : ''}
+                              {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                             </div>
                           </div>
                         </div>
