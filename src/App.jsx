@@ -5535,11 +5535,26 @@ const DayPlanner = () => {
                 <div className={`mt-3 pt-3 border-t ${borderClass}`}>
                   <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
                   <div className="flex flex-wrap gap-1">
-                    {todayRoutines.map(r => (
-                      <span key={r.id} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
-                        {r.name}
-                      </span>
-                    ))}
+                    {[...todayRoutines].sort((a, b) => {
+                      // All-day first, then by start time
+                      if (a.isAllDay && !b.isAllDay) return -1;
+                      if (!a.isAllDay && b.isAllDay) return 1;
+                      if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+                      return 0;
+                    }).map(r => {
+                      let timeLabel = '';
+                      if (!r.isAllDay && r.startTime) {
+                        const [h, m] = r.startTime.split(':').map(Number);
+                        const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        const ampm = h < 12 ? 'a' : 'p';
+                        timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                      }
+                      return (
+                        <span key={r.id} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                          {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -7101,10 +7116,24 @@ const DayPlanner = () => {
                             if (!placed) routineColumns.push([r]);
                           });
 
-                          const totalCols = routineColumns.length;
                           // Build a map from routine id to its column index
                           const colMap = {};
                           routineColumns.forEach((col, ci) => col.forEach(r => { colMap[r.id] = ci; }));
+
+                          // For each routine, compute how many columns overlap with it
+                          const overlapCount = {};
+                          timelineRoutines.forEach(r => {
+                            const rStart = timeToMinutes(r.startTime);
+                            const rEnd = rStart + r.duration;
+                            let maxCols = 1;
+                            timelineRoutines.forEach(other => {
+                              if (other.id === r.id) return;
+                              const oStart = timeToMinutes(other.startTime);
+                              const oEnd = oStart + other.duration;
+                              if (rStart < oEnd && rEnd > oStart) maxCols++;
+                            });
+                            overlapCount[r.id] = maxCols;
+                          });
 
                           const now = new Date();
                           const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -7112,8 +7141,9 @@ const DayPlanner = () => {
                           return timelineRoutines.map(routine => {
                             const { top, height } = calculateTaskPosition(routine);
                             const colIdx = colMap[routine.id];
-                            const widthPercent = totalCols > 1 ? `${100 / totalCols}%` : '100%';
-                            const leftPercent = totalCols > 1 ? `${(colIdx * 100) / totalCols}%` : '0%';
+                            const cols = overlapCount[routine.id];
+                            const widthPercent = cols > 1 ? `${100 / cols}%` : '100%';
+                            const leftPercent = cols > 1 ? `${(colIdx * 100) / cols}%` : '0%';
                             const endMinutes = timeToMinutes(routine.startTime) + routine.duration;
                             const isPast = endMinutes <= nowMinutes;
 
