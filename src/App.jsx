@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, CalendarPlus, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, MailPlus, UserPlus, BrainCircuit, Mail, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -467,6 +467,15 @@ const DayPlanner = () => {
   const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
   const taskElementRefs = useRef({});
   const [taskWidths, setTaskWidths] = useState({});
+
+  // Routines state
+  const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
+  const [todayRoutines, setTodayRoutines] = useState([]);
+  const [routinesDate, setRoutinesDate] = useState('');
+  const [showRoutinesDashboard, setShowRoutinesDashboard] = useState(false);
+  const [dashboardSelectedChips, setDashboardSelectedChips] = useState([]);
+  const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
+  const [routineNewChipName, setRoutineNewChipName] = useState('');
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -1070,7 +1079,16 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate]);
+
+  // Auto-clear today's routines on day rollover
+  useEffect(() => {
+    const todayStr = dateToString(new Date());
+    if (routinesDate && routinesDate !== todayStr) {
+      setTodayRoutines([]);
+      setRoutinesDate(todayStr);
+    }
+  }, [currentTime]);
 
   const loadData = () => {
     try {
@@ -1232,6 +1250,23 @@ const DayPlanner = () => {
       if (recurringTasksData) {
         setRecurringTasks(JSON.parse(recurringTasksData));
       }
+
+      // Load routines
+      const routineDefsData = localStorage.getItem('day-planner-routine-definitions');
+      const todayRoutinesData = localStorage.getItem('day-planner-today-routines');
+      const routinesDateData = localStorage.getItem('day-planner-routines-date');
+      if (routineDefsData) {
+        setRoutineDefinitions(JSON.parse(routineDefsData));
+      }
+      const todayStr = dateToString(new Date());
+      if (routinesDateData && routinesDateData === todayStr && todayRoutinesData) {
+        setTodayRoutines(JSON.parse(todayRoutinesData));
+        setRoutinesDate(todayStr);
+      } else {
+        // Auto-clear if different day
+        setTodayRoutines([]);
+        setRoutinesDate(todayStr);
+      }
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
@@ -1248,6 +1283,9 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(taskCalendarUrl));
       localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
       localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(recurringTasks));
+      localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
+      localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
+      localStorage.setItem('day-planner-routines-date', routinesDate);
     } catch (error) {
       console.error('Error saving data:', error);
     }
@@ -1670,6 +1708,14 @@ const DayPlanner = () => {
       !t.isAllDay &&
       t.id !== taskId
     );
+
+    // Also treat today's timeline-placed routine chips as obstacles
+    const todayStr = dateToString(new Date());
+    if (dateStr === todayStr) {
+      todayRoutines.filter(r => !r.isAllDay && r.startTime).forEach(r => {
+        importedEvents.push({ startTime: r.startTime, duration: r.duration, title: r.name, id: `routine-${r.id}` });
+      });
+    }
 
     if (importedEvents.length === 0) {
       return { conflicted: false, adjustedStartTime: startTime, conflictingEvent: null };
@@ -3081,6 +3127,94 @@ const DayPlanner = () => {
     setShowAddTask(true);
   };
 
+  // --- Routines handlers ---
+  const getDayName = (date) => {
+    return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
+  };
+
+  const openRoutinesDashboard = () => {
+    // Pre-populate center with chips already placed today
+    setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket })));
+    setRoutineAddingToBucket(null);
+    setRoutineNewChipName('');
+    setShowRoutinesDashboard(true);
+  };
+
+  const addRoutineChip = (bucket) => {
+    const name = routineNewChipName.trim();
+    if (!name) return;
+    const chipId = Date.now();
+    setRoutineDefinitions(prev => ({
+      ...prev,
+      [bucket]: [...prev[bucket], { id: chipId, name }]
+    }));
+    setRoutineNewChipName('');
+    setRoutineAddingToBucket(null);
+  };
+
+  const deleteRoutineChip = (bucket, chipId) => {
+    setRoutineDefinitions(prev => ({
+      ...prev,
+      [bucket]: prev[bucket].filter(c => c.id !== chipId)
+    }));
+    // Also remove from dashboard selected and today's routines if present
+    setDashboardSelectedChips(prev => prev.filter(c => c.id !== chipId));
+    setTodayRoutines(prev => prev.filter(r => r.id !== chipId));
+  };
+
+  const toggleRoutineChipSelection = (chip, bucket) => {
+    const isSelected = dashboardSelectedChips.some(c => c.id === chip.id);
+    if (isSelected) {
+      setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id));
+    } else {
+      setDashboardSelectedChips(prev => [...prev, { id: chip.id, name: chip.name, bucket }]);
+    }
+  };
+
+  const handleRoutinesDone = () => {
+    const todayStr = dateToString(new Date());
+    // Preserve placement info for chips that were already placed on the timeline
+    const existingMap = {};
+    todayRoutines.forEach(r => { existingMap[r.id] = r; });
+
+    const newTodayRoutines = dashboardSelectedChips.map(chip => {
+      const existing = existingMap[chip.id];
+      if (existing) {
+        return { ...existing, name: chip.name, bucket: chip.bucket };
+      }
+      return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: null, duration: 15, isAllDay: true };
+    });
+
+    setTodayRoutines(newTodayRoutines);
+    setRoutinesDate(todayStr);
+    setShowRoutinesDashboard(false);
+  };
+
+  const handleRoutineResizeStart = (routine, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsResizing(true);
+
+    const startY = e.clientY;
+    const startDuration = routine.duration;
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const newDuration = Math.max(15, startDuration + deltaMinutes);
+      setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: newDuration } : r));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   // Helper function to convert cursor Y position to time
   const getTimeFromCursorPosition = (e, options = {}) => {
     const { roundTo = 15, maxMinutes = 23 * 60 + 45, taskDuration = 0 } = options;
@@ -3274,6 +3408,21 @@ const DayPlanner = () => {
     e.preventDefault();
     if (!draggedTask) return;
 
+    // Routine chip drop — place on timeline (today only)
+    if (dragSource === 'routine') {
+      const dropDate = targetDate || dragPreviewDate || selectedDate;
+      const dropDateStr = dateToString(dropDate);
+      const todayStr = dateToString(new Date());
+      if (dropDateStr !== todayStr) {
+        setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
+        return;
+      }
+      const startTime = getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration: draggedTask.duration });
+      setTodayRoutines(prev => prev.map(r => r.id === draggedTask.id ? { ...r, startTime, isAllDay: false } : r));
+      setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
+      return;
+    }
+
     const requestedStartTime = getTimeFromCursorPosition(e, {
       maxMinutes: 24 * 60,
       taskDuration: draggedTask.duration
@@ -3393,6 +3542,7 @@ const DayPlanner = () => {
   const handleDropOnInbox = (e) => {
     e.preventDefault();
     if (!draggedTask) return;
+    if (dragSource === 'routine') { setDraggedTask(null); setDragSource(null); setDragOverInbox(false); return; }
 
     // Only allow calendar, recycle bin, overdue scheduled tasks, and inbox tasks with deadlines to be moved to inbox
     if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue' && !(dragSource === 'inbox' && draggedTask.deadline)) return;
@@ -3441,6 +3591,7 @@ const DayPlanner = () => {
   const handleDropOnRecycleBin = (e) => {
     e.preventDefault();
     if (!draggedTask) return;
+    if (dragSource === 'routine') { setDraggedTask(null); setDragSource(null); setDragOverRecycleBin(false); return; }
 
     // Recurring tasks: delegate to existing moveToRecycleBin (shows 3-option delete dialog)
     if (draggedTask.isRecurring) {
@@ -3498,6 +3649,19 @@ const DayPlanner = () => {
   const handleDropOnDateHeader = (e, targetDate) => {
     e.preventDefault();
     if (!draggedTask) return;
+
+    // Routine chip drop — return to all-day (today only)
+    if (dragSource === 'routine') {
+      const dropDateStr = dateToString(targetDate);
+      const todayStr = dateToString(new Date());
+      if (dropDateStr !== todayStr) {
+        setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null); setDragOverAllDay(null);
+        return;
+      }
+      setTodayRoutines(prev => prev.map(r => r.id === draggedTask.id ? { ...r, startTime: null, isAllDay: true } : r));
+      setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null); setDragOverAllDay(null);
+      return;
+    }
 
     const dropDateStr = dateToString(targetDate);
 
@@ -3787,6 +3951,7 @@ const DayPlanner = () => {
         taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
         completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
         recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
+        routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
         selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
       }
@@ -3835,6 +4000,7 @@ const DayPlanner = () => {
         if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
         if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
         if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
+        if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
         if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
         if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
 
@@ -4978,20 +5144,21 @@ const DayPlanner = () => {
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Scheduled Task"
                   >
-                    <CalendarPlus size={24} />
+                    <Calendar size={24} />
                   </button>
                   <button
                     onClick={openNewInboxTask}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Inbox Task"
                   >
-                    <MailPlus size={24} />
+                    <Inbox size={24} />
                   </button>
                   <button
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
-                    title="Coming soon"
+                    onClick={openRoutinesDashboard}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Routines"
                   >
-                    <UserPlus size={24} />
+                    <Sparkles size={24} />
                   </button>
                   <button
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
@@ -5027,7 +5194,7 @@ const DayPlanner = () => {
                     className={`p-2 rounded ${hoverBg} relative`}
                     title="Inbox"
                   >
-                    <Mail size={20} className={textSecondary} />
+                    <Inbox size={20} className={textSecondary} />
                     {filteredUnscheduledTasks.length > 0 && (
                       <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                         {filteredUnscheduledTasks.length > 9 ? '9+' : filteredUnscheduledTasks.length}
@@ -5068,28 +5235,29 @@ const DayPlanner = () => {
                 <div className={`h-full overflow-y-auto w-[calc(100%+14px)] ${darkMode ? 'dark-scrollbar' : ''}`}>
                 <div className="w-72">
                 <div className={`flex gap-2 mb-4`}>
-                  {/* CalendarPlus - new scheduled task */}
+                  {/* Calendar - new scheduled task */}
                   <button
                     onClick={openNewTaskForm}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Scheduled Task"
                   >
-                    <CalendarPlus size={24} />
+                    <Calendar size={24} />
                   </button>
-                  {/* InboxPlus - add to inbox */}
+                  {/* Inbox - add to inbox */}
                   <button
                     onClick={openNewInboxTask}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Inbox Task"
                   >
-                    <MailPlus size={24} />
+                    <Inbox size={24} />
                   </button>
-                  {/* Placeholder 1 */}
+                  {/* Routines */}
                   <button
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
-                    title="Coming soon"
+                    onClick={openRoutinesDashboard}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Routines"
                   >
-                    <UserPlus size={24} />
+                    <Sparkles size={24} />
                   </button>
                   {/* Placeholder 2 */}
                   <button
@@ -5115,7 +5283,7 @@ const DayPlanner = () => {
                   <img
                     src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
                     alt="dayGLANCE"
-                    className="h-8 mb-2"
+                    className="h-9 mb-2"
                   />
                   <p className={`text-sm font-semibold ${textPrimary}`}>Let's start with these steps:</p>
                 </div>
@@ -5225,7 +5393,7 @@ const DayPlanner = () => {
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox"
                               >
-                                <Mail size={14} />
+                                <Inbox size={14} />
                               </button>
                             ) : (
                               <button
@@ -5233,7 +5401,7 @@ const DayPlanner = () => {
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox (clear deadline)"
                               >
-                                <Mail size={14} />
+                                <Inbox size={14} />
                               </button>
                             )}
                             <button
@@ -5362,6 +5530,19 @@ const DayPlanner = () => {
                   </div>
                 )
               )}
+              {/* Routines row */}
+              {!minimizedSections.dayglance && todayRoutines.length > 0 && (
+                <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                  <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+                  <div className="flex flex-wrap gap-1">
+                    {todayRoutines.map(r => (
+                      <span key={r.id} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                        {r.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div
@@ -5376,7 +5557,7 @@ const DayPlanner = () => {
             >
               <div className={`flex items-center justify-between ${minimizedSections.inbox ? '' : 'mb-4'}`}>
                 <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <Mail size={18} />
+                  <Inbox size={18} />
                   Inbox
                   {!minimizedSections.inbox && nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
                     <button
@@ -6037,7 +6218,7 @@ const DayPlanner = () => {
               </div>
 
               {/* All-day tasks section - sticky below date headers */}
-              {visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) && (
+              {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || todayRoutines.some(r => r.isAllDay)) && (
                 <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
                   <div className={`w-20 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
                     ALL DAY
@@ -6113,7 +6294,7 @@ const DayPlanner = () => {
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
                                 title="Move to Inbox"
                               >
-                                <Mail size={14} />
+                                <Inbox size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
                               <div className="color-picker-container relative">
@@ -6322,7 +6503,7 @@ const DayPlanner = () => {
                                     className="hover:bg-white/20 rounded p-1 transition-colors"
                                     title="Move to Inbox"
                                   >
-                                    <Mail size={14} />
+                                    <Inbox size={14} />
                                   </button>
                                   <button
                                     onClick={() => moveToRecycleBin(task.id, true)}
@@ -6349,6 +6530,21 @@ const DayPlanner = () => {
                                 />
                               </div>
                             )}
+                          </div>
+                        ))}
+
+                        {/* Routine pills in all-day (today only) */}
+                        {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay).map((routine) => (
+                          <div
+                            key={`routine-${routine.id}`}
+                            draggable
+                            onDragStart={(e) => {
+                              handleDragStart({ ...routine, duration: routine.duration || 15 }, 'routine', e);
+                            }}
+                            onDragEnd={handleDragEnd}
+                            className={`rounded-full px-3 py-1 text-xs font-medium cursor-move inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                          >
+                            {routine.name}
                           </div>
                         ))}
                       </div>
@@ -6501,7 +6697,7 @@ const DayPlanner = () => {
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
                                 title="Move to Inbox"
                               >
-                                <Mail size={14} />
+                                <Inbox size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
                               <div className="color-picker-container relative">
@@ -6881,6 +7077,79 @@ const DayPlanner = () => {
                             </div>
                           );
                         })}
+
+                        {/* Timeline routine pills (today only) */}
+                        {dateStr === dateToString(new Date()) && (() => {
+                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
+                          if (timelineRoutines.length === 0) return null;
+
+                          // Compute side-by-side columns for overlapping routine chips
+                          const routineColumns = [];
+                          const sorted = [...timelineRoutines].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+                          sorted.forEach(r => {
+                            const rStart = timeToMinutes(r.startTime);
+                            const rEnd = rStart + r.duration;
+                            let placed = false;
+                            for (let c = 0; c < routineColumns.length; c++) {
+                              const lastInCol = routineColumns[c][routineColumns[c].length - 1];
+                              if (timeToMinutes(lastInCol.startTime) + lastInCol.duration <= rStart) {
+                                routineColumns[c].push(r);
+                                placed = true;
+                                break;
+                              }
+                            }
+                            if (!placed) routineColumns.push([r]);
+                          });
+
+                          const totalCols = routineColumns.length;
+                          // Build a map from routine id to its column index
+                          const colMap = {};
+                          routineColumns.forEach((col, ci) => col.forEach(r => { colMap[r.id] = ci; }));
+
+                          const now = new Date();
+                          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+                          return timelineRoutines.map(routine => {
+                            const { top, height } = calculateTaskPosition(routine);
+                            const colIdx = colMap[routine.id];
+                            const widthPercent = totalCols > 1 ? `${100 / totalCols}%` : '100%';
+                            const leftPercent = totalCols > 1 ? `${(colIdx * 100) / totalCols}%` : '0%';
+                            const endMinutes = timeToMinutes(routine.startTime) + routine.duration;
+                            const isPast = endMinutes <= nowMinutes;
+
+                            return (
+                              <div
+                                key={`routine-tl-${routine.id}`}
+                                draggable
+                                onDragStart={(e) => handleDragStart({ ...routine }, 'routine', e)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={(e) => handleDragOver(e, date)}
+                                onDrop={(e) => handleDropOnCalendar(e, date)}
+                                className={`absolute pointer-events-auto cursor-move flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                                style={{
+                                  top: `${top}px`,
+                                  height: `${Math.max(height, 27)}px`,
+                                  left: `calc(${leftPercent} + 4px)`,
+                                  width: `calc(${widthPercent} - 8px)`,
+                                }}
+                              >
+                                {/* Teal cross lines — horizontal + vertical */}
+                                <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
+                                <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
+                                {/* Compact pill label centered */}
+                                <span className={`relative rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'}`}>{routine.name}</span>
+                                {/* Resize handle */}
+                                <div
+                                  className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-center"
+                                  onMouseDown={(e) => handleRoutineResizeStart(routine, e)}
+                                  style={{ marginBottom: '-4px' }}
+                                >
+                                  <div className={`w-8 h-1 rounded-full ${darkMode ? 'bg-teal-400/50' : 'bg-teal-500/40'}`}></div>
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
 
                         {/* Hover preview line - shows where a new task would start */}
                         {hoverPreviewTime && !draggedTask && !isResizing && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
@@ -7787,6 +8056,177 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Routines Dashboard Modal */}
+      {showRoutinesDashboard && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => handleRoutinesDone()} onKeyDown={(e) => { if ((e.key === 'Escape' || e.key === 'Enter') && !routineAddingToBucket) { e.preventDefault(); handleRoutinesDone(); } }} tabIndex={-1} ref={(el) => { if (el && !routineAddingToBucket) el.focus(); }}>
+          <div className={`${cardBg} rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={`p-6 border-b ${borderClass}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-16"
+                  />
+                  <div>
+                    <div className={`text-lg font-bold ${textPrimary}`}>
+                      {new Date().toLocaleDateString('en-US', { weekday: 'long' })}, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                    </div>
+                    <div className={`text-sm ${textSecondary}`}>What's in today's routine?</div>
+                  </div>
+                </div>
+                <button onClick={() => setShowRoutinesDashboard(false)} className={`p-2 rounded-lg ${hoverBg}`}>
+                  <X size={20} className={textSecondary} />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {(() => {
+                const today = new Date();
+                const todayDayName = getDayName(today);
+                const leftBuckets = ['everyday', 'monday', 'tuesday', 'wednesday'];
+                const rightBuckets = ['thursday', 'friday', 'saturday', 'sunday'];
+                const bucketLabel = (b) => b === 'everyday' ? 'Every Day' : b.charAt(0).toUpperCase() + b.slice(1);
+                const isHighlighted = (b) => b === todayDayName || b === 'everyday';
+
+                const renderBucket = (bucket) => {
+                  const chips = routineDefinitions[bucket] || [];
+                  return (
+                    <div
+                      key={bucket}
+                      className={`${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-lg p-3 ${isHighlighted(bucket) ? (darkMode ? 'ring-2 ring-teal-400 bg-teal-900/20' : 'ring-2 ring-teal-500 bg-teal-50') : ''}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-xs font-semibold uppercase tracking-wide ${isHighlighted(bucket) ? 'text-teal-500' : textSecondary}`}>
+                          {bucketLabel(bucket)}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setRoutineAddingToBucket(routineAddingToBucket === bucket ? null : bucket);
+                            setRoutineNewChipName('');
+                          }}
+                          className={`p-0.5 rounded ${hoverBg}`}
+                          title="Add routine"
+                        >
+                          <Plus size={14} className={textSecondary} />
+                        </button>
+                      </div>
+                      {routineAddingToBucket === bucket && (
+                        <div className="flex gap-1 mb-2">
+                          <input
+                            autoFocus
+                            value={routineNewChipName}
+                            onChange={(e) => setRoutineNewChipName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addRoutineChip(bucket);
+                              if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
+                            }}
+                            placeholder="Name..."
+                            className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-gray-900 placeholder-gray-400 border border-gray-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
+                          />
+                          <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {chips.map(chip => {
+                          const isSelected = dashboardSelectedChips.some(c => c.id === chip.id);
+                          return (
+                            <div
+                              key={chip.id}
+                              onClick={() => toggleRoutineChipSelection(chip, bucket)}
+                              className={`group relative rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
+                                isSelected
+                                  ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
+                                  : (darkMode ? 'bg-teal-700/80 text-teal-100 hover:bg-teal-600/80' : 'bg-teal-600/80 text-white hover:bg-teal-500/80')
+                              }`}
+                            >
+                              {chip.name}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
+                                className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                title="Delete"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {chips.length === 0 && !routineAddingToBucket && (
+                          <span className={`text-xs ${textSecondary} italic`}>No routines</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                };
+
+                const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.length > 0);
+
+                return (
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Left column: Mon/Tue/Wed/Everyday */}
+                    <div className="space-y-3">
+                      {leftBuckets.map(renderBucket)}
+                    </div>
+
+                    {/* Center: selected chips */}
+                    <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-gray-300'} p-4 flex flex-col items-center justify-start min-h-[300px]`}>
+                      <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary}`}>Today's Routine</div>
+                      {dashboardSelectedChips.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 justify-center">
+                          {dashboardSelectedChips.map(chip => (
+                            <div
+                              key={chip.id}
+                              className={`group relative rounded-full px-3 py-1.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                            >
+                              {chip.name}
+                              <button
+                                onClick={() => setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id))}
+                                className={`absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
+                                title="Remove from today"
+                              >
+                                <Undo2 size={10} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center">
+                          <Sparkles size={32} className={`${textSecondary} mb-3 opacity-40`} />
+                          <p className={`text-sm ${textSecondary}`}>
+                            {hasAnyChips
+                              ? 'Click chips from the day buckets to add them to today\'s routine'
+                              : 'Add routine chips to the day buckets using the + button, then click them to select for today'
+                            }
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right column: Thu/Fri/Sat/Sun */}
+                    <div className="space-y-3">
+                      {rightBuckets.map(renderBucket)}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className={`p-4 border-t ${borderClass} flex justify-end`}>
+              <button
+                onClick={handleRoutinesDone}
+                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Modal for New Users */}
       {showWelcome && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWelcome(false)}>
@@ -7812,13 +8252,13 @@ const DayPlanner = () => {
                 <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
                   <div className="flex items-center gap-2">
                     <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <CalendarPlus size={16} />
+                      <Calendar size={16} />
                     </span>
                     <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time slot (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>N</kbd>)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <MailPlus size={16} />
+                      <Inbox size={16} />
                     </span>
                     <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>I</kbd>)</span>
                   </div>
@@ -7878,7 +8318,7 @@ const DayPlanner = () => {
                   More to Come
                 </h3>
                 <p className={`text-sm ${textSecondary} ml-8`}>
-                  <strong className={textPrimary}>Recurring tasks</strong> are here! Set daily, weekly, biweekly, monthly, or yearly recurrence when creating scheduled tasks. <strong className={textPrimary}>Routines</strong> and <strong className={textPrimary}>goals</strong> are coming soon.
+                  <strong className={textPrimary}>Recurring tasks</strong> are here! Set daily, weekly, biweekly, monthly, or yearly recurrence when creating scheduled tasks. <strong className={textPrimary}>Routines</strong> let you manage daily rituals — click <Sparkles size={14} className="inline mx-0.5" /> in the sidebar. <strong className={textPrimary}>Goals</strong> are coming soon.
                 </p>
               </div>
 
