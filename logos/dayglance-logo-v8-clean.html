@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dayGLANCE Logo System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #e8e6e1;
+    font-family: 'Outfit', sans-serif;
+    gap: 52px;
+    padding: 60px 40px;
+  }
+
+  h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    color: #a1a1aa;
+    font-weight: 600;
+  }
+
+  .section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .row {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .logo-pad {
+    padding: 40px 60px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pad-light { background: #ffffff; }
+  .pad-dark  { background: #111113; }
+  .pad-color { background: #fafaf8; }
+
+  canvas.logo-canvas { display: block; }
+</style>
+</head>
+<body>
+
+<div class="section">
+  <h2>Primary — Light</h2>
+  <div class="logo-pad pad-light">
+    <canvas class="logo-canvas" data-theme="light" data-size="full"></canvas>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Primary — Dark</h2>
+  <div class="logo-pad pad-dark">
+    <canvas class="logo-canvas" data-theme="dark" data-size="full"></canvas>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Primary — Color</h2>
+  <div class="logo-pad pad-color">
+    <canvas class="logo-canvas" data-theme="color" data-size="full"></canvas>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Compact Variants</h2>
+  <div class="row">
+    <div class="logo-pad pad-light">
+      <canvas class="logo-canvas" data-theme="light" data-size="compact"></canvas>
+    </div>
+    <div class="logo-pad pad-dark">
+      <canvas class="logo-canvas" data-theme="dark" data-size="compact"></canvas>
+    </div>
+    <div class="logo-pad pad-color">
+      <canvas class="logo-canvas" data-theme="color" data-size="compact"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const SKEW_ANGLE = -10;
+
+const THEMES = {
+  light: { day: '#18181b', glance: '#18181b', bg: '#ffffff' },
+  dark:  { day: '#f4f4f5', glance: '#f4f4f5', bg: '#111113' },
+  color: { day: '#2563eb', glance: '#f97316', bg: '#fafaf8' },
+};
+const SIZES = {
+  full:    { dayFont: 36, glanceFont: 68, lineW: 2.5, gap: 4 },
+  compact: { dayFont: 17, glanceFont: 33, lineW: 1.5, gap: 3 },
+};
+
+function drawLogo(canvas) {
+  const theme = THEMES[canvas.dataset.theme];
+  const sz = SIZES[canvas.dataset.size];
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = canvas.getContext('2d');
+
+  const dayFont = `400 ${sz.dayFont}px 'Lora', serif`;
+  const glanceFont = `700 ${sz.glanceFont}px 'Lora', serif`;
+  const skewRad = (SKEW_ANGLE * Math.PI) / 180;
+
+  ctx.font = dayFont;
+  const dayW = ctx.measureText('day').width;
+
+  ctx.font = glanceFont;
+  const glanceW = ctx.measureText('GLANCE').width;
+
+  const skewExtra = Math.abs(Math.tan(skewRad)) * sz.glanceFont * 1.3;
+  const totalW = dayW + sz.gap + glanceW + skewExtra + 8;
+  const totalH = Math.ceil(sz.glanceFont * 1.5);
+
+  canvas.width = Math.ceil(totalW * dpr);
+  canvas.height = Math.ceil(totalH * dpr);
+  canvas.style.width = Math.ceil(totalW) + 'px';
+  canvas.style.height = Math.ceil(totalH) + 'px';
+  ctx.scale(dpr, dpr);
+
+  const baseline = sz.glanceFont * 1.15;
+
+  // Draw DAY — upright, thin
+  ctx.font = dayFont;
+  ctx.fillStyle = theme.day;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('day', 0, baseline);
+
+  // Draw GLANCE — skewed
+  const glanceX = dayW + sz.gap + skewExtra * 0.5;
+
+  ctx.save();
+  ctx.transform(1, 0, Math.tan(skewRad), 1, 0, 0);
+
+  ctx.font = glanceFont;
+  ctx.fillStyle = theme.glance;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('GLANCE', glanceX, baseline);
+
+  // Text bounds
+  const textTop = baseline - sz.glanceFont * 0.72;
+  const textBottom = baseline + sz.glanceFont * 0.05;
+  const textMid = (textTop + textBottom) / 2;
+  const textH = textBottom - textTop;
+
+  const lineStartX = glanceX + 2;
+  const lineEndX = glanceX + glanceW + 2;
+  const span = lineEndX - lineStartX;
+
+  // Cut three lines through in background color
+  ctx.strokeStyle = theme.bg;
+  ctx.lineWidth = sz.lineW;
+  ctx.lineCap = 'round';
+
+  // Middle line — straight
+  ctx.beginPath();
+  ctx.moveTo(lineStartX, textMid);
+  ctx.lineTo(lineEndX, textMid);
+  ctx.stroke();
+
+  // Top line — stays near middle then curves up sharply (exponential)
+  ctx.beginPath();
+  ctx.moveTo(lineStartX, textMid);
+  ctx.bezierCurveTo(
+    lineStartX + span * 0.55, textMid,
+    lineStartX + span * 0.78, textTop + textH * 0.12,
+    lineEndX, textTop - textH * 0.02
+  );
+  ctx.stroke();
+
+  // Bottom line — stays near middle then curves down sharply
+  ctx.beginPath();
+  ctx.moveTo(lineStartX, textMid);
+  ctx.bezierCurveTo(
+    lineStartX + span * 0.55, textMid,
+    lineStartX + span * 0.78, textBottom - textH * 0.12,
+    lineEndX, textBottom + textH * 0.02
+  );
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+document.fonts.ready.then(() => {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.logo-canvas').forEach(drawLogo);
+    });
+  });
+});
+window.addEventListener('resize', () => {
+  document.querySelectorAll('.logo-canvas').forEach(drawLogo);
+});
+</script>
+
+</body>
+</html>
