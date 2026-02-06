@@ -63,3 +63,8 @@ body {
 .dark-scrollbar {
   scrollbar-color: #6b7280 #374151;
 }
+
+/* Dark mode number input spinners */
+.dark-spinner {
+  color-scheme: dark;
+}

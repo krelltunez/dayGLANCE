@@ -344,6 +344,11 @@ const DayPlanner = () => {
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false); // Track if initial data has been loaded
   const [recycleBin, setRecycleBin] = useState([]);
+  const [recurringTasks, setRecurringTasks] = useState([]);
+  const [showRecurrencePicker, setShowRecurrencePicker] = useState(false);
+  const [recurringDeleteConfirm, setRecurringDeleteConfirm] = useState(null); // { taskId, dateStr }
+  const [editingRecurrenceTaskId, setEditingRecurrenceTaskId] = useState(null); // recurring composite ID string
+  const [showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker] = useState(null); // { source: 'edit' | 'new', templateId?: number }
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
   const [draggedTask, setDraggedTask] = useState(null);
@@ -1065,7 +1070,7 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks]);
 
   const loadData = () => {
     try {
@@ -1076,6 +1081,7 @@ const DayPlanner = () => {
       const syncUrlData = localStorage.getItem('day-planner-sync-url');
       const taskCalendarUrlData = localStorage.getItem('day-planner-task-calendar-url');
       const completedTaskUidsData = localStorage.getItem('day-planner-task-completed-uids');
+      const recurringTasksData = localStorage.getItem('day-planner-recurring-tasks');
       const welcomeDismissed = localStorage.getItem('welcomeDismissed') === 'true';
 
       // Parse existing data
@@ -1223,6 +1229,9 @@ const DayPlanner = () => {
       if (completedTaskUidsData) {
         setCompletedTaskUids(new Set(JSON.parse(completedTaskUidsData)));
       }
+      if (recurringTasksData) {
+        setRecurringTasks(JSON.parse(recurringTasksData));
+      }
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
@@ -1238,6 +1247,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
       localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(taskCalendarUrl));
       localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
+      localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(recurringTasks));
     } catch (error) {
       console.error('Error saving data:', error);
     }
@@ -1439,10 +1449,184 @@ const DayPlanner = () => {
     return `${year}-${month}-${day}`;
   };
 
+  // Recurrence engine: compute occurrences of a recurring template in a date range
+  const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
+    const rec = template.recurrence;
+    if (!rec) return [];
+    const results = [];
+    const startDate = new Date(rec.startDate + 'T12:00:00');
+    const rangeStart = new Date(rangeStartStr + 'T12:00:00');
+    const rangeEnd = new Date(rangeEndStr + 'T12:00:00');
+    const endDate = rec.endDate ? new Date(rec.endDate + 'T12:00:00') : null;
+    let count = 0;
+    const maxOcc = rec.maxOccurrences || Infinity;
+
+    const addIfInRange = (d) => {
+      if (count >= maxOcc) return false;
+      if (endDate && d > endDate) return false;
+      const ds = dateToString(d);
+      if (template.exceptions && template.exceptions[ds]?.deleted) { count++; return true; }
+      if (d >= rangeStart && d <= rangeEnd) results.push(ds);
+      count++;
+      return true;
+    };
+
+    if (rec.type === 'daily') {
+      const cursor = new Date(startDate);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        if (endDate && cursor > endDate) break;
+        addIfInRange(cursor);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else if (rec.type === 'weekly' || rec.type === 'biweekly') {
+      const step = rec.type === 'biweekly' ? 2 : 1;
+      const days = (rec.daysOfWeek && rec.daysOfWeek.length > 0) ? rec.daysOfWeek : [startDate.getDay()];
+      // Find the week start (Sunday) of the start date
+      const weekStart = new Date(startDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const cursor = new Date(weekStart);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        for (const dow of days.sort((a, b) => a - b)) {
+          const d = new Date(cursor);
+          d.setDate(d.getDate() + dow);
+          if (d < startDate) continue;
+          if (endDate && d > endDate) break;
+          if (d > rangeEnd) break;
+          if (!addIfInRange(d)) break;
+        }
+        cursor.setDate(cursor.getDate() + 7 * step);
+      }
+    } else if (rec.type === 'monthly') {
+      const cursor = new Date(startDate);
+      cursor.setDate(1);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        let target;
+        if (rec.monthWeekday) {
+          // Nth weekday of month (e.g., 1st Monday)
+          const { week, day } = rec.monthWeekday;
+          const firstOfMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+          const firstDow = firstOfMonth.getDay();
+          let offset = day - firstDow;
+          if (offset < 0) offset += 7;
+          target = new Date(firstOfMonth);
+          target.setDate(1 + offset + (week - 1) * 7);
+          // Verify still in same month
+          if (target.getMonth() !== cursor.getMonth()) {
+            cursor.setMonth(cursor.getMonth() + 1, 1);
+            continue;
+          }
+        } else {
+          const md = rec.monthDay || startDate.getDate();
+          const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+          target = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(md, daysInMonth));
+        }
+        target.setHours(12, 0, 0, 0);
+        if (target >= startDate) {
+          if (endDate && target > endDate) break;
+          if (!addIfInRange(target)) break;
+        }
+        cursor.setMonth(cursor.getMonth() + 1, 1);
+      }
+    } else if (rec.type === 'yearly') {
+      const cursor = new Date(startDate);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        if (cursor >= startDate) {
+          if (endDate && cursor > endDate) break;
+          if (!addIfInRange(cursor)) break;
+        }
+        cursor.setFullYear(cursor.getFullYear() + 1);
+      }
+    }
+    return results;
+  };
+
+  // Human-readable label for a recurrence pattern
+  const getRecurrenceLabel = (rec) => {
+    if (!rec) return 'None';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
+
+    let label = 'Custom';
+    if (rec.type === 'daily') label = 'Every day';
+    else if (rec.type === 'weekly') {
+      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
+        ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
+        : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
+      label = `Weekly on ${days}`;
+    }
+    else if (rec.type === 'biweekly') {
+      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
+        ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
+        : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
+      label = `Every 2 weeks on ${days}`;
+    }
+    else if (rec.type === 'monthly') {
+      if (rec.monthWeekday) {
+        label = `Monthly on the ${ordinals[rec.monthWeekday.week]} ${fullDayNames[rec.monthWeekday.day]}`;
+      } else {
+        const d = rec.monthDay || new Date(rec.startDate + 'T12:00:00').getDate();
+        const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
+        label = `Monthly on the ${d}${suffix}`;
+      }
+    }
+    else if (rec.type === 'yearly') {
+      const sd = new Date(rec.startDate + 'T12:00:00');
+      label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
+    }
+
+    if (rec.endDate) {
+      const ed = new Date(rec.endDate + 'T12:00:00');
+      label += ` until ${monthNames[ed.getMonth()].slice(0, 3)} ${ed.getDate()}`;
+    } else if (rec.maxOccurrences) {
+      label += ` (${rec.maxOccurrences} times)`;
+    }
+    return label;
+  };
+
+  const getRecurrencePresets = (dateStr) => {
+    const taskDate = new Date(dateStr + 'T12:00:00');
+    const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][taskDate.getDay()];
+    const monthDay = taskDate.getDate();
+    const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][taskDate.getMonth()];
+    const suffix = monthDay === 1 || monthDay === 21 || monthDay === 31 ? 'st' : monthDay === 2 || monthDay === 22 ? 'nd' : monthDay === 3 || monthDay === 23 ? 'rd' : 'th';
+    const weekOfMonth = Math.ceil(monthDay / 7);
+    const ordinals = ['','1st','2nd','3rd','4th','5th'];
+
+    return [
+      { label: 'None', value: null },
+      { label: 'Every day', value: { type: 'daily' } },
+      taskDate.getDay() === 0 || taskDate.getDay() === 6
+        ? { label: 'Every weekend (Sat-Sun)', value: { type: 'weekly', daysOfWeek: [0,6] } }
+        : { label: 'Every weekday (Mon-Fri)', value: { type: 'weekly', daysOfWeek: [1,2,3,4,5] } },
+      { label: `Every week on ${dayName}`, value: { type: 'weekly', daysOfWeek: [taskDate.getDay()] } },
+      { label: `Every 2 weeks on ${dayName}`, value: { type: 'biweekly', daysOfWeek: [taskDate.getDay()] } },
+      { label: `Monthly on the ${monthDay}${suffix}`, value: { type: 'monthly', monthDay: monthDay, monthWeekday: null } },
+      { label: `Monthly on the ${ordinals[weekOfMonth]} ${dayName}`, value: { type: 'monthly', monthDay: null, monthWeekday: { week: weekOfMonth, day: taskDate.getDay() } } },
+      { label: `Yearly on ${monthName} ${monthDay}`, value: { type: 'yearly' } },
+    ];
+  };
+
   const checkConflicts = () => {
     const dateStr = dateToString(selectedDate);
     // Exclude all-day tasks and imported events (not task calendar) from conflict detection
-    const todayTasks = tasks.filter(t => t.date === dateStr && !t.isAllDay && (!t.imported || t.isTaskCalendar));
+    // Include recurring task instances for this date
+    const recurringForDate = [];
+    for (const template of recurringTasks) {
+      if (template.isAllDay) continue;
+      const occs = getOccurrencesInRange(template, dateStr, dateStr);
+      for (const ds of occs) {
+        const exception = template.exceptions?.[ds];
+        recurringForDate.push({
+          id: `recurring-${template.id}-${ds}`,
+          startTime: exception?.startTime ?? template.startTime,
+          duration: exception?.duration ?? template.duration,
+          isAllDay: false,
+        });
+      }
+    }
+    const todayTasks = [...tasks.filter(t => t.date === dateStr && !t.isAllDay && (!t.imported || t.isTaskCalendar)), ...recurringForDate];
     const newConflicts = [];
 
     for (let i = 0; i < todayTasks.length; i++) {
@@ -1689,7 +1873,7 @@ const DayPlanner = () => {
       const bStart = timeToMinutes(b.startTime);
       if (aStart !== bStart) return aStart - bStart;
       if (a.duration !== b.duration) return b.duration - a.duration;
-      return a.id - b.id;
+      return String(a.id).localeCompare(String(b.id));
     });
 
     // Greedy column assignment: place each task in the first column where it fits
@@ -1740,7 +1924,25 @@ const DayPlanner = () => {
   const wouldExceedMaxColumns = (droppedTask, startTime, dropDateStr, maxColumns = 3) => {
     // Get existing tasks for this date, excluding the dropped task if it's already scheduled
     // Also exclude imported events (not task calendar) from conflict calculations
-    const existingTasks = tasks.filter(t => t.date === dropDateStr && t.id !== droppedTask.id && !t.isAllDay && (!t.imported || t.isTaskCalendar));
+    const existingRegular = tasks.filter(t => t.date === dropDateStr && t.id !== droppedTask.id && !t.isAllDay && (!t.imported || t.isTaskCalendar));
+    // Include recurring task instances for this date
+    const recurringForDate = [];
+    for (const template of recurringTasks) {
+      if (template.isAllDay) continue;
+      const occs = getOccurrencesInRange(template, dropDateStr, dropDateStr);
+      for (const ds of occs) {
+        const rid = `recurring-${template.id}-${ds}`;
+        if (rid === droppedTask.id) continue;
+        const exception = template.exceptions?.[ds];
+        recurringForDate.push({
+          id: rid,
+          startTime: exception?.startTime ?? template.startTime,
+          duration: exception?.duration ?? template.duration,
+          isAllDay: false,
+        });
+      }
+    }
+    const existingTasks = [...existingRegular, ...recurringForDate];
 
     // Create a hypothetical task with the new position
     const hypotheticalTask = { ...droppedTask, startTime, date: dropDateStr };
@@ -1773,7 +1975,7 @@ const DayPlanner = () => {
       const bStart = timeToMinutes(b.startTime);
       if (aStart !== bStart) return aStart - bStart;
       if (a.duration !== b.duration) return b.duration - a.duration;
-      return a.id - b.id;
+      return String(a.id).localeCompare(String(b.id));
     });
 
     // Greedy column assignment
@@ -1817,6 +2019,23 @@ const DayPlanner = () => {
           inboxTask.deadline = newTask.deadline;
         }
         setUnscheduledTasks([...unscheduledTasks, inboxTask]);
+      } else if (newTask.recurrence) {
+        // Create recurring task template
+        const taskDate = newTask.date || dateToString(selectedDate);
+        const template = {
+          id: taskId,
+          title: newTask.title,
+          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+          duration: newTask.duration,
+          color: newTask.color || colors[0].class,
+          isAllDay: newTask.isAllDay || false,
+          notes: '',
+          subtasks: [],
+          recurrence: { ...newTask.recurrence, startDate: taskDate },
+          completedDates: [],
+          exceptions: {}
+        };
+        setRecurringTasks(prev => [...prev, template]);
       } else {
         const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
         const taskDate = newTask.date || dateToString(selectedDate);
@@ -1842,7 +2061,7 @@ const DayPlanner = () => {
         }
       }
 
-      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false });
+      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null });
       setShowAddTask(false);
 
       // Track for onboarding
@@ -1860,6 +2079,16 @@ const DayPlanner = () => {
   };
 
   const changeTaskColor = (taskId, newColor, fromInbox = false) => {
+    // Handle recurring task instances - update the template
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      const templateId = Number(taskId.split('-')[1]);
+      setRecurringTasks(prev => prev.map(t =>
+        t.id === templateId ? { ...t, color: newColor } : t
+      ));
+      setShowColorPicker(null);
+      return;
+    }
+
     if (fromInbox) {
       setUnscheduledTasks(unscheduledTasks.map(task =>
         task.id === taskId ? { ...task, color: newColor } : task
@@ -1876,7 +2105,32 @@ const DayPlanner = () => {
     }
   };
 
+  const parseRecurringId = (id) => {
+    if (typeof id !== 'string' || !id.startsWith('recurring-')) return null;
+    const parts = id.split('-');
+    return { templateId: Number(parts[1]), dateStr: parts.slice(2).join('-') };
+  };
+
   const toggleComplete = (id, fromInbox = false) => {
+    // Handle recurring task instances
+    if (typeof id === 'string' && id.startsWith('recurring-')) {
+      const { templateId, dateStr } = parseRecurringId(id);
+      setRecurringTasks(prev => prev.map(t => {
+        if (t.id !== templateId) return t;
+        const completed = (t.completedDates || []).includes(dateStr);
+        return {
+          ...t,
+          completedDates: completed
+            ? (t.completedDates || []).filter(d => d !== dateStr)
+            : [...(t.completedDates || []), dateStr]
+        };
+      }));
+      if (!onboardingProgress.hasCompletedTask) {
+        setOnboardingProgress(prev => ({ ...prev, hasCompletedTask: true }));
+      }
+      return;
+    }
+
     // Track for onboarding - check if we're completing (not uncompleting) a task
     const taskToToggle = fromInbox
       ? unscheduledTasks.find(t => t.id === id)
@@ -1911,6 +2165,8 @@ const DayPlanner = () => {
   };
 
   const postponeTask = (id) => {
+    // Don't allow postponing recurring instances
+    if (typeof id === 'string' && id.startsWith('recurring-')) return;
     const task = tasks.find(t => t.id === id);
     if (!task || !task.startTime || !task.date) return; // Only postpone scheduled tasks
 
@@ -1930,6 +2186,8 @@ const DayPlanner = () => {
   };
 
   const moveToInbox = (id) => {
+    // Don't allow moving recurring instances to inbox
+    if (typeof id === 'string' && id.startsWith('recurring-')) return;
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
@@ -1967,7 +2225,13 @@ const DayPlanner = () => {
       return;
     }
 
-    if (isInbox) {
+    // Handle recurring task instances - update the template title
+    if (typeof editingTaskId === 'string' && editingTaskId.startsWith('recurring-')) {
+      const templateId = Number(editingTaskId.split('-')[1]);
+      setRecurringTasks(prev => prev.map(t =>
+        t.id === templateId ? { ...t, title: editingTaskText.trim() } : t
+      ));
+    } else if (isInbox) {
       setUnscheduledTasks(unscheduledTasks.map(t =>
         t.id === editingTaskId ? { ...t, title: editingTaskText.trim() } : t
       ));
@@ -1999,7 +2263,12 @@ const DayPlanner = () => {
 
   // Notes & Subtasks CRUD functions
   const updateTaskNotes = (taskId, notes, isInbox) => {
-    if (isInbox) {
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      const templateId = Number(taskId.split('-')[1]);
+      setRecurringTasks(prev => prev.map(t =>
+        t.id === templateId ? { ...t, notes } : t
+      ));
+    } else if (isInbox) {
       setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, notes } : t
       ));
@@ -2014,6 +2283,35 @@ const DayPlanner = () => {
     }
   };
 
+  // Helper to update a recurring task template by ID
+  const updateRecurringTemplate = (taskId, updater) => {
+    const templateId = Number(taskId.split('-')[1]);
+    setRecurringTasks(prev => prev.map(t => t.id === templateId ? updater(t) : t));
+  };
+
+  const updateRecurrencePattern = (templateId, dateStr, newRecurrence) => {
+    setRecurringTasks(prev => prev.map(t => {
+      if (t.id !== templateId) return t;
+      // Use the 1st of the earlier month so changing monthly day doesn't skip the start month
+      const origStart = t.recurrence.startDate;
+      const earlierDate = origStart <= dateStr ? origStart : dateStr;
+      const newStart = earlierDate.substring(0, 8) + '01';
+      return { ...t, recurrence: { ...newRecurrence, startDate: newStart } };
+    }));
+  };
+
+  const updateRecurrenceEndCondition = (templateId, { endDate, maxOccurrences }) => {
+    setRecurringTasks(prev => prev.map(t => {
+      if (t.id !== templateId) return t;
+      const updated = { ...t.recurrence };
+      delete updated.endDate;
+      delete updated.maxOccurrences;
+      if (endDate) updated.endDate = endDate;
+      if (maxOccurrences) updated.maxOccurrences = maxOccurrences;
+      return { ...t, recurrence: updated };
+    }));
+  };
+
   const addSubtask = (taskId, title, isInbox) => {
     if (!title.trim()) return;
     const newSubtask = {
@@ -2021,7 +2319,9 @@ const DayPlanner = () => {
       title: title.trim(),
       completed: false
     };
-    if (isInbox) {
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      updateRecurringTemplate(taskId, t => ({ ...t, subtasks: [...(t.subtasks || []), newSubtask] }));
+    } else if (isInbox) {
       setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
       ));
@@ -2037,64 +2337,48 @@ const DayPlanner = () => {
   };
 
   const toggleSubtask = (taskId, subtaskId, isInbox) => {
-    if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === taskId ? {
-          ...t,
-          subtasks: (t.subtasks || []).map(st =>
-            st.id === subtaskId ? { ...st, completed: !st.completed } : st
-          )
-        } : t
-      ));
+    const subtaskUpdater = t => ({
+      ...t,
+      subtasks: (t.subtasks || []).map(st =>
+        st.id === subtaskId ? { ...st, completed: !st.completed } : st
+      )
+    });
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      updateRecurringTemplate(taskId, subtaskUpdater);
+    } else if (isInbox) {
+      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     } else {
-      setTasks(prev => prev.map(t =>
-        t.id === taskId ? {
-          ...t,
-          subtasks: (t.subtasks || []).map(st =>
-            st.id === subtaskId ? { ...st, completed: !st.completed } : st
-          )
-        } : t
-      ));
+      setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     }
   };
 
   const deleteSubtask = (taskId, subtaskId, isInbox) => {
-    if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === taskId ? {
-          ...t,
-          subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
-        } : t
-      ));
+    const subtaskUpdater = t => ({
+      ...t,
+      subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
+    });
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      updateRecurringTemplate(taskId, subtaskUpdater);
+    } else if (isInbox) {
+      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     } else {
-      setTasks(prev => prev.map(t =>
-        t.id === taskId ? {
-          ...t,
-          subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
-        } : t
-      ));
+      setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     }
   };
 
   const updateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
-    if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === taskId ? {
-          ...t,
-          subtasks: (t.subtasks || []).map(st =>
-            st.id === subtaskId ? { ...st, title: newTitle } : st
-          )
-        } : t
-      ));
+    const subtaskUpdater = t => ({
+      ...t,
+      subtasks: (t.subtasks || []).map(st =>
+        st.id === subtaskId ? { ...st, title: newTitle } : st
+      )
+    });
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      updateRecurringTemplate(taskId, subtaskUpdater);
+    } else if (isInbox) {
+      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     } else {
-      setTasks(prev => prev.map(t =>
-        t.id === taskId ? {
-          ...t,
-          subtasks: (t.subtasks || []).map(st =>
-            st.id === subtaskId ? { ...st, title: newTitle } : st
-          )
-        } : t
-      ));
+      setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     }
   };
 
@@ -2524,6 +2808,25 @@ const DayPlanner = () => {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
+      // Escape to close modals/dialogs (works even when focus is on body)
+      if (e.key === 'Escape') {
+        if (editingRecurrenceTaskId) {
+          e.preventDefault();
+          setEditingRecurrenceTaskId(null);
+          return;
+        }
+        if (showAddTask) {
+          e.preventDefault();
+          if (showRecurrencePicker) {
+            setShowRecurrencePicker(false);
+          } else {
+            setShowAddTask(false);
+            setShowNewTaskDeadlinePicker(false);
+          }
+          return;
+        }
+      }
+
       // Don't trigger if typing in an input or textarea
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
         return;
@@ -2557,9 +2860,18 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
+    // Handle recurring task instances - show confirmation dialog
+    if (typeof id === 'string' && id.startsWith('recurring-')) {
+      const parts = id.split('-');
+      const templateId = Number(parts[1]);
+      const dateStr = parts.slice(2).join('-');
+      setRecurringDeleteConfirm({ taskId: templateId, dateStr });
+      return;
+    }
+
     const task = fromInbox
       ? unscheduledTasks.find(t => t.id === id)
       : tasks.find(t => t.id === id);
@@ -2586,6 +2898,34 @@ const DayPlanner = () => {
         setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
       }
     }
+  };
+
+  // Delete recurring task: this occurrence, all future, or entire series
+  const deleteRecurringInstance = (mode) => {
+    if (!recurringDeleteConfirm) return;
+    const { taskId, dateStr } = recurringDeleteConfirm;
+
+    if (mode === 'this') {
+      // Add exception for this date
+      setRecurringTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t;
+        return { ...t, exceptions: { ...t.exceptions, [dateStr]: { deleted: true } } };
+      }));
+    } else if (mode === 'future') {
+      // Set end date to day before this occurrence
+      const dayBefore = new Date(dateStr + 'T12:00:00');
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      const endDate = dateToString(dayBefore);
+      setRecurringTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t;
+        return { ...t, recurrence: { ...t.recurrence, endDate } };
+      }));
+    } else if (mode === 'series') {
+      // Remove the entire template
+      setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
+    }
+
+    setRecurringDeleteConfirm(null);
   };
 
   const undeleteTask = (id) => {
@@ -2704,18 +3044,26 @@ const DayPlanner = () => {
 
   const hasTasksOnDate = (date) => {
     if (!date) return false;
-    const dateStr = date.toISOString().split('T')[0];
-    return tasks.some(task => task.date === dateStr);
+    const dateStr = dateToString(date);
+    if (tasks.some(task => task.date === dateStr)) return true;
+    // Check recurring tasks for this date
+    for (const template of recurringTasks) {
+      const occs = getOccurrencesInRange(template, dateStr, dateStr);
+      if (occs.length > 0) return true;
+    }
+    return false;
   };
 
   const openNewTaskForm = () => {
-    setNewTask({ 
-      title: '', 
-      startTime: getNextQuarterHour(), 
+    setNewTask({
+      title: '',
+      startTime: getNextQuarterHour(),
       duration: 30,
       date: dateToString(selectedDate),
-      isAllDay: false
+      isAllDay: false,
+      recurrence: null
     });
+    setShowRecurrencePicker(false);
     setShowAddTask(true);
   };
 
@@ -2968,11 +3316,33 @@ const DayPlanner = () => {
         setOnboardingProgress(prev => ({ ...prev, hasDraggedToTimeline: true }));
       }
     } else if (dragSource === 'calendar') {
-      setTasks(tasks.map(t =>
-        t.id === draggedTask.id
-          ? { ...t, startTime, date: dropDateStr, isAllDay: false }
-          : t
-      ));
+      if (draggedTask.isRecurring) {
+        const parsed = parseRecurringId(draggedTask.id);
+        if (parsed) {
+          const { templateId, dateStr: origDateStr } = parsed;
+          if (origDateStr === dropDateStr) {
+            // Same-date drag: store startTime override in exception
+            setRecurringTasks(prev => prev.map(t => {
+              if (t.id !== templateId) return t;
+              return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], startTime } } };
+            }));
+          } else {
+            // Cross-date drag: mark deleted on old date, create regular task on new date
+            setRecurringTasks(prev => prev.map(t => {
+              if (t.id !== templateId) return t;
+              return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
+            }));
+            const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
+            setTasks([...tasks, { ...taskData, id: Date.now(), startTime, date: dropDateStr, isAllDay: false }]);
+          }
+        }
+      } else {
+        setTasks(tasks.map(t =>
+          t.id === draggedTask.id
+            ? { ...t, startTime, date: dropDateStr, isAllDay: false }
+            : t
+        ));
+      }
     } else if (dragSource === 'recycleBin') {
       // Remove metadata and add to calendar
       const { _deletedFrom, ...cleanTask } = draggedTask;
@@ -3028,9 +3398,23 @@ const DayPlanner = () => {
     if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue' && !(dragSource === 'inbox' && draggedTask.deadline)) return;
 
     if (dragSource === 'calendar') {
-      setTasks(tasks.filter(t => t.id !== draggedTask.id));
-      const { startTime, date, ...taskWithoutSchedule } = draggedTask;
-      setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+      if (draggedTask.isRecurring) {
+        const parsed = parseRecurringId(draggedTask.id);
+        if (parsed) {
+          const { templateId, dateStr: origDateStr } = parsed;
+          // Detach: mark deleted on original date, create regular inbox task
+          setRecurringTasks(prev => prev.map(t => {
+            if (t.id !== templateId) return t;
+            return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
+          }));
+          const { id, isRecurring, recurringTemplateId, startTime, date, ...taskData } = draggedTask;
+          setUnscheduledTasks([...unscheduledTasks, { ...taskData, id: Date.now(), priority: taskData.priority || 0 }]);
+        }
+      } else {
+        setTasks(tasks.filter(t => t.id !== draggedTask.id));
+        const { startTime, date, ...taskWithoutSchedule } = draggedTask;
+        setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+      }
     } else if (dragSource === 'recycleBin') {
       setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
       const { _deletedFrom, startTime, date, ...taskWithoutSchedule } = draggedTask;
@@ -3057,6 +3441,16 @@ const DayPlanner = () => {
   const handleDropOnRecycleBin = (e) => {
     e.preventDefault();
     if (!draggedTask) return;
+
+    // Recurring tasks: delegate to existing moveToRecycleBin (shows 3-option delete dialog)
+    if (draggedTask.isRecurring) {
+      moveToRecycleBin(draggedTask.id);
+      setDraggedTask(null);
+      setDragSource(null);
+      setDragPreviewTime(null);
+      setDragOverRecycleBin(false);
+      return;
+    }
 
     // Determine source and clean up task metadata
     let deletedFrom = 'calendar';
@@ -3117,11 +3511,25 @@ const DayPlanner = () => {
         isAllDay: true
       }]);
     } else if (dragSource === 'calendar') {
-      setTasks(tasks.map(t =>
-        t.id === draggedTask.id
-          ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
-          : t
-      ));
+      if (draggedTask.isRecurring) {
+        const parsed = parseRecurringId(draggedTask.id);
+        if (parsed) {
+          const { templateId, dateStr: origDateStr } = parsed;
+          // Detach: mark deleted on original date, create regular all-day task
+          setRecurringTasks(prev => prev.map(t => {
+            if (t.id !== templateId) return t;
+            return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
+          }));
+          const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
+          setTasks([...tasks, { ...taskData, id: Date.now(), startTime: '00:00', date: dropDateStr, isAllDay: true }]);
+        }
+      } else {
+        setTasks(tasks.map(t =>
+          t.id === draggedTask.id
+            ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
+            : t
+        ));
+      }
     } else if (dragSource === 'recycleBin') {
       const { _deletedFrom, ...cleanTask } = draggedTask;
       setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
@@ -3168,14 +3576,25 @@ const DayPlanner = () => {
     const startY = e.clientY;
     const startDuration = task.duration;
 
+    const isRecurringTask = task.isRecurring;
+    const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
+
     const handleMouseMove = (moveEvent) => {
       const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
       const newDuration = Math.max(15, startDuration + deltaMinutes);
 
-      setTasks(prevTasks => prevTasks.map(t =>
-        t.id === task.id ? { ...t, duration: newDuration } : t
-      ));
+      if (isRecurringTask && recurringInfo) {
+        const { templateId, dateStr } = recurringInfo;
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id !== templateId) return t;
+          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } } };
+        }));
+      } else {
+        setTasks(prevTasks => prevTasks.map(t =>
+          t.id === task.id ? { ...t, duration: newDuration } : t
+        ));
+      }
     };
 
     const handleMouseUp = () => {
@@ -3367,6 +3786,7 @@ const DayPlanner = () => {
         syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
         taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
         completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
+        recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
         selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
       }
@@ -3414,6 +3834,7 @@ const DayPlanner = () => {
         if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
         if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
         if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
+        if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
         if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
         if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
 
@@ -4020,8 +4441,11 @@ const DayPlanner = () => {
     tasks.filter(t => !t.completed && !t.imported).forEach(task => {
       extractTags(task.title).forEach(tag => tagSet.add(tag));
     });
+    recurringTasks.forEach(template => {
+      extractTags(template.title).forEach(tag => tagSet.add(tag));
+    });
     return Array.from(tagSet).sort();
-  }, [tasks]);
+  }, [tasks, recurringTasks]);
 
   // Getting Started checklist - uses persistent progress tracking
   const gettingStartedItems = useMemo(() => {
@@ -4045,8 +4469,8 @@ const DayPlanner = () => {
   const hasZeroRealTasks = useMemo(() => {
     const realScheduledTasks = tasks.filter(t => !t.isExample && !t.imported);
     const realInboxTasks = unscheduledTasks.filter(t => !t.isExample);
-    return realScheduledTasks.length === 0 && realInboxTasks.length === 0;
-  }, [tasks, unscheduledTasks]);
+    return realScheduledTasks.length === 0 && realInboxTasks.length === 0 && recurringTasks.length === 0;
+  }, [tasks, unscheduledTasks, recurringTasks]);
 
   // Show onboarding when user has zero real tasks (and data is loaded, to prevent flash)
   const showOnboarding = dataLoaded && !onboardingComplete && hasZeroRealTasks;
@@ -4152,14 +4576,52 @@ const DayPlanner = () => {
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
 
+  // Expand recurring task templates into virtual task instances for visible dates
+  const expandedRecurringTasks = useMemo(() => {
+    if (recurringTasks.length === 0) return [];
+    const dateStrs = visibleDates.map(d => dateToString(d));
+    const rangeStart = dateStrs[0];
+    const rangeEnd = dateStrs[dateStrs.length - 1];
+    const today = getTodayStr();
+    const instances = [];
+    for (const template of recurringTasks) {
+      const occurrences = getOccurrencesInRange(template, rangeStart, rangeEnd);
+      for (const dateStr of occurrences) {
+        const completed = (template.completedDates || []).includes(dateStr);
+        // Don't show past uncompleted recurring instances
+        if (dateStr < today && !completed) continue;
+        const exception = template.exceptions?.[dateStr];
+        instances.push({
+          id: `recurring-${template.id}-${dateStr}`,
+          title: template.title,
+          startTime: exception?.startTime ?? template.startTime,
+          duration: exception?.duration ?? template.duration,
+          color: template.color,
+          completed,
+          isAllDay: template.isAllDay || false,
+          notes: template.notes || '',
+          subtasks: template.subtasks || [],
+          date: dateStr,
+          isRecurring: true,
+          recurringTemplateId: template.id,
+        });
+      }
+    }
+    return instances;
+  }, [recurringTasks, visibleDates]);
+
   // Compute today's agenda for dayGLANCE section (excludes past events)
   const todayAgenda = useMemo(() => {
     const today = getTodayStr();
     const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
 
-    const allDay = tasks.filter(t => t.date === today && t.isAllDay && !t.completed);
+    // Include recurring instances for today
+    const todayRecurring = expandedRecurringTasks.filter(t => t.date === today);
+    const allTodayTasks = [...tasks, ...todayRecurring];
+
+    const allDay = allTodayTasks.filter(t => t.date === today && t.isAllDay && !t.completed);
     const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today && !t.completed);
-    const scheduled = tasks.filter(t => {
+    const scheduled = allTodayTasks.filter(t => {
       if (t.date !== today || t.isAllDay) return false;
       const [h, m] = (t.startTime || '0:0').split(':').map(Number);
       const endMinutes = h * 60 + m + (t.duration || 0);
@@ -4173,22 +4635,39 @@ const DayPlanner = () => {
       ...allDay.map(t => ({ ...t, _agendaType: 'allday' })),
       ...scheduled.map(t => ({ ...t, _agendaType: 'scheduled' })),
     ];
-  }, [tasks, unscheduledTasks, currentTime]);
+  }, [tasks, unscheduledTasks, currentTime, expandedRecurringTasks]);
 
   // Helper to get tasks for a specific date (must be after filterByTags)
   const getTasksForDate = (date) => {
     const dateStr = dateToString(date);
-    return filterByTags(tasks.filter(t => t.date === dateStr));
+    const recurring = expandedRecurringTasks.filter(t => t.date === dateStr);
+    return filterByTags([...tasks.filter(t => t.date === dateStr), ...recurring]);
   };
 
-  // Calculate all-time stats (excluding imported events)
+  // Calculate all-time stats (excluding imported events, including recurring)
   const nonImportedTasks = tasks.filter(t => !t.imported);
   const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
-  const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
-  const totalScheduledMinutes = nonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
+  // Count all recurring occurrences from start to today (mirrors daily summary logic)
+  const recurringAllTimeStats = recurringTasks.reduce((acc, t) => {
+    const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
+    const completedSet = new Set(t.completedDates || []);
+    const completed = occs.filter(d => completedSet.has(d)).length;
+    return {
+      scheduled: acc.scheduled + occs.length,
+      completed: acc.completed + completed,
+      scheduledMinutes: acc.scheduledMinutes + occs.length * (t.duration || 0),
+      completedMinutes: acc.completedMinutes + completed * (t.duration || 0),
+    };
+  }, { scheduled: 0, completed: 0, scheduledMinutes: 0, completedMinutes: 0 });
+  const allTimeScheduledCount = nonImportedTasks.length + recurringAllTimeStats.scheduled;
+  const allTimeCompletedCount = allCompletedTasks.length + recurringAllTimeStats.completed;
+  const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.completedMinutes;
+  const totalScheduledMinutes = nonImportedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.scheduledMinutes;
 
   // Daily Summary stats - always use actual current date, not selected date
-  const actualTodayTasks = tasks.filter(t => t.date === getTodayStr());
+  // Include recurring task instances for today
+  const todayRecurringInstances = expandedRecurringTasks.filter(t => t.date === getTodayStr());
+  const actualTodayTasks = [...tasks.filter(t => t.date === getTodayStr()), ...todayRecurringInstances];
   const actualTodayNonImportedTasks = actualTodayTasks.filter(t => !t.imported);
   const actualTodayCompletedTasks = actualTodayNonImportedTasks.filter(t => t.completed);
   const actualTodayCompletedMinutes = actualTodayCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
@@ -4234,7 +4713,7 @@ const DayPlanner = () => {
               {/* Expanded date navigator */}
               <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <div className="flex items-center gap-2 relative">
-                    <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg}`}>
+                    <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg} flex-shrink-0`}>
                       <ChevronLeft size={20} className={textSecondary} />
                     </button>
                     <button
@@ -4242,11 +4721,11 @@ const DayPlanner = () => {
                         if (!showMonthView) setViewedMonth(new Date(selectedDate));
                         setShowMonthView(!showMonthView);
                       }}
-                      className={`month-view-toggle ${textPrimary} font-bold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer`}
+                      className={`month-view-toggle ${textPrimary} font-bold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer min-w-[220px] text-center`}
                     >
                       {formatDateRange(visibleDates)}
                     </button>
-                    <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg}`}>
+                    <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg} flex-shrink-0`}>
                       <ChevronRight size={20} className={textSecondary} />
                     </button>
 
@@ -4779,7 +5258,7 @@ const DayPlanner = () => {
                 <img
                   src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
                   alt="dayGLANCE"
-                  className="h-7"
+                  className="h-9"
                 />
                 <div className="flex items-center gap-2">
                   {!onboardingComplete && dataLoaded && hasZeroRealTasks && !sectionInfoDismissed.dayglance && (
@@ -4869,7 +5348,8 @@ const DayPlanner = () => {
                         >
                           <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`}></div>
                           <div className="min-w-0 flex-1">
-                            <div className={`text-sm font-semibold truncate ${textPrimary} ${task.completed ? 'line-through' : ''}`}>
+                            <div className={`text-sm font-semibold truncate ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
+                              {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
                               {renderTitleWithoutTags(task.title)}
                             </div>
                             <div className={`text-xs ${textSecondary}`}>
@@ -5294,7 +5774,9 @@ const DayPlanner = () => {
                   ) : (
                     <div className="space-y-1">
                       {allTags.map(tag => {
-                        const tagCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
+                        const regularCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
+                        const recurringCount = recurringTasks.filter(t => extractTags(t.title).includes(tag)).length;
+                        const tagCount = regularCount + recurringCount;
                         if (tagCount === 0) return null;
                         return (
                           <label
@@ -5362,13 +5844,13 @@ const DayPlanner = () => {
               </div>
               {!minimizedSections.allTimeSummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
-                  <div>{nonImportedTasks.length} tasks scheduled</div>
-                  <div>{allCompletedTasks.length} tasks completed</div>
+                  <div>{allTimeScheduledCount} tasks scheduled</div>
+                  <div>{allTimeCompletedCount} tasks completed</div>
                   <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
-                  {nonImportedTasks.length > 0 && (
+                  {allTimeScheduledCount > 0 && (
                     <div className="pt-1">
-                      <div className="font-semibold">{Math.round((allCompletedTasks.length / nonImportedTasks.length) * 100)}% completion rate</div>
+                      <div className="font-semibold">{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate</div>
                     </div>
                   )}
                 </div>
@@ -5711,6 +6193,7 @@ const DayPlanner = () => {
                                       </button>
                                     )}
                                     <Calendar size={14} className="flex-shrink-0" />
+                                    {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                     <div
                                       className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                       onDoubleClick={(e) => {
@@ -6126,6 +6609,7 @@ const DayPlanner = () => {
                                           {task.completed && <Check size={8} strokeWidth={3} />}
                                         </button>
                                       )}
+                                      {task.isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                       <div
                                         className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
                                         onDoubleClick={(e) => {
@@ -6165,6 +6649,7 @@ const DayPlanner = () => {
                                           {task.completed && <Check size={10} strokeWidth={3} />}
                                         </button>
                                       )}
+                                      {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                       <div className="flex-1 min-w-0 overflow-hidden">
                                         {editingTaskId === task.id ? (
                                           <div className="relative tag-autocomplete-container">
@@ -6235,6 +6720,7 @@ const DayPlanner = () => {
                                             {task.completed && <Check size={10} strokeWidth={3} />}
                                           </button>
                                         )}
+                                        {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                         <div className="flex-1 min-w-0">
                                           {editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
@@ -6303,6 +6789,7 @@ const DayPlanner = () => {
                                           {task.completed && <Check size={10} strokeWidth={3} />}
                                         </button>
                                       )}
+                                      {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                       <div className="flex-1 min-w-0">
                                         {editingTaskId === task.id ? (
                                           <div className="relative tag-autocomplete-container">
@@ -6477,6 +6964,28 @@ const DayPlanner = () => {
         />
       )}
 
+      {showRecurrenceEndDatePicker && (
+        <DatePicker
+          value={(() => {
+            if (showRecurrenceEndDatePicker.source === 'edit') {
+              const tmpl = recurringTasks.find(t => t.id === showRecurrenceEndDatePicker.templateId);
+              return tmpl?.recurrence?.endDate || dateToString(new Date());
+            }
+            return newTask.recurrence?.endDate || dateToString(new Date());
+          })()}
+          onChange={(date) => {
+            if (showRecurrenceEndDatePicker.source === 'edit') {
+              updateRecurrenceEndCondition(showRecurrenceEndDatePicker.templateId, { endDate: date });
+            } else {
+              const { maxOccurrences: _m, ...rest } = newTask.recurrence;
+              setNewTask({ ...newTask, recurrence: { ...rest, endDate: date } });
+            }
+            setShowRecurrenceEndDatePicker(null);
+          }}
+          onClose={() => setShowRecurrenceEndDatePicker(null)}
+        />
+      )}
+
       {showEmptyBinConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmptyBinConfirm(false)}>
           <div
@@ -6509,6 +7018,203 @@ const DayPlanner = () => {
           </div>
         </div>
       )}
+
+      {recurringDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRecurringDeleteConfirm(null)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                <RefreshCw size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Recurring Task</h3>
+            </div>
+            <p className={`${textSecondary} mb-4`}>
+              How would you like to delete this recurring task?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => deleteRecurringInstance('this')}
+                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary}`}
+              >
+                <div className="font-medium">This occurrence</div>
+                <div className={`text-xs ${textSecondary}`}>Only skip {recurringDeleteConfirm.dateStr}</div>
+              </button>
+              <button
+                onClick={() => deleteRecurringInstance('future')}
+                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary}`}
+              >
+                <div className="font-medium">This and all future</div>
+                <div className={`text-xs ${textSecondary}`}>Stop recurring from {recurringDeleteConfirm.dateStr} onward</div>
+              </button>
+              <button
+                onClick={() => deleteRecurringInstance('series')}
+                className="w-full text-left px-4 py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                <div className="font-medium">Delete entire series</div>
+                <div className="text-xs opacity-75">Remove all occurrences</div>
+              </button>
+              <button
+                onClick={() => setRecurringDeleteConfirm(null)}
+                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg} mt-1`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingRecurrenceTaskId && (() => {
+        const parts = editingRecurrenceTaskId.split('-');
+        const templateId = Number(parts[1]);
+        const dateStr = parts.slice(2).join('-');
+        const template = recurringTasks.find(t => t.id === templateId);
+        if (!template) return null;
+        const presets = getRecurrencePresets(dateStr);
+        const currentRecurrence = template.recurrence;
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingRecurrenceTaskId(null)}>
+            <div
+              className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                  <RefreshCw size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className={`text-lg font-semibold ${textPrimary}`}>Edit Recurrence</h3>
+              </div>
+              <p className={`${textSecondary} mb-3 text-sm`}>
+                {template.title}
+              </p>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    // Convert recurring task to a regular scheduled task for this date
+                    const isCompleted = template.completedDates?.includes(dateStr);
+                    const regularTask = {
+                      id: Date.now(),
+                      title: template.title,
+                      startTime: template.startTime,
+                      duration: template.duration,
+                      color: template.color,
+                      completed: isCompleted,
+                      isAllDay: template.isAllDay || false,
+                      notes: template.notes || '',
+                      subtasks: template.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
+                      date: dateStr
+                    };
+                    setTasks(prev => [...prev, regularTask]);
+                    setRecurringTasks(prev => prev.filter(t => t.id !== templateId));
+                    setEditingRecurrenceTaskId(null);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${textPrimary}`}
+                >
+                  None (convert to regular task)
+                </button>
+                <div className={`border-t ${borderClass} my-1`}></div>
+                {presets.filter(p => p.value !== null).map((preset, i) => {
+                  const { startDate: _s, endDate: _e, maxOccurrences: _m, ...recCore } = currentRecurrence;
+                  const isActive = JSON.stringify(recCore) === JSON.stringify(preset.value);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        const endFields = {};
+                        if (currentRecurrence.endDate) endFields.endDate = currentRecurrence.endDate;
+                        if (currentRecurrence.maxOccurrences) endFields.maxOccurrences = currentRecurrence.maxOccurrences;
+                        updateRecurrencePattern(templateId, dateStr, { ...preset.value, ...endFields });
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                        isActive ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {isActive && <Check size={14} className="flex-shrink-0" />}
+                        {preset.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                <p className={`text-xs font-medium ${textSecondary} mb-2`}>Ends</p>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => updateRecurrenceEndCondition(templateId, {})}
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                      !currentRecurrence.endDate && !currentRecurrence.maxOccurrences ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {!currentRecurrence.endDate && !currentRecurrence.maxOccurrences && <Check size={14} className="flex-shrink-0" />}
+                      Never
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setShowRecurrenceEndDatePicker({ source: 'edit', templateId })}
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                      currentRecurrence.endDate ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {currentRecurrence.endDate && <Check size={14} className="flex-shrink-0" />}
+                      On date
+                      {currentRecurrence.endDate && <span className="ml-auto text-xs opacity-75">
+                        {new Date(currentRecurrence.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>}
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (!currentRecurrence.maxOccurrences) {
+                          updateRecurrenceEndCondition(templateId, { maxOccurrences: 10 });
+                        }
+                      }}
+                      className={`flex-1 text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                        currentRecurrence.maxOccurrences ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {currentRecurrence.maxOccurrences && <Check size={14} className="flex-shrink-0" />}
+                        After
+                      </span>
+                    </button>
+                    {currentRecurrence.maxOccurrences && (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max="999"
+                          value={currentRecurrence.maxOccurrences}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (val > 0) updateRecurrenceEndCondition(templateId, { maxOccurrences: val });
+                          }}
+                          className={`w-16 px-2 py-1 text-sm border ${borderClass} rounded ${darkMode ? 'bg-gray-700 text-white dark-spinner' : 'bg-white'}`}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <span className={`text-sm ${textSecondary}`}>times</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingRecurrenceTaskId(null)}
+                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg} mt-3`}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {showImportModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImportModal(false); setPendingImportFile(null); }}>
@@ -6696,8 +7402,12 @@ const DayPlanner = () => {
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.preventDefault();
-                setShowAddTask(false);
-                setShowNewTaskDeadlinePicker(false);
+                if (showRecurrencePicker) {
+                  setShowRecurrencePicker(false);
+                } else {
+                  setShowAddTask(false);
+                  setShowNewTaskDeadlinePicker(false);
+                }
               } else if (e.key === '%' && !newTask.openInInbox) {
                 // '%' toggles Full Day for scheduled tasks
                 e.preventDefault();
@@ -6906,16 +7616,111 @@ const DayPlanner = () => {
                         {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
                       </button>
                     </div>
-                    <div>
+                    <div className="relative">
                       <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
                       <button
                         type="button"
-                        disabled
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} opacity-50 cursor-not-allowed`}
+                        onClick={() => setShowRecurrencePicker(!showRecurrencePicker)}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''}`}
                       >
-                        None
+                        {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
                       </button>
+                      {showRecurrencePicker && (() => {
+                        const presets = getRecurrencePresets(newTask.date || dateToString(selectedDate));
+
+                        return (
+                          <div className={`absolute top-full left-0 mt-1 ${cardBg} rounded-lg shadow-xl z-30 border ${borderClass} min-w-[250px] max-h-[300px] overflow-y-auto`}>
+                            {presets.map((preset, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => {
+                                  const endFields = {};
+                                  if (newTask.recurrence?.endDate) endFields.endDate = newTask.recurrence.endDate;
+                                  if (newTask.recurrence?.maxOccurrences) endFields.maxOccurrences = newTask.recurrence.maxOccurrences;
+                                  setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value, ...endFields } : null });
+                                  setShowRecurrencePicker(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                                  JSON.stringify(newTask.recurrence) === JSON.stringify(preset.value) ? (darkMode ? 'bg-gray-700' : 'bg-blue-50 text-blue-700') : textPrimary
+                                } ${i === 0 ? 'rounded-t-lg' : ''} ${i === presets.length - 1 ? 'rounded-b-lg' : ''}`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
+                    {newTask.recurrence && (
+                      <div className="col-span-full">
+                        <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Ends</label>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const { endDate: _e, maxOccurrences: _m, ...rest } = newTask.recurrence;
+                              setNewTask({ ...newTask, recurrence: rest });
+                            }}
+                            className={`px-3 py-1.5 text-sm rounded-lg border ${borderClass} ${
+                              !newTask.recurrence.endDate && !newTask.recurrence.maxOccurrences
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
+                            }`}
+                          >
+                            Never
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowRecurrenceEndDatePicker({ source: 'new' })}
+                            className={`px-3 py-1.5 text-sm rounded-lg border ${borderClass} ${
+                              newTask.recurrence.endDate
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
+                            }`}
+                          >
+                            {newTask.recurrence.endDate
+                              ? `Until ${new Date(newTask.recurrence.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                              : 'On date'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newTask.recurrence.maxOccurrences) {
+                                const { endDate: _e, ...rest } = newTask.recurrence;
+                                setNewTask({ ...newTask, recurrence: { ...rest, maxOccurrences: 10 } });
+                              }
+                            }}
+                            className={`px-3 py-1.5 text-sm rounded-lg border ${borderClass} ${
+                              newTask.recurrence.maxOccurrences
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
+                            }`}
+                          >
+                            After
+                          </button>
+                          {newTask.recurrence.maxOccurrences && (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="1"
+                                max="999"
+                                value={newTask.recurrence.maxOccurrences}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  if (val > 0) {
+                                    const { endDate: _e, ...rest } = newTask.recurrence;
+                                    setNewTask({ ...newTask, recurrence: { ...rest, maxOccurrences: val } });
+                                  }
+                                }}
+                                className={`w-16 px-2 py-1 text-sm border ${borderClass} rounded ${darkMode ? 'bg-gray-700 text-white dark-spinner' : 'bg-white'}`}
+                              />
+                              <span className={`text-sm ${textSecondary}`}>times</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {/* Row 2: Time, Duration, All Day */}
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
@@ -7073,7 +7878,7 @@ const DayPlanner = () => {
                   More to Come
                 </h3>
                 <p className={`text-sm ${textSecondary} ml-8`}>
-                  <strong className={textPrimary}>Recurring tasks</strong>, <strong className={textPrimary}>routines</strong>, and <strong className={textPrimary}>goals</strong> are coming soon! You may notice placeholders here and there for future functionality.
+                  <strong className={textPrimary}>Recurring tasks</strong> are here! Set daily, weekly, biweekly, monthly, or yearly recurrence when creating scheduled tasks. <strong className={textPrimary}>Routines</strong> and <strong className={textPrimary}>goals</strong> are coming soon.
                 </p>
               </div>
 
