@@ -459,6 +459,7 @@ const DayPlanner = () => {
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
   const autoScrollInterval = useRef(null); // For drag auto-scroll
+  const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
   const taskElementRefs = useRef({});
   const [taskWidths, setTaskWidths] = useState({});
 
@@ -2829,6 +2830,42 @@ const DayPlanner = () => {
     }
   };
 
+  const updateDragAutoScroll = (e) => {
+    if (!calendarRef.current) return;
+    const calendarRect = calendarRef.current.getBoundingClientRect();
+    // Account for sticky headers (date header + all-day section) when computing scroll-up zone
+    const stickyHeight = stickyHeaderRef.current ? stickyHeaderRef.current.getBoundingClientRect().bottom - calendarRect.top : 0;
+    const scrollZoneSize = 60;
+    const scrollSpeed = 8;
+
+    const cursorY = e.clientY;
+    const effectiveTop = calendarRect.top + stickyHeight;
+    const distanceFromTop = cursorY - effectiveTop;
+    const distanceFromBottom = calendarRect.bottom - cursorY;
+
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+
+    if (distanceFromTop < scrollZoneSize && distanceFromTop > 0 && calendarRef.current.scrollTop > 0) {
+      autoScrollInterval.current = setInterval(() => {
+        if (calendarRef.current) {
+          calendarRef.current.scrollTop -= scrollSpeed;
+        }
+      }, 16);
+    } else if (distanceFromBottom < scrollZoneSize && distanceFromBottom > 0) {
+      autoScrollInterval.current = setInterval(() => {
+        if (calendarRef.current) {
+          const maxScroll = calendarRef.current.scrollHeight - calendarRef.current.clientHeight;
+          if (calendarRef.current.scrollTop < maxScroll) {
+            calendarRef.current.scrollTop += scrollSpeed;
+          }
+        }
+      }, 16);
+    }
+  };
+
   const handleDragOver = (e, targetDate = null) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -2851,41 +2888,7 @@ const DayPlanner = () => {
         setDragPreviewDate(targetDate);
       }
 
-      // Auto-scroll when dragging near top/bottom of time grid
-      const calendarRect = calendarRef.current.getBoundingClientRect();
-      const timeGridTop = timeGridRef.current ? timeGridRef.current.getBoundingClientRect().top : calendarRect.top;
-      const scrollZoneSize = 60; // pixels from edge to trigger scroll
-      const scrollSpeed = 8; // pixels per frame
-
-      const cursorY = e.clientY;
-      const distanceFromTop = cursorY - Math.max(timeGridTop, calendarRect.top);
-      const distanceFromBottom = calendarRect.bottom - cursorY;
-
-      // Clear any existing scroll interval
-      if (autoScrollInterval.current) {
-        clearInterval(autoScrollInterval.current);
-        autoScrollInterval.current = null;
-      }
-
-      // Start scrolling if in scroll zone (but only within the time grid area, not the header)
-      if (cursorY > timeGridTop && distanceFromTop < scrollZoneSize && calendarRef.current.scrollTop > 0) {
-        // Scroll up
-        autoScrollInterval.current = setInterval(() => {
-          if (calendarRef.current) {
-            calendarRef.current.scrollTop -= scrollSpeed;
-          }
-        }, 16);
-      } else if (distanceFromBottom < scrollZoneSize && distanceFromBottom > 0) {
-        // Scroll down
-        autoScrollInterval.current = setInterval(() => {
-          if (calendarRef.current) {
-            const maxScroll = calendarRef.current.scrollHeight - calendarRef.current.clientHeight;
-            if (calendarRef.current.scrollTop < maxScroll) {
-              calendarRef.current.scrollTop += scrollSpeed;
-            }
-          }
-        }, 16);
-      }
+      updateDragAutoScroll(e);
     }
   };
 
@@ -4629,11 +4632,13 @@ const DayPlanner = () => {
             {/* Getting Started Checklist */}
             {showOnboarding && (
               <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                    <Sparkles size={18} className="text-blue-500" />
-                    Getting Started
-                  </h3>
+                <div className="flex flex-col items-start mb-3">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-8 mb-2"
+                  />
+                  <p className={`text-sm font-semibold ${textPrimary}`}>Let's start with these steps:</p>
                 </div>
                 <div className="space-y-2">
                   {gettingStartedItems.map(item => (
@@ -4771,12 +4776,21 @@ const DayPlanner = () => {
             {/* dayGLANCE Agenda Section */}
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
               <div className={`flex items-center justify-between ${minimizedSections.dayglance ? '' : 'mb-3'}`}>
-                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <Calendar size={18} />
-                  dayGLANCE
-                </h3>
+                <img
+                  src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                  alt="dayGLANCE"
+                  className="h-7"
+                />
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm ${textSecondary}`}>{todayAgenda.length}</span>
+                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && !sectionInfoDismissed.dayglance && (
+                    <button
+                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'dayglance' ? null : 'dayglance')}
+                      className={`${expandedSectionInfo === 'dayglance' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
+                      title="How dayGLANCE works"
+                    >
+                      <HelpCircle size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleSection('dayglance')}
                     className={`${textSecondary} hover:${textPrimary} transition-colors`}
@@ -4787,9 +4801,38 @@ const DayPlanner = () => {
                 </div>
               </div>
 
+              {/* dayGLANCE info popup */}
+              {expandedSectionInfo === 'dayglance' && (
+                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+                  <div className="flex items-start gap-2">
+                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                        Your Smart Agenda
+                      </p>
+                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
+                        <li>Shows all upcoming tasks and events for today</li>
+                        <li>Incomplete past tasks stay visible so nothing slips through</li>
+                        <li>Tasks show "In Progress" or "Overdue" status in real time</li>
+                        <li>Completed and past calendar events are automatically hidden</li>
+                      </ul>
+                      <button
+                        onClick={() => {
+                          setExpandedSectionInfo(null);
+                          setSectionInfoDismissed(prev => ({ ...prev, dayglance: true }));
+                        }}
+                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
+                      >
+                        Got it, don't show again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {!minimizedSections.dayglance && (
                 todayAgenda.length === 0 ? (
-                  <p className={`text-sm ${textSecondary} italic`}>No tasks scheduled for today</p>
+                  <p className={`text-sm ${textSecondary} text-center`}>No tasks scheduled for today</p>
                 ) : (
                   <div className="space-y-1">
                     {todayAgenda.map(task => {
@@ -5469,7 +5512,7 @@ const DayPlanner = () => {
               style={{ height: '1168px' }}
             >
               {/* Date headers row - sticky at top */}
-              <div className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
+              <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
                 <div className={`w-20 flex-shrink-0 border-r ${borderClass}`}></div>
                 {visibleDates.map((date, idx) => {
                   const isDateToday = dateToString(date) === dateToString(new Date());
@@ -5489,16 +5532,11 @@ const DayPlanner = () => {
                         });
                         setShowAddTask(true);
                       }}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
                       onDragEnter={(e) => {
                         e.preventDefault();
                         setDragOverAllDay(dateStr);
                         setDragPreviewTime(null);
-                        // Clear auto-scroll when over date header
-                        if (autoScrollInterval.current) {
-                          clearInterval(autoScrollInterval.current);
-                          autoScrollInterval.current = null;
-                        }
                       }}
                       onDragLeave={(e) => {
                         if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -5518,7 +5556,7 @@ const DayPlanner = () => {
 
               {/* All-day tasks section - sticky below date headers */}
               {visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) && (
-                <div className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
+                <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
                   <div className={`w-20 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
                     ALL DAY
                   </div>
@@ -5531,16 +5569,11 @@ const DayPlanner = () => {
                       <div
                         key={dateStr}
                         className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
-                        onDragOver={(e) => e.preventDefault()}
+                        onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
                         onDragEnter={(e) => {
                           e.preventDefault();
                           setDragOverAllDay(dateStr);
                           setDragPreviewTime(null);
-                          // Clear auto-scroll when over all-day area
-                          if (autoScrollInterval.current) {
-                            clearInterval(autoScrollInterval.current);
-                            autoScrollInterval.current = null;
-                          }
                         }}
                         onDragLeave={(e) => {
                           if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -5651,16 +5684,11 @@ const DayPlanner = () => {
                               draggable={!isImported || task.isTaskCalendar}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
-                              onDragOver={(e) => e.preventDefault()}
+                              onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
                               onDragEnter={(e) => {
                                 e.preventDefault();
                                 setDragOverAllDay(dateStr);
                                 setDragPreviewTime(null);
-                                // Clear auto-scroll when over all-day task
-                                if (autoScrollInterval.current) {
-                                  clearInterval(autoScrollInterval.current);
-                                  autoScrollInterval.current = null;
-                                }
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
                               className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
@@ -5746,16 +5774,11 @@ const DayPlanner = () => {
                             draggable
                             onDragStart={(e) => handleDragStart(task, 'inbox', e)}
                             onDragEnd={handleDragEnd}
-                            onDragOver={(e) => e.preventDefault()}
+                            onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
                             onDragEnter={(e) => {
                               e.preventDefault();
                               setDragOverAllDay(dateStr);
                               setDragPreviewTime(null);
-                              // Clear auto-scroll when over deadline task
-                              if (autoScrollInterval.current) {
-                                clearInterval(autoScrollInterval.current);
-                                autoScrollInterval.current = null;
-                              }
                             }}
                             onDrop={(e) => handleDropOnDateHeader(e, date)}
                             className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
@@ -6966,14 +6989,13 @@ const DayPlanner = () => {
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Sparkles size={24} className="text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h2 className={`text-xl font-bold ${textPrimary}`}>Welcome to dayGLANCE!</h2>
-                <p className={`text-sm ${textSecondary}`}>Let's get you started</p>
-              </div>
+            <div className="flex flex-col items-start mb-4">
+              <img
+                src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                alt="dayGLANCE"
+                className="h-20 mb-3"
+              />
+              <p className={`font-semibold ${textPrimary}`}>Welcome, let's get you started!</p>
             </div>
 
             <div className={`space-y-4 ${textPrimary}`}>
@@ -7057,7 +7079,7 @@ const DayPlanner = () => {
 
               <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
                 <p className={`text-sm ${textSecondary}`}>
-                  <strong className={textPrimary}>QUICK TIP:</strong> Look for <HelpCircle size={14} className="inline text-blue-500 mx-0.5" /> icons in the sidebar for tips on how to use each section.
+                  Look for <HelpCircle size={14} className="inline text-blue-500 mx-0.5" /> icons in the sidebar for tips on how to use each section.
                 </p>
               </div>
             </div>
