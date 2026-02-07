@@ -693,6 +693,7 @@ const DayPlanner = () => {
   const cloudSyncDebounceRef = useRef(null);
   const suppressCloudUploadRef = useRef(false);
   const cloudSyncInProgressRef = useRef(false);
+  const cloudSyncInitialDoneRef = useRef(false);
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
   // Show all 24 hours (full day) - scrollable
@@ -1334,8 +1335,20 @@ const DayPlanner = () => {
   useEffect(() => {
     if (dataLoaded && cloudSyncConfig?.enabled) {
       cloudSyncDownload();
+    } else if (dataLoaded && !cloudSyncConfig?.enabled) {
+      // No cloud sync — allow local-modified timestamps immediately
+      cloudSyncInitialDoneRef.current = true;
     }
   }, [dataLoaded, cloudSyncConfig?.enabled]);
+
+  // Cloud sync: poll for remote changes every 60 seconds
+  useEffect(() => {
+    if (!cloudSyncConfig?.enabled) return;
+    const pollTimer = setInterval(() => {
+      cloudSyncDownload();
+    }, 60 * 1000);
+    return () => clearInterval(pollTimer);
+  }, [cloudSyncConfig?.enabled]);
 
   // Persist cloud sync config
   useEffect(() => {
@@ -1585,7 +1598,11 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
       localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
       localStorage.setItem('day-planner-routines-date', routinesDate);
-      localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+      // Only update local-modified after initial cloud sync has run,
+      // otherwise the initial loadData() sets it to "now" and overwrites remote
+      if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
+        localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+      }
     } catch (error) {
       console.error('Error saving data:', error);
     }
@@ -4751,8 +4768,10 @@ const DayPlanner = () => {
 
       if (hasNeverSynced && remoteModified) {
         // First sync on this device — ask user what to do
+        // Keep inProgressRef locked so poll timer doesn't re-trigger
         setCloudSyncConflict({ remoteData: remote.data, remoteModified });
         setCloudSyncStatus('idle');
+        // Don't release lock — conflict dialog handlers will release it
         return;
       } else if (remoteModified && localModified && new Date(remoteModified) > new Date(localModified)) {
         // Remote is newer — apply it
@@ -4778,6 +4797,7 @@ const DayPlanner = () => {
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
     } finally {
       cloudSyncInProgressRef.current = false;
+      cloudSyncInitialDoneRef.current = true;
     }
   };
 
@@ -8368,6 +8388,8 @@ const DayPlanner = () => {
                   setCloudSyncLastSynced(now);
                   localStorage.setItem('day-planner-cloud-sync-last-synced', now);
                   setCloudSyncConflict(null);
+                  cloudSyncInProgressRef.current = false;
+                  cloudSyncInitialDoneRef.current = true;
                   setCloudSyncStatus('success');
                   setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
                 }}
@@ -8379,6 +8401,8 @@ const DayPlanner = () => {
               <button
                 onClick={async () => {
                   setCloudSyncConflict(null);
+                  cloudSyncInProgressRef.current = false;
+                  cloudSyncInitialDoneRef.current = true;
                   const now = new Date().toISOString();
                   localStorage.setItem('day-planner-cloud-sync-last-synced', now);
                   setCloudSyncLastSynced(now);
