@@ -693,6 +693,7 @@ const DayPlanner = () => {
   const cloudSyncDebounceRef = useRef(null);
   const suppressCloudUploadRef = useRef(false);
   const cloudSyncInProgressRef = useRef(false);
+  const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -4746,11 +4747,13 @@ const DayPlanner = () => {
 
       const localModified = localStorage.getItem('day-planner-cloud-sync-local-modified');
       const remoteModified = remote.lastModified;
+      const hasNeverSynced = !localStorage.getItem('day-planner-cloud-sync-last-synced');
 
-      if (!localModified && remoteModified) {
-        // New device — no local timestamp, apply remote data
-        applyRemoteData(remote.data);
-        localStorage.setItem('day-planner-cloud-sync-local-modified', remoteModified);
+      if (hasNeverSynced && remoteModified) {
+        // First sync on this device — ask user what to do
+        setCloudSyncConflict({ remoteData: remote.data, remoteModified });
+        setCloudSyncStatus('idle');
+        return;
       } else if (remoteModified && localModified && new Date(remoteModified) > new Date(localModified)) {
         // Remote is newer — apply it
         applyRemoteData(remote.data);
@@ -8332,6 +8335,59 @@ const DayPlanner = () => {
                 className={`px-4 py-2 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cloudSyncConflict && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                <Cloud size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Existing Data Found</h3>
+            </div>
+            <p className={`${textSecondary} mb-2`}>
+              Your cloud server already has synced data. What would you like to do?
+            </p>
+            <p className={`text-xs ${textSecondary} mb-4`}>
+              Last modified: {new Date(cloudSyncConflict.remoteModified).toLocaleString()}
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  applyRemoteData(cloudSyncConflict.remoteData);
+                  localStorage.setItem('day-planner-cloud-sync-local-modified', cloudSyncConflict.remoteModified);
+                  const now = new Date().toISOString();
+                  setCloudSyncLastSynced(now);
+                  localStorage.setItem('day-planner-cloud-sync-last-synced', now);
+                  setCloudSyncConflict(null);
+                  setCloudSyncStatus('success');
+                  setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
+                }}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium">Use server data</div>
+                <div className={`text-sm ${textSecondary}`}>Replace local data with what's on the server</div>
+              </button>
+              <button
+                onClick={async () => {
+                  setCloudSyncConflict(null);
+                  const now = new Date().toISOString();
+                  localStorage.setItem('day-planner-cloud-sync-last-synced', now);
+                  setCloudSyncLastSynced(now);
+                  await cloudSyncUpload();
+                }}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium">Use local data</div>
+                <div className={`text-sm ${textSecondary}`}>Upload current data to the server, replacing what's there</div>
               </button>
             </div>
           </div>
