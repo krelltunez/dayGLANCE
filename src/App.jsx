@@ -700,6 +700,17 @@ const DayPlanner = () => {
   const cloudSyncInitialDoneRef = useRef(false);
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
+  // Undo/redo stacks (refs to avoid re-renders)
+  const undoStackRef = useRef([]);
+  const redoStackRef = useRef([]);
+  const tasksRef = useRef(tasks);
+  const unscheduledTasksRef = useRef(unscheduledTasks);
+  const recycleBinRef = useRef(recycleBin);
+  const recurringTasksRef = useRef(recurringTasks);
+
+  // Undo/redo toast notification
+  const [undoToast, setUndoToast] = useState(null);
+
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const firstHour = 0; // Always start at midnight for positioning
@@ -1298,6 +1309,19 @@ const DayPlanner = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [expandedNotesTaskId]);
+
+  // Auto-dismiss undo/redo toast after 2 seconds
+  useEffect(() => {
+    if (!undoToast) return;
+    const timer = setTimeout(() => setUndoToast(null), 2000);
+    return () => clearTimeout(timer);
+  }, [undoToast]);
+
+  // Keep undo/redo state refs in sync
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { unscheduledTasksRef.current = unscheduledTasks; }, [unscheduledTasks]);
+  useEffect(() => { recycleBinRef.current = recycleBin; }, [recycleBin]);
+  useEffect(() => { recurringTasksRef.current = recurringTasks; }, [recurringTasks]);
 
   // Persist darkMode to localStorage
   useEffect(() => {
@@ -2253,6 +2277,7 @@ const DayPlanner = () => {
 
   // Set deadline on inbox task
   const setDeadline = (taskId, deadline) => {
+    pushUndo();
     setUnscheduledTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, deadline } : t
     ));
@@ -2265,6 +2290,7 @@ const DayPlanner = () => {
 
   // Clear deadline from inbox task
   const clearDeadline = (taskId) => {
+    pushUndo();
     setUnscheduledTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, deadline: null } : t
     ));
@@ -2287,6 +2313,7 @@ const DayPlanner = () => {
   };
 
   const cyclePriority = (taskId) => {
+    pushUndo();
     const task = unscheduledTasks.find(t => t.id === taskId);
     const currentPriority = pendingPriorities[taskId] ?? task?.priority ?? 0;
     const newPriority = (currentPriority + 1) % 4;
@@ -2482,6 +2509,7 @@ const DayPlanner = () => {
 
   const addTask = (toInbox = false) => {
     if (newTask.title.trim()) {
+      pushUndo();
       const taskId = Date.now();
       const task = {
         id: taskId,
@@ -2564,6 +2592,7 @@ const DayPlanner = () => {
   };
 
   const changeTaskColor = (taskId, newColor, fromInbox = false) => {
+    pushUndo();
     // Handle recurring task instances - update the template
     if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
       const templateId = Number(taskId.split('-')[1]);
@@ -2597,6 +2626,7 @@ const DayPlanner = () => {
   };
 
   const toggleComplete = (id, fromInbox = false) => {
+    pushUndo();
     // Handle recurring task instances
     if (typeof id === 'string' && id.startsWith('recurring-')) {
       const { templateId, dateStr } = parseRecurringId(id);
@@ -2671,6 +2701,7 @@ const DayPlanner = () => {
   };
 
   const moveToInbox = (id) => {
+    pushUndo();
     // Don't allow moving recurring instances to inbox
     if (typeof id === 'string' && id.startsWith('recurring-')) return;
     const task = tasks.find(t => t.id === id);
@@ -2706,6 +2737,7 @@ const DayPlanner = () => {
   };
 
   const saveTaskTitle = (isInbox = false) => {
+    pushUndo();
     if (!editingTaskId || !editingTaskText.trim()) {
       cancelEditingTask();
       return;
@@ -2802,6 +2834,7 @@ const DayPlanner = () => {
 
   const addSubtask = (taskId, title, isInbox) => {
     if (!title.trim()) return;
+    pushUndo();
     const newSubtask = {
       id: Date.now().toString(),
       title: title.trim(),
@@ -2825,6 +2858,7 @@ const DayPlanner = () => {
   };
 
   const toggleSubtask = (taskId, subtaskId, isInbox) => {
+    pushUndo();
     const subtaskUpdater = t => ({
       ...t,
       subtasks: (t.subtasks || []).map(st =>
@@ -2841,6 +2875,7 @@ const DayPlanner = () => {
   };
 
   const deleteSubtask = (taskId, subtaskId, isInbox) => {
+    pushUndo();
     const subtaskUpdater = t => ({
       ...t,
       subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
@@ -2855,6 +2890,7 @@ const DayPlanner = () => {
   };
 
   const updateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
+    pushUndo();
     const subtaskUpdater = t => ({
       ...t,
       subtasks: (t.subtasks || []).map(st =>
@@ -3417,6 +3453,20 @@ const DayPlanner = () => {
         }
       }
 
+      // Undo/Redo — works even when focus is in an input/textarea
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          performUndo();
+          return;
+        }
+        if ((e.key === 'Z' && e.shiftKey) || e.key === 'y') {
+          e.preventDefault();
+          performRedo();
+          return;
+        }
+      }
+
       // '?' for shortcut cheat sheet (works even in inputs)
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Don't trigger in inputs unless it's already showing (to allow closing)
@@ -3555,6 +3605,7 @@ const DayPlanner = () => {
       return;
     }
 
+    pushUndo();
     const task = fromInbox
       ? unscheduledTasks.find(t => t.id === id)
       : tasks.find(t => t.id === id);
@@ -3587,6 +3638,7 @@ const DayPlanner = () => {
   // Delete recurring task: this occurrence, all future, or entire series
   const deleteRecurringInstance = (mode) => {
     if (!recurringDeleteConfirm) return;
+    pushUndo();
     const { taskId, dateStr } = recurringDeleteConfirm;
 
     if (mode === 'this') {
@@ -3613,6 +3665,7 @@ const DayPlanner = () => {
   };
 
   const undeleteTask = (id) => {
+    pushUndo();
     const task = recycleBin.find(t => t.id === id);
     if (task) {
       const { _deletedFrom, ...cleanTask } = task; // Remove metadata
@@ -3632,6 +3685,7 @@ const DayPlanner = () => {
   };
 
   const confirmEmptyBin = () => {
+    pushUndo();
     setRecycleBin([]);
     setShowEmptyBinConfirm(false);
     playUISound('crumple');
@@ -3990,8 +4044,79 @@ const DayPlanner = () => {
           osc.stop(now + 0.04);
           break;
         }
+        case 'undo': {
+          // Quick ascending blip — reverse feel of swoosh
+          [494, 659].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.12, now + i * 0.09);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.1);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + i * 0.09);
+            osc.stop(now + i * 0.09 + 0.1);
+          });
+          break;
+        }
       }
     } catch (e) { /* Audio API not available */ }
+  };
+
+  // Undo/redo: snapshot all 4 state arrays
+  const pushUndo = () => {
+    undoStackRef.current = [
+      ...undoStackRef.current.slice(-49),
+      {
+        tasks: JSON.parse(JSON.stringify(tasks)),
+        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasks)),
+        recycleBin: JSON.parse(JSON.stringify(recycleBin)),
+        recurringTasks: JSON.parse(JSON.stringify(recurringTasks)),
+      }
+    ];
+    redoStackRef.current = [];
+  };
+
+  const performUndo = () => {
+    if (undoStackRef.current.length === 0) return;
+    const snapshot = undoStackRef.current[undoStackRef.current.length - 1];
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    redoStackRef.current = [
+      ...redoStackRef.current,
+      {
+        tasks: JSON.parse(JSON.stringify(tasksRef.current)),
+        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasksRef.current)),
+        recycleBin: JSON.parse(JSON.stringify(recycleBinRef.current)),
+        recurringTasks: JSON.parse(JSON.stringify(recurringTasksRef.current)),
+      }
+    ];
+    setTasks(snapshot.tasks);
+    setUnscheduledTasks(snapshot.unscheduledTasks);
+    setRecycleBin(snapshot.recycleBin);
+    setRecurringTasks(snapshot.recurringTasks);
+    playUISound('undo');
+    setUndoToast('Undone');
+  };
+
+  const performRedo = () => {
+    if (redoStackRef.current.length === 0) return;
+    const snapshot = redoStackRef.current[redoStackRef.current.length - 1];
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    undoStackRef.current = [
+      ...undoStackRef.current,
+      {
+        tasks: JSON.parse(JSON.stringify(tasksRef.current)),
+        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasksRef.current)),
+        recycleBin: JSON.parse(JSON.stringify(recycleBinRef.current)),
+        recurringTasks: JSON.parse(JSON.stringify(recurringTasksRef.current)),
+      }
+    ];
+    setTasks(snapshot.tasks);
+    setUnscheduledTasks(snapshot.unscheduledTasks);
+    setRecycleBin(snapshot.recycleBin);
+    setRecurringTasks(snapshot.recurringTasks);
+    playUISound('undo');
+    setUndoToast('Redone');
   };
 
   const enterFocusMode = () => {
@@ -4418,6 +4543,7 @@ const DayPlanner = () => {
       return;
     }
 
+    pushUndo();
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
       const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
@@ -4515,6 +4641,7 @@ const DayPlanner = () => {
     // Only allow calendar, recycle bin, overdue scheduled tasks, and inbox tasks with deadlines to be moved to inbox
     if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue' && !(dragSource === 'inbox' && draggedTask.deadline)) return;
 
+    pushUndo();
     if (dragSource === 'calendar') {
       if (draggedTask.isRecurring) {
         const parsed = parseRecurringId(draggedTask.id);
@@ -4572,6 +4699,7 @@ const DayPlanner = () => {
       return;
     }
 
+    pushUndo();
     // Determine source and clean up task metadata
     let deletedFrom = 'calendar';
     let cleanTask = { ...draggedTask };
@@ -4635,6 +4763,7 @@ const DayPlanner = () => {
 
     const dropDateStr = dateToString(targetDate);
 
+    pushUndo();
     if (dragSource === 'inbox') {
       setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
       const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
@@ -4705,6 +4834,7 @@ const DayPlanner = () => {
   const handleResizeStart = (task, e) => {
     e.stopPropagation();
     e.preventDefault();
+    pushUndo();
     setIsResizing(true);
 
     const startY = e.clientY;
@@ -9029,6 +9159,15 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Undo/Redo Toast */}
+      {undoToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className={`px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white'}`}>
+            {undoToast}
+          </div>
+        </div>
+      )}
+
       {/* New Task Modal */}
       {showAddTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}>
@@ -9819,6 +9958,19 @@ const DayPlanner = () => {
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>Edit</h3>
+                {(() => {
+                  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+                  return [
+                    [isMac ? '\u2318Z' : 'Ctrl+Z', 'Undo'],
+                    [isMac ? '\u2318\u21E7Z' : 'Ctrl+Y', 'Redo'],
+                  ];
+                })().map(([key, desc]) => (
+                  <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <span className="text-sm ml-2 text-right flex-1">{desc}</span>
+                  </div>
+                ))}
                 <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>App</h3>
                 {[
                   ['F', 'Focus mode'],
@@ -9852,7 +10004,7 @@ const DayPlanner = () => {
                   </div>
                 ))}
                 <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>Task Entry Suggestions</h3>
-                <p className={`text-xs ${textSecondary} mb-2`}>When the suggestion dropdown appears while typing:</p>
+                <p className={`text-xs ${textSecondary} mb-2`}>Interacting with suggestions:</p>
                 {[
                   ['Tab / Space', 'Accept'],
                   ['\u2191 / \u2193', 'Navigate suggestions'],
