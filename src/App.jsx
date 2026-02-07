@@ -5286,7 +5286,7 @@ const DayPlanner = () => {
   // (excludes imported events since they bypass filtering, excludes completed tasks)
   const allTags = useMemo(() => {
     const tagSet = new Set();
-    tasks.filter(t => !t.completed && !t.imported).forEach(task => {
+    tasks.filter(t => !t.imported).forEach(task => {
       extractTags(task.title).forEach(tag => tagSet.add(tag));
     });
     recurringTasks.forEach(template => {
