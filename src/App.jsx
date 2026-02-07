@@ -5795,28 +5795,28 @@ const DayPlanner = () => {
                         <Calendar size={18} className={textSecondary} />
                       </button>
                     )}
-                  </div>
-                  <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
-                    <Upload size={18} className={textSecondary} />
-                    <span className={`text-sm ${textPrimary}`}>iCal</span>
-                    <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
-                  </label>
-                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => {
-                        if (cloudSyncConfig?.enabled) {
-                          cloudSyncDownload();
-                        } else {
-                          setShowCloudSyncSettings(true);
-                        }
-                      }}
-                      className={`relative px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}
+                      onClick={() => setDarkMode(!darkMode)}
+                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                      title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                    >
+                      {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <label className={`cursor-pointer flex-1 px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
+                      <Upload size={18} className={textSecondary} />
+                      <span className={`text-sm ${textPrimary}`}>iCal</span>
+                      <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
+                    </label>
+                    <button
+                      onClick={() => setShowCloudSyncSettings(true)}
+                      className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
                       title={cloudSyncConfig?.enabled
                         ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
                         : 'Set up cloud sync'}
                     >
                       <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-                      <span className={`text-sm ${textPrimary}`}>Cloud</span>
                       {cloudSyncConfig?.enabled && (
                         <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
                           cloudSyncStatus === 'success' ? 'bg-green-500' :
@@ -5826,32 +5826,14 @@ const DayPlanner = () => {
                         }`} />
                       )}
                     </button>
-                    {cloudSyncConfig?.enabled && (
-                      <button
-                        onClick={() => setShowCloudSyncSettings(true)}
-                        className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                        title="Cloud sync settings"
-                      >
-                        <Settings size={16} className={textSecondary} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setShowBackupMenu(true)}
+                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                      title="Backup or restore data"
+                    >
+                      <Save size={18} className={textSecondary} />
+                    </button>
                   </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setDarkMode(!darkMode)}
-                    className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                    title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-                  >
-                    {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
-                  </button>
-                  <button
-                    onClick={() => setShowBackupMenu(true)}
-                    className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                    title="Backup or restore data"
-                  >
-                    <Save size={18} className={textSecondary} />
-                  </button>
                 </div>
               </div>
             </div>
