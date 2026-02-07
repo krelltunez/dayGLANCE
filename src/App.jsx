@@ -4678,7 +4678,6 @@ const DayPlanner = () => {
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
       todayRoutines: JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]'),
       routinesDate: localStorage.getItem('day-planner-routines-date') || '',
-      selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
     }
   });
@@ -4725,7 +4724,7 @@ const DayPlanner = () => {
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
     if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
     if (data.routinesDate !== undefined) localStorage.setItem('day-planner-routines-date', data.routinesDate);
-    if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
+    // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
 
     // Update React state directly (avoid page reload)
@@ -4740,7 +4739,6 @@ const DayPlanner = () => {
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
-    if (data.selectedTags) setSelectedTags(data.selectedTags);
 
     setTimeout(() => { suppressCloudUploadRef.current = false; }, 500);
   };
