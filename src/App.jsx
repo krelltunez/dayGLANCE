@@ -4740,6 +4740,7 @@ const DayPlanner = () => {
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
+    if (data.selectedTags) setSelectedTags(data.selectedTags);
 
     setTimeout(() => { suppressCloudUploadRef.current = false; }, 500);
   };
