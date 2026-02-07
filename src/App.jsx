@@ -348,7 +348,7 @@ const cloudSyncProviders = {
       const body = JSON.stringify(data);
 
       const doUpload = () =>
-        fetch(`/api/webdav-proxy/?url=${encodeURIComponent(fileUrl)}`, {
+        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
           method: 'PUT',
           headers: { ...authHeaders, 'Content-Type': 'application/json' },
           body
@@ -357,7 +357,7 @@ const cloudSyncProviders = {
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
         // Directory doesn't exist, create it
-        await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(dirUrl)}`, {
+        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
           method: 'MKCOL',
           headers: authHeaders
         });
@@ -370,7 +370,7 @@ const cloudSyncProviders = {
       const fileUrl = this.getFileUrl(config);
       const authHeaders = this.getAuthHeaders(config);
 
-      const res = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(fileUrl)}`, {
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
         method: 'GET',
         headers: authHeaders
       });
@@ -383,7 +383,7 @@ const cloudSyncProviders = {
       const dirUrl = this.getDirUrl(config);
       const authHeaders = this.getAuthHeaders(config);
 
-      const res = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(dirUrl)}`, {
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
         method: 'PROPFIND',
         headers: { ...authHeaders, 'Depth': '0' }
       });
