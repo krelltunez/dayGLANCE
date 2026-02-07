@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -552,7 +552,6 @@ const DayPlanner = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [pendingPriorities, setPendingPriorities] = useState({});
-  const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -577,6 +576,7 @@ const DayPlanner = () => {
   const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importColor, setImportColor] = useState('bg-gray-600');
   const [pendingBackupFile, setPendingBackupFile] = useState(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showBackupMenu, setShowBackupMenu] = useState(false);
@@ -693,7 +693,6 @@ const DayPlanner = () => {
   const [cloudSyncLastSynced, setCloudSyncLastSynced] = useState(() =>
     localStorage.getItem('day-planner-cloud-sync-last-synced') || null
   );
-  const [showCloudSyncSettings, setShowCloudSyncSettings] = useState(false);
   const cloudSyncDebounceRef = useRef(null);
   const suppressCloudUploadRef = useRef(false);
   const cloudSyncInProgressRef = useRef(false);
@@ -710,6 +709,14 @@ const DayPlanner = () => {
 
   // Undo/redo toast notification
   const [undoToast, setUndoToast] = useState(null);
+
+  // Settings & Reminders modals
+  const [showSettings, setShowSettings] = useState(false);
+  const [showRemindersSettings, setShowRemindersSettings] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('day-planner-sound-enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
 
   // Spotlight search
   const [showSpotlight, setShowSpotlight] = useState(false);
@@ -1366,6 +1373,11 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-selected-tags', JSON.stringify(selectedTags));
   }, [selectedTags]);
 
+  // Persist soundEnabled to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-sound-enabled', JSON.stringify(soundEnabled));
+  }, [soundEnabled]);
+
   // Persist sidebarCollapsed to localStorage
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
@@ -1849,7 +1861,7 @@ const DayPlanner = () => {
       if (!str) return str;
       const el = document.createElement('textarea');
       el.innerHTML = str;
-      return el.value;
+      return el.value.replace(/`/g, "'");
     };
 
     // Fetch dad joke
@@ -3474,6 +3486,16 @@ const DayPlanner = () => {
           setShowBackupMenu(false);
           return;
         }
+        if (showSettings) {
+          e.preventDefault();
+          setShowSettings(false);
+          return;
+        }
+        if (showRemindersSettings) {
+          e.preventDefault();
+          setShowRemindersSettings(false);
+          return;
+        }
         if (showAddTask) {
           e.preventDefault();
           if (showRecurrencePicker) {
@@ -3531,7 +3553,7 @@ const DayPlanner = () => {
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings) {
         return;
       }
 
@@ -3640,7 +3662,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showSpotlight]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showSpotlight, showSettings, showRemindersSettings]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
@@ -3969,6 +3991,7 @@ const DayPlanner = () => {
 
   // --- Focus Mode handlers ---
   const playFocusSound = (type) => {
+    if (!soundEnabled) return;
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (type === 'work') {
@@ -4014,6 +4037,7 @@ const DayPlanner = () => {
   };
 
   const playUISound = (type) => {
+    if (!soundEnabled) return;
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const now = ctx.currentTime;
@@ -5050,7 +5074,7 @@ const DayPlanner = () => {
 
   // Helper to expand multi-day events into separate tasks for each day
   const expandMultiDayEvent = (event, options = {}) => {
-    const { asTaskCalendar = false, freshCompletedUids = new Set() } = options;
+    const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor } = options;
     const startDate = parseDatetime(event.dtstart);
     const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
     const duration = Math.round((endDate - startDate) / (1000 * 60));
@@ -5084,7 +5108,7 @@ const DayPlanner = () => {
         startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
         duration: isAllDay ? 60 : (asTaskCalendar ? 15 : (duration > 0 ? duration : 60)),
         date: dateToString(taskDate),
-        color: asTaskCalendar ? 'task-calendar' : 'bg-gray-600',
+        color: asTaskCalendar ? 'task-calendar' : (customColor || 'bg-gray-600'),
         completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
         imported: true,
         isTaskCalendar: asTaskCalendar,
@@ -5100,6 +5124,7 @@ const DayPlanner = () => {
     if (!file) return;
 
     setPendingImportFile(file);
+    setImportColor('bg-gray-600');
     setShowImportModal(true);
     e.target.value = '';
   };
@@ -5118,7 +5143,7 @@ const DayPlanner = () => {
       );
 
       const importedTasks = events.flatMap(event =>
-        expandMultiDayEvent(event, { asTaskCalendar, freshCompletedUids })
+        expandMultiDayEvent(event, { asTaskCalendar, freshCompletedUids, color: importColor })
       );
 
       if (asTaskCalendar) {
@@ -6524,7 +6549,7 @@ const DayPlanner = () => {
                 const visibleItems = contentItems.length === 1 ? [contentItems[0]] : [contentItems[idx1], contentItems[idx2]];
 
                 return visibleItems.map(item => (
-                  <div key={item.key} className={`flex-1 max-w-md h-[92px] px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden`}>
+                  <div key={item.key} className={`flex-1 max-w-lg h-[92px] px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden`}>
                     <div className={`text-xs font-semibold ${textSecondary} mb-1`}>{item.icon} {item.label}</div>
                     <div className={`text-sm ${textPrimary} leading-snug line-clamp-3`}>{item.content}</div>
                   </div>
@@ -6540,25 +6565,27 @@ const DayPlanner = () => {
                         if (syncUrl || taskCalendarUrl) {
                           syncAll();
                         } else {
-                          setShowSyncSettings(true);
+                          setShowSettings(true);
                         }
                       }}
                       disabled={isSyncing}
-                      className={`flex-1 px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
-                      title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? "Sync now" : "Configure calendar sync")}
+                      className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? "Sync calendars" : "Configure calendar sync")}
                     >
                       <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-                      <span className={`text-sm ${textPrimary}`}>{isSyncing ? 'Syncing...' : 'Sync'}</span>
+                      {(syncUrl || taskCalendarUrl) && (
+                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                          isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
+                        }`} />
+                      )}
                     </button>
-                    {(syncUrl || taskCalendarUrl) && (
-                      <button
-                        onClick={() => setShowSyncSettings(!showSyncSettings)}
-                        className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                        title="Sync settings"
-                      >
-                        <Calendar size={18} className={textSecondary} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setShowSettings(true)}
+                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                      title="Settings"
+                    >
+                      <Settings size={18} className={textSecondary} />
+                    </button>
                     <button
                       onClick={() => setDarkMode(!darkMode)}
                       className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
@@ -6568,13 +6595,14 @@ const DayPlanner = () => {
                     </button>
                   </div>
                   <div className="flex items-center gap-1">
-                    <label className={`cursor-pointer flex-1 px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
-                      <Upload size={18} className={textSecondary} />
-                      <span className={`text-sm ${textPrimary}`}>iCal</span>
-                      <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
-                    </label>
                     <button
-                      onClick={() => setShowCloudSyncSettings(true)}
+                      onClick={() => {
+                        if (cloudSyncConfig?.enabled) {
+                          cloudSyncUpload();
+                        } else {
+                          setShowSettings(true);
+                        }
+                      }}
                       className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
                       title={cloudSyncConfig?.enabled
                         ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
@@ -6589,6 +6617,13 @@ const DayPlanner = () => {
                           'bg-gray-400'
                         }`} />
                       )}
+                    </button>
+                    <button
+                      onClick={() => setShowRemindersSettings(true)}
+                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                      title="Reminders"
+                    >
+                      <Bell size={18} className={textSecondary} />
                     </button>
                     <button
                       onClick={() => setShowBackupMenu(true)}
@@ -6606,58 +6641,6 @@ const DayPlanner = () => {
       </div>
 
       <div className="max-w-[2000px] mx-auto px-6 py-6">
-        {showSyncSettings && (
-          <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-6`}>
-            <h3 className={`font-semibold ${textPrimary} mb-4`}>Calendar Sync Settings</h3>
-            <div className="space-y-4">
-              <div>
-                <label className={`block text-sm ${textSecondary} mb-2`}>
-                  Calendar URL (iCal/CalDAV)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
-                  value={syncUrl}
-                  onChange={(e) => setSyncUrl(e.target.value)}
-                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                />
-                <p className={`text-xs ${textSecondary} mt-2`}>
-                  For Nextcloud: Go to Calendar → Settings → Copy the public link for your calendar
-                </p>
-              </div>
-              <div>
-                <label className={`block text-sm ${textSecondary} mb-2`}>
-                  Task Calendar URL (iCal/CalDAV)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
-                  value={taskCalendarUrl}
-                  onChange={(e) => setTaskCalendarUrl(e.target.value)}
-                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
-                />
-                <p className={`text-xs ${textSecondary} mt-2`}>
-                  Tasks appear with striped pattern; completion state persists across syncs
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => syncAll()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <RefreshCw size={16} />
-                  Sync Now
-                </button>
-                <button
-                  onClick={() => setShowSyncSettings(false)}
-                  className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="flex gap-4">
           <div className={`${sidebarCollapsed ? 'w-[59px]' : 'w-72'} flex-shrink-0 transition-[width] duration-200 flex flex-col`} style={{ height: '1168px' }}>
@@ -9072,16 +9055,29 @@ const DayPlanner = () => {
               </div>
               <h3 className={`text-lg font-semibold ${textPrimary}`}>Import Calendar</h3>
             </div>
-            <p className={`${textSecondary} mb-6`}>
+            <p className={`${textSecondary} mb-4`}>
               How would you like to import "{pendingImportFile?.name}"?
             </p>
+            <div className="mb-4">
+              <label className={`block text-sm ${textSecondary} mb-2`}>Event color</label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[{ name: 'Gray', class: 'bg-gray-600' }, ...colors].map(c => (
+                  <button
+                    key={c.class}
+                    onClick={() => setImportColor(c.class)}
+                    className={`w-7 h-7 rounded-full ${c.class} transition-all ${importColor === c.class ? 'ring-2 ring-offset-2 ring-blue-500' + (darkMode ? ' ring-offset-gray-800' : '') : 'hover:scale-110'}`}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
             <div className="space-y-3">
               <button
                 onClick={() => processImportFile(false)}
                 className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium">As Calendar Events</div>
-                <div className={`text-sm ${textSecondary}`}>Read-only events (solid gray)</div>
+                <div className={`text-sm ${textSecondary}`}>Read-only events shown in selected color</div>
               </button>
               <button
                 onClick={() => processImportFile(true)}
@@ -9159,44 +9155,6 @@ const DayPlanner = () => {
           </div>
         </div>
       )}
-
-      {showCloudSyncSettings && (() => {
-        const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
-        const provider = cloudSyncProviders[currentProvider];
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCloudSyncSettings(false)}>
-            <div
-              className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-md w-full mx-4`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
-                  <Cloud size={20} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <h3 className={`text-lg font-semibold ${textPrimary}`}>Cloud Sync</h3>
-              </div>
-              <p className={`${textSecondary} mb-4 text-sm`}>
-                Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage. Changes are synced automatically after 5 seconds.
-              </p>
-
-              <CloudSyncSettingsForm
-                darkMode={darkMode}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-                borderClass={borderClass}
-                hoverBg={hoverBg}
-                cloudSyncConfig={cloudSyncConfig}
-                setCloudSyncConfig={setCloudSyncConfig}
-                cloudSyncTest={cloudSyncTest}
-                provider={provider}
-                currentProvider={currentProvider}
-                onClose={() => setShowCloudSyncSettings(false)}
-                cloudSyncLastSynced={cloudSyncLastSynced}
-              />
-            </div>
-          </div>
-        );
-      })()}
 
       {showBackupMenu && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowBackupMenu(false)}>
@@ -10201,6 +10159,208 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Settings Modal */}
+      {showSettings && (() => {
+        const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
+        const provider = cloudSyncProviders[currentProvider];
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
+            <div
+              className={`${cardBg} rounded-lg shadow-xl ${borderClass} border max-w-md lg:max-w-3xl w-full mx-4 max-h-[85vh] overflow-y-auto`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                    <Settings size={20} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className={`text-lg font-semibold ${textPrimary}`}>Settings</h3>
+                </div>
+
+                <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
+                  {/* Left column */}
+                  <div className="space-y-6">
+                    {/* Calendar Sync Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <RefreshCw size={16} className={textSecondary} />
+                        Calendar Sync
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Calendar URL (iCal/CalDAV)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
+                          value={syncUrl}
+                          onChange={(e) => setSyncUrl(e.target.value)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          For Nextcloud: Go to Calendar → Settings → Copy the public link
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Task Calendar URL (iCal/CalDAV)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
+                          value={taskCalendarUrl}
+                          onChange={(e) => setTaskCalendarUrl(e.target.value)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Tasks appear with striped pattern; completion state persists across syncs
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => syncAll()}
+                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                        {isSyncing ? 'Syncing...' : 'Sync Now'}
+                      </button>
+                    </div>
+
+                    <hr className={`${borderClass} lg:block`} />
+
+                    {/* iCal Import Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Upload size={16} className={textSecondary} />
+                        iCal Import
+                      </h4>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                        <Upload size={14} className={textSecondary} />
+                        Choose .ics file
+                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
+                      </label>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Import events from an iCal (.ics) file
+                      </p>
+                    </div>
+
+                    {/* Sound Section - shown here on wide, below cloud on narrow */}
+                    <hr className={`${borderClass} lg:block`} />
+                    <div className="space-y-3 lg:block hidden">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Bell size={16} className={textSecondary} />
+                        Sound
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={soundEnabled}
+                            onChange={(e) => setSoundEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Dividers: hr on narrow, vertical line on wide */}
+                  <hr className={`${borderClass} lg:hidden`} />
+
+                  {/* Right column */}
+                  <div className={`space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
+                    {/* Cloud Sync Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Cloud size={16} className={textSecondary} />
+                        Cloud Sync
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage.
+                      </p>
+                      <CloudSyncSettingsForm
+                        darkMode={darkMode}
+                        textPrimary={textPrimary}
+                        textSecondary={textSecondary}
+                        borderClass={borderClass}
+                        hoverBg={hoverBg}
+                        cloudSyncConfig={cloudSyncConfig}
+                        setCloudSyncConfig={setCloudSyncConfig}
+                        cloudSyncTest={cloudSyncTest}
+                        provider={provider}
+                        currentProvider={currentProvider}
+                        onClose={() => setShowSettings(false)}
+                        cloudSyncLastSynced={cloudSyncLastSynced}
+                      />
+                    </div>
+
+                    {/* Sound Section - narrow screens only */}
+                    <hr className={`${borderClass} lg:hidden`} />
+                    <div className="space-y-3 lg:hidden">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Bell size={16} className={textSecondary} />
+                        Sound
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={soundEnabled}
+                            onChange={(e) => setSoundEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Reminders Modal */}
+      {showRemindersSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRemindersSettings(false)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                <Bell size={20} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Reminders</h3>
+            </div>
+            <p className={`${textSecondary} text-sm mb-4`}>
+              Coming soon — get notified before your tasks start.
+            </p>
+            <button
+              onClick={() => setShowRemindersSettings(false)}
+              className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Keyboard Shortcut Cheat Sheet */}
       {showShortcutHelp && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcutHelp(false)}>
@@ -10388,7 +10548,7 @@ const DayPlanner = () => {
                   Sync Your Calendar
                 </h3>
                 <p className={`text-sm ${textSecondary} ml-8`}>
-                  Click <Upload size={14} className="inline mx-1" /> in the top bar to import iCal files, or <Link size={14} className="inline mx-1" /> to sync with a calendar URL (Google, Outlook, etc.).
+                  Click <Settings size={14} className="inline mx-1" /> in the top bar to open Settings, where you can configure calendar sync URLs and import iCal files.
                 </p>
               </div>
 
@@ -10400,9 +10560,9 @@ const DayPlanner = () => {
                 <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
                   <div className="flex items-center gap-2">
                     <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
+                      <Settings size={16} className={textPrimary} />
                     </span>
-                    <span>Toggle between <strong className={textPrimary}>light and dark mode</strong></span>
+                    <span>Open <strong className={textPrimary}>Settings</strong> for calendar sync, cloud sync, iCal import, and sounds</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
