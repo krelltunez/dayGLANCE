@@ -570,6 +570,10 @@ const DayPlanner = () => {
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
+  const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
+  const [calSyncLastSynced, setCalSyncLastSynced] = useState(() =>
+    localStorage.getItem('day-planner-cal-sync-last-synced') || null
+  );
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
   const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
@@ -3515,7 +3519,7 @@ const DayPlanner = () => {
           performUndo();
           return;
         }
-        if ((e.key === 'Z' && e.shiftKey) || e.key === 'y') {
+        if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key === 'y') {
           e.preventDefault();
           performRedo();
           return;
@@ -4994,7 +4998,16 @@ const DayPlanner = () => {
   };
 
   const parseICS = (icsContent) => {
-    const lines = icsContent.split('\n').map(line => line.trim());
+    // Unfold iCal line continuations (RFC 5545: lines starting with space/tab are continuations)
+    const rawLines = icsContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const lines = [];
+    for (const raw of rawLines) {
+      if ((raw.startsWith(' ') || raw.startsWith('\t')) && lines.length > 0) {
+        lines[lines.length - 1] += raw.substring(1);
+      } else {
+        lines.push(raw.trim());
+      }
+    }
     const events = [];
     let currentEvent = null;
     let currentType = null; // 'event' or 'todo'
@@ -5322,6 +5335,17 @@ const DayPlanner = () => {
         syncWithCalendar(),
         syncTaskCalendar()
       ]);
+
+      // Track status and last synced time
+      const hasSuccess = calendarResult.success || taskResult.success;
+      const hasError = (calendarResult.error === 'calendar') || (taskResult.error === 'task-calendar');
+
+      if (hasSuccess) {
+        const now = new Date().toISOString();
+        setCalSyncLastSynced(now);
+        localStorage.setItem('day-planner-cal-sync-last-synced', now);
+      }
+      setCalSyncStatus(hasError ? 'error' : hasSuccess ? 'success' : null);
 
       if (silent) return;
 
@@ -6570,12 +6594,15 @@ const DayPlanner = () => {
                       }}
                       disabled={isSyncing}
                       className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
-                      title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? "Sync calendars" : "Configure calendar sync")}
+                      title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
                     >
                       <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
                       {(syncUrl || taskCalendarUrl) && (
                         <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                          isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
+                          isSyncing ? 'bg-blue-500 animate-pulse' :
+                          calSyncStatus === 'success' ? 'bg-green-500' :
+                          calSyncStatus === 'error' ? 'bg-red-500' :
+                          'bg-green-500'
                         }`} />
                       )}
                     </button>
@@ -6611,10 +6638,9 @@ const DayPlanner = () => {
                       <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
                       {cloudSyncConfig?.enabled && (
                         <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                          cloudSyncStatus === 'success' ? 'bg-green-500' :
-                          cloudSyncStatus === 'error' ? 'bg-red-500' :
                           (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
-                          'bg-gray-400'
+                          cloudSyncStatus === 'error' ? 'bg-red-500' :
+                          'bg-green-500'
                         }`} />
                       )}
                     </button>
@@ -10216,14 +10242,21 @@ const DayPlanner = () => {
                           Tasks appear with striped pattern; completion state persists across syncs
                         </p>
                       </div>
-                      <button
-                        onClick={() => syncAll()}
-                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
-                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                        {isSyncing ? 'Syncing...' : 'Sync Now'}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => syncAll()}
+                          disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
+                          className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                          {isSyncing ? 'Syncing...' : 'Sync Now'}
+                        </button>
+                        {calSyncLastSynced && (
+                          <span className={`text-xs ${textSecondary}`}>
+                            Last synced: {new Date(calSyncLastSynced).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <hr className={`${borderClass} lg:block`} />
