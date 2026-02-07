@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -330,6 +330,186 @@ const NotesSubtasksPanel = ({
   );
 };
 
+// Cloud sync provider abstraction
+const cloudSyncProviders = {
+  nextcloud: {
+    name: 'Nextcloud / WebDAV',
+    getFileUrl: (config) =>
+      `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/dayglance-sync.json`,
+    getDirUrl: (config) =>
+      `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/`,
+    getAuthHeaders: (config) => ({
+      'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword)
+    }),
+    async upload(config, data) {
+      const fileUrl = this.getFileUrl(config);
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const body = JSON.stringify(data);
+
+      const doUpload = () =>
+        fetch(`/api/webdav-proxy/?url=${encodeURIComponent(fileUrl)}`, {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body
+        });
+
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        // Directory doesn't exist, create it
+        await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(dirUrl)}`, {
+          method: 'MKCOL',
+          headers: authHeaders
+        });
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return true;
+    },
+    async download(config) {
+      const fileUrl = this.getFileUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+
+      const res = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(fileUrl)}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+
+      if (res.status === 404) return null; // No remote file yet
+      if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+      return res.json();
+    },
+    async test(config) {
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+
+      const res = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(dirUrl)}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '0' }
+      });
+
+      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and app password.' };
+      return { success: false, error: `Unexpected response: ${res.status} ${res.statusText}` };
+    },
+    configFields: [
+      { key: 'nextcloudUrl', label: 'Nextcloud URL', type: 'url', placeholder: 'https://cloud.example.com' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx' }
+    ]
+  }
+};
+
+// Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced }) => {
+  const [formData, setFormData] = useState(() => {
+    const initial = { provider: currentProvider };
+    provider.configFields.forEach(f => {
+      initial[f.key] = cloudSyncConfig?.[f.key] || '';
+    });
+    return initial;
+  });
+  const [testResult, setTestResult] = useState(null);
+  const [testing, setTesting] = useState(false);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const result = await cloudSyncTest({ ...formData, provider: currentProvider });
+    setTestResult(result);
+    setTesting(false);
+  };
+
+  const handleSave = () => {
+    setCloudSyncConfig({ ...formData, provider: currentProvider, enabled: true });
+    onClose();
+  };
+
+  const handleDisable = () => {
+    setCloudSyncConfig({ ...cloudSyncConfig, enabled: false });
+    onClose();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Provider</label>
+        <select
+          value={currentProvider}
+          disabled
+          className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
+        >
+          {Object.entries(cloudSyncProviders).map(([key, p]) => (
+            <option key={key} value={key}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {provider.configFields.map(field => (
+        <div key={field.key}>
+          <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{field.label}</label>
+          <input
+            type={field.type}
+            placeholder={field.placeholder}
+            value={formData[field.key] || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+          />
+        </div>
+      ))}
+
+      <p className={`text-xs ${textSecondary}`}>
+        Go to Nextcloud Settings &rarr; Security &rarr; Devices & sessions &rarr; Create new app password
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleTest}
+          disabled={testing || !formData.nextcloudUrl || !formData.username || !formData.appPassword}
+          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
+        >
+          {testing ? 'Testing...' : 'Test Connection'}
+        </button>
+        {testResult && (
+          <span className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
+            {testResult.success ? 'Connection successful!' : testResult.error}
+          </span>
+        )}
+      </div>
+
+      {cloudSyncLastSynced && (
+        <p className={`text-xs ${textSecondary}`}>
+          Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <button
+          onClick={onClose}
+          className={`px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+        >
+          Cancel
+        </button>
+        {cloudSyncConfig?.enabled && (
+          <button
+            onClick={handleDisable}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Disable
+          </button>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={!formData.nextcloudUrl || !formData.username || !formData.appPassword}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {cloudSyncConfig?.enabled ? 'Save' : 'Save & Enable'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const DayPlanner = () => {
   const visibleDays = useVisibleDays();
   const [darkMode, setDarkMode] = useState(() => {
@@ -498,6 +678,21 @@ const DayPlanner = () => {
   const [focusBlockTasks, setFocusBlockTasks] = useState([]);
   const wakeLockSentinel = useRef(null);
   const focusTimerRef = useRef(null);
+
+  // Cloud Sync state
+  const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
+    const saved = localStorage.getItem('day-planner-cloud-sync-config');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [cloudSyncStatus, setCloudSyncStatus] = useState('idle');
+  const [cloudSyncError, setCloudSyncError] = useState(null);
+  const [cloudSyncLastSynced, setCloudSyncLastSynced] = useState(() =>
+    localStorage.getItem('day-planner-cloud-sync-last-synced') || null
+  );
+  const [showCloudSyncSettings, setShowCloudSyncSettings] = useState(false);
+  const cloudSyncDebounceRef = useRef(null);
+  const suppressCloudUploadRef = useRef(false);
+  const cloudSyncInProgressRef = useRef(false);
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -1124,6 +1319,32 @@ const DayPlanner = () => {
     checkConflicts();
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate]);
 
+  // Cloud sync: debounced upload on data changes
+  useEffect(() => {
+    if (!cloudSyncConfig?.enabled || !dataLoaded || suppressCloudUploadRef.current) return;
+    if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current);
+    cloudSyncDebounceRef.current = setTimeout(() => {
+      cloudSyncUpload();
+    }, 5000);
+    return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, cloudSyncConfig?.enabled]);
+
+  // Cloud sync: download on app load
+  useEffect(() => {
+    if (dataLoaded && cloudSyncConfig?.enabled) {
+      cloudSyncDownload();
+    }
+  }, [dataLoaded]);
+
+  // Persist cloud sync config
+  useEffect(() => {
+    if (cloudSyncConfig) {
+      localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(cloudSyncConfig));
+    } else {
+      localStorage.removeItem('day-planner-cloud-sync-config');
+    }
+  }, [cloudSyncConfig]);
+
   // Auto-clear today's routines on day rollover
   useEffect(() => {
     const todayStr = dateToString(new Date());
@@ -1363,6 +1584,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
       localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
       localStorage.setItem('day-planner-routines-date', routinesDate);
+      localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
     } catch (error) {
       console.error('Error saving data:', error);
     }
@@ -4245,7 +4467,8 @@ const DayPlanner = () => {
         recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
         routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
         selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
-        minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
+        minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
+        cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null')
       }
     };
 
@@ -4295,6 +4518,7 @@ const DayPlanner = () => {
         if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
         if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
         if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
+        if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
 
         // Reload app to reflect changes
         window.location.reload();
@@ -4417,6 +4641,146 @@ const DayPlanner = () => {
       }
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // Cloud sync functions
+  const buildSyncPayload = () => ({
+    version: 1,
+    lastModified: new Date().toISOString(),
+    data: {
+      tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
+      unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
+      recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
+      darkMode: JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'),
+      syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
+      taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
+      completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
+      recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
+      routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
+      todayRoutines: JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]'),
+      routinesDate: localStorage.getItem('day-planner-routines-date') || '',
+      selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
+      minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
+    }
+  });
+
+  const cloudSyncUpload = async () => {
+    if (!cloudSyncConfig?.enabled || cloudSyncInProgressRef.current) return;
+    const provider = cloudSyncProviders[cloudSyncConfig.provider];
+    if (!provider) return;
+
+    cloudSyncInProgressRef.current = true;
+    setCloudSyncStatus('uploading');
+    setCloudSyncError(null);
+    try {
+      const payload = buildSyncPayload();
+      await provider.upload(cloudSyncConfig, payload);
+      const now = new Date().toISOString();
+      setCloudSyncLastSynced(now);
+      localStorage.setItem('day-planner-cloud-sync-last-synced', now);
+      localStorage.setItem('day-planner-cloud-sync-local-modified', payload.lastModified);
+      setCloudSyncStatus('success');
+      setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
+    } catch (err) {
+      console.error('Cloud sync upload error:', err);
+      setCloudSyncError(err.message);
+      setCloudSyncStatus('error');
+      setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
+    } finally {
+      cloudSyncInProgressRef.current = false;
+    }
+  };
+
+  const applyRemoteData = (data) => {
+    suppressCloudUploadRef.current = true;
+
+    // Update localStorage
+    if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
+    if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
+    if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
+    if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
+    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
+    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
+    if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
+    if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
+    if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
+    if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
+    if (data.routinesDate !== undefined) localStorage.setItem('day-planner-routines-date', data.routinesDate);
+    if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
+    if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
+
+    // Update React state directly (avoid page reload)
+    if (data.tasks) setTasks(data.tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
+    if (data.unscheduledTasks) setUnscheduledTasks(data.unscheduledTasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
+    if (data.recycleBin) setRecycleBin(data.recycleBin);
+    if (data.darkMode !== undefined) setDarkMode(data.darkMode);
+    if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
+    if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
+    if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
+    if (data.recurringTasks) setRecurringTasks(data.recurringTasks);
+    if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
+    if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
+    if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
+
+    setTimeout(() => { suppressCloudUploadRef.current = false; }, 500);
+  };
+
+  const cloudSyncDownload = async () => {
+    if (!cloudSyncConfig?.enabled) return;
+    const provider = cloudSyncProviders[cloudSyncConfig.provider];
+    if (!provider) return;
+
+    if (cloudSyncInProgressRef.current) return;
+    cloudSyncInProgressRef.current = true;
+    setCloudSyncStatus('downloading');
+    setCloudSyncError(null);
+    try {
+      const remote = await provider.download(cloudSyncConfig);
+      if (!remote) {
+        // No remote file yet — do initial upload
+        cloudSyncInProgressRef.current = false;
+        await cloudSyncUpload();
+        return;
+      }
+
+      const localModified = localStorage.getItem('day-planner-cloud-sync-local-modified');
+      const remoteModified = remote.lastModified;
+
+      if (remoteModified && localModified && new Date(remoteModified) > new Date(localModified)) {
+        // Remote is newer — apply it
+        applyRemoteData(remote.data);
+        localStorage.setItem('day-planner-cloud-sync-local-modified', remoteModified);
+      } else if (!localModified || (remoteModified && new Date(localModified) > new Date(remoteModified))) {
+        // Local is newer — upload
+        cloudSyncInProgressRef.current = false;
+        await cloudSyncUpload();
+        return;
+      }
+      // If equal, do nothing
+
+      const now = new Date().toISOString();
+      setCloudSyncLastSynced(now);
+      localStorage.setItem('day-planner-cloud-sync-last-synced', now);
+      setCloudSyncStatus('success');
+      setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
+    } catch (err) {
+      console.error('Cloud sync download error:', err);
+      setCloudSyncError(err.message);
+      setCloudSyncStatus('error');
+      setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
+    } finally {
+      cloudSyncInProgressRef.current = false;
+    }
+  };
+
+  const cloudSyncTest = async (config) => {
+    const provider = cloudSyncProviders[config.provider];
+    if (!provider) return { success: false, error: 'Unknown provider' };
+    try {
+      return await provider.test(config);
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   };
 
@@ -5434,9 +5798,44 @@ const DayPlanner = () => {
                   </div>
                   <label className={`cursor-pointer px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}>
                     <Upload size={18} className={textSecondary} />
-                    <span className={`text-sm ${textPrimary}`}>Import iCal</span>
+                    <span className={`text-sm ${textPrimary}`}>iCal</span>
                     <input type="file" accept=".ics" onChange={handleFileUpload} className="hidden" />
                   </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        if (cloudSyncConfig?.enabled) {
+                          cloudSyncDownload();
+                        } else {
+                          setShowCloudSyncSettings(true);
+                        }
+                      }}
+                      className={`relative px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} flex items-center justify-center gap-2 whitespace-nowrap`}
+                      title={cloudSyncConfig?.enabled
+                        ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
+                        : 'Set up cloud sync'}
+                    >
+                      <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+                      <span className={`text-sm ${textPrimary}`}>Cloud</span>
+                      {cloudSyncConfig?.enabled && (
+                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                          cloudSyncStatus === 'success' ? 'bg-green-500' :
+                          cloudSyncStatus === 'error' ? 'bg-red-500' :
+                          (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
+                          'bg-gray-400'
+                        }`} />
+                      )}
+                    </button>
+                    {cloudSyncConfig?.enabled && (
+                      <button
+                        onClick={() => setShowCloudSyncSettings(true)}
+                        className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                        title="Cloud sync settings"
+                      >
+                        <Settings size={16} className={textSecondary} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-col gap-1">
                   <button
@@ -7952,6 +8351,44 @@ const DayPlanner = () => {
           </div>
         </div>
       )}
+
+      {showCloudSyncSettings && (() => {
+        const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
+        const provider = cloudSyncProviders[currentProvider];
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCloudSyncSettings(false)}>
+            <div
+              className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-md w-full mx-4`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                  <Cloud size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className={`text-lg font-semibold ${textPrimary}`}>Cloud Sync</h3>
+              </div>
+              <p className={`${textSecondary} mb-4 text-sm`}>
+                Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage. Changes are synced automatically after 5 seconds.
+              </p>
+
+              <CloudSyncSettingsForm
+                darkMode={darkMode}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+                borderClass={borderClass}
+                hoverBg={hoverBg}
+                cloudSyncConfig={cloudSyncConfig}
+                setCloudSyncConfig={setCloudSyncConfig}
+                cloudSyncTest={cloudSyncTest}
+                provider={provider}
+                currentProvider={currentProvider}
+                onClose={() => setShowCloudSyncSettings(false)}
+                cloudSyncLastSynced={cloudSyncLastSynced}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {showBackupMenu && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowBackupMenu(false)}>
