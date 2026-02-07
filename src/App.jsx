@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -711,6 +711,12 @@ const DayPlanner = () => {
   // Undo/redo toast notification
   const [undoToast, setUndoToast] = useState(null);
 
+  // Spotlight search
+  const [showSpotlight, setShowSpotlight] = useState(false);
+  const [spotlightQuery, setSpotlightQuery] = useState('');
+  const [spotlightSelectedIndex, setSpotlightSelectedIndex] = useState(0);
+  const spotlightInputRef = useRef(null);
+
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const firstHour = 0; // Always start at midnight for positioning
@@ -786,6 +792,28 @@ const DayPlanner = () => {
       }
       return part;
     });
+  };
+
+  const highlightMatch = (text, query) => {
+    if (!query) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    // Truncate long text (e.g. notes) to ±30 chars around the match
+    let display = text;
+    let matchIdx = idx;
+    if (text.length > 80) {
+      const start = Math.max(0, idx - 30);
+      const end = Math.min(text.length, idx + query.length + 30);
+      display = (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+      matchIdx = idx - start + (start > 0 ? 1 : 0);
+    }
+    return (
+      <span>
+        {display.slice(0, matchIdx)}
+        <span className="font-bold text-blue-500">{display.slice(matchIdx, matchIdx + query.length)}</span>
+        {display.slice(matchIdx + query.length)}
+      </span>
+    );
   };
 
   const renderTitleWithoutTags = (title) => {
@@ -3421,6 +3449,11 @@ const DayPlanner = () => {
     const handleGlobalKeyDown = (e) => {
       // Escape to close modals/dialogs (works even when focus is on body)
       if (e.key === 'Escape') {
+        if (showSpotlight) {
+          e.preventDefault();
+          setShowSpotlight(false);
+          return;
+        }
         if (showShortcutHelp) {
           e.preventDefault();
           setShowShortcutHelp(false);
@@ -3467,6 +3500,19 @@ const DayPlanner = () => {
         }
       }
 
+      // Cmd+K / Ctrl+K for spotlight search (works even in inputs)
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setShowSpotlight(prev => {
+          if (!prev) {
+            setSpotlightQuery('');
+            setSpotlightSelectedIndex(0);
+          }
+          return !prev;
+        });
+        return;
+      }
+
       // '?' for shortcut cheat sheet (works even in inputs)
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Don't trigger in inputs unless it's already showing (to allow closing)
@@ -3484,7 +3530,7 @@ const DayPlanner = () => {
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight) {
         return;
       }
 
@@ -3593,7 +3639,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showSpotlight]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
@@ -3751,6 +3797,40 @@ const DayPlanner = () => {
       newMonth.setMonth(newMonth.getMonth() + delta);
       return newMonth;
     });
+  };
+
+  const handleSpotlightSelect = (result) => {
+    setShowSpotlight(false);
+    const { task, source } = result;
+
+    if (source === 'scheduled') {
+      goToDate(task.date);
+    } else if (source === 'inbox') {
+      setSidebarCollapsed(false);
+      setMinimizedSections(prev => ({ ...prev, inbox: false }));
+      setTimeout(() => {
+        const el = document.querySelector(`[data-task-id="${task.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
+        }
+      }, 300);
+    } else if (source === 'recurring') {
+      const date = task.startDate || dateToString(new Date());
+      goToDate(date);
+    } else if (source === 'deleted') {
+      setSidebarCollapsed(false);
+      setMinimizedSections(prev => ({ ...prev, recycleBin: false }));
+      setTimeout(() => {
+        const el = document.querySelector(`[data-task-id="bin-${task.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
+        }
+      }, 300);
+    }
   };
 
   const getMonthDays = () => {
@@ -6033,6 +6113,69 @@ const DayPlanner = () => {
     return instances;
   }, [recurringTasks, visibleDates]);
 
+  // Spotlight search results
+  const spotlightResults = useMemo(() => {
+    if (!showSpotlight || !spotlightQuery.trim()) return [];
+    const q = spotlightQuery.trim().toLowerCase();
+    const results = [];
+
+    const matchTask = (task, source, sourceLabel, date) => {
+      // Check title
+      if (task.title.toLowerCase().includes(q)) {
+        results.push({ task, source, sourceLabel, match: { field: 'title', text: task.title }, date });
+        return;
+      }
+      // Check tags
+      const tags = extractTags(task.title);
+      const matchedTag = tags.find(t => t.toLowerCase().includes(q));
+      if (matchedTag) {
+        results.push({ task, source, sourceLabel, match: { field: 'tag', text: '#' + matchedTag }, date });
+        return;
+      }
+      // Check notes
+      if (task.notes && task.notes.toLowerCase().includes(q)) {
+        results.push({ task, source, sourceLabel, match: { field: 'notes', text: task.notes }, date });
+        return;
+      }
+      // Check subtasks
+      const matchedSub = (task.subtasks || []).find(s => s.title.toLowerCase().includes(q));
+      if (matchedSub) {
+        results.push({ task, source, sourceLabel, match: { field: 'subtask', text: matchedSub.title }, date });
+      }
+    };
+
+    // Scheduled tasks
+    for (const task of tasks) {
+      matchTask(task, 'scheduled', 'Scheduled', task.date);
+    }
+    // Inbox tasks
+    for (const task of unscheduledTasks) {
+      matchTask(task, 'inbox', 'Inbox', task.deadline || null);
+    }
+    // Recurring templates
+    for (const template of recurringTasks) {
+      matchTask(template, 'recurring', 'Recurring', template.startDate || null);
+    }
+    // Recycle bin
+    for (const task of recycleBin) {
+      matchTask(task, 'deleted', 'Deleted', task.date || null);
+    }
+
+    // Sort: title matches first, then source priority, then date
+    const sourcePriority = { scheduled: 0, inbox: 1, recurring: 2, deleted: 3 };
+    results.sort((a, b) => {
+      const aTitle = a.match.field === 'title' ? 0 : 1;
+      const bTitle = b.match.field === 'title' ? 0 : 1;
+      if (aTitle !== bTitle) return aTitle - bTitle;
+      const aPri = sourcePriority[a.source] ?? 4;
+      const bPri = sourcePriority[b.source] ?? 4;
+      if (aPri !== bPri) return aPri - bPri;
+      return (a.date || '').localeCompare(b.date || '');
+    });
+
+    return results.slice(0, 50);
+  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin]);
+
   // Compute today's agenda for dayGLANCE section (excludes past events)
   const todayAgenda = useMemo(() => {
     const today = getTodayStr();
@@ -7058,6 +7201,7 @@ const DayPlanner = () => {
                     filteredUnscheduledTasks.map(task => (
                     <div
                       key={task.id}
+                      data-task-id={task.id}
                       className="notes-panel-container"
                     >
                       <div
@@ -7504,6 +7648,7 @@ const DayPlanner = () => {
                       recycleBin.map(task => (
                         <div
                           key={task.id}
+                          data-task-id={"bin-" + task.id}
                           draggable
                           onDragStart={(e) => handleDragStart(task, 'recycleBin', e)}
                           onDragEnd={handleDragEnd}
@@ -9921,6 +10066,121 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Spotlight Search */}
+      {showSpotlight && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center" style={{ paddingTop: '15vh' }} onClick={() => setShowSpotlight(false)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl border ${borderClass} max-w-xl w-full mx-4 h-fit`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Search input */}
+            <div className={`flex items-center gap-2 px-4 py-3 border-b ${borderClass}`}>
+              <Search size={18} className={textSecondary} />
+              <input
+                ref={spotlightInputRef}
+                type="text"
+                value={spotlightQuery}
+                onChange={(e) => { setSpotlightQuery(e.target.value); setSpotlightSelectedIndex(0); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSpotlightSelectedIndex(prev => Math.min(prev + 1, Math.min(spotlightResults.length - 1, 19)));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSpotlightSelectedIndex(prev => Math.max(prev - 1, 0));
+                  } else if (e.key === 'Enter' && spotlightResults.length > 0) {
+                    e.preventDefault();
+                    handleSpotlightSelect(spotlightResults[spotlightSelectedIndex]);
+                  }
+                }}
+                placeholder="Search tasks..."
+                className={`flex-1 bg-transparent outline-none ${textPrimary} text-sm placeholder:${textSecondary}`}
+                autoFocus
+              />
+              {spotlightQuery && (
+                <button onClick={() => { setSpotlightQuery(''); setSpotlightSelectedIndex(0); spotlightInputRef.current?.focus(); }} className={`${textSecondary} hover:${textPrimary}`}>
+                  <X size={16} />
+                </button>
+              )}
+              <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>
+            </div>
+
+            {/* Results */}
+            <div className="max-h-[50vh] overflow-y-auto">
+              {!spotlightQuery.trim() ? (
+                <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>Type to search across all tasks...</div>
+              ) : spotlightResults.length === 0 ? (
+                <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>No results found</div>
+              ) : (
+                spotlightResults.slice(0, 20).map((result, idx) => {
+                  const sourceBadgeColors = darkMode ? {
+                    scheduled: 'bg-blue-900/40 text-blue-300',
+                    inbox: 'bg-green-900/40 text-green-300',
+                    recurring: 'bg-purple-900/40 text-purple-300',
+                    deleted: 'bg-red-900/40 text-red-300',
+                  } : {
+                    scheduled: 'bg-blue-100 text-blue-700',
+                    inbox: 'bg-green-100 text-green-700',
+                    recurring: 'bg-purple-100 text-purple-700',
+                    deleted: 'bg-red-100 text-red-700',
+                  };
+                  const isSelected = idx === spotlightSelectedIndex;
+                  return (
+                    <div
+                      key={`${result.source}-${result.task.id}-${idx}`}
+                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50')}`}
+                      onClick={() => handleSpotlightSelect(result)}
+                      onMouseEnter={() => setSpotlightSelectedIndex(idx)}
+                      ref={el => {
+                        if (isSelected && el) el.scrollIntoView({ block: 'nearest' });
+                      }}
+                    >
+                      {/* Color dot */}
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.task.color || 'bg-blue-500'}`} />
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium truncate ${textPrimary}`}>
+                          {result.match.field === 'title'
+                            ? highlightMatch(result.task.title, spotlightQuery)
+                            : renderTitle(result.task.title)}
+                        </div>
+                        {result.match.field !== 'title' && (
+                          <div className={`text-xs ${textSecondary} truncate mt-0.5`}>
+                            <span className="opacity-60">{result.match.field === 'notes' ? 'Notes: ' : result.match.field === 'subtask' ? 'Subtask: ' : result.match.field === 'tag' ? 'Tag: ' : ''}</span>
+                            {highlightMatch(result.match.text, spotlightQuery)}
+                          </div>
+                        )}
+                      </div>
+                      {/* Date */}
+                      {result.date && (
+                        <span className={`text-xs ${textSecondary} flex-shrink-0`}>{result.date}</span>
+                      )}
+                      {/* Source badge */}
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${sourceBadgeColors[result.source]}`}>
+                        {result.sourceLabel}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {spotlightResults.length > 0 && (
+              <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
+                <div className="flex items-center gap-3">
+                  <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
+                  <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
+                </div>
+                {spotlightResults.length > 20 && (
+                  <span>{spotlightResults.length} results</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Keyboard Shortcut Cheat Sheet */}
       {showShortcutHelp && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcutHelp(false)}>
@@ -9972,14 +10232,18 @@ const DayPlanner = () => {
                   </div>
                 ))}
                 <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>App</h3>
-                {[
-                  ['F', 'Focus mode'],
-                  ['D', 'Toggle dark mode'],
-                  ['B', 'Backup menu'],
-                  [',', 'Collapse sidebar'],
-                  ['.', 'Expand sidebar'],
-                  ['?', 'This help'],
-                ].map(([key, desc]) => (
+                {(() => {
+                  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+                  return [
+                    [isMac ? '⌘K' : 'Ctrl+K', 'Search tasks'],
+                    ['F', 'Focus mode'],
+                    ['D', 'Toggle dark mode'],
+                    ['B', 'Backup menu'],
+                    [',', 'Collapse sidebar'],
+                    ['.', 'Expand sidebar'],
+                    ['?', 'This help'],
+                  ];
+                })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
                     <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
