@@ -846,7 +846,7 @@ const DayPlanner = () => {
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a date
-      if (/[#~!$]/.test(char)) {
+      if (/[#~!$%]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -869,7 +869,7 @@ const DayPlanner = () => {
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a time
-      if (/[#@!$]/.test(char)) {
+      if (/[#@!$%]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -892,7 +892,7 @@ const DayPlanner = () => {
         return null;
       }
       // Stop if we hit certain characters that wouldn't be part of a deadline
-      if (/[#@~!]/.test(char)) {
+      if (/[#@~!%]/.test(char)) {
         return null;
       }
       startIndex--;
@@ -929,62 +929,81 @@ const DayPlanner = () => {
     };
   };
 
-  // Parse flexible date formats and return parsed date info
-  const parseFlexibleDate = (partial) => {
+  // Extract partial duration being typed at cursor position (triggered by %)
+  const getPartialDuration = (text, cursorPos) => {
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '%') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        if (/^\d*$/.test(partial)) {
+          return { partial, startIndex, endIndex: cursorPos };
+        }
+        return null;
+      }
+      if (!/\d/.test(char)) return null;
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Parse flexible date formats and return ALL matching candidates for prefix
+  const getDateCandidates = (partial) => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const currentYear = today.getFullYear();
     const lowerPartial = partial.toLowerCase().trim();
+    if (!lowerPartial) return [];
 
-    // Natural language dates
-    if (lowerPartial === 'today' || lowerPartial === 'tod') {
-      return { date: today, display: 'Today' };
-    }
-    if (lowerPartial === 'tomorrow' || lowerPartial === 'tom') {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return { date: tomorrow, display: 'Tomorrow' };
-    }
-    if (lowerPartial === 'yesterday') {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return { date: yesterday, display: 'Yesterday' };
+    const candidates = [];
+
+    // Natural language dates — prefix match
+    const naturalDates = [
+      { keywords: ['today', 'tod'], getDate: () => today, display: 'Today', keyword: 'today' },
+      { keywords: ['tomorrow', 'tom'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; }, display: 'Tomorrow', keyword: 'tomorrow' },
+      { keywords: ['yesterday'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; }, display: 'Yesterday', keyword: 'yesterday' },
+    ];
+
+    for (const nd of naturalDates) {
+      if (nd.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
+        candidates.push({ date: nd.getDate(), display: nd.display, keyword: nd.keyword });
+      }
     }
 
-    // Day names (next occurrence)
+    // Day names (next occurrence) — prefix match
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayAbbrevs = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    let dayIndex = dayNames.findIndex(d => d.startsWith(lowerPartial));
-    if (dayIndex === -1) dayIndex = dayAbbrevs.findIndex(d => d === lowerPartial);
-    if (dayIndex !== -1) {
-      const targetDate = new Date(today);
-      const currentDay = today.getDay();
-      let daysToAdd = dayIndex - currentDay;
-      if (daysToAdd <= 0) daysToAdd += 7; // Next occurrence
-      targetDate.setDate(targetDate.getDate() + daysToAdd);
-      return { date: targetDate, display: dayNames[dayIndex].charAt(0).toUpperCase() + dayNames[dayIndex].slice(1) };
+    for (let i = 0; i < dayNames.length; i++) {
+      if (dayNames[i].startsWith(lowerPartial) || dayAbbrevs[i] === lowerPartial) {
+        const targetDate = new Date(today);
+        const currentDay = today.getDay();
+        let daysToAdd = i - currentDay;
+        if (daysToAdd <= 0) daysToAdd += 7;
+        targetDate.setDate(targetDate.getDate() + daysToAdd);
+        candidates.push({ date: targetDate, display: dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1), keyword: dayNames[i] });
+      }
     }
 
-    // "next week" - same day next week
-    if (lowerPartial === 'next week') {
+    // "next week" — prefix match
+    if ('next week'.startsWith(lowerPartial) || lowerPartial === 'next week') {
       const nextWeek = new Date(today);
       nextWeek.setDate(nextWeek.getDate() + 7);
-      return { date: nextWeek, display: 'Next week' };
+      candidates.push({ date: nextWeek, display: 'Next week', keyword: 'next week' });
     }
 
     // "next monday", "next tuesday", etc.
     const nextDayMatch = lowerPartial.match(/^next\s+(\w+)$/);
     if (nextDayMatch) {
       const dayName = nextDayMatch[1];
-      let idx = dayNames.findIndex(d => d.startsWith(dayName));
-      if (idx === -1) idx = dayAbbrevs.findIndex(d => d === dayName);
-      if (idx !== -1) {
-        const targetDate = new Date(today);
-        const currentDay = today.getDay();
-        let daysToAdd = idx - currentDay;
-        if (daysToAdd <= 0) daysToAdd += 7;
-        targetDate.setDate(targetDate.getDate() + daysToAdd);
-        return { date: targetDate, display: `Next ${dayNames[idx]}` };
+      for (let i = 0; i < dayNames.length; i++) {
+        if (dayNames[i].startsWith(dayName) || dayAbbrevs[i] === dayName) {
+          const targetDate = new Date(today);
+          const currentDay = today.getDay();
+          let daysToAdd = i - currentDay;
+          if (daysToAdd <= 0) daysToAdd += 7;
+          targetDate.setDate(targetDate.getDate() + daysToAdd);
+          candidates.push({ date: targetDate, display: `Next ${dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1)}`, keyword: `next ${dayNames[i]}` });
+        }
       }
     }
 
@@ -1004,7 +1023,7 @@ const DayPlanner = () => {
         if (day >= 1 && day <= 31) {
           const targetDate = new Date(year, monthIdx, day, 12, 0, 0);
           if (!isNaN(targetDate.getTime())) {
-            return { date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+            candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
           }
         }
       }
@@ -1020,7 +1039,7 @@ const DayPlanner = () => {
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
         const targetDate = new Date(year, month - 1, day, 12, 0, 0);
         if (!isNaN(targetDate.getTime())) {
-          return { date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+          candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
         }
       }
     }
@@ -1035,48 +1054,107 @@ const DayPlanner = () => {
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
         const targetDate = new Date(year, month - 1, day, 12, 0, 0);
         if (!isNaN(targetDate.getTime())) {
-          return { date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) };
+          candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
         }
       }
     }
 
-    return null;
+    return candidates;
   };
 
-  // Parse flexible time formats and return parsed time info
-  const parseFlexibleTime = (partial) => {
+  // Backward-compat wrapper: returns first match or null
+  const parseFlexibleDate = (partial) => {
+    const candidates = getDateCandidates(partial);
+    return candidates.length > 0 ? candidates[0] : null;
+  };
+
+  // Parse flexible time formats and return ALL matching candidates for prefix
+  const getTimeCandidates = (partial) => {
     const lowerPartial = partial.toLowerCase().trim();
+    if (!lowerPartial) return [];
 
-    // Natural language times
-    if (lowerPartial === 'noon') {
-      return { time: '12:00', display: '12:00 PM (Noon)' };
-    }
-    if (lowerPartial === 'midnight') {
-      return { time: '00:00', display: '12:00 AM (Midnight)' };
-    }
-    if (lowerPartial === 'morning' || lowerPartial === 'morn') {
-      return { time: '09:00', display: '9:00 AM' };
-    }
-    if (lowerPartial === 'afternoon') {
-      return { time: '14:00', display: '2:00 PM' };
-    }
-    if (lowerPartial === 'evening' || lowerPartial === 'eve') {
-      return { time: '18:00', display: '6:00 PM' };
-    }
-    if (lowerPartial === 'night') {
-      return { time: '21:00', display: '9:00 PM' };
+    const candidates = [];
+
+    // Natural language times — prefix match
+    const naturalTimes = [
+      { keywords: ['noon'], time: '12:00', display: '12:00 PM (Noon)', keyword: 'noon' },
+      { keywords: ['midnight'], time: '00:00', display: '12:00 AM (Midnight)', keyword: 'midnight' },
+      { keywords: ['morning', 'morn'], time: '09:00', display: '9:00 AM (Morning)', keyword: 'morning' },
+      { keywords: ['afternoon'], time: '14:00', display: '2:00 PM (Afternoon)', keyword: 'afternoon' },
+      { keywords: ['evening', 'eve'], time: '18:00', display: '6:00 PM (Evening)', keyword: 'evening' },
+      { keywords: ['night'], time: '21:00', display: '9:00 PM (Night)', keyword: 'night' },
+    ];
+
+    for (const nt of naturalTimes) {
+      if (nt.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
+        candidates.push({ time: nt.time, display: nt.display, keyword: nt.keyword });
+      }
     }
 
-    // Military time: HH:MM or H:MM
+    // Bare number: e.g., "3" → 3:00 AM, 3:00 PM
+    const bareNumberMatch = lowerPartial.match(/^(\d{1,2})$/);
+    if (bareNumberMatch) {
+      const num = parseInt(bareNumberMatch[1], 10);
+      if (num >= 1 && num <= 12) {
+        const amHour = num === 12 ? 0 : num;
+        const pmHour = num === 12 ? 12 : num + 12;
+        candidates.push({ time: `${amHour.toString().padStart(2, '0')}:00`, display: `${num}:00 AM`, keyword: `${num}am` });
+        candidates.push({ time: `${pmHour.toString().padStart(2, '0')}:00`, display: `${num}:00 PM`, keyword: `${num}pm` });
+      } else if (num >= 13 && num <= 23) {
+        const displayHour = num > 12 ? num - 12 : num;
+        candidates.push({ time: `${num.toString().padStart(2, '0')}:00`, display: `${displayHour}:00 PM`, keyword: `${num}:00` });
+      }
+    }
+
+    // Number with partial am/pm: e.g., "3p" → 3:00 PM, "3a" → 3:00 AM
+    const partialAmPmMatch = lowerPartial.match(/^(\d{1,2})(a|p)$/);
+    if (partialAmPmMatch) {
+      const num = parseInt(partialAmPmMatch[1], 10);
+      const ap = partialAmPmMatch[2];
+      if (num >= 1 && num <= 12) {
+        if (ap === 'a') {
+          const hour = num === 12 ? 0 : num;
+          candidates.push({ time: `${hour.toString().padStart(2, '0')}:00`, display: `${num}:00 AM`, keyword: `${num}am` });
+        } else {
+          const hour = num === 12 ? 12 : num + 12;
+          candidates.push({ time: `${hour.toString().padStart(2, '0')}:00`, display: `${num}:00 PM`, keyword: `${num}pm` });
+        }
+      }
+    }
+
+    // Number with colon and partial minutes: e.g., "3:" or "3:3" → quarter-hour options
+    const colonPartialMatch = lowerPartial.match(/^(\d{1,2}):(\d?)$/);
+    if (colonPartialMatch) {
+      const hour = parseInt(colonPartialMatch[1], 10);
+      const minPartial = colonPartialMatch[2];
+      if (hour >= 1 && hour <= 12) {
+        const minuteOptions = ['00', '15', '30', '45'].filter(m => m.startsWith(minPartial));
+        for (const min of minuteOptions) {
+          const amHour = hour === 12 ? 0 : hour;
+          const pmHour = hour === 12 ? 12 : hour + 12;
+          candidates.push({ time: `${amHour.toString().padStart(2, '0')}:${min}`, display: `${hour}:${min} AM`, keyword: `${hour}:${min}am` });
+          candidates.push({ time: `${pmHour.toString().padStart(2, '0')}:${min}`, display: `${hour}:${min} PM`, keyword: `${hour}:${min}pm` });
+        }
+      } else if (hour >= 13 && hour <= 23) {
+        const minuteOptions = ['00', '15', '30', '45'].filter(m => m.startsWith(minPartial));
+        const displayHour = hour > 12 ? hour - 12 : hour;
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        for (const min of minuteOptions) {
+          candidates.push({ time: `${hour.toString().padStart(2, '0')}:${min}`, display: `${displayHour}:${min} ${ampm}`, keyword: `${hour}:${min}` });
+        }
+      }
+    }
+
+    // Military time: HH:MM or H:MM (exact)
     const militaryMatch = partial.match(/^(\d{1,2}):(\d{2})$/);
     if (militaryMatch) {
       const hours = parseInt(militaryMatch[1], 10);
       const minutes = militaryMatch[2];
-      if (hours >= 0 && hours <= 23) {
+      if (hours >= 0 && hours <= 23 && !candidates.some(c => c.time === `${hours.toString().padStart(2, '0')}:${minutes}`)) {
         const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
         const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
         const ampm = hours >= 12 ? 'PM' : 'AM';
-        return { time: timeStr, display: `${displayHour}:${minutes} ${ampm}` };
+        candidates.push({ time: timeStr, display: `${displayHour}:${minutes} ${ampm}` });
       }
     }
 
@@ -1088,18 +1166,25 @@ const DayPlanner = () => {
       const ampm = twelveHourMatch[3];
 
       if (hours >= 1 && hours <= 12 && parseInt(minutes, 10) <= 59) {
-        // Convert to 24-hour
         if (ampm === 'pm' && hours !== 12) hours += 12;
         if (ampm === 'am' && hours === 12) hours = 0;
 
         const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
-        const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        const displayAmpm = hours >= 12 ? 'PM' : 'AM';
-        return { time: timeStr, display: `${displayHour}:${minutes} ${displayAmpm}` };
+        if (!candidates.some(c => c.time === timeStr)) {
+          const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+          const displayAmpm = hours >= 12 ? 'PM' : 'AM';
+          candidates.push({ time: timeStr, display: `${displayHour}:${minutes} ${displayAmpm}` });
+        }
       }
     }
 
-    return null;
+    return candidates;
+  };
+
+  // Backward-compat wrapper: returns first match or null
+  const parseFlexibleTime = (partial) => {
+    const candidates = getTimeCandidates(partial);
+    return candidates.length > 0 ? candidates[0] : null;
   };
 
   // Format time for display (12-hour format)
@@ -1116,6 +1201,29 @@ const DayPlanner = () => {
     const after = text.slice(endIndex);
     // Clean up multiple spaces but preserve single trailing space for chaining
     return (before + after).replace(/\s+/g, ' ').trimStart();
+  };
+
+  // Autocomplete shortcut text in title when a suggestion is accepted
+  // Replaces the partial text (e.g. "@to") with the full keyword (e.g. "@today")
+  const completeShortcutText = (title, suggestion) => {
+    if (!suggestion.keyword) return { text: title, cursorPos: title.length };
+    const triggerChar = title[suggestion.startIndex]; // @, ~, $, etc.
+    const before = title.slice(0, suggestion.startIndex);
+    const after = title.slice(suggestion.endIndex);
+    const completed = before + triggerChar + suggestion.keyword;
+    return { text: completed + after, cursorPos: completed.length };
+  };
+
+  // Strip all special character sequences from a title before saving
+  const cleanTitle = (title) => {
+    return title
+      .replace(/%\d+/g, '')           // %duration
+      .replace(/@[\w\s/\-,]*/g, '')   // @date
+      .replace(/~[\w\s:]*/g, '')      // ~time
+      .replace(/\$[\w\s/\-,]*/g, '')  // $deadline
+      .replace(/!{1,3}(?=\s|$)/g, '') // !priority
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   useEffect(() => {
@@ -1681,6 +1789,12 @@ const DayPlanner = () => {
     }
 
     const content = { dadJoke: null, funFact: null, quote: null, history: null };
+    const decodeHTML = (str) => {
+      if (!str) return str;
+      const el = document.createElement('textarea');
+      el.innerHTML = str;
+      return el.value;
+    };
 
     // Fetch dad joke
     try {
@@ -1688,7 +1802,7 @@ const DayPlanner = () => {
         headers: { 'Accept': 'application/json' }
       });
       const data = await response.json();
-      if (data.joke) content.dadJoke = data.joke;
+      if (data.joke) content.dadJoke = decodeHTML(data.joke);
     } catch (error) {
       console.error('Failed to fetch dad joke:', error);
     }
@@ -1697,7 +1811,7 @@ const DayPlanner = () => {
     try {
       const response = await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random?language=en');
       const data = await response.json();
-      if (data.text) content.funFact = data.text;
+      if (data.text) content.funFact = decodeHTML(data.text);
     } catch (error) {
       console.error('Failed to fetch fun fact:', error);
     }
@@ -1706,7 +1820,7 @@ const DayPlanner = () => {
     try {
       const response = await fetch('https://api.quotable.io/random');
       const data = await response.json();
-      if (data.content) content.quote = { text: data.content, author: data.author };
+      if (data.content) content.quote = { text: decodeHTML(data.content), author: decodeHTML(data.author) };
     } catch (error) {
       console.error('Failed to fetch quote:', error);
     }
@@ -1718,7 +1832,7 @@ const DayPlanner = () => {
       const data = await response.json();
       if (data.data?.Events?.length > 0) {
         const randomEvent = data.data.Events[Math.floor(Math.random() * data.data.Events.length)];
-        content.history = { year: randomEvent.year, text: randomEvent.text };
+        content.history = { year: randomEvent.year, text: decodeHTML(randomEvent.text) };
       }
     } catch (error) {
       console.error('Failed to fetch history:', error);
@@ -2367,7 +2481,7 @@ const DayPlanner = () => {
       const taskId = Date.now();
       const task = {
         id: taskId,
-        title: newTask.title,
+        title: cleanTitle(newTask.title),
         duration: newTask.duration,
         color: newTask.color || colors[0].class,
         completed: false,
@@ -2387,7 +2501,7 @@ const DayPlanner = () => {
         const taskDate = newTask.date || dateToString(selectedDate);
         const template = {
           id: taskId,
-          title: newTask.title,
+          title: cleanTitle(newTask.title),
           startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
           duration: newTask.duration,
           color: newTask.color || colors[0].class,
@@ -2591,19 +2705,21 @@ const DayPlanner = () => {
       return;
     }
 
+    const cleanedTitle = cleanTitle(editingTaskText);
+
     // Handle recurring task instances - update the template title
     if (typeof editingTaskId === 'string' && editingTaskId.startsWith('recurring-')) {
       const templateId = Number(editingTaskId.split('-')[1]);
       setRecurringTasks(prev => prev.map(t =>
-        t.id === templateId ? { ...t, title: editingTaskText.trim() } : t
+        t.id === templateId ? { ...t, title: cleanedTitle } : t
       ));
     } else if (isInbox) {
       setUnscheduledTasks(unscheduledTasks.map(t =>
-        t.id === editingTaskId ? { ...t, title: editingTaskText.trim() } : t
+        t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
       ));
     } else {
       setTasks(tasks.map(t =>
-        t.id === editingTaskId ? { ...t, title: editingTaskText.trim() } : t
+        t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
       ));
     }
 
@@ -2750,27 +2866,89 @@ const DayPlanner = () => {
 
   const handleEditKeyDown = (e, isInbox = false) => {
     // Handle autocomplete keyboard navigation
+    // Tags: TAB or SPACE accepts tag completion
+    // Non-tags: SPACE accepts the suggestion and inserts a space
+    // ENTER always saves; ESC always cancels
     if (showSuggestions && suggestions.length > 0) {
       const selected = suggestions[selectedSuggestionIndex];
-      // Tab, Enter, or Space (for date/time/deadline/priority) accepts the suggestion
-      if (e.key === 'Tab' || e.key === 'Enter' ||
-          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline' || selected.type === 'priority'))) {
+
+      if (e.key === 'Tab' || e.key === ' ') {
         e.preventDefault();
-        applySuggestionForEdit(selected, e.target, isInbox);
+        if (selected.type === 'tag') {
+          applySuggestionForEdit(selected, e.target, isInbox);
+        } else {
+          const inputEl = e.target;
+          // Autocomplete the shortcut text and append a space
+          const { text: completed, cursorPos } = completeShortcutText(editingTaskText, selected);
+          const newText = completed + ' ';
+          // Apply the selected suggestion attribute
+          if (selected.type === 'date' || selected.type === 'time') {
+            if (isInbox) {
+              setUnscheduledTasks(prev => prev.map(t => {
+                if (t.id !== editingTaskId) return t;
+                if (selected.type === 'date') return { ...t, scheduledDate: selected.value };
+                return { ...t, scheduledTime: selected.value };
+              }));
+            } else if (selected.type === 'time') {
+              const editingTask = tasks.find(t => t.id === editingTaskId);
+              if (editingTask && !editingTask.isAllDay) {
+                const { adjustedStartTime } = getAdjustedTimeForImportedConflicts(
+                  editingTaskId, selected.value, editingTask.duration, editingTask.date
+                );
+                setTasks(prev => prev.map(t =>
+                  t.id === editingTaskId ? { ...t, startTime: adjustedStartTime } : t
+                ));
+              } else {
+                setTasks(prev => prev.map(t =>
+                  t.id === editingTaskId ? { ...t, startTime: selected.value } : t
+                ));
+              }
+            } else {
+              setTasks(prev => prev.map(t =>
+                t.id === editingTaskId ? { ...t, date: selected.value } : t
+              ));
+            }
+          } else if (selected.type === 'deadline' && isInbox) {
+            setUnscheduledTasks(prev => prev.map(t =>
+              t.id === editingTaskId ? { ...t, deadline: selected.value } : t
+            ));
+          } else if (selected.type === 'priority' && isInbox) {
+            setUnscheduledTasks(prev => prev.map(t =>
+              t.id === editingTaskId ? { ...t, priority: selected.value } : t
+            ));
+          } else if (selected.type === 'duration') {
+            if (isInbox) {
+              setUnscheduledTasks(prev => prev.map(t =>
+                t.id === editingTaskId ? { ...t, duration: selected.value } : t
+              ));
+            } else {
+              setTasks(prev => prev.map(t =>
+                t.id === editingTaskId ? { ...t, duration: selected.value } : t
+              ));
+            }
+          }
+          setEditingTaskText(newText);
+          setShowSuggestions(false);
+          setSuggestions([]);
+          setSelectedSuggestionIndex(0);
+          setTimeout(() => {
+            if (inputEl) {
+              const pos = cursorPos + 1;
+              inputEl.selectionStart = pos;
+              inputEl.selectionEnd = pos;
+            }
+          }, 0);
+        }
         return;
-      } else if (e.key === 'ArrowDown') {
+      }
+
+      if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedSuggestionIndex(prev => (prev + 1) % suggestions.length);
         return;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-        return;
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowSuggestions(false);
-        setSuggestions([]);
-        setSelectedSuggestionIndex(0);
         return;
       }
     }
@@ -2790,129 +2968,74 @@ const DayPlanner = () => {
       // Complete the tag
       const cursorPos = inputElement?.selectionStart || editingTaskText.length;
       const { text: newText, newCursorPos } = applyTagCompletion(editingTaskText, cursorPos, suggestion.value);
-      setEditingTaskText(newText);
+      const textWithSpace = newText.slice(0, newCursorPos) + ' ' + newText.slice(newCursorPos);
+      setEditingTaskText(textWithSpace);
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
       setTimeout(() => {
         if (inputElement) {
-          inputElement.selectionStart = newCursorPos;
-          inputElement.selectionEnd = newCursorPos;
+          inputElement.selectionStart = newCursorPos + 1;
+          inputElement.selectionEnd = newCursorPos + 1;
         }
       }, 0);
-    } else if (suggestion.type === 'date' || suggestion.type === 'time') {
-      // Remove the date/time from title and update the task
-      const newTitle = removeFromTitle(editingTaskText, suggestion.startIndex, suggestion.endIndex);
-      setEditingTaskText(newTitle);
-
-      // Update the task's date or time
-      if (isInbox) {
-        setUnscheduledTasks(unscheduledTasks.map(t => {
-          if (t.id === editingTaskId) {
-            if (suggestion.type === 'date') {
-              return { ...t, title: newTitle, scheduledDate: suggestion.value };
-            } else {
-              return { ...t, title: newTitle, scheduledTime: suggestion.value };
-            }
-          }
-          return t;
-        }));
-      } else {
-        // For calendar tasks, check for conflicts with imported events when changing time
-        if (suggestion.type === 'time') {
+    } else {
+      // Autocomplete the shortcut text and apply the selected suggestion
+      const { text: completed, cursorPos } = completeShortcutText(editingTaskText, suggestion);
+      setEditingTaskText(completed);
+      if (suggestion.type === 'date' || suggestion.type === 'time') {
+        if (isInbox) {
+          setUnscheduledTasks(prev => prev.map(t => {
+            if (t.id !== editingTaskId) return t;
+            if (suggestion.type === 'date') return { ...t, scheduledDate: suggestion.value };
+            return { ...t, scheduledTime: suggestion.value };
+          }));
+        } else if (suggestion.type === 'time') {
           const editingTask = tasks.find(t => t.id === editingTaskId);
           if (editingTask && !editingTask.isAllDay) {
-            const { conflicted, adjustedStartTime, conflictingEvent } = getAdjustedTimeForImportedConflicts(
-              editingTaskId,
-              suggestion.value,
-              editingTask.duration,
-              editingTask.date
+            const { adjustedStartTime } = getAdjustedTimeForImportedConflicts(
+              editingTaskId, suggestion.value, editingTask.duration, editingTask.date
             );
-
-            setTasks(tasks.map(t =>
-              t.id === editingTaskId
-                ? { ...t, title: newTitle, startTime: adjustedStartTime }
-                : t
+            setTasks(prev => prev.map(t =>
+              t.id === editingTaskId ? { ...t, startTime: adjustedStartTime } : t
             ));
-
-            if (conflicted && conflictingEvent) {
-              setSyncNotification({
-                type: 'info',
-                title: 'Task Rescheduled',
-                message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
-              });
-            }
           } else {
-            setTasks(tasks.map(t =>
-              t.id === editingTaskId
-                ? { ...t, title: newTitle, startTime: suggestion.value }
-                : t
+            setTasks(prev => prev.map(t =>
+              t.id === editingTaskId ? { ...t, startTime: suggestion.value } : t
             ));
           }
         } else {
-          setTasks(tasks.map(t =>
-            t.id === editingTaskId
-              ? { ...t, title: newTitle, date: suggestion.value }
-              : t
+          setTasks(prev => prev.map(t =>
+            t.id === editingTaskId ? { ...t, date: suggestion.value } : t
+          ));
+        }
+      } else if (suggestion.type === 'deadline' && isInbox) {
+        setUnscheduledTasks(prev => prev.map(t =>
+          t.id === editingTaskId ? { ...t, deadline: suggestion.value } : t
+        ));
+      } else if (suggestion.type === 'priority' && isInbox) {
+        setUnscheduledTasks(prev => prev.map(t =>
+          t.id === editingTaskId ? { ...t, priority: suggestion.value } : t
+        ));
+      } else if (suggestion.type === 'duration') {
+        if (isInbox) {
+          setUnscheduledTasks(prev => prev.map(t =>
+            t.id === editingTaskId ? { ...t, duration: suggestion.value } : t
+          ));
+        } else {
+          setTasks(prev => prev.map(t =>
+            t.id === editingTaskId ? { ...t, duration: suggestion.value } : t
           ));
         }
       }
-
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
-
       setTimeout(() => {
         if (inputElement) {
           inputElement.focus();
-        }
-      }, 0);
-    } else if (suggestion.type === 'deadline') {
-      // Remove the deadline from title and update the inbox task's deadline
-      const newTitle = removeFromTitle(editingTaskText, suggestion.startIndex, suggestion.endIndex);
-      setEditingTaskText(newTitle);
-
-      // Only inbox tasks can have deadlines
-      if (isInbox) {
-        setUnscheduledTasks(unscheduledTasks.map(t => {
-          if (t.id === editingTaskId) {
-            return { ...t, title: newTitle, deadline: suggestion.value };
-          }
-          return t;
-        }));
-      }
-
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-
-      setTimeout(() => {
-        if (inputElement) {
-          inputElement.focus();
-        }
-      }, 0);
-    } else if (suggestion.type === 'priority') {
-      // Remove the priority markers from title and update the inbox task's priority
-      const newTitle = removeFromTitle(editingTaskText, suggestion.startIndex, suggestion.endIndex);
-      setEditingTaskText(newTitle);
-
-      // Only inbox tasks can have priority
-      if (isInbox) {
-        setUnscheduledTasks(unscheduledTasks.map(t => {
-          if (t.id === editingTaskId) {
-            return { ...t, title: newTitle, priority: suggestion.value };
-          }
-          return t;
-        }));
-      }
-
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-
-      setTimeout(() => {
-        if (inputElement) {
-          inputElement.focus();
+          inputElement.selectionStart = cursorPos;
+          inputElement.selectionEnd = cursorPos;
         }
       }, 0);
     }
@@ -2942,13 +3065,14 @@ const DayPlanner = () => {
     if (!isInbox) {
       const dateInfo = getPartialDate(text, cursorPos);
       if (dateInfo) {
-        const parsed = parseFlexibleDate(dateInfo.partial);
-        if (parsed) {
+        const candidates = getDateCandidates(dateInfo.partial);
+        for (const parsed of candidates) {
           const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
           allSuggestions.push({
             type: 'date',
             value: dateStr,
             display: parsed.display,
+            keyword: parsed.keyword,
             startIndex: dateInfo.startIndex,
             endIndex: cursorPos
           });
@@ -2960,12 +3084,13 @@ const DayPlanner = () => {
     if (!isInbox) {
       const timeInfo = getPartialTime(text, cursorPos);
       if (timeInfo) {
-        const parsed = parseFlexibleTime(timeInfo.partial);
-        if (parsed) {
+        const candidates = getTimeCandidates(timeInfo.partial);
+        for (const parsed of candidates) {
           allSuggestions.push({
             type: 'time',
             value: parsed.time,
             display: parsed.display,
+            keyword: parsed.keyword,
             startIndex: timeInfo.startIndex,
             endIndex: cursorPos
           });
@@ -2977,13 +3102,14 @@ const DayPlanner = () => {
     if (isInbox) {
       const deadlineInfo = getPartialDeadline(text, cursorPos);
       if (deadlineInfo) {
-        const parsed = parseFlexibleDate(deadlineInfo.partial);
-        if (parsed) {
+        const candidates = getDateCandidates(deadlineInfo.partial);
+        for (const parsed of candidates) {
           const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
           allSuggestions.push({
             type: 'deadline',
             value: dateStr,
             display: `Deadline: ${parsed.display}`,
+            keyword: parsed.keyword,
             startIndex: deadlineInfo.startIndex,
             endIndex: cursorPos
           });
@@ -3006,6 +3132,30 @@ const DayPlanner = () => {
       }
     }
 
+    // Check for duration at cursor (triggered by %) - works for both inbox and scheduled
+    // Shows 15-minute increment suggestions filtered by typed digits
+    const durationInfo = getPartialDuration(text, cursorPos);
+    if (durationInfo) {
+      const increments = [15, 30, 45, 60, 75, 90, 105, 120, 150, 180, 240];
+      const typed = durationInfo.partial;
+      const matching = increments.filter(m => String(m).startsWith(typed));
+      for (const mins of matching.slice(0, 4)) {
+        const hrs = Math.floor(mins / 60);
+        const rem = mins % 60;
+        const display = hrs > 0
+          ? `Duration: ${hrs}h${rem > 0 ? ` ${rem}m` : ''}`
+          : `Duration: ${mins}m`;
+        allSuggestions.push({
+          type: 'duration',
+          value: mins,
+          display,
+          keyword: String(mins),
+          startIndex: durationInfo.startIndex,
+          endIndex: durationInfo.endIndex
+        });
+      }
+    }
+
     return allSuggestions
   };
 
@@ -3019,6 +3169,56 @@ const DayPlanner = () => {
 
     const cursorPos = e.target.selectionStart;
     const allSuggestions = buildSuggestions(value, cursorPos, isInbox);
+
+    // Auto-apply attribute suggestions in real-time as the user types
+    for (const s of allSuggestions) {
+      if (s.type === 'tag') continue;
+      if (s.type === 'date' || s.type === 'time') {
+        if (isInbox) {
+          setUnscheduledTasks(prev => prev.map(t => {
+            if (t.id !== editingTaskId) return t;
+            if (s.type === 'date') return { ...t, scheduledDate: s.value };
+            return { ...t, scheduledTime: s.value };
+          }));
+        } else if (s.type === 'time') {
+          const editingTask = tasks.find(t => t.id === editingTaskId);
+          if (editingTask && !editingTask.isAllDay) {
+            const { adjustedStartTime } = getAdjustedTimeForImportedConflicts(
+              editingTaskId, s.value, editingTask.duration, editingTask.date
+            );
+            setTasks(prev => prev.map(t =>
+              t.id === editingTaskId ? { ...t, startTime: adjustedStartTime } : t
+            ));
+          } else {
+            setTasks(prev => prev.map(t =>
+              t.id === editingTaskId ? { ...t, startTime: s.value } : t
+            ));
+          }
+        } else {
+          setTasks(prev => prev.map(t =>
+            t.id === editingTaskId ? { ...t, date: s.value } : t
+          ));
+        }
+      } else if (s.type === 'deadline' && isInbox) {
+        setUnscheduledTasks(prev => prev.map(t =>
+          t.id === editingTaskId ? { ...t, deadline: s.value } : t
+        ));
+      } else if (s.type === 'priority' && isInbox) {
+        setUnscheduledTasks(prev => prev.map(t =>
+          t.id === editingTaskId ? { ...t, priority: s.value } : t
+        ));
+      } else if (s.type === 'duration') {
+        if (isInbox) {
+          setUnscheduledTasks(prev => prev.map(t =>
+            t.id === editingTaskId ? { ...t, duration: s.value } : t
+          ));
+        } else {
+          setTasks(prev => prev.map(t =>
+            t.id === editingTaskId ? { ...t, duration: s.value } : t
+          ));
+        }
+      }
+    }
 
     if (allSuggestions.length > 0) {
       setSuggestions(allSuggestions);
@@ -3036,10 +3236,19 @@ const DayPlanner = () => {
     const value = e.target.value;
     if (!isTitleWithinLimit(value)) return;
 
-    setNewTask({ ...newTask, title: value });
-
     const cursorPos = e.target.selectionStart;
     const allSuggestions = buildSuggestions(value, cursorPos, newTask.openInInbox);
+
+    // Auto-apply attribute suggestions in real-time as the user types
+    const updates = { title: value };
+    for (const s of allSuggestions) {
+      if (s.type === 'date') updates.date = s.value;
+      else if (s.type === 'time') updates.startTime = s.value;
+      else if (s.type === 'deadline') updates.deadline = s.value;
+      else if (s.type === 'priority') updates.priority = s.value;
+      else if (s.type === 'duration') updates.duration = s.value;
+    }
+    setNewTask({ ...newTask, ...updates });
 
     if (allSuggestions.length > 0) {
       setSuggestions(allSuggestions);
@@ -3053,29 +3262,50 @@ const DayPlanner = () => {
   };
 
   // Handle keyboard for new task input with suggestions
+  // Tags: TAB or SPACE accepts tag completion
+  // Non-tags: SPACE accepts the suggestion and inserts a space
+  // ENTER always submits; ESC bubbles up to close the modal
   const handleNewTaskInputKeyDown = (e) => {
     if (showSuggestions && suggestions.length > 0) {
       const selected = suggestions[selectedSuggestionIndex];
-      // Tab, Enter, or Space (for date/time/deadline/priority) accepts the suggestion
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey) ||
-          (e.key === ' ' && (selected.type === 'date' || selected.type === 'time' || selected.type === 'deadline' || selected.type === 'priority'))) {
+
+      if (e.key === 'Tab' || e.key === ' ') {
         e.preventDefault();
         e.stopPropagation();
-        applySuggestionForNewTask(selected);
+        if (selected.type === 'tag') {
+          applySuggestionForNewTask(selected);
+        } else {
+          // Autocomplete the shortcut text and append a space
+          const { text: completed, cursorPos } = completeShortcutText(newTask.title, selected);
+          const newTitle = completed + ' ';
+          const updates = { title: newTitle };
+          if (selected.type === 'date') updates.date = selected.value;
+          else if (selected.type === 'time') updates.startTime = selected.value;
+          else if (selected.type === 'deadline') updates.deadline = selected.value;
+          else if (selected.type === 'priority') updates.priority = selected.value;
+          else if (selected.type === 'duration') updates.duration = selected.value;
+          setNewTask({ ...newTask, ...updates });
+          setShowSuggestions(false);
+          setSuggestions([]);
+          setSelectedSuggestionIndex(0);
+          setTimeout(() => {
+            if (newTaskInputRef.current) {
+              const pos = cursorPos + 1; // after the space
+              newTaskInputRef.current.selectionStart = pos;
+              newTaskInputRef.current.selectionEnd = pos;
+            }
+          }, 0);
+        }
         return;
-      } else if (e.key === 'ArrowDown') {
+      }
+
+      if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedSuggestionIndex(prev => (prev + 1) % suggestions.length);
         return;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-        return;
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowSuggestions(false);
-        setSuggestions([]);
-        setSelectedSuggestionIndex(0);
         return;
       }
     }
@@ -3087,62 +3317,35 @@ const DayPlanner = () => {
       // Complete the tag
       const cursorPos = newTaskInputRef.current?.selectionStart || newTask.title.length;
       const { text: newText, newCursorPos } = applyTagCompletion(newTask.title, cursorPos, suggestion.value);
-      setNewTask({ ...newTask, title: newText });
+      const textWithSpace = newText.slice(0, newCursorPos) + ' ' + newText.slice(newCursorPos);
+      setNewTask({ ...newTask, title: textWithSpace });
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
       setTimeout(() => {
         if (newTaskInputRef.current) {
-          newTaskInputRef.current.selectionStart = newCursorPos;
-          newTaskInputRef.current.selectionEnd = newCursorPos;
+          newTaskInputRef.current.selectionStart = newCursorPos + 1;
+          newTaskInputRef.current.selectionEnd = newCursorPos + 1;
         }
       }, 0);
-    } else if (suggestion.type === 'date') {
-      // Remove the date from title and set task date
-      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
-      setNewTask({ ...newTask, title: newTitle, date: suggestion.value });
+    } else {
+      // Autocomplete the shortcut text and apply the selected suggestion
+      const { text: completed, cursorPos } = completeShortcutText(newTask.title, suggestion);
+      const updates = { title: completed };
+      if (suggestion.type === 'date') updates.date = suggestion.value;
+      else if (suggestion.type === 'time') updates.startTime = suggestion.value;
+      else if (suggestion.type === 'deadline') updates.deadline = suggestion.value;
+      else if (suggestion.type === 'priority') updates.priority = suggestion.value;
+      else if (suggestion.type === 'duration') updates.duration = suggestion.value;
+      setNewTask({ ...newTask, ...updates });
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
       setTimeout(() => {
         if (newTaskInputRef.current) {
           newTaskInputRef.current.focus();
-        }
-      }, 0);
-    } else if (suggestion.type === 'time') {
-      // Remove the time from title and set task start time
-      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
-      setNewTask({ ...newTask, title: newTitle, startTime: suggestion.value });
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-      setTimeout(() => {
-        if (newTaskInputRef.current) {
-          newTaskInputRef.current.focus();
-        }
-      }, 0);
-    } else if (suggestion.type === 'deadline') {
-      // Remove the deadline from title and set task deadline
-      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
-      setNewTask({ ...newTask, title: newTitle, deadline: suggestion.value });
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-      setTimeout(() => {
-        if (newTaskInputRef.current) {
-          newTaskInputRef.current.focus();
-        }
-      }, 0);
-    } else if (suggestion.type === 'priority') {
-      // Remove the priority markers from title and set task priority
-      const newTitle = removeFromTitle(newTask.title, suggestion.startIndex, suggestion.endIndex);
-      setNewTask({ ...newTask, title: newTitle, priority: suggestion.value });
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-      setTimeout(() => {
-        if (newTaskInputRef.current) {
-          newTaskInputRef.current.focus();
+          newTaskInputRef.current.selectionStart = cursorPos;
+          newTaskInputRef.current.selectionEnd = cursorPos;
         }
       }, 0);
     }
@@ -5353,7 +5556,10 @@ const DayPlanner = () => {
     const getIcon = (type) => {
       switch (type) {
         case 'date': return <Calendar size={14} className="flex-shrink-0" />;
+        case 'deadline': return <Calendar size={14} className="flex-shrink-0" />;
         case 'time': return <Clock size={14} className="flex-shrink-0" />;
+        case 'duration': return <Clock size={14} className="flex-shrink-0" />;
+        case 'priority': return <AlertCircle size={14} className="flex-shrink-0" />;
         default: return <Hash size={14} className="flex-shrink-0" />;
       }
     };
@@ -8132,8 +8338,11 @@ const DayPlanner = () => {
               </div>
               <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Recurring Task</h3>
             </div>
-            <p className={`${textSecondary} mb-4`}>
+            <p className={`${textSecondary} mb-2`}>
               How would you like to delete this recurring task?
+            </p>
+            <p className={`text-xs ${textSecondary} mb-4`}>
+              Note: Recurring tasks are permanently deleted and cannot be restored from the recycle bin.
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -8604,8 +8813,8 @@ const DayPlanner = () => {
                   setShowAddTask(false);
                   setShowNewTaskDeadlinePicker(false);
                 }
-              } else if (e.key === '%' && !newTask.openInInbox) {
-                // '%' toggles Full Day for scheduled tasks
+              } else if (e.key === '^' && !newTask.openInInbox) {
+                // '^' toggles Full Day for scheduled tasks
                 e.preventDefault();
                 setNewTask({ ...newTask, isAllDay: !newTask.isAllDay });
               } else if (e.key === ' ' && e.target.tagName !== 'INPUT') {
@@ -8622,7 +8831,7 @@ const DayPlanner = () => {
                 <input
                   ref={newTaskInputRef}
                   type="text"
-                  placeholder={newTask.openInInbox ? "Task title (#tag, $deadline, !priority)" : "Task title (#tag, @date, ~time)"}
+                  placeholder={newTask.openInInbox ? "Task title (#tag, $deadline, !priority, %mins)" : "Task title (#tag, @date, ~time, %mins)"}
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
                   onKeyDown={handleNewTaskInputKeyDown}
