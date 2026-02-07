@@ -5033,13 +5033,17 @@ const DayPlanner = () => {
         currentEvent = null;
         currentType = null;
       } else if (currentEvent) {
-        if (line.startsWith('SUMMARY:')) {
-          // Unescape ICS escape sequences: \, -> , and \; -> ; and \\ -> \ and \n -> newline
-          currentEvent.summary = line.substring(8)
-            .replace(/\\,/g, ',')
-            .replace(/\\;/g, ';')
-            .replace(/\\n/gi, '\n')
-            .replace(/\\\\/g, '\\');
+        if (line.startsWith('SUMMARY')) {
+          // Extract value after colon, handling parameters like SUMMARY;LANGUAGE=en:Text
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            // Unescape ICS escape sequences: \, -> , and \; -> ; and \\ -> \ and \n -> newline
+            currentEvent.summary = line.substring(colonIdx + 1)
+              .replace(/\\,/g, ',')
+              .replace(/\\;/g, ';')
+              .replace(/\\n/gi, '\n')
+              .replace(/\\\\/g, '\\');
+          }
         } else if (line.startsWith('DTSTART')) {
           // Detect all-day events (VALUE=DATE or 8-character date)
           if (line.includes('VALUE=DATE') || line.split(':')[1]?.length === 8) {
@@ -5057,13 +5061,117 @@ const DayPlanner = () => {
           }
           const dateStr = line.split(':')[1];
           currentEvent.due = dateStr;
-        } else if (line.startsWith('UID:')) {
-          currentEvent.uid = line.substring(4);
+        } else if (line.startsWith('UID')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            currentEvent.uid = line.substring(colonIdx + 1);
+          }
+        } else if (line.startsWith('RRULE:')) {
+          currentEvent.rrule = line.substring(6);
+        } else if (line.startsWith('EXDATE')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            if (!currentEvent.exdates) currentEvent.exdates = [];
+            currentEvent.exdates.push(line.substring(colonIdx + 1).substring(0, 8));
+          }
         }
       }
     }
 
-    return events;
+    // Expand events with RRULE into individual occurrences
+    const dayMap = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };
+    const fmt = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const curYear = new Date().getFullYear();
+    const expandedEvents = [];
+
+    for (const event of events) {
+      if (!event.rrule) {
+        expandedEvents.push(event);
+        continue;
+      }
+
+      const rule = {};
+      event.rrule.split(';').forEach(part => {
+        const eq = part.indexOf('=');
+        if (eq !== -1) rule[part.substring(0, eq)] = part.substring(eq + 1);
+      });
+
+      if (rule.FREQ !== 'YEARLY') {
+        expandedEvents.push(event);
+        continue;
+      }
+
+      const dtstr = event.dtstart;
+      const sYear = parseInt(dtstr.substring(0, 4));
+      const sMonth = parseInt(dtstr.substring(4, 6)) - 1;
+      const sDay = parseInt(dtstr.substring(6, 8));
+      const interval = parseInt(rule.INTERVAL || '1');
+      const count = rule.COUNT ? parseInt(rule.COUNT) : null;
+      const byMonth = rule.BYMONTH ? parseInt(rule.BYMONTH) - 1 : sMonth;
+      const byDay = rule.BYDAY || null;
+      const untilDate = rule.UNTIL ? new Date(
+        parseInt(rule.UNTIL.substring(0, 4)),
+        parseInt(rule.UNTIL.substring(4, 6)) - 1,
+        parseInt(rule.UNTIL.substring(6, 8))
+      ) : null;
+
+      // Duration in days for all-day events
+      let durDays = 1;
+      if (event.dtend && event.isAllDay) {
+        const s = new Date(sYear, sMonth, sDay);
+        const e = new Date(parseInt(event.dtend.substring(0, 4)), parseInt(event.dtend.substring(4, 6)) - 1, parseInt(event.dtend.substring(6, 8)));
+        durDays = Math.max(1, Math.round((e - s) / 86400000));
+      }
+
+      const maxYear = untilDate ? Math.min(untilDate.getFullYear(), curYear + 3) : curYear + 3;
+      let occ = 0;
+
+      for (let year = sYear; year <= maxYear; year += interval) {
+        if (count && occ >= count) break;
+
+        let occDate;
+        if (byDay) {
+          const m = byDay.match(/^(-?\d*)([A-Z]{2})$/);
+          if (m && dayMap[m[2]] !== undefined) {
+            const nth = m[1] ? parseInt(m[1]) : 1;
+            const target = dayMap[m[2]];
+            if (nth > 0) {
+              const firstDow = new Date(year, byMonth, 1).getDay();
+              occDate = new Date(year, byMonth, 1 + ((target - firstDow + 7) % 7) + (nth - 1) * 7);
+            } else {
+              const last = new Date(year, byMonth + 1, 0);
+              occDate = new Date(year, byMonth, last.getDate() - ((last.getDay() - target + 7) % 7) + (nth + 1) * 7);
+            }
+          }
+        } else {
+          occDate = new Date(year, byMonth, sDay);
+        }
+
+        if (!occDate) continue;
+        if (untilDate && occDate > untilDate) break;
+
+        const occStr = fmt(occDate);
+        if (event.exdates && event.exdates.includes(occStr)) continue;
+
+        const newDtstart = event.isAllDay ? occStr : occStr + 'T' + dtstr.substring(9);
+        let newDtend = event.dtend;
+        if (event.dtend && event.isAllDay) {
+          const endD = new Date(occDate);
+          endD.setDate(endD.getDate() + durDays);
+          newDtend = fmt(endD);
+        }
+
+        expandedEvents.push({
+          ...event,
+          dtstart: newDtstart,
+          dtend: newDtend,
+          rrule: undefined
+        });
+        occ++;
+      }
+    }
+
+    return expandedEvents;
   };
 
   const parseDatetime = (dtstr) => {
@@ -5109,7 +5217,8 @@ const DayPlanner = () => {
       taskDate.setDate(taskDate.getDate() + i);
 
       const baseId = event.uid || `imported-${Date.now()}-${Math.random()}`;
-      const taskId = dayCount > 1 ? `${baseId}-day${i + 1}` : baseId;
+      const dateStr = dateToString(taskDate);
+      const taskId = dayCount > 1 ? `${baseId}-${dateStr}-day${i + 1}` : `${baseId}-${dateStr}`;
 
       // Add day indicator for multi-day events
       const titleSuffix = dayCount > 1 ? ` (Day ${i + 1}/${dayCount})` : '';
@@ -5169,6 +5278,15 @@ const DayPlanner = () => {
 
       setPendingImportFile(null);
       setShowImportModal(false);
+
+      const count = importedTasks.length;
+      setSyncNotification({
+        type: count > 0 ? 'success' : 'info',
+        title: 'iCal Import',
+        message: count > 0
+          ? `Imported ${count} event${count !== 1 ? 's' : ''}`
+          : 'No events found in the file'
+      });
     };
     reader.readAsText(pendingImportFile);
   };
@@ -10242,7 +10360,7 @@ const DayPlanner = () => {
                           Tasks appear with striped pattern; completion state persists across syncs
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div>
                         <button
                           onClick={() => syncAll()}
                           disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
@@ -10252,9 +10370,9 @@ const DayPlanner = () => {
                           {isSyncing ? 'Syncing...' : 'Sync Now'}
                         </button>
                         {calSyncLastSynced && (
-                          <span className={`text-xs ${textSecondary}`}>
+                          <p className={`text-xs ${textSecondary} mt-1`}>
                             Last synced: {new Date(calSyncLastSynced).toLocaleString()}
-                          </span>
+                          </p>
                         )}
                       </div>
                     </div>
