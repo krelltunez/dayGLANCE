@@ -3507,6 +3507,7 @@ const DayPlanner = () => {
           if (!prev) {
             setSpotlightQuery('');
             setSpotlightSelectedIndex(0);
+            playUISound('spotlight');
           }
           return !prev;
         });
@@ -4122,6 +4123,22 @@ const DayPlanner = () => {
           osc.connect(gain).connect(ctx.destination);
           osc.start(now);
           osc.stop(now + 0.04);
+          break;
+        }
+        case 'spotlight': {
+          // Soft rising shimmer — two quick sine tones (G5 → B5)
+          [784, 988].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, now + i * 0.07);
+            gain.gain.linearRampToValueAtTime(0.1, now + i * 0.07 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.12);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + i * 0.07);
+            osc.stop(now + i * 0.07 + 0.12);
+          });
           break;
         }
         case 'undo': {
@@ -6118,8 +6135,13 @@ const DayPlanner = () => {
     if (!showSpotlight || !spotlightQuery.trim()) return [];
     const q = spotlightQuery.trim().toLowerCase();
     const results = [];
+    const now = new Date();
+    const cutoff = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+    const cutoffStr = dateToString(cutoff);
 
     const matchTask = (task, source, sourceLabel, date) => {
+      // Skip scheduled tasks older than 2 years
+      if (date && date < cutoffStr) return;
       // Check title
       if (task.title.toLowerCase().includes(q)) {
         results.push({ task, source, sourceLabel, match: { field: 'title', text: task.title }, date });
@@ -6170,7 +6192,7 @@ const DayPlanner = () => {
       const aPri = sourcePriority[a.source] ?? 4;
       const bPri = sourcePriority[b.source] ?? 4;
       if (aPri !== bPri) return aPri - bPri;
-      return (a.date || '').localeCompare(b.date || '');
+      return (b.date || '').localeCompare(a.date || '');
     });
 
     return results.slice(0, 50);
@@ -10172,9 +10194,7 @@ const DayPlanner = () => {
                   <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
                   <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
                 </div>
-                {spotlightResults.length > 20 && (
-                  <span>{spotlightResults.length} results</span>
-                )}
+                <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}{spotlightResults.length > 20 ? ` (showing 20)` : ''}</span>
               </div>
             )}
           </div>
