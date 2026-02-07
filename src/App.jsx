@@ -661,6 +661,9 @@ const DayPlanner = () => {
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
   const [routineNewChipName, setRoutineNewChipName] = useState('');
 
+  // Keyboard shortcut cheat sheet
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+
   // Focus Mode state
   const [showFocusMode, setShowFocusMode] = useState(false);
   const [focusPhase, setFocusPhase] = useState('work'); // 'work' | 'shortBreak' | 'longBreak'
@@ -678,6 +681,7 @@ const DayPlanner = () => {
   const [focusBlockTasks, setFocusBlockTasks] = useState([]);
   const wakeLockSentinel = useRef(null);
   const focusTimerRef = useRef(null);
+  const focusModeAvailableRef = useRef(false);
 
   // Cloud Sync state
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
@@ -2555,6 +2559,7 @@ const DayPlanner = () => {
       if (!onboardingProgress.hasUsedTags && extractTags(newTask.title).length > 0) {
         setOnboardingProgress(prev => ({ ...prev, hasUsedTags: true }));
       }
+      playUISound('pop');
     }
   };
 
@@ -2682,6 +2687,7 @@ const DayPlanner = () => {
 
     setTasks(tasks.filter(t => t.id !== id));
     setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
+    playUISound('slide');
 
     // Track for onboarding
     if (!onboardingProgress.hasUsedActionButtons) {
@@ -3379,9 +3385,24 @@ const DayPlanner = () => {
     const handleGlobalKeyDown = (e) => {
       // Escape to close modals/dialogs (works even when focus is on body)
       if (e.key === 'Escape') {
+        if (showShortcutHelp) {
+          e.preventDefault();
+          setShowShortcutHelp(false);
+          return;
+        }
         if (editingRecurrenceTaskId) {
           e.preventDefault();
           setEditingRecurrenceTaskId(null);
+          return;
+        }
+        if (showMonthView) {
+          e.preventDefault();
+          setShowMonthView(false);
+          return;
+        }
+        if (showBackupMenu) {
+          e.preventDefault();
+          setShowBackupMenu(false);
           return;
         }
         if (showAddTask) {
@@ -3396,13 +3417,31 @@ const DayPlanner = () => {
         }
       }
 
+      // '?' for shortcut cheat sheet (works even in inputs)
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Don't trigger in inputs unless it's already showing (to allow closing)
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        setShowShortcutHelp(prev => !prev);
+        return;
+      }
+
       // Don't trigger if typing in an input or textarea
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
         return;
       }
 
+      // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp) {
+        return;
+      }
+
+      const noModifiers = !e.ctrlKey && !e.metaKey && !e.altKey;
+
       // 'n' for new scheduled task
-      if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === 'n' && noModifiers) {
         e.preventDefault();
         setNewTask({
           title: '',
@@ -3416,7 +3455,7 @@ const DayPlanner = () => {
       }
 
       // 'i' for new inbox task
-      if (e.key === 'i' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === 'i' && noModifiers) {
         e.preventDefault();
         setNewTask({
           title: '',
@@ -3425,11 +3464,86 @@ const DayPlanner = () => {
         });
         setShowAddTask(true);
       }
+
+      // 'r' for routines dashboard
+      if (e.key === 'r' && noModifiers) {
+        e.preventDefault();
+        setShowRoutinesDashboard(true);
+      }
+
+      // 'f' for focus mode (only when available)
+      if (e.key === 'f' && noModifiers) {
+        e.preventDefault();
+        if (focusModeAvailableRef.current) {
+          enterFocusMode();
+        }
+      }
+
+      // ',' to collapse sidebar, '.' to expand sidebar
+      if (e.key === ',' && noModifiers) {
+        e.preventDefault();
+        setSidebarCollapsed(true);
+      }
+      if (e.key === '.' && noModifiers) {
+        e.preventDefault();
+        setSidebarCollapsed(false);
+      }
+
+      // 'd' to toggle dark mode
+      if (e.key === 'd' && noModifiers) {
+        e.preventDefault();
+        setDarkMode(prev => !prev);
+      }
+
+      // 't' to jump to today
+      if (e.key === 't' && noModifiers) {
+        e.preventDefault();
+        goToToday();
+        if (showMonthView) {
+          const today = new Date();
+          setViewedMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+        }
+      }
+
+      // 'm' to toggle month view
+      if (e.key === 'm' && noModifiers) {
+        e.preventDefault();
+        setShowMonthView(prev => !prev);
+      }
+
+      // 'b' to toggle backup menu
+      if (e.key === 'b' && noModifiers) {
+        e.preventDefault();
+        setShowBackupMenu(prev => !prev);
+      }
+
+      // Arrow left/right to navigate dates
+      if (e.key === 'ArrowLeft' && noModifiers) {
+        e.preventDefault();
+        changeDate(-1);
+        if (showMonthView) {
+          // Sync viewed month after date change
+          setSelectedDate(prev => {
+            setViewedMonth(new Date(prev.getFullYear(), prev.getMonth(), 1));
+            return prev;
+          });
+        }
+      }
+      if (e.key === 'ArrowRight' && noModifiers) {
+        e.preventDefault();
+        changeDate(1);
+        if (showMonthView) {
+          setSelectedDate(prev => {
+            setViewedMonth(new Date(prev.getFullYear(), prev.getMonth(), 1));
+            return prev;
+          });
+        }
+      }
     };
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
@@ -3461,6 +3575,7 @@ const DayPlanner = () => {
       } else {
         setTasks(tasks.filter(t => t.id !== id));
       }
+      playUISound('swoosh');
 
       // Track for onboarding
       if (!onboardingProgress.hasUsedActionButtons) {
@@ -3519,6 +3634,7 @@ const DayPlanner = () => {
   const confirmEmptyBin = () => {
     setRecycleBin([]);
     setShowEmptyBinConfirm(false);
+    playUISound('crumple');
   };
 
   const formatDate = (date) => {
@@ -3758,6 +3874,122 @@ const DayPlanner = () => {
           osc.start(ctx.currentTime + i * 0.1);
           osc.stop(ctx.currentTime + 0.8);
         });
+      }
+    } catch (e) { /* Audio API not available */ }
+  };
+
+  const playUISound = (type) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = ctx.currentTime;
+      switch (type) {
+        case 'pop': {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.exponentialRampToValueAtTime(1200, now + 0.05);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.12);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.15);
+          break;
+        }
+        case 'swoosh': {
+          // Two-note descending motif (E5 → B4)
+          [659, 494].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.12, now + i * 0.09);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.1);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + i * 0.09);
+            osc.stop(now + i * 0.09 + 0.1);
+          });
+          break;
+        }
+        case 'slide': {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(500, now);
+          osc.frequency.exponentialRampToValueAtTime(300, now + 0.2);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.25);
+          break;
+        }
+        case 'drop': {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(150, now);
+          osc.frequency.exponentialRampToValueAtTime(80, now + 0.1);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.15);
+          break;
+        }
+        case 'tick': {
+          // Subtle clock-tick: short noise impulse through a tight bandpass
+          const bufferSize = Math.floor(ctx.sampleRate * 0.015);
+          const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+          const noise = ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 3000;
+          filter.Q.value = 5;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+          noise.connect(filter).connect(gain).connect(ctx.destination);
+          noise.start(now);
+          noise.stop(now + 0.02);
+          break;
+        }
+        case 'crumple': {
+          const bufferSize = ctx.sampleRate * 0.2;
+          const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+          const noise = ctx.createBufferSource();
+          noise.buffer = buffer;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(2000, now);
+          filter.frequency.exponentialRampToValueAtTime(400, now + 0.2);
+          filter.Q.value = 1;
+          noise.connect(filter).connect(gain).connect(ctx.destination);
+          noise.start(now);
+          noise.stop(now + 0.2);
+          break;
+        }
+        case 'click': {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.value = 1000;
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.04);
+          break;
+        }
       }
     } catch (e) { /* Audio API not available */ }
   };
@@ -4268,6 +4500,7 @@ const DayPlanner = () => {
       });
     }
 
+    playUISound('drop');
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
@@ -4317,6 +4550,7 @@ const DayPlanner = () => {
       clearDeadline(draggedTask.id);
     }
 
+    playUISound('slide');
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
@@ -4375,6 +4609,7 @@ const DayPlanner = () => {
       }
     }
 
+    playUISound('swoosh');
     setDraggedTask(null);
     setDragSource(null);
     setDragPreviewTime(null);
@@ -4497,6 +4732,7 @@ const DayPlanner = () => {
     };
 
     const handleMouseUp = () => {
+      playUISound('tick');
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       setIsResizing(false);
@@ -5744,6 +5980,7 @@ const DayPlanner = () => {
     const remainingMinutes = blockEnd - nowMin;
     return remainingMinutes >= 45;
   }, [currentTime, tasks, expandedRecurringTasks]);
+  focusModeAvailableRef.current = focusModeAvailable;
 
   // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
   const computeFocusBlockTasks = () => {
@@ -6578,7 +6815,7 @@ const DayPlanner = () => {
                   Inbox
                   {!minimizedSections.inbox && nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
                     <button
-                      onClick={() => setInboxPriorityFilter(prev => (prev + 1) % 4)}
+                      onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                       className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors ml-1`}
                       title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
                     >
@@ -8831,7 +9068,7 @@ const DayPlanner = () => {
                 <input
                   ref={newTaskInputRef}
                   type="text"
-                  placeholder={newTask.openInInbox ? "Task title (#tag, $deadline, !priority, %mins)" : "Task title (#tag, @date, ~time, %mins)"}
+                  placeholder={newTask.openInInbox ? "Task title (#tag, $deadline, !priority, %mins)" : "Task title (#tag, @date, ~time, %mins, ^all-day)"}
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
                   onKeyDown={handleNewTaskInputKeyDown}
@@ -9542,6 +9779,97 @@ const DayPlanner = () => {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Keyboard Shortcut Cheat Sheet */}
+      {showShortcutHelp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcutHelp(false)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={`text-lg font-bold ${textPrimary}`}>Keyboard Shortcuts</h2>
+              <button onClick={() => setShowShortcutHelp(false)} className={`${textSecondary} hover:${textPrimary}`}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
+              <div>
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mb-2`}>Navigation</h3>
+                {[
+                  ['T', 'Go to today'],
+                  ['\u2190 / \u2192', 'Previous / next day'],
+                  ['M', 'Toggle month view'],
+                ].map(([key, desc]) => (
+                  <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <span className="text-sm ml-2 text-right flex-1">{desc}</span>
+                  </div>
+                ))}
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>Create</h3>
+                {[
+                  ['N', 'New scheduled task'],
+                  ['I', 'New inbox task'],
+                  ['R', 'Routines dashboard'],
+                ].map(([key, desc]) => (
+                  <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <span className="text-sm ml-2 text-right flex-1">{desc}</span>
+                  </div>
+                ))}
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>App</h3>
+                {[
+                  ['F', 'Focus mode'],
+                  ['D', 'Toggle dark mode'],
+                  ['B', 'Backup menu'],
+                  [',', 'Collapse sidebar'],
+                  ['.', 'Expand sidebar'],
+                  ['?', 'This help'],
+                ].map(([key, desc]) => (
+                  <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <span className="text-sm ml-2 text-right flex-1">{desc}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mb-2`}>Task Entry Shortcuts</h3>
+                <p className={`text-xs ${textSecondary} mb-2`}>Type in the task title field:</p>
+                {[
+                  ['#', 'Add tag'],
+                  ['@', 'Set date'],
+                  ['~', 'Set time'],
+                  ['%', 'Duration (mins)'],
+                  ['!', 'Priority (! !! !!!)'],
+                  ['^', 'Toggle all-day'],
+                  ['$', 'Deadline (inbox)'],
+                ].map(([key, desc]) => (
+                  <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <span className="text-sm ml-2 text-right flex-1">{desc}</span>
+                  </div>
+                ))}
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>Task Entry Suggestions</h3>
+                <p className={`text-xs ${textSecondary} mb-2`}>When the suggestion dropdown appears while typing:</p>
+                {[
+                  ['Tab / Space', 'Accept'],
+                  ['\u2191 / \u2193', 'Navigate suggestions'],
+                  ['Enter', 'Submit task'],
+                  ['Esc', 'Close / cancel'],
+                ].map(([key, desc]) => (
+                  <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <span className="text-sm ml-2 text-right flex-1">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={`mt-4 pt-3 border-t ${borderClass} text-center`}>
+              <span className={`text-xs ${textSecondary}`}>Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>Esc</kbd> to close</span>
+            </div>
+          </div>
         </div>
       )}
 
