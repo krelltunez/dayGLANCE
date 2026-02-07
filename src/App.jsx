@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -120,7 +120,8 @@ const NotesSubtasksPanel = ({
   toggleSubtask,
   deleteSubtask,
   updateSubtaskTitle,
-  compact = true // Use compact mode for inbox, expanded for timeline
+  compact = true, // Use compact mode for inbox, expanded for timeline
+  noAutoFocus = false
 }) => {
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [editingSubtaskText, setEditingSubtaskText] = useState('');
@@ -232,7 +233,7 @@ const NotesSubtasksPanel = ({
             placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter for preview"
             className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 ${compact ? 'resize-none' : 'resize-y'}`}
             rows={compact ? 3 : 8}
-            autoFocus
+            autoFocus={!noAutoFocus}
           />
         ) : (
           <div
@@ -450,6 +451,9 @@ const DayPlanner = () => {
       hasUsedActionButtons: false,
       hasCompletedTask: false,
       hasSetupSync: false,
+      hasCreatedRecurring: false,
+      hasSetupRoutines: false,
+      hasUsedFocusMode: false,
     };
   });
   const [suggestions, setSuggestions] = useState([]); // Array of { type: 'tag'|'date'|'time', value, display, ... }
@@ -476,6 +480,24 @@ const DayPlanner = () => {
   const [dashboardSelectedChips, setDashboardSelectedChips] = useState([]);
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
   const [routineNewChipName, setRoutineNewChipName] = useState('');
+
+  // Focus Mode state
+  const [showFocusMode, setShowFocusMode] = useState(false);
+  const [focusPhase, setFocusPhase] = useState('work'); // 'work' | 'shortBreak' | 'longBreak'
+  const [focusTimerSeconds, setFocusTimerSeconds] = useState(0);
+  const [focusCycleCount, setFocusCycleCount] = useState(0);
+  const [focusSessionStart, setFocusSessionStart] = useState(null);
+  const [focusWorkMinutes, setFocusWorkMinutes] = useState(25);
+  const [focusBreakMinutes, setFocusBreakMinutes] = useState(5);
+  const [focusLongBreakMinutes, setFocusLongBreakMinutes] = useState(15);
+  const [focusCompletedTasks, setFocusCompletedTasks] = useState(new Set());
+  const [focusShowStats, setFocusShowStats] = useState(false);
+  const [focusShowSettings, setFocusShowSettings] = useState(true);
+  const [focusTimerRunning, setFocusTimerRunning] = useState(false);
+  const [focusTaskMinutes, setFocusTaskMinutes] = useState({});
+  const [focusBlockTasks, setFocusBlockTasks] = useState([]);
+  const wakeLockSentinel = useRef(null);
+  const focusTimerRef = useRef(null);
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -1031,6 +1053,27 @@ const DayPlanner = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Focus Mode timer tick
+  useEffect(() => {
+    if (showFocusMode && focusTimerRunning && focusTimerSeconds > 0) {
+      focusTimerRef.current = setInterval(() => {
+        setFocusTimerSeconds(prev => {
+          if (prev <= 1) return 0;
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(focusTimerRef.current);
+    }
+  }, [showFocusMode, focusTimerRunning, focusTimerSeconds > 0]);
+
+  // Focus Mode timer end detection
+  useEffect(() => {
+    if (showFocusMode && focusTimerRunning && focusTimerSeconds === 0 && !focusShowSettings) {
+      setFocusTimerRunning(false);
+      handleFocusTimerEnd();
+    }
+  }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings]);
+
   // Auto-refresh page at midnight (00:00:01) to reset the timeline to the new day
   useEffect(() => {
     const calculateMsUntilMidnight = () => {
@@ -1130,11 +1173,16 @@ const DayPlanner = () => {
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
+        // Place example tasks around the current time so they're visible without scrolling
+        const currentHour = today.getHours();
+        const baseHour = Math.max(0, Math.min(20, currentHour - 1)); // 1 hour before now, clamped
+        const toTime = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
         const exampleScheduledTasks = [
           {
             id: 'example-scheduled-1',
             title: 'Example: Morning standup #work',
-            startTime: '09:00',
+            startTime: toTime(baseHour, 0),
             duration: 30,
             date: todayStr,
             color: 'bg-blue-500',
@@ -1146,7 +1194,7 @@ const DayPlanner = () => {
           {
             id: 'example-scheduled-2',
             title: 'Example: Deep work session #focus',
-            startTime: '10:00',
+            startTime: toTime(baseHour + 1, 0),
             duration: 120,
             date: todayStr,
             color: 'bg-purple-500',
@@ -1187,11 +1235,11 @@ const DayPlanner = () => {
           },
           {
             id: 'example-inbox-2',
-            title: 'Example: Submit expense report #admin',
+            title: 'Example: Pay taxes #admin',
             color: 'bg-rose-500',
             completed: false,
             priority: 0,
-            deadline: tomorrowStr,
+            deadline: todayStr,
             isExample: true,
             notes: '',
             subtasks: []
@@ -1222,10 +1270,37 @@ const DayPlanner = () => {
           }
         ];
 
+        const exampleRecurringTasks = [
+          {
+            id: 'example-recurring-1',
+            title: 'Example: TPS reports #work',
+            startTime: toTime(baseHour, 30),
+            duration: 30,
+            color: 'bg-teal-500',
+            isAllDay: false,
+            notes: '',
+            subtasks: [],
+            recurrence: { type: 'daily', startDate: todayStr },
+            completedDates: [],
+            exceptions: {},
+            isExample: true
+          }
+        ];
+
         // Keep any imported tasks, add example tasks
         setTasks([...parsedTasks.filter(t => t.imported), ...exampleScheduledTasks]);
         setUnscheduledTasks(exampleInboxTasks);
         setRecycleBin(exampleRecycleBin);
+        setRecurringTasks(exampleRecurringTasks);
+        setRoutineDefinitions(prev => ({
+          ...prev,
+          everyday: [...prev.everyday, { id: 'example-routine-1', name: 'Drag Me' }, { id: 'example-routine-2', name: 'Breaktime' }]
+        }));
+        setTodayRoutines([
+          { id: 'example-routine-1', name: 'Drag Me', bucket: 'everyday', startTime: null, duration: 15, isAllDay: true },
+          { id: 'example-routine-2', name: 'Breaktime', bucket: 'everyday', startTime: toTime(baseHour + 3, 0), duration: 15, isAllDay: false }
+        ]);
+        setRoutinesDate(todayStr);
       } else {
         // Load normally
         setTasks(parsedTasks);
@@ -1247,25 +1322,27 @@ const DayPlanner = () => {
       if (completedTaskUidsData) {
         setCompletedTaskUids(new Set(JSON.parse(completedTaskUidsData)));
       }
-      if (recurringTasksData) {
-        setRecurringTasks(JSON.parse(recurringTasksData));
-      }
+      if (!shouldShowExamples) {
+        if (recurringTasksData) {
+          setRecurringTasks(JSON.parse(recurringTasksData));
+        }
 
-      // Load routines
-      const routineDefsData = localStorage.getItem('day-planner-routine-definitions');
-      const todayRoutinesData = localStorage.getItem('day-planner-today-routines');
-      const routinesDateData = localStorage.getItem('day-planner-routines-date');
-      if (routineDefsData) {
-        setRoutineDefinitions(JSON.parse(routineDefsData));
-      }
-      const todayStr = dateToString(new Date());
-      if (routinesDateData && routinesDateData === todayStr && todayRoutinesData) {
-        setTodayRoutines(JSON.parse(todayRoutinesData));
-        setRoutinesDate(todayStr);
-      } else {
-        // Auto-clear if different day
-        setTodayRoutines([]);
-        setRoutinesDate(todayStr);
+        // Load routines
+        const routineDefsData = localStorage.getItem('day-planner-routine-definitions');
+        const todayRoutinesData = localStorage.getItem('day-planner-today-routines');
+        const routinesDateData = localStorage.getItem('day-planner-routines-date');
+        if (routineDefsData) {
+          setRoutineDefinitions(JSON.parse(routineDefsData));
+        }
+        const todayStr = dateToString(new Date());
+        if (routinesDateData && routinesDateData === todayStr && todayRoutinesData) {
+          setTodayRoutines(JSON.parse(todayRoutinesData));
+          setRoutinesDate(todayStr);
+        } else {
+          // Auto-clear if different day
+          setTodayRoutines([]);
+          setRoutinesDate(todayStr);
+        }
       }
     } catch (error) {
       console.log('No existing data found, starting fresh');
@@ -2082,6 +2159,9 @@ const DayPlanner = () => {
           exceptions: {}
         };
         setRecurringTasks(prev => [...prev, template]);
+        if (!onboardingProgress.hasCreatedRecurring) {
+          setOnboardingProgress(prev => ({ ...prev, hasCreatedRecurring: true }));
+        }
       } else {
         const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
         const taskDate = newTask.date || dateToString(selectedDate);
@@ -3188,6 +3268,218 @@ const DayPlanner = () => {
     setTodayRoutines(newTodayRoutines);
     setRoutinesDate(todayStr);
     setShowRoutinesDashboard(false);
+    if (!onboardingProgress.hasSetupRoutines) {
+      setOnboardingProgress(prev => ({ ...prev, hasSetupRoutines: true }));
+    }
+  };
+
+  // --- Focus Mode handlers ---
+  const playFocusSound = (type) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (type === 'work') {
+        // Ascending chime: C5 → E5
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(659, ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      } else if (type === 'break') {
+        // Descending chime: E5 → C5
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(659, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(523, ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.6);
+      } else if (type === 'complete') {
+        // Staggered chord: C5 + E5 + G5
+        [523, 659, 784].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.1);
+          gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + i * 0.1 + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.7);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(ctx.currentTime + i * 0.1);
+          osc.stop(ctx.currentTime + 0.8);
+        });
+      }
+    } catch (e) { /* Audio API not available */ }
+  };
+
+  const enterFocusMode = () => {
+    setShowFocusMode(true);
+    setFocusShowSettings(true);
+    setFocusShowStats(false);
+    setFocusPhase('work');
+    setFocusTimerSeconds(0);
+    setFocusCycleCount(0);
+    setFocusSessionStart(null);
+    setFocusCompletedTasks(new Set());
+    setFocusTimerRunning(false);
+    setFocusTaskMinutes({});
+    setFocusBlockTasks(computeFocusBlockTasks());
+    setFocusWorkMinutes(25);
+    setFocusBreakMinutes(5);
+    setFocusLongBreakMinutes(15);
+    // Request fullscreen
+    try { document.documentElement.requestFullscreen?.(); } catch (e) {}
+    // Request wake lock
+    (async () => {
+      try {
+        if (navigator.wakeLock) {
+          wakeLockSentinel.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    })();
+  };
+
+  const startFocusTimer = () => {
+    setFocusShowSettings(false);
+    setFocusSessionStart(new Date());
+    setFocusPhase('work');
+    setFocusTimerSeconds(focusWorkMinutes * 60);
+    setFocusTimerRunning(true);
+    playFocusSound('work');
+    if (!onboardingProgress.hasUsedFocusMode) {
+      setOnboardingProgress(prev => ({ ...prev, hasUsedFocusMode: true }));
+    }
+  };
+
+  const exitFocusMode = (showStats = true) => {
+    setFocusTimerRunning(false);
+    if (focusTimerRef.current) {
+      clearInterval(focusTimerRef.current);
+      focusTimerRef.current = null;
+    }
+    // Distribute partial work time for current in-progress work cycle
+    const minutesCopy = { ...focusTaskMinutes };
+    if (focusPhase === 'work' && focusTimerSeconds < focusWorkMinutes * 60) {
+      const elapsedMinutes = (focusWorkMinutes * 60 - focusTimerSeconds) / 60;
+      const activeTasks = focusBlockTasks.filter(t => !t.completed && !focusCompletedTasks.has(t.id));
+      if (activeTasks.length > 0) {
+        const perTask = elapsedMinutes / activeTasks.length;
+        activeTasks.forEach(t => {
+          minutesCopy[t.id] = (minutesCopy[t.id] || 0) + perTask;
+        });
+      }
+    }
+    if (Object.keys(minutesCopy).length > 0) {
+      setTasks(prev => prev.map(t => {
+        if (minutesCopy[t.id]) {
+          return { ...t, focusMinutes: (t.focusMinutes || 0) + minutesCopy[t.id] };
+        }
+        return t;
+      }));
+    }
+    if (showStats) {
+      setFocusShowStats(true);
+    } else {
+      // Exit fullscreen and release wake lock only when closing entirely
+      try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
+      try { wakeLockSentinel.current?.release(); wakeLockSentinel.current = null; } catch (e) {}
+      setShowFocusMode(false);
+    }
+  };
+
+  const dismissFocusStats = () => {
+    try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
+    try { wakeLockSentinel.current?.release(); wakeLockSentinel.current = null; } catch (e) {}
+    setFocusShowStats(false);
+    setShowFocusMode(false);
+  };
+
+  const focusCompleteTask = (taskId) => {
+    toggleComplete(taskId);
+    setFocusCompletedTasks(prev => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    playFocusSound('complete');
+    // Auto-exit if all block tasks are completed
+    const allDone = focusBlockTasks.every(t => t.completed || t.id === taskId || focusCompletedTasks.has(t.id));
+    if (allDone) {
+      setTimeout(() => exitFocusMode(true), 500);
+    }
+  };
+
+  // Wrappers that update both real tasks and the focus snapshot
+  const focusUpdateTaskNotes = (taskId, notes, isInbox) => {
+    updateTaskNotes(taskId, notes, isInbox);
+    setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, notes } : t));
+  };
+  const focusAddSubtask = (taskId, title, isInbox) => {
+    addSubtask(taskId, title, isInbox);
+    const newSt = { id: Date.now(), title, completed: false };
+    setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSt] } : t));
+  };
+  const focusToggleSubtask = (taskId, subtaskId, isInbox) => {
+    toggleSubtask(taskId, subtaskId, isInbox);
+    setFocusBlockTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, subtasks: (t.subtasks || []).map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st) };
+    }));
+  };
+  const focusDeleteSubtask = (taskId, subtaskId, isInbox) => {
+    deleteSubtask(taskId, subtaskId, isInbox);
+    setFocusBlockTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId) };
+    }));
+  };
+  const focusUpdateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
+    updateSubtaskTitle(taskId, subtaskId, newTitle, isInbox);
+    setFocusBlockTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      return { ...t, subtasks: (t.subtasks || []).map(st => st.id === subtaskId ? { ...st, title: newTitle } : st) };
+    }));
+  };
+
+  const handleFocusTimerEnd = () => {
+    if (focusPhase === 'work') {
+      // Distribute work minutes across active (non-completed) block tasks
+      const activeTasks = focusBlockTasks.filter(t => !t.completed && !focusCompletedTasks.has(t.id));
+      if (activeTasks.length > 0) {
+        const perTask = focusWorkMinutes / activeTasks.length;
+        setFocusTaskMinutes(prev => {
+          const next = { ...prev };
+          activeTasks.forEach(t => {
+            next[t.id] = (next[t.id] || 0) + perTask;
+          });
+          return next;
+        });
+      }
+      const newCycle = focusCycleCount + 1;
+      setFocusCycleCount(newCycle);
+      if (newCycle % 4 === 0) {
+        setFocusPhase('longBreak');
+        setFocusTimerSeconds(focusLongBreakMinutes * 60);
+        playFocusSound('break');
+      } else {
+        setFocusPhase('shortBreak');
+        setFocusTimerSeconds(focusBreakMinutes * 60);
+        playFocusSound('break');
+      }
+    } else {
+      // Break ended → start work
+      setFocusPhase('work');
+      setFocusTimerSeconds(focusWorkMinutes * 60);
+      playFocusSound('work');
+    }
+    setFocusTimerRunning(true);
   };
 
   const handleRoutineResizeStart = (routine, e) => {
@@ -4625,6 +4917,9 @@ const DayPlanner = () => {
       { id: 'tags', label: 'Use #tags in a task title', completed: onboardingProgress.hasUsedTags },
       { id: 'actions', label: 'Use the action buttons on a task', completed: onboardingProgress.hasUsedActionButtons },
       { id: 'complete', label: 'Complete a task', completed: onboardingProgress.hasCompletedTask },
+      { id: 'recurring', label: 'Create a recurring task', completed: onboardingProgress.hasCreatedRecurring },
+      { id: 'routines', label: 'Set up a routine', completed: onboardingProgress.hasSetupRoutines },
+      { id: 'focus', label: 'Try Focus Mode', completed: onboardingProgress.hasUsedFocusMode },
       { id: 'sync', label: 'Set up calendar sync', completed: onboardingProgress.hasSetupSync },
     ];
   }, [onboardingProgress]);
@@ -4635,7 +4930,7 @@ const DayPlanner = () => {
   const hasZeroRealTasks = useMemo(() => {
     const realScheduledTasks = tasks.filter(t => !t.isExample && !t.imported);
     const realInboxTasks = unscheduledTasks.filter(t => !t.isExample);
-    return realScheduledTasks.length === 0 && realInboxTasks.length === 0 && recurringTasks.length === 0;
+    return realScheduledTasks.length === 0 && realInboxTasks.length === 0 && recurringTasks.filter(t => !t.isExample).length === 0;
   }, [tasks, unscheduledTasks, recurringTasks]);
 
   // Show onboarding when user has zero real tasks (and data is loaded, to prevent flash)
@@ -4810,6 +5105,91 @@ const DayPlanner = () => {
     return filterByTags([...tasks.filter(t => t.date === dateStr), ...recurring]);
   };
 
+  // Focus mode availability: current task or back-to-back block >= 45 min remaining
+  const focusModeAvailable = useMemo(() => {
+    const now = currentTime;
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const todayDateStr = dateToString(now);
+    const todayTasks = getTasksForDate(now);
+
+    // Get all non-completed timeline tasks happening now or in the future, sorted by start
+    const timelineTasks = todayTasks
+      .filter(t => !t.isAllDay && !t.completed && t.startTime)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+    // Find contiguous block that includes the current time
+    // First, find tasks currently in progress
+    const inProgress = timelineTasks.filter(t => {
+      const start = timeToMinutes(t.startTime);
+      const end = start + t.duration;
+      return start <= nowMin && end > nowMin;
+    });
+
+    if (inProgress.length === 0) return false;
+
+    // Find the earliest start and then extend forward through back-to-back tasks
+    let blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
+    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
+
+    // Extend block forward with back-to-back or overlapping tasks
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (const t of timelineTasks) {
+        const tStart = timeToMinutes(t.startTime);
+        const tEnd = tStart + t.duration;
+        if (tStart <= blockEnd && tEnd > blockEnd) {
+          blockEnd = tEnd;
+          extended = true;
+        }
+      }
+    }
+
+    const remainingMinutes = blockEnd - nowMin;
+    return remainingMinutes >= 45;
+  }, [currentTime, tasks, expandedRecurringTasks]);
+
+  // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
+  const computeFocusBlockTasks = () => {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const todayTasks = getTasksForDate(now);
+
+    const timelineTasks = todayTasks
+      .filter(t => !t.isAllDay && !t.completed && t.startTime)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+    const inProgress = timelineTasks.filter(t => {
+      const start = timeToMinutes(t.startTime);
+      const end = start + t.duration;
+      return start <= nowMin && end > nowMin;
+    });
+
+    if (inProgress.length === 0) return [];
+
+    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
+
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (const t of timelineTasks) {
+        const tStart = timeToMinutes(t.startTime);
+        const tEnd = tStart + t.duration;
+        if (tStart <= blockEnd && tEnd > blockEnd) {
+          blockEnd = tEnd;
+          extended = true;
+        }
+      }
+    }
+
+    const blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
+    return timelineTasks.filter(t => {
+      const tStart = timeToMinutes(t.startTime);
+      const tEnd = tStart + t.duration;
+      return tStart < blockEnd && tEnd > blockStart;
+    });
+  };
+
   // Calculate all-time stats (excluding imported events, including recurring)
   const nonImportedTasks = tasks.filter(t => !t.imported);
   const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
@@ -4838,6 +5218,8 @@ const DayPlanner = () => {
   const actualTodayCompletedTasks = actualTodayNonImportedTasks.filter(t => t.completed);
   const actualTodayCompletedMinutes = actualTodayCompletedTasks.reduce((sum, task) => sum + task.duration, 0);
   const actualTodayPlannedMinutes = actualTodayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
+  const actualTodayFocusMinutes = actualTodayNonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
+  const allTimeFocusMinutes = nonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -5161,8 +5543,10 @@ const DayPlanner = () => {
                     <Sparkles size={24} />
                   </button>
                   <button
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
-                    title="Coming soon"
+                    onClick={enterFocusMode}
+                    className={`w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg transition-colors ${focusModeAvailable ? 'hover:bg-blue-700 cursor-pointer' : 'opacity-50 cursor-default'}`}
+                    title={focusModeAvailable ? "Focus Mode" : "Focus Mode (need 45+ min block in progress)"}
+                    disabled={!focusModeAvailable}
                   >
                     <BrainCircuit size={24} />
                   </button>
@@ -5259,10 +5643,12 @@ const DayPlanner = () => {
                   >
                     <Sparkles size={24} />
                   </button>
-                  {/* Placeholder 2 */}
+                  {/* Focus Mode */}
                   <button
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-50 cursor-default"
-                    title="Coming soon"
+                    onClick={enterFocusMode}
+                    className={`w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg transition-colors ${focusModeAvailable ? 'hover:bg-blue-700 cursor-pointer' : 'opacity-50 cursor-default'}`}
+                    title={focusModeAvailable ? "Focus Mode" : "Focus Mode (need 45+ min block in progress)"}
+                    disabled={!focusModeAvailable}
                   >
                     <BrainCircuit size={24} />
                   </button>
@@ -5315,6 +5701,9 @@ const DayPlanner = () => {
                     setTasks(prev => prev.filter(t => !t.isExample));
                     setUnscheduledTasks(prev => prev.filter(t => !t.isExample));
                     setRecycleBin(prev => prev.filter(t => !t.isExample));
+                    setRecurringTasks(prev => prev.filter(t => !t.isExample));
+                    setTodayRoutines([]);
+                    setRoutineDefinitions({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
                     // Mark onboarding as complete (hides Getting Started and ? buttons)
                     setOnboardingComplete(true);
                   }}
@@ -5490,7 +5879,7 @@ const DayPlanner = () => {
                       if (task._agendaType === 'allday') {
                         timeLabel = 'ALL DAY';
                       } else if (task._agendaType === 'deadline') {
-                        timeLabel = 'DUE';
+                        timeLabel = 'DUE TODAY';
                       } else {
                         const [h, m] = (task.startTime || '0:0').split(':').map(Number);
                         const startMin = h * 60 + m;
@@ -6015,6 +6404,9 @@ const DayPlanner = () => {
                   <div>{actualTodayCompletedTasks.length} tasks completed</div>
                   <div>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
+                  {actualTodayFocusMinutes > 0 && (
+                    <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m focus time</div>
+                  )}
                   {actualTodayNonImportedTasks.length > 0 && (
                     <div className="pt-1">
                       <div className="font-semibold">{Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
@@ -6044,6 +6436,9 @@ const DayPlanner = () => {
                   <div>{allTimeCompletedCount} tasks completed</div>
                   <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
+                  {allTimeFocusMinutes > 0 && (
+                    <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m focus time</div>
+                  )}
                   {allTimeScheduledCount > 0 && (
                     <div className="pt-1">
                       <div className="font-semibold">{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate</div>
@@ -8257,11 +8652,193 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Focus Mode Overlay */}
+      {showFocusMode && (
+        <div className="fixed inset-0 bg-gray-950 z-[70] flex flex-col items-center justify-center overflow-auto">
+          {/* Exit button */}
+          <button
+            onClick={() => exitFocusMode(true)}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+          >
+            <X size={28} />
+          </button>
+
+          {/* Settings view */}
+          {focusShowSettings && !focusShowStats && (
+            <div className="w-full max-w-md px-6 py-8 flex flex-col items-center gap-6">
+              <BrainCircuit size={48} className="text-blue-400" />
+              <h1 className="text-2xl font-bold text-white">Focus Mode</h1>
+
+              {/* Interval controls */}
+              <div className="w-full space-y-3">
+                {[
+                  { label: 'Work', value: focusWorkMinutes, set: setFocusWorkMinutes },
+                  { label: 'Break', value: focusBreakMinutes, set: setFocusBreakMinutes },
+                  { label: 'Long Break', value: focusLongBreakMinutes, set: setFocusLongBreakMinutes },
+                ].map(({ label, value, set }) => (
+                  <div key={label} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3">
+                    <span className="text-gray-300 text-sm">{label}</span>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => set(Math.max(1, value - 5))} className="w-8 h-8 rounded-full bg-gray-700 text-white hover:bg-gray-600 flex items-center justify-center text-lg font-bold">-</button>
+                      <span className="text-white font-mono w-12 text-center">{value}m</span>
+                      <button onClick={() => set(value + 5)} className="w-8 h-8 rounded-full bg-gray-700 text-white hover:bg-gray-600 flex items-center justify-center text-lg font-bold">+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Task preview */}
+              <div className="w-full space-y-2">
+                <h3 className="text-sm text-gray-400 font-medium">Tasks in this block</h3>
+                {focusBlockTasks.map(task => (
+                  <div key={task.id} className="flex items-center gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
+                    <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0`} />
+                    <span className="text-gray-200 text-sm truncate flex-1">{task.title}</span>
+                    <span className="text-gray-500 text-xs">{task.duration}m</span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={startFocusTimer}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-lg"
+              >
+                Start Focus Session
+              </button>
+            </div>
+          )}
+
+          {/* Main focus view */}
+          {!focusShowSettings && !focusShowStats && (
+            <div className="w-full max-w-lg px-6 py-8 flex flex-col items-center gap-6">
+              {/* Phase indicator */}
+              <div className="flex items-center gap-3">
+                <span className={`px-4 py-1.5 rounded-full text-sm font-medium ${
+                  focusPhase === 'work' ? 'bg-blue-600 text-white' :
+                  focusPhase === 'shortBreak' ? 'bg-green-600 text-white' :
+                  'bg-purple-600 text-white'
+                }`}>
+                  {focusPhase === 'work' ? 'Work' : focusPhase === 'shortBreak' ? 'Short Break' : 'Long Break'}
+                </span>
+                <span className="text-gray-500 text-sm">Cycle {Math.floor(focusCycleCount / 1) + (focusPhase === 'work' ? 1 : 0)} of 4</span>
+              </div>
+
+              {/* Countdown */}
+              <div className="text-8xl font-mono text-white font-bold tracking-wider">
+                {String(Math.floor(focusTimerSeconds / 60)).padStart(2, '0')}:{String(focusTimerSeconds % 60).padStart(2, '0')}
+              </div>
+
+              {/* Pause/Resume */}
+              <button
+                onClick={() => setFocusTimerRunning(prev => !prev)}
+                className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-colors"
+              >
+                {focusTimerRunning ? <Pause size={24} /> : <Play size={24} />}
+              </button>
+
+              {/* Pomodoro cycle dots */}
+              <div className="flex gap-3">
+                {[0, 1, 2, 3].map(i => (
+                  <div
+                    key={i}
+                    className={`w-4 h-4 rounded-full transition-all ${
+                      i < (focusCycleCount % 4) ? 'bg-blue-500' :
+                      i === (focusCycleCount % 4) && focusPhase === 'work' ? 'bg-blue-500 animate-pulse' :
+                      'bg-gray-700'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Task cards */}
+              <div className="w-full space-y-2 mt-4">
+                {focusBlockTasks.map(task => {
+                  const isDone = task.completed || focusCompletedTasks.has(task.id);
+                  return (
+                    <div key={task.id} className={`bg-gray-800 rounded-lg p-3 flex items-start gap-3 transition-opacity ${isDone ? 'opacity-40' : ''}`}>
+                      <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{task.title}</div>
+                        <div className="text-xs text-gray-500">{formatTimeDisplay(task.startTime)} - {formatTimeDisplay(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
+                        {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
+                          <div className="mt-2">
+                            <NotesSubtasksPanel
+                              task={task}
+                              isInbox={false}
+                              darkMode={true}
+                              updateTaskNotes={focusUpdateTaskNotes}
+                              addSubtask={focusAddSubtask}
+                              toggleSubtask={focusToggleSubtask}
+                              deleteSubtask={focusDeleteSubtask}
+                              updateSubtaskTitle={focusUpdateSubtaskTitle}
+                              compact={false}
+                              noAutoFocus
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {!isDone && (
+                        <button
+                          onClick={() => focusCompleteTask(task.id)}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg transition-colors flex-shrink-0"
+                        >
+                          Complete
+                        </button>
+                      )}
+                      {isDone && (
+                        <Check size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Session elapsed time */}
+              {focusSessionStart && (
+                <div className="text-gray-500 text-sm mt-4">
+                  Session: {Math.floor((currentTime - focusSessionStart) / 60000)}m elapsed
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Stats view */}
+          {focusShowStats && (
+            <div className="w-full max-w-sm px-6 py-8 flex flex-col items-center gap-6">
+              <Trophy size={48} className="text-yellow-400" />
+              <h1 className="text-2xl font-bold text-white">Session Complete!</h1>
+
+              <div className="w-full space-y-3">
+                <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
+                  <span className="text-gray-400">Total time</span>
+                  <span className="text-white font-medium">{focusSessionStart ? `${Math.floor((currentTime - focusSessionStart) / 60000)}m` : '0m'}</span>
+                </div>
+                <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
+                  <span className="text-gray-400">Tasks completed</span>
+                  <span className="text-white font-medium">{focusCompletedTasks.size}</span>
+                </div>
+                <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
+                  <span className="text-gray-400">Pomodoro cycles</span>
+                  <span className="text-white font-medium">{focusCycleCount}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={dismissFocusStats}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-lg"
+              >
+                Done
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Welcome Modal for New Users */}
       {showWelcome && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWelcome(false)}>
           <div
-            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-xl w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col items-start mb-4">
@@ -8277,7 +8854,7 @@ const DayPlanner = () => {
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
-                  Two Ways to Add Tasks
+                  Adding Tasks
                 </h3>
                 <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
                   <div className="flex items-center gap-2">
@@ -8292,6 +8869,12 @@ const DayPlanner = () => {
                     </span>
                     <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>I</kbd>)</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
+                      <Sparkles size={16} />
+                    </span>
+                    <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling (click in sidebar)</span>
+                  </div>
                 </div>
               </div>
 
@@ -8303,16 +8886,30 @@ const DayPlanner = () => {
                 <ul className={`text-sm ${textSecondary} ml-8 space-y-1 list-disc list-inside`}>
                   <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
                   <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
-                  <li>Drag tasks from Inbox to timeline to schedule them</li>
-                  <li>Drag the bottom edge of a task to resize its duration</li>
-                  <li>Double-click a task title to edit it</li>
-                  <li>Drag tasks to Recycle Bin to delete them</li>
+                  <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
+                  <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
+                  <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
+                  <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
+                  <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
                 </ul>
               </div>
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
+                  Focus Mode
+                </h3>
+                <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
+                  <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <BrainCircuit size={16} />
+                  </span>
+                  <span>When you have a 45+ minute block of tasks in progress, click the <strong className={textPrimary}>Focus Mode</strong> button in the sidebar for a distraction-free experience with a Pomodoro timer.</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
                   Sync Your Calendar
                 </h3>
                 <p className={`text-sm ${textSecondary} ml-8`}>
@@ -8322,7 +8919,7 @@ const DayPlanner = () => {
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
                   Settings & Backup
                 </h3>
                 <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
@@ -8340,22 +8937,6 @@ const DayPlanner = () => {
                   </div>
                   <p className="text-xs opacity-75 mt-1">Your data is stored locally in your browser. Use backup to transfer between devices or keep a safe copy.</p>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
-                  More to Come
-                </h3>
-                <p className={`text-sm ${textSecondary} ml-8`}>
-                  <strong className={textPrimary}>Recurring tasks</strong> are here! Set daily, weekly, biweekly, monthly, or yearly recurrence when creating scheduled tasks. <strong className={textPrimary}>Routines</strong> let you manage daily rituals — click <Sparkles size={14} className="inline mx-0.5" /> in the sidebar. <strong className={textPrimary}>Goals</strong> are coming soon.
-                </p>
-              </div>
-
-              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
-                <p className={`text-sm ${textSecondary}`}>
-                  Look for <HelpCircle size={14} className="inline text-blue-500 mx-0.5" /> icons in the sidebar for tips on how to use each section.
-                </p>
               </div>
             </div>
 
