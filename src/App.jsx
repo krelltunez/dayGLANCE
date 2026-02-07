@@ -1329,12 +1329,12 @@ const DayPlanner = () => {
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, cloudSyncConfig?.enabled]);
 
-  // Cloud sync: download on app load
+  // Cloud sync: download on app load or when sync is first enabled
   useEffect(() => {
     if (dataLoaded && cloudSyncConfig?.enabled) {
       cloudSyncDownload();
     }
-  }, [dataLoaded]);
+  }, [dataLoaded, cloudSyncConfig?.enabled]);
 
   // Persist cloud sync config
   useEffect(() => {
