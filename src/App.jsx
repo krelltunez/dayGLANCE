@@ -4747,11 +4747,15 @@ const DayPlanner = () => {
       const localModified = localStorage.getItem('day-planner-cloud-sync-local-modified');
       const remoteModified = remote.lastModified;
 
-      if (remoteModified && localModified && new Date(remoteModified) > new Date(localModified)) {
+      if (!localModified && remoteModified) {
+        // New device — no local timestamp, apply remote data
+        applyRemoteData(remote.data);
+        localStorage.setItem('day-planner-cloud-sync-local-modified', remoteModified);
+      } else if (remoteModified && localModified && new Date(remoteModified) > new Date(localModified)) {
         // Remote is newer — apply it
         applyRemoteData(remote.data);
         localStorage.setItem('day-planner-cloud-sync-local-modified', remoteModified);
-      } else if (!localModified || (remoteModified && new Date(localModified) > new Date(remoteModified))) {
+      } else if (localModified && remoteModified && new Date(localModified) > new Date(remoteModified)) {
         // Local is newer — upload
         cloudSyncInProgressRef.current = false;
         await cloudSyncUpload();
