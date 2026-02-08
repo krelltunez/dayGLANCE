@@ -724,6 +724,7 @@ const DayPlanner = () => {
     } catch {}
     return {
       enabled: false,
+      inAppToasts: true,
       browserNotifications: false,
       morningReminderTime: '08:00',
       categories: {
@@ -6501,10 +6502,12 @@ const DayPlanner = () => {
 
     if (newReminders.length > 0) {
       playUISound('reminder');
-      setActiveReminders(prev => [...prev, ...newReminders]);
+      if (reminderSettings.inAppToasts !== false) {
+        setActiveReminders(prev => [...prev, ...newReminders]);
+      }
       if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         for (const r of newReminders) {
-          try { new Notification(r.taskTitle, { body: r.message, icon: '/favicon.ico' }); } catch {}
+          try { new Notification(r.taskTitle, { body: r.message, icon: '/favicon.png' }); } catch {}
         }
       }
     }
@@ -10644,21 +10647,19 @@ const DayPlanner = () => {
                           Tasks appear with striped pattern; completion state persists across syncs
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => syncAll()}
-                          disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
-                          className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                          {isSyncing ? 'Syncing...' : 'Sync Now'}
-                        </button>
-                        {calSyncLastSynced && (
-                          <span className={`text-xs ${textSecondary}`}>
-                            Last synced: {new Date(calSyncLastSynced).toLocaleString()}
-                          </span>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => syncAll()}
+                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                        {isSyncing ? 'Syncing...' : 'Sync Now'}
+                      </button>
+                      {calSyncLastSynced && (
+                        <p className={`text-xs ${textSecondary}`}>
+                          Last synced: {new Date(calSyncLastSynced).toLocaleString()}
+                        </p>
+                      )}
                     </div>
 
                     <hr className={`${borderClass} lg:block`} />
@@ -10802,6 +10803,22 @@ const DayPlanner = () => {
 
             {reminderSettings.enabled && (
               <div className="space-y-4">
+                {/* In-app toasts toggle */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={reminderSettings.inAppToasts !== false}
+                      onChange={(e) => setReminderSettings(prev => ({ ...prev, inAppToasts: e.target.checked }))}
+                      className="sr-only"
+                    />
+                    <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.inAppToasts !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.inAppToasts !== false ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </div>
+                  </div>
+                  <span className={`text-sm ${textPrimary}`}>In-app toasts</span>
+                </label>
+
                 {/* Browser notifications toggle */}
                 <label className="flex items-center gap-3 cursor-pointer">
                   <div className="relative">
