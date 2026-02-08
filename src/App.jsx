@@ -746,6 +746,9 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : true;
   });
 
+  // Incomplete tasks modal
+  const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
+
   // Spotlight search
   const [showSpotlight, setShowSpotlight] = useState(false);
   const [spotlightQuery, setSpotlightQuery] = useState('');
@@ -6443,6 +6446,7 @@ const DayPlanner = () => {
           date: dateStr,
           isRecurring: true,
           recurringTemplateId: template.id,
+          ...(template.isExample ? { isExample: true } : {}),
         });
       }
     }
@@ -6503,7 +6507,8 @@ const DayPlanner = () => {
     if (newReminders.length > 0) {
       playUISound('reminder');
       if (reminderSettings.inAppToasts !== false) {
-        setActiveReminders(prev => [...prev, ...newReminders]);
+        const newTaskIds = new Set(newReminders.map(r => r.taskId));
+        setActiveReminders(prev => [...prev.filter(r => !newTaskIds.has(r.taskId)), ...newReminders]);
       }
       if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         for (const r of newReminders) {
@@ -6741,6 +6746,31 @@ const DayPlanner = () => {
   const actualTodayPlannedMinutes = actualTodayNonImportedTasks.reduce((sum, task) => sum + task.duration, 0);
   const actualTodayFocusMinutes = actualTodayNonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
   const allTimeFocusMinutes = nonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
+
+  // Incomplete task lists for modal
+  const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => !t.completed);
+  const allTimeIncompleteTasks = useMemo(() => {
+    const regularIncomplete = nonImportedTasks.filter(t => !t.completed);
+    const recurringIncomplete = [];
+    recurringTasks.forEach(t => {
+      const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
+      const completedSet = new Set(t.completedDates || []);
+      occs.forEach(dateStr => {
+        if (!completedSet.has(dateStr) && !t.exceptions?.[dateStr]?.deleted) {
+          recurringIncomplete.push({
+            id: `recurring-${t.id}-${dateStr}`,
+            title: t.title,
+            date: dateStr,
+            color: t.color,
+            startTime: t.startTime,
+            duration: t.duration,
+            isRecurring: true,
+          });
+        }
+      });
+    });
+    return [...regularIncomplete, ...recurringIncomplete].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [nonImportedTasks, recurringTasks, todayStr]);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -7903,7 +7933,17 @@ const DayPlanner = () => {
               {!minimizedSections.dailySummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
                   <div>{actualTodayNonImportedTasks.length} tasks scheduled</div>
-                  <div>{actualTodayCompletedTasks.length} tasks completed</div>
+                  <div>
+                    {actualTodayCompletedTasks.length} tasks completed
+                    {todayIncompleteTasks.length > 0 && (
+                      <button
+                        onClick={() => setShowIncompleteTasks('today')}
+                        className="ml-1 text-blue-500 hover:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        ({todayIncompleteTasks.length} incomplete)
+                      </button>
+                    )}
+                  </div>
                   <div>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
                   {actualTodayFocusMinutes > 0 && (
@@ -7935,7 +7975,17 @@ const DayPlanner = () => {
               {!minimizedSections.allTimeSummary && (
                 <div className={`text-sm ${textSecondary} space-y-1`}>
                   <div>{allTimeScheduledCount} tasks scheduled</div>
-                  <div>{allTimeCompletedCount} tasks completed</div>
+                  <div>
+                    {allTimeCompletedCount} tasks completed
+                    {allTimeIncompleteTasks.length > 0 && (
+                      <button
+                        onClick={() => setShowIncompleteTasks('allTime')}
+                        className="ml-1 text-blue-500 hover:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        ({allTimeIncompleteTasks.length} incomplete)
+                      </button>
+                    )}
+                  </div>
                   <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
                   <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
                   {allTimeFocusMinutes > 0 && (
@@ -9692,7 +9742,7 @@ const DayPlanner = () => {
                   <X size={14} />
                 </button>
               </div>
-              <div className="flex items-center gap-2 mt-2 ml-4.5">
+              <div className="flex items-center justify-center gap-2 mt-2">
                 {reminder.type !== 'end' && reminder.type !== 'morning' && reminder.startTime && (
                   <button
                     onClick={() => snoozeReminder(reminder)}
@@ -10948,6 +10998,60 @@ const DayPlanner = () => {
           onClose={() => setShowMorningTimePicker(false)}
         />
       )}
+
+      {/* Incomplete Tasks Modal */}
+      {showIncompleteTasks && (() => {
+        const isDaily = showIncompleteTasks === 'today';
+        const items = isDaily ? todayIncompleteTasks : allTimeIncompleteTasks;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowIncompleteTasks(null)} onKeyDown={(e) => { if (e.key === 'Escape') setShowIncompleteTasks(null); }} tabIndex={-1} ref={el => el && el.focus()}>
+            <div
+              className={`${cardBg} rounded-lg shadow-xl ${borderClass} border max-w-md w-full mx-4 flex flex-col`}
+              style={{ maxHeight: '70vh' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+                <div>
+                  <h2 className={`text-lg font-bold ${textPrimary}`}>Incomplete Tasks</h2>
+                  <p className={`text-xs ${textSecondary}`}>{isDaily ? 'Today' : 'All Time'} — {items.length} task{items.length !== 1 ? 's' : ''}</p>
+                </div>
+                <button onClick={() => setShowIncompleteTasks(null)} className={`${textSecondary} hover:${textPrimary}`}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="overflow-y-auto p-4">
+                {items.length === 0 ? (
+                  <p className={`text-center ${textSecondary} py-6`}>All tasks completed!</p>
+                ) : (
+                  <div className="space-y-2">
+                    {items.map(task => (
+                      <div key={task.id} className={`flex items-center gap-3 p-2 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                        <span className={`w-3 h-3 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className={`text-sm ${textPrimary} truncate`}>{task.title}</div>
+                          <div className={`text-xs ${textSecondary}`}>
+                            {isDaily
+                              ? (task.startTime || 'All day')
+                              : [task.date, task.startTime].filter(Boolean).join(' · ') || 'No date'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className={`p-4 border-t ${borderClass}`}>
+                <button
+                  onClick={() => setShowIncompleteTasks(null)}
+                  className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Keyboard Shortcut Cheat Sheet */}
       {showShortcutHelp && (
