@@ -717,6 +717,29 @@ const DayPlanner = () => {
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
   const [showRemindersSettings, setShowRemindersSettings] = useState(false);
+  const [reminderSettings, setReminderSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-reminder-settings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      enabled: false,
+      browserNotifications: false,
+      morningReminderTime: '08:00',
+      categories: {
+        calendarEvents:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
+        calendarTasks:   { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
+        scheduledTasks:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
+        allDayTasks:     { morningReminder: true },
+        recurringTasks:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
+      },
+      preset: 'standard'
+    };
+  });
+  const [activeReminders, setActiveReminders] = useState([]);
+  const [showMorningTimePicker, setShowMorningTimePicker] = useState(false);
+  const firedRemindersRef = useRef(new Set());
+  const lastReminderDateRef = useRef((() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })());
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-sound-enabled');
     return saved !== null ? JSON.parse(saved) : true;
@@ -1377,6 +1400,11 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-selected-tags', JSON.stringify(selectedTags));
   }, [selectedTags]);
 
+  // Persist reminderSettings to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-reminder-settings', JSON.stringify(reminderSettings));
+  }, [reminderSettings]);
+
   // Persist soundEnabled to localStorage
   useEffect(() => {
     localStorage.setItem('day-planner-sound-enabled', JSON.stringify(soundEnabled));
@@ -1428,6 +1456,15 @@ const DayPlanner = () => {
     }, 60000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  // Catch up on missed reminders when tab becomes visible
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden) setCurrentTime(new Date());
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   // Focus Mode timer tick
@@ -2667,6 +2704,32 @@ const DayPlanner = () => {
     if (typeof id !== 'string' || !id.startsWith('recurring-')) return null;
     const parts = id.split('-');
     return { templateId: Number(parts[1]), dateStr: parts.slice(2).join('-') };
+  };
+
+  const getTaskCategory = (task) => {
+    if (task.isAllDay) return 'allDayTasks';
+    if (typeof task.id === 'string' && task.id.startsWith('recurring-')) return 'recurringTasks';
+    if (task.imported && task.isTaskCalendar) return 'calendarTasks';
+    if (task.imported && !task.isTaskCalendar) return 'calendarEvents';
+    return 'scheduledTasks';
+  };
+
+  const getReminderPoints = (task, catSettings, morningTime) => {
+    if (!catSettings) return [];
+    if (task.isAllDay) {
+      if (!catSettings.morningReminder) return [];
+      const [h, m] = morningTime.split(':').map(Number);
+      return [{ key: `morning-${task.id}`, triggerMin: h * 60 + m, type: 'morning' }];
+    }
+    const startMin = timeToMinutes(task.startTime);
+    const endMin = startMin + (task.duration || 0);
+    const points = [];
+    if (catSettings.before15) points.push({ key: `b15-${task.id}`, triggerMin: startMin - 15, type: 'before15' });
+    if (catSettings.before10) points.push({ key: `b10-${task.id}`, triggerMin: startMin - 10, type: 'before10' });
+    if (catSettings.before5) points.push({ key: `b5-${task.id}`, triggerMin: startMin - 5, type: 'before5' });
+    if (catSettings.atStart) points.push({ key: `start-${task.id}`, triggerMin: startMin, type: 'start' });
+    if (catSettings.atEnd) points.push({ key: `end-${task.id}`, triggerMin: endMin, type: 'end' });
+    return points.filter(p => p.triggerMin >= 0);
   };
 
   const toggleComplete = (id, fromInbox = false) => {
@@ -4184,6 +4247,23 @@ const DayPlanner = () => {
           });
           break;
         }
+        case 'reminder': {
+          // Ascending triad C5→E5→G5 with longer sustain
+          [523, 659, 784].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, now + i * 0.15);
+            gain.gain.linearRampToValueAtTime(0.18, now + i * 0.15 + 0.05);
+            gain.gain.setValueAtTime(0.18, now + i * 0.15 + 0.25);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.6);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.6);
+          });
+          break;
+        }
       }
     } catch (e) { /* Audio API not available */ }
   };
@@ -4242,6 +4322,72 @@ const DayPlanner = () => {
     setRecurringTasks(snapshot.recurringTasks);
     playUISound('undo');
     setUndoToast('Redone');
+  };
+
+  // Reminder snooze: push task start time forward 15 minutes
+  const snoozeReminder = (reminder) => {
+    pushUndo();
+    setActiveReminders(prev => prev.filter(r => r.id !== reminder.id));
+    const newStartMin = Math.min(timeToMinutes(reminder.startTime) + 15, 23 * 60 + 45);
+    const newStartTime = minutesToTime(newStartMin);
+    const parsed = parseRecurringId(reminder.taskId);
+    if (parsed) {
+      setRecurringTasks(prev => prev.map(t => {
+        if (t.id !== parsed.templateId) return t;
+        const exceptions = { ...(t.exceptions || {}) };
+        exceptions[parsed.dateStr] = { ...(exceptions[parsed.dateStr] || {}), startTime: newStartTime };
+        return { ...t, exceptions };
+      }));
+    } else {
+      setTasks(prev => prev.map(t =>
+        t.id === reminder.taskId ? { ...t, startTime: newStartTime } : t
+      ));
+    }
+    // Clear fired keys for this task so new-time reminders fire fresh
+    const keysToRemove = [...firedRemindersRef.current].filter(k => k.includes(String(reminder.taskId)));
+    keysToRemove.forEach(k => firedRemindersRef.current.delete(k));
+  };
+
+  const dismissReminder = (reminderId) => {
+    setActiveReminders(prev => prev.filter(r => r.id !== reminderId));
+  };
+
+  const dismissAllReminders = () => {
+    setActiveReminders([]);
+  };
+
+  // Reminder preset logic
+  const applyReminderPreset = (name) => {
+    const presets = {
+      standard:   { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
+      aggressive: { before15: true, before10: false, before5: true,  atStart: true, atEnd: true },
+      minimal:    { before15: false, before10: false, before5: false, atStart: true, atEnd: false },
+    };
+    const vals = presets[name];
+    if (!vals) return;
+    setReminderSettings(prev => ({
+      ...prev,
+      preset: name,
+      categories: {
+        ...prev.categories,
+        calendarEvents:  { ...vals },
+        calendarTasks:   { ...vals },
+        scheduledTasks:  { ...vals },
+        recurringTasks:  { ...vals },
+        allDayTasks:     prev.categories.allDayTasks,
+      },
+    }));
+  };
+
+  const updateCategoryReminder = (category, field, value) => {
+    setReminderSettings(prev => ({
+      ...prev,
+      preset: 'custom',
+      categories: {
+        ...prev.categories,
+        [category]: { ...prev.categories[category], [field]: value },
+      },
+    }));
   };
 
   const enterFocusMode = () => {
@@ -5308,7 +5454,8 @@ const DayPlanner = () => {
         routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
         selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
-        cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null')
+        cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
+        reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null')
       }
     };
 
@@ -5359,6 +5506,7 @@ const DayPlanner = () => {
         if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
         if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
         if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
+        if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
 
         // Reload app to reflect changes
         window.location.reload();
@@ -5511,7 +5659,8 @@ const DayPlanner = () => {
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
       todayRoutines: JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]'),
       routinesDate: localStorage.getItem('day-planner-routines-date') || '',
-      minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}')
+      minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
+      reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null')
     }
   });
 
@@ -5559,6 +5708,7 @@ const DayPlanner = () => {
     if (data.routinesDate !== undefined) localStorage.setItem('day-planner-routines-date', data.routinesDate);
     // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
+    if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
 
     // Update React state directly (avoid page reload)
     if (data.tasks) setTasks(data.tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
@@ -5572,6 +5722,7 @@ const DayPlanner = () => {
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
+    if (data.reminderSettings) setReminderSettings(data.reminderSettings);
 
     setTimeout(() => { suppressCloudUploadRef.current = false; }, 500);
   };
@@ -6297,6 +6448,78 @@ const DayPlanner = () => {
     return instances;
   }, [recurringTasks, visibleDates]);
 
+  // Reminder notification engine
+  useEffect(() => {
+    if (!reminderSettings.enabled) return;
+    const todayStr = dateToString(currentTime);
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+    // Reset fired reminders at midnight
+    if (lastReminderDateRef.current !== todayStr) {
+      firedRemindersRef.current = new Set();
+      lastReminderDateRef.current = todayStr;
+    }
+
+    // Gather all today's tasks
+    const todayRegular = tasks.filter(t => t.date === todayStr);
+    const todayRecurring = expandedRecurringTasks.filter(t => t.date === todayStr);
+    const allTodayTasks = [...todayRegular, ...todayRecurring];
+
+    const newReminders = [];
+    for (const task of allTodayTasks) {
+      if (task.completed) continue;
+      const category = getTaskCategory(task);
+      const catSettings = reminderSettings.categories[category];
+      if (!catSettings) continue;
+      const points = getReminderPoints(task, catSettings, reminderSettings.morningReminderTime);
+      for (const point of points) {
+        if (firedRemindersRef.current.has(point.key)) continue;
+        // Fire if current time is within a 2-minute window of the trigger
+        if (nowMin >= point.triggerMin && nowMin < point.triggerMin + 2) {
+          firedRemindersRef.current.add(point.key);
+          const messageMap = {
+            before15: 'Starts in 15 minutes',
+            before10: 'Starts in 10 minutes',
+            before5: 'Starts in 5 minutes',
+            start: 'Starting now',
+            end: 'Ending now',
+            morning: 'All-day task reminder',
+          };
+          newReminders.push({
+            id: `${point.key}-${Date.now()}`,
+            taskId: task.id,
+            taskTitle: task.title,
+            taskColor: task.color,
+            startTime: task.startTime || null,
+            message: messageMap[point.type] || 'Reminder',
+            type: point.type,
+            firedAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    if (newReminders.length > 0) {
+      playUISound('reminder');
+      setActiveReminders(prev => [...prev, ...newReminders]);
+      if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        for (const r of newReminders) {
+          try { new Notification(r.taskTitle, { body: r.message, icon: '/favicon.ico' }); } catch {}
+        }
+      }
+    }
+  }, [currentTime, reminderSettings, tasks, expandedRecurringTasks]);
+
+  // Auto-dismiss reminders after 5 minutes
+  useEffect(() => {
+    if (activeReminders.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setActiveReminders(prev => prev.filter(r => now - r.firedAt < 5 * 60 * 1000));
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [activeReminders.length > 0]);
+
   // Spotlight search results
   const spotlightResults = useMemo(() => {
     if (!showSpotlight || !spotlightQuery.trim()) return [];
@@ -6764,10 +6987,13 @@ const DayPlanner = () => {
                     </button>
                     <button
                       onClick={() => setShowRemindersSettings(true)}
-                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+                      className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
                       title="Reminders"
                     >
                       <Bell size={18} className={textSecondary} />
+                      {activeReminders.length > 0 && (
+                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
+                      )}
                     </button>
                     <button
                       onClick={() => setShowBackupMenu(true)}
@@ -9437,6 +9663,64 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Reminder Toasts */}
+      {activeReminders.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-2 max-w-sm">
+          {activeReminders.slice(0, 5).map((reminder) => (
+            <div
+              key={reminder.id}
+              className={`${cardBg} rounded-lg shadow-xl ${borderClass} border p-3 animate-in slide-in-from-right`}
+            >
+              <div className="flex items-start gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${reminder.taskColor || 'bg-blue-500'}`} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${textPrimary} truncate`}>{reminder.taskTitle}</p>
+                  <div className="flex items-center gap-2">
+                    <p className={`text-xs ${textSecondary}`}>{reminder.message}</p>
+                    {reminder.startTime && (
+                      <span className={`text-xs ${textSecondary}`}>{reminder.startTime}</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => dismissReminder(reminder.id)}
+                  className={`${textSecondary} hover:${textPrimary} flex-shrink-0`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="flex items-center gap-2 mt-2 ml-4.5">
+                {reminder.type !== 'end' && reminder.type !== 'morning' && reminder.startTime && (
+                  <button
+                    onClick={() => snoozeReminder(reminder)}
+                    className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Snooze 15m
+                  </button>
+                )}
+                <button
+                  onClick={() => dismissReminder(reminder.id)}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ))}
+          {activeReminders.length > 5 && (
+            <p className={`text-xs ${textSecondary} text-right`}>+{activeReminders.length - 5} more</p>
+          )}
+          {activeReminders.length > 1 && (
+            <button
+              onClick={dismissAllReminders}
+              className={`text-xs ${textSecondary} hover:underline text-right`}
+            >
+              Dismiss all
+            </button>
+          )}
+        </div>
+      )}
+
       {/* New Task Modal */}
       {showAddTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}>
@@ -10360,7 +10644,7 @@ const DayPlanner = () => {
                           Tasks appear with striped pattern; completion state persists across syncs
                         </p>
                       </div>
-                      <div>
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => syncAll()}
                           disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
@@ -10370,9 +10654,9 @@ const DayPlanner = () => {
                           {isSyncing ? 'Syncing...' : 'Sync Now'}
                         </button>
                         {calSyncLastSynced && (
-                          <p className={`text-xs ${textSecondary} mt-1`}>
+                          <span className={`text-xs ${textSecondary}`}>
                             Last synced: {new Date(calSyncLastSynced).toLocaleString()}
-                          </p>
+                          </span>
                         )}
                       </div>
                     </div>
@@ -10490,7 +10774,7 @@ const DayPlanner = () => {
       {showRemindersSettings && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRemindersSettings(false)}>
           <div
-            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
@@ -10499,17 +10783,153 @@ const DayPlanner = () => {
               </div>
               <h3 className={`text-lg font-semibold ${textPrimary}`}>Reminders</h3>
             </div>
-            <p className={`${textSecondary} text-sm mb-4`}>
-              Coming soon — get notified before your tasks start.
-            </p>
+
+            {/* Master toggle */}
+            <label className="flex items-center gap-3 cursor-pointer mb-4">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={reminderSettings.enabled}
+                  onChange={(e) => setReminderSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                  className="sr-only"
+                />
+                <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+              </div>
+              <span className={`text-sm ${textPrimary}`}>Enable reminders</span>
+            </label>
+
+            {reminderSettings.enabled && (
+              <div className="space-y-4">
+                {/* Browser notifications toggle */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={reminderSettings.browserNotifications}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        if (val && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                          Notification.requestPermission();
+                        }
+                        setReminderSettings(prev => ({ ...prev, browserNotifications: val }));
+                      }}
+                      className="sr-only"
+                    />
+                    <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.browserNotifications ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.browserNotifications ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </div>
+                  </div>
+                  <div>
+                    <span className={`text-sm ${textPrimary}`}>Browser notifications</span>
+                    <p className={`text-xs ${textSecondary}`}>
+                      {typeof Notification !== 'undefined'
+                        ? Notification.permission === 'granted' ? 'Permission granted'
+                        : Notification.permission === 'denied' ? 'Permission denied — enable in browser settings'
+                        : 'Will request permission when enabled'
+                        : 'Not supported in this browser'}
+                    </p>
+                  </div>
+                </label>
+
+                {/* Presets */}
+                <div>
+                  <p className={`text-xs font-medium ${textSecondary} mb-2`}>Presets</p>
+                  <div className="flex gap-2">
+                    {[['standard', 'Standard'], ['aggressive', 'Aggressive'], ['minimal', 'Minimal']].map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => applyReminderPreset(key)}
+                        className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                          reminderSettings.preset === key
+                            ? 'bg-blue-600 text-white'
+                            : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    {reminderSettings.preset === 'custom' && (
+                      <span className={`px-3 py-1.5 text-xs rounded-lg ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Custom</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Per-category grids */}
+                {[
+                  ['calendarEvents', 'Calendar Events'],
+                  ['calendarTasks', 'Calendar Tasks'],
+                  ['scheduledTasks', 'Scheduled Tasks'],
+                  ['recurringTasks', 'Recurring Tasks'],
+                ].map(([catKey, catLabel]) => (
+                  <div key={catKey}>
+                    <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{catLabel}</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        ['before15', '-15m'],
+                        ['before10', '-10m'],
+                        ['before5', '-5m'],
+                        ['atStart', 'Start'],
+                        ['atEnd', 'End'],
+                      ].map(([field, label]) => (
+                        <button
+                          key={field}
+                          onClick={() => updateCategoryReminder(catKey, field, !reminderSettings.categories[catKey]?.[field])}
+                          className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                            reminderSettings.categories[catKey]?.[field]
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} ${hoverBg}`
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* All-day tasks */}
+                <div>
+                  <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>All-Day Tasks</p>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={reminderSettings.categories.allDayTasks?.morningReminder ?? true}
+                        onChange={(e) => updateCategoryReminder('allDayTasks', 'morningReminder', e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowMorningTimePicker(true)}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                    >
+                      {reminderSettings.morningReminderTime}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={() => setShowRemindersSettings(false)}
-              className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
+              className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
             >
               Close
             </button>
           </div>
         </div>
+      )}
+
+      {showMorningTimePicker && (
+        <ClockTimePicker
+          value={reminderSettings.morningReminderTime}
+          onChange={(time) => setReminderSettings(prev => ({ ...prev, morningReminderTime: time }))}
+          onClose={() => setShowMorningTimePicker(false)}
+        />
       )}
 
       {/* Keyboard Shortcut Cheat Sheet */}
