@@ -510,6 +510,334 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   );
 };
 
+// Auto-backup IndexedDB wrapper
+const autoBackupDB = {
+  _db: null,
+  async open() {
+    if (this._db) return this._db;
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('dayglance-auto-backups', 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('backups')) {
+          const store = db.createObjectStore('backups', { keyPath: 'id' });
+          store.createIndex('timestamp', 'timestamp', { unique: false });
+          store.createIndex('frequency', 'frequency', { unique: false });
+        }
+      };
+      req.onsuccess = () => { this._db = req.result; resolve(req.result); };
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async saveBackup(frequency, data) {
+    const db = await this.open();
+    const timestamp = new Date().toISOString();
+    const id = `auto-${frequency}-${timestamp}`;
+    const record = { id, timestamp, frequency, data };
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readwrite');
+      tx.objectStore('backups').put(record);
+      tx.oncomplete = () => resolve(record);
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async listBackups(frequency) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readonly');
+      const store = tx.objectStore('backups');
+      const req = frequency
+        ? store.index('frequency').getAll(frequency)
+        : store.getAll();
+      req.onsuccess = () => resolve(req.result.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async getBackup(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readonly');
+      const req = tx.objectStore('backups').get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async deleteBackup(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readwrite');
+      tx.objectStore('backups').delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async pruneBackups(frequency, maxCount) {
+    const all = await this.listBackups(frequency);
+    if (all.length <= maxCount) return;
+    const toDelete = all.slice(maxCount);
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readwrite');
+      const store = tx.objectStore('backups');
+      toDelete.forEach(b => store.delete(b.id));
+      tx.oncomplete = () => resolve(toDelete.length);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+};
+
+// Auto-backup remote providers (separate from cloudSyncProviders which handles real-time sync)
+const autoBackupProviders = {
+  nextcloud: {
+    name: 'Nextcloud / WebDAV',
+    configFields: [
+      { key: 'nextcloudUrl', label: 'Nextcloud URL', type: 'url', placeholder: 'https://cloud.example.com' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx' }
+    ],
+    _getBackupDirUrl(config) {
+      return `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/backups/`;
+    },
+    _getAuthHeaders(config) {
+      return { 'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword) };
+    },
+    async uploadBackup(config, data) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `dayglance-backup-${timestamp}.json`;
+      const fileUrl = dirUrl + filename;
+      const body = JSON.stringify(data);
+
+      const doUpload = () =>
+        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body
+        });
+
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        // Create /dayglance/ then /dayglance/backups/
+        const parentDir = `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/`;
+        await fetch(`/api/webdav-proxy/?url=${parentDir}`, { method: 'MKCOL', headers: authHeaders });
+        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return filename;
+    },
+    async listBackups(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '1' }
+      });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error(`List failed: ${res.status}`);
+      const xml = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'application/xml');
+      const responses = doc.querySelectorAll('response');
+      const files = [];
+      responses.forEach(r => {
+        const href = r.querySelector('href')?.textContent || '';
+        const filename = decodeURIComponent(href.split('/').filter(Boolean).pop());
+        if (filename.startsWith('dayglance-backup-') && filename.endsWith('.json')) {
+          const lastModified = r.querySelector('getlastmodified')?.textContent;
+          files.push({ filename, lastModified: lastModified ? new Date(lastModified).toISOString() : null });
+        }
+      });
+      return files.sort((a, b) => (b.lastModified || '').localeCompare(a.lastModified || ''));
+    },
+    async downloadBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      return res.json();
+    },
+    async deleteBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
+    },
+    async testConnection(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '0' }
+      });
+      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
+      return { success: false, error: `Unexpected response: ${res.status}` };
+    }
+  }
+};
+
+// Auto-backup retention limits
+const AUTO_BACKUP_RETENTION = { hourly: 24, daily: 30, weekly: 12 };
+const AUTO_BACKUP_INTERVALS = { hourly: 3600, daily: 86400, weekly: 604800 };
+
+// Auto-Backup Settings Form (extracted to avoid hooks-in-conditional issues)
+const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrimary, textSecondary, borderClass, hoverBg }) => {
+  const [testResult, setTestResult] = useState(null);
+  const [testing, setTesting] = useState(false);
+
+  const localConfig = config.local;
+  const remoteConfig = config.remote;
+  const providerKey = remoteConfig.provider || 'nextcloud';
+  const provider = autoBackupProviders[providerKey];
+
+  const updateLocal = (updates) => setConfig(prev => ({ ...prev, local: { ...prev.local, ...updates } }));
+  const updateRemote = (updates) => setConfig(prev => ({ ...prev, remote: { ...prev.remote, ...updates } }));
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await provider.testConnection(remoteConfig);
+      setTestResult(result);
+    } catch (err) {
+      setTestResult({ success: false, error: err.message });
+    }
+    setTesting(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Local Backup Settings */}
+      <div>
+        <h4 className={`font-medium ${textPrimary} mb-3 flex items-center gap-2`}>
+          <Save size={16} />
+          Local Backups
+        </h4>
+        <div className="space-y-3 ml-1">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localConfig.enabled}
+              onChange={(e) => updateLocal({ enabled: e.target.checked })}
+              className="w-4 h-4 rounded"
+            />
+            <span className={textPrimary}>Enable automatic local backups</span>
+          </label>
+          {localConfig.enabled && (
+            <div className="ml-7">
+              <label className={`block text-sm ${textSecondary} mb-1`}>Frequency</label>
+              <select
+                value={localConfig.frequency}
+                onChange={(e) => updateLocal({ frequency: e.target.value })}
+                className={`px-3 py-1.5 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+              >
+                <option value="hourly">Hourly (keep 24)</option>
+                <option value="daily">Daily (keep 30)</option>
+                <option value="weekly">Weekly (keep 12)</option>
+              </select>
+              {status.local.lastBackup && (
+                <p className={`text-xs ${textSecondary} mt-1`}>
+                  Last backup: {new Date(status.local.lastBackup).toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Remote Backup Settings */}
+      <div>
+        <h4 className={`font-medium ${textPrimary} mb-3 flex items-center gap-2`}>
+          <Cloud size={16} />
+          Remote Backups
+        </h4>
+        <div className="space-y-3 ml-1">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={remoteConfig.enabled}
+              onChange={(e) => updateRemote({ enabled: e.target.checked })}
+              className="w-4 h-4 rounded"
+            />
+            <span className={textPrimary}>Enable automatic remote backups</span>
+          </label>
+          {remoteConfig.enabled && (
+            <div className="ml-7 space-y-3">
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-1`}>Provider</label>
+                <select
+                  value={providerKey}
+                  onChange={(e) => updateRemote({ provider: e.target.value })}
+                  className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                >
+                  {Object.entries(autoBackupProviders).map(([key, p]) => (
+                    <option key={key} value={key}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {provider.configFields.map(field => (
+                <div key={field.key}>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{field.label}</label>
+                  <input
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    value={remoteConfig[field.key] || ''}
+                    onChange={(e) => updateRemote({ [field.key]: e.target.value })}
+                    className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                  />
+                </div>
+              ))}
+
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-1`}>Frequency</label>
+                <select
+                  value={remoteConfig.frequency}
+                  onChange={(e) => updateRemote({ frequency: e.target.value })}
+                  className={`px-3 py-1.5 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                >
+                  <option value="hourly">Hourly (keep 24)</option>
+                  <option value="daily">Daily (keep 30)</option>
+                  <option value="weekly">Weekly (keep 12)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={testing || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
+                  className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
+                >
+                  {testing ? 'Testing...' : 'Test Connection'}
+                </button>
+                {testResult && (
+                  <span className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
+                    {testResult.success ? 'Connected!' : testResult.error}
+                  </span>
+                )}
+              </div>
+
+              {status.remote.lastBackup && (
+                <p className={`text-xs ${textSecondary}`}>
+                  Last backup: {new Date(status.remote.lastBackup).toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DayPlanner = () => {
   const visibleDays = useVisibleDays();
   const [darkMode, setDarkMode] = useState(() => {
@@ -702,6 +1030,27 @@ const DayPlanner = () => {
   const cloudSyncInProgressRef = useRef(false);
   const cloudSyncInitialDoneRef = useRef(false);
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
+
+  // Auto-Backup state
+  const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-auto-backup-config');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      local: { enabled: false, frequency: 'daily' },
+      remote: { enabled: false, frequency: 'daily', provider: 'nextcloud' }
+    };
+  });
+  const [autoBackupStatus, setAutoBackupStatus] = useState(() => ({
+    local: { lastBackup: localStorage.getItem('day-planner-auto-backup-local-last') || null, status: 'idle' },
+    remote: { lastBackup: localStorage.getItem('day-planner-auto-backup-remote-last') || null, status: 'idle' }
+  }));
+  const [showAutoBackupManager, setShowAutoBackupManager] = useState(false);
+  const [autoBackupManagerTab, setAutoBackupManagerTab] = useState('settings'); // 'settings' | 'history'
+  const [autoBackupHistory, setAutoBackupHistory] = useState({ local: [], remote: [] });
+  const [autoBackupRestoreConfirm, setAutoBackupRestoreConfirm] = useState(null); // { type: 'local'|'remote', id, filename, timestamp }
+  const autoBackupInProgressRef = useRef(false);
 
   // Undo/redo stacks (refs to avoid re-renders)
   const undoStackRef = useRef([]);
@@ -1600,6 +1949,46 @@ const DayPlanner = () => {
       localStorage.removeItem('day-planner-cloud-sync-config');
     }
   }, [cloudSyncConfig]);
+
+  // Persist auto-backup config
+  useEffect(() => {
+    localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(autoBackupConfig));
+  }, [autoBackupConfig]);
+
+  // Auto-backup timer
+  useEffect(() => {
+    if (!dataLoaded) return;
+    const localEnabled = autoBackupConfig.local.enabled;
+    const remoteEnabled = autoBackupConfig.remote.enabled;
+    if (!localEnabled && !remoteEnabled) return;
+
+    const checkAndBackup = () => {
+      const now = Date.now() / 1000;
+
+      if (localEnabled) {
+        const lastLocal = autoBackupStatus.local.lastBackup;
+        const elapsed = lastLocal ? now - new Date(lastLocal).getTime() / 1000 : Infinity;
+        if (elapsed >= AUTO_BACKUP_INTERVALS[autoBackupConfig.local.frequency]) {
+          performLocalBackup(autoBackupConfig.local.frequency);
+        }
+      }
+
+      if (remoteEnabled) {
+        const lastRemote = autoBackupStatus.remote.lastBackup;
+        const elapsed = lastRemote ? now - new Date(lastRemote).getTime() / 1000 : Infinity;
+        if (elapsed >= AUTO_BACKUP_INTERVALS[autoBackupConfig.remote.frequency]) {
+          performRemoteBackup(autoBackupConfig.remote.frequency);
+        }
+      }
+    };
+
+    // Check immediately on enable/frequency change
+    checkAndBackup();
+
+    // Then check every 60 seconds
+    const timer = setInterval(checkAndBackup, 60 * 1000);
+    return () => clearInterval(timer);
+  }, [dataLoaded, autoBackupConfig.local.enabled, autoBackupConfig.local.frequency, autoBackupConfig.remote.enabled, autoBackupConfig.remote.frequency]);
 
   // Auto-clear today's routines on day rollover
   useEffect(() => {
@@ -3579,6 +3968,12 @@ const DayPlanner = () => {
           setShowMonthView(false);
           return;
         }
+        if (showAutoBackupManager) {
+          e.preventDefault();
+          setShowAutoBackupManager(false);
+          setAutoBackupRestoreConfirm(null);
+          return;
+        }
         if (showBackupMenu) {
           e.preventDefault();
           setShowBackupMenu(false);
@@ -3765,7 +4160,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
@@ -5517,6 +5912,132 @@ const DayPlanner = () => {
     a.download = `dayglance-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Auto-backup: build payload (reuses buildSyncPayload data format)
+  const buildAutoBackupPayload = () => ({
+    type: 'auto-backup',
+    version: 1,
+    timestamp: new Date().toISOString(),
+    data: {
+      tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
+      unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
+      recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
+      darkMode: JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'),
+      syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
+      taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
+      completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
+      recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
+      routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
+      minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
+      cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
+      reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null')
+    }
+  });
+
+  const performLocalBackup = async (frequency) => {
+    try {
+      setAutoBackupStatus(prev => ({ ...prev, local: { ...prev.local, status: 'backing-up' } }));
+      const payload = buildAutoBackupPayload();
+      await autoBackupDB.saveBackup(frequency, payload);
+      await autoBackupDB.pruneBackups(frequency, AUTO_BACKUP_RETENTION[frequency]);
+      const now = new Date().toISOString();
+      localStorage.setItem('day-planner-auto-backup-local-last', now);
+      setAutoBackupStatus(prev => ({ ...prev, local: { lastBackup: now, status: 'success' } }));
+      setTimeout(() => setAutoBackupStatus(prev => ({
+        ...prev, local: { ...prev.local, status: prev.local.status === 'success' ? 'idle' : prev.local.status }
+      })), 3000);
+    } catch (err) {
+      console.error('Local auto-backup failed:', err);
+      setAutoBackupStatus(prev => ({ ...prev, local: { ...prev.local, status: 'error' } }));
+    }
+  };
+
+  const performRemoteBackup = async (frequency) => {
+    if (autoBackupInProgressRef.current) return;
+    autoBackupInProgressRef.current = true;
+    try {
+      setAutoBackupStatus(prev => ({ ...prev, remote: { ...prev.remote, status: 'backing-up' } }));
+      const provider = autoBackupProviders[autoBackupConfig.remote.provider];
+      if (!provider) throw new Error('No provider configured');
+      const payload = buildAutoBackupPayload();
+      await provider.uploadBackup(autoBackupConfig.remote, payload);
+      // Prune remote backups
+      const remoteFiles = await provider.listBackups(autoBackupConfig.remote);
+      const maxKeep = AUTO_BACKUP_RETENTION[frequency];
+      if (remoteFiles.length > maxKeep) {
+        const toDelete = remoteFiles.slice(maxKeep);
+        for (const f of toDelete) {
+          await provider.deleteBackup(autoBackupConfig.remote, f.filename);
+        }
+      }
+      const now = new Date().toISOString();
+      localStorage.setItem('day-planner-auto-backup-remote-last', now);
+      setAutoBackupStatus(prev => ({ ...prev, remote: { lastBackup: now, status: 'success' } }));
+      setTimeout(() => setAutoBackupStatus(prev => ({
+        ...prev, remote: { ...prev.remote, status: prev.remote.status === 'success' ? 'idle' : prev.remote.status }
+      })), 3000);
+    } catch (err) {
+      console.error('Remote auto-backup failed:', err);
+      setAutoBackupStatus(prev => ({ ...prev, remote: { ...prev.remote, status: 'error' } }));
+    } finally {
+      autoBackupInProgressRef.current = false;
+    }
+  };
+
+  const restoreFromAutoBackup = async (backupId) => {
+    try {
+      const record = await autoBackupDB.getBackup(backupId);
+      if (!record?.data?.data) throw new Error('Invalid backup record');
+      applyRemoteData(record.data.data);
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to restore backup: ' + err.message);
+    }
+  };
+
+  const restoreFromRemoteBackup = async (filename) => {
+    try {
+      const provider = autoBackupProviders[autoBackupConfig.remote.provider];
+      if (!provider) throw new Error('No provider configured');
+      const backup = await provider.downloadBackup(autoBackupConfig.remote, filename);
+      if (!backup?.data) throw new Error('Invalid backup file');
+      applyRemoteData(backup.data);
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to restore remote backup: ' + err.message);
+    }
+  };
+
+  const loadAutoBackupHistory = async () => {
+    try {
+      const localBackups = await autoBackupDB.listBackups();
+      let remoteBackups = [];
+      if (autoBackupConfig.remote.enabled) {
+        try {
+          const provider = autoBackupProviders[autoBackupConfig.remote.provider];
+          if (provider) remoteBackups = await provider.listBackups(autoBackupConfig.remote);
+        } catch (err) {
+          console.error('Failed to list remote backups:', err);
+        }
+      }
+      setAutoBackupHistory({ local: localBackups, remote: remoteBackups });
+    } catch (err) {
+      console.error('Failed to load backup history:', err);
+    }
+  };
+
+  const deleteLocalAutoBackup = async (id) => {
+    await autoBackupDB.deleteBackup(id);
+    setAutoBackupHistory(prev => ({ ...prev, local: prev.local.filter(b => b.id !== id) }));
+  };
+
+  const deleteRemoteAutoBackup = async (filename) => {
+    const provider = autoBackupProviders[autoBackupConfig.remote.provider];
+    if (provider) {
+      await provider.deleteBackup(autoBackupConfig.remote, filename);
+      setAutoBackupHistory(prev => ({ ...prev, remote: prev.remote.filter(b => b.filename !== filename) }));
+    }
   };
 
   // Handle backup file selection
@@ -9704,6 +10225,19 @@ const DayPlanner = () => {
                 <div className={`text-sm ${textSecondary}`}>Load data from a backup file</div>
                 <input type="file" accept=".json" onChange={handleBackupFileSelect} className="hidden" />
               </label>
+              <button
+                onClick={() => { setShowBackupMenu(false); setAutoBackupManagerTab('settings'); setShowAutoBackupManager(true); }}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium flex items-center gap-2">
+                  <Clock size={16} />
+                  Auto-Backup
+                  {(autoBackupConfig.local.enabled || autoBackupConfig.remote.enabled) && (
+                    <span className="ml-auto text-xs px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">Active</span>
+                  )}
+                </div>
+                <div className={`text-sm ${textSecondary}`}>Scheduled automatic backups</div>
+              </button>
             </div>
             <div className="flex justify-end mt-4">
               <button
@@ -9748,6 +10282,182 @@ const DayPlanner = () => {
               >
                 Restore
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Backup Manager Modal */}
+      {showAutoBackupManager && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAutoBackupManager(false); setAutoBackupRestoreConfirm(null); }}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl ${borderClass} border max-w-lg w-full mx-4 max-h-[80vh] flex flex-col`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 pb-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                  <Clock size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className={`text-lg font-semibold ${textPrimary}`}>Auto-Backup</h3>
+                <button onClick={() => { setShowAutoBackupManager(false); setAutoBackupRestoreConfirm(null); }} className={`ml-auto p-1 rounded ${hoverBg}`}>
+                  <X size={18} className={textSecondary} />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className={`flex border-b ${borderClass}`}>
+                <button
+                  onClick={() => setAutoBackupManagerTab('settings')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    autoBackupManagerTab === 'settings'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : `border-transparent ${textSecondary} ${hoverBg}`
+                  }`}
+                >
+                  Settings
+                </button>
+                <button
+                  onClick={() => { setAutoBackupManagerTab('history'); loadAutoBackupHistory(); }}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    autoBackupManagerTab === 'history'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : `border-transparent ${textSecondary} ${hoverBg}`
+                  }`}
+                >
+                  History
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 pb-6 overflow-y-auto flex-1">
+              {autoBackupManagerTab === 'settings' ? (
+                <AutoBackupSettingsForm
+                  config={autoBackupConfig}
+                  setConfig={setAutoBackupConfig}
+                  status={autoBackupStatus}
+                  darkMode={darkMode}
+                  textPrimary={textPrimary}
+                  textSecondary={textSecondary}
+                  borderClass={borderClass}
+                  hoverBg={hoverBg}
+                />
+              ) : (
+                <div className="space-y-6">
+                  {/* Restore confirmation */}
+                  {autoBackupRestoreConfirm && (
+                    <div className={`p-4 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-900/20' : 'bg-amber-50'}`}>
+                      <p className={`text-sm ${textPrimary} mb-3`}>
+                        Restore from this backup? All current data will be replaced and the page will reload.
+                      </p>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => setAutoBackupRestoreConfirm(null)}
+                          className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (autoBackupRestoreConfirm.type === 'local') {
+                              restoreFromAutoBackup(autoBackupRestoreConfirm.id);
+                            } else {
+                              restoreFromRemoteBackup(autoBackupRestoreConfirm.filename);
+                            }
+                          }}
+                          className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Local Backups */}
+                  <div>
+                    <h4 className={`font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
+                      <Save size={14} />
+                      Local Backups ({autoBackupHistory.local.length})
+                    </h4>
+                    {autoBackupHistory.local.length === 0 ? (
+                      <p className={`text-sm ${textSecondary}`}>No local backups yet.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {autoBackupHistory.local.map(b => (
+                          <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-sm ${textPrimary} truncate`}>
+                                {new Date(b.timestamp).toLocaleString()}
+                              </p>
+                              <p className={`text-xs ${textSecondary}`}>{b.frequency}</p>
+                            </div>
+                            <div className="flex items-center gap-1 ml-2 shrink-0">
+                              <button
+                                onClick={() => setAutoBackupRestoreConfirm({ type: 'local', id: b.id, timestamp: b.timestamp })}
+                                className={`p-1.5 rounded ${hoverBg}`}
+                                title="Restore"
+                              >
+                                <Undo2 size={14} className={textSecondary} />
+                              </button>
+                              <button
+                                onClick={() => deleteLocalAutoBackup(b.id)}
+                                className={`p-1.5 rounded ${hoverBg}`}
+                                title="Delete"
+                              >
+                                <Trash2 size={14} className={textSecondary} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remote Backups */}
+                  {autoBackupConfig.remote.enabled && (
+                    <div>
+                      <h4 className={`font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
+                        <Cloud size={14} />
+                        Remote Backups ({autoBackupHistory.remote.length})
+                      </h4>
+                      {autoBackupHistory.remote.length === 0 ? (
+                        <p className={`text-sm ${textSecondary}`}>No remote backups yet.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {autoBackupHistory.remote.map(b => (
+                            <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-sm ${textPrimary} truncate`}>
+                                  {b.lastModified ? new Date(b.lastModified).toLocaleString() : b.filename}
+                                </p>
+                                <p className={`text-xs ${textSecondary} truncate`}>{b.filename}</p>
+                              </div>
+                              <div className="flex items-center gap-1 ml-2 shrink-0">
+                                <button
+                                  onClick={() => setAutoBackupRestoreConfirm({ type: 'remote', filename: b.filename, timestamp: b.lastModified })}
+                                  className={`p-1.5 rounded ${hoverBg}`}
+                                  title="Restore"
+                                >
+                                  <Undo2 size={14} className={textSecondary} />
+                                </button>
+                                <button
+                                  onClick={() => deleteRemoteAutoBackup(b.filename)}
+                                  className={`p-1.5 rounded ${hoverBg}`}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={14} className={textSecondary} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
