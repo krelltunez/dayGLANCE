@@ -10868,7 +10868,7 @@ const DayPlanner = () => {
                       </button>
                     ))}
                     {reminderSettings.preset === 'custom' && (
-                      <span className={`px-3 py-1.5 text-xs rounded-lg ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>Custom</span>
+                      <span className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white">Custom</span>
                     )}
                   </div>
                 </div>
