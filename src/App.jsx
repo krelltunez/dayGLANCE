@@ -1760,11 +1760,9 @@ const DayPlanner = () => {
   useEffect(() => { recycleBinRef.current = recycleBin; }, [recycleBin]);
   useEffect(() => { recurringTasksRef.current = recurringTasks; }, [recurringTasks]);
 
-  // Persist darkMode to localStorage and update iOS status bar / theme-color
+  // Persist darkMode to localStorage and update theme-color meta tag
   useEffect(() => {
     localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
-    const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (statusBarMeta) statusBarMeta.setAttribute('content', darkMode ? 'black-translucent' : 'default');
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#2563eb');
   }, [darkMode]);
