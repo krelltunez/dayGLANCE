@@ -689,7 +689,7 @@ const AUTO_BACKUP_RETENTION = { hourly: 24, daily: 30, weekly: 12 };
 const AUTO_BACKUP_INTERVALS = { hourly: 3600, daily: 86400, weekly: 604800 };
 
 // Auto-Backup Settings Form (extracted to avoid hooks-in-conditional issues)
-const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrimary, textSecondary, borderClass, hoverBg }) => {
+const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrimary, textSecondary, borderClass, hoverBg, onRemoteBackupNow }) => {
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
 
@@ -810,13 +810,20 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleTest}
                   disabled={testing || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
                   className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
                   {testing ? 'Testing...' : 'Test Connection'}
+                </button>
+                <button
+                  onClick={() => onRemoteBackupNow(remoteConfig.frequency)}
+                  disabled={status.remote.status === 'backing-up' || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
+                  className={`px-3 py-1.5 ${darkMode ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg transition-colors disabled:opacity-50 text-sm`}
+                >
+                  {status.remote.status === 'backing-up' ? 'Backing up...' : 'Backup Now'}
                 </button>
                 {testResult && (
                   <span className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
@@ -10343,6 +10350,7 @@ const DayPlanner = () => {
                   textSecondary={textSecondary}
                   borderClass={borderClass}
                   hoverBg={hoverBg}
+                  onRemoteBackupNow={performRemoteBackup}
                 />
               ) : (
                 <div className="space-y-6">
@@ -12384,7 +12392,7 @@ const DayPlanner = () => {
                       {openDays.length} open day{openDays.length !== 1 ? 's' : ''} ahead
                     </div>
                     <p className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                      {openDayNames.join(', ')} \u2014 great for deep work or planning
+                      {openDayNames.join(', ')} — great for deep work or planning
                     </p>
                   </div>
                 )}
