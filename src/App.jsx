@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -718,11 +718,7 @@ const DayPlanner = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showRemindersSettings, setShowRemindersSettings] = useState(false);
   const [reminderSettings, setReminderSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem('day-planner-reminder-settings');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {
+    const defaults = {
       enabled: false,
       inAppToasts: true,
       browserNotifications: false,
@@ -734,8 +730,18 @@ const DayPlanner = () => {
         allDayTasks:     { morningReminder: true },
         recurringTasks:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
       },
-      preset: 'standard'
+      preset: 'standard',
+      weeklyReview: { enabled: true, day: 0, time: '19:00' }
     };
+    try {
+      const saved = localStorage.getItem('day-planner-reminder-settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.weeklyReview) parsed.weeklyReview = defaults.weeklyReview;
+        return parsed;
+      }
+    } catch {}
+    return defaults;
   });
   const [activeReminders, setActiveReminders] = useState([]);
   const [showMorningTimePicker, setShowMorningTimePicker] = useState(false);
@@ -748,6 +754,15 @@ const DayPlanner = () => {
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
+
+  // Weekly Review modal
+  const [showWeeklyReview, setShowWeeklyReview] = useState(false);
+  const [showWeeklyReviewTimePicker, setShowWeeklyReviewTimePicker] = useState(false);
+  const [showWeeklyReviewReminder, setShowWeeklyReviewReminder] = useState(false);
+  const lastWeeklyReviewFiredRef = useRef(
+    localStorage.getItem('day-planner-weekly-review-fired') || ''
+  );
+  const weeklyReviewDismissedRef = useRef('');
 
   // Spotlight search
   const [showSpotlight, setShowSpotlight] = useState(false);
@@ -1455,11 +1470,17 @@ const DayPlanner = () => {
   }, [syncUrl, taskCalendarUrl, onboardingProgress.hasSetupSync]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    // Align first tick to the next minute boundary, then tick every 60s
+    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000 - new Date().getMilliseconds();
+    let interval;
+    const timeout = setTimeout(() => {
       setCurrentTime(new Date());
-    }, 60000);
+      interval = setInterval(() => {
+        setCurrentTime(new Date());
+      }, 60000);
+    }, msUntilNextMinute);
 
-    return () => clearInterval(timer);
+    return () => { clearTimeout(timeout); clearInterval(interval); };
   }, []);
 
   // Catch up on missed reminders when tab becomes visible
@@ -2707,7 +2728,11 @@ const DayPlanner = () => {
   const parseRecurringId = (id) => {
     if (typeof id !== 'string' || !id.startsWith('recurring-')) return null;
     const parts = id.split('-');
-    return { templateId: Number(parts[1]), dateStr: parts.slice(2).join('-') };
+    // Date is always the last 3 segments (YYYY-MM-DD), template ID is everything between
+    const dateStr = parts.slice(-3).join('-');
+    const rawTemplateId = parts.slice(1, -3).join('-');
+    const templateId = /^\d+$/.test(rawTemplateId) ? Number(rawTemplateId) : rawTemplateId;
+    return { templateId, dateStr };
   };
 
   const getTaskCategory = (task) => {
@@ -2804,6 +2829,8 @@ const DayPlanner = () => {
     setTasks(tasks.map(t =>
       t.id === id ? { ...t, date: nextDay.toISOString().split('T')[0] } : t
     ));
+
+    playUISound('slide');
 
     // Track for onboarding
     if (!onboardingProgress.hasUsedActionButtons) {
@@ -3567,6 +3594,11 @@ const DayPlanner = () => {
           setShowRemindersSettings(false);
           return;
         }
+        if (showWeeklyReview) {
+          e.preventDefault();
+          setShowWeeklyReview(false);
+          return;
+        }
         if (showAddTask) {
           e.preventDefault();
           if (showRecurrencePicker) {
@@ -3624,7 +3656,7 @@ const DayPlanner = () => {
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview) {
         return;
       }
 
@@ -3733,7 +3765,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showSpotlight, showSettings, showRemindersSettings]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview]);
 
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
@@ -3817,6 +3849,7 @@ const DayPlanner = () => {
       }
       
       setRecycleBin(recycleBin.filter(t => t.id !== id));
+      playUISound('restore');
     }
   };
 
@@ -4234,6 +4267,20 @@ const DayPlanner = () => {
             osc.start(now + i * 0.07);
             osc.stop(now + i * 0.07 + 0.12);
           });
+          break;
+        }
+        case 'restore': {
+          // Quick ascending pop: low → high, like something bouncing back up
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.15);
           break;
         }
         case 'undo': {
@@ -6455,6 +6502,38 @@ const DayPlanner = () => {
 
   // Reminder notification engine
   useEffect(() => {
+    // Weekly review notification (independent of main reminder toggle)
+    const wr = reminderSettings.weeklyReview;
+    if (wr?.enabled) {
+      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+      const [wrH, wrM] = wr.time.split(':').map(Number);
+      const wrMin = wrH * 60 + wrM;
+      const endMin = 23 * 60 + 55; // 11:55 PM (before daily auto-refresh)
+      if (currentTime.getDay() === wr.day && nowMin >= wrMin && nowMin < endMin) {
+        // Compute ISO week string to prevent re-firing sound/notification
+        const d = new Date(currentTime);
+        d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+        const isoWeek = `${d.getFullYear()}-W${String(Math.ceil((((d - new Date(d.getFullYear(), 0, 4)) / 86400000) + 1) / 7)).padStart(2, '0')}`;
+        // Show persistent reminder for the rest of the day (unless dismissed this week)
+        if (weeklyReviewDismissedRef.current !== isoWeek) {
+          setShowWeeklyReviewReminder(true);
+        }
+        // Play sound + browser notification only on initial fire
+        if (lastWeeklyReviewFiredRef.current !== isoWeek) {
+          lastWeeklyReviewFiredRef.current = isoWeek;
+          localStorage.setItem('day-planner-weekly-review-fired', isoWeek);
+          playUISound('reminder');
+          if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            try { new Notification('dayGLANCE', { body: 'Time for your weekly review!', icon: '/favicon.png' }); } catch {}
+          }
+        }
+      } else {
+        setShowWeeklyReviewReminder(false);
+      }
+    } else {
+      setShowWeeklyReviewReminder(false);
+    }
+
     if (!reminderSettings.enabled) return;
     const todayStr = dateToString(currentTime);
     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -6518,12 +6597,17 @@ const DayPlanner = () => {
     }
   }, [currentTime, reminderSettings, tasks, expandedRecurringTasks]);
 
-  // Auto-dismiss reminders after 5 minutes
+  // Auto-dismiss reminders based on type
   useEffect(() => {
     if (activeReminders.length === 0) return;
+    const dismissMs = { before15: 870000, before10: 570000, before5: 270000, start: 600000, end: 300000 };
     const timer = setInterval(() => {
       const now = Date.now();
-      setActiveReminders(prev => prev.filter(r => now - r.firedAt < 5 * 60 * 1000));
+      setActiveReminders(prev => prev.filter(r => {
+        const ttl = dismissMs[r.type];
+        if (!ttl) return true; // morning (all-day) — keep until manually dismissed
+        return now - r.firedAt < ttl;
+      }));
     }, 30000);
     return () => clearInterval(timer);
   }, [activeReminders.length > 0]);
@@ -7074,12 +7158,11 @@ const DayPlanner = () => {
                     <Sparkles size={24} />
                   </button>
                   <button
-                    onClick={enterFocusMode}
-                    className={`w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg transition-colors ${focusModeAvailable ? 'hover:bg-blue-700 cursor-pointer' : 'opacity-50 cursor-default'}`}
-                    title={focusModeAvailable ? "Focus Mode" : "Focus Mode (need 45+ min block in progress)"}
-                    disabled={!focusModeAvailable}
+                    onClick={() => setShowWeeklyReview(true)}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Weekly Review"
                   >
-                    <BrainCircuit size={24} />
+                    <BarChart3 size={24} />
                   </button>
                   <button
                     onClick={() => setSidebarCollapsed(false)}
@@ -7174,14 +7257,13 @@ const DayPlanner = () => {
                   >
                     <Sparkles size={24} />
                   </button>
-                  {/* Focus Mode */}
+                  {/* Weekly Review */}
                   <button
-                    onClick={enterFocusMode}
-                    className={`w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg transition-colors ${focusModeAvailable ? 'hover:bg-blue-700 cursor-pointer' : 'opacity-50 cursor-default'}`}
-                    title={focusModeAvailable ? "Focus Mode" : "Focus Mode (need 45+ min block in progress)"}
-                    disabled={!focusModeAvailable}
+                    onClick={() => setShowWeeklyReview(true)}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Weekly Review"
                   >
-                    <BrainCircuit size={24} />
+                    <BarChart3 size={24} />
                   </button>
                   {/* Collapse sidebar */}
                   <button
@@ -7440,8 +7522,17 @@ const DayPlanner = () => {
                               {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
                               {renderTitleWithoutTags(task.title)}
                             </div>
-                            <div className={`text-xs ${textSecondary}`}>
+                            <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
                               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                              {relativeLabel === 'In Progress' && focusModeAvailable && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                  className="ml-1 p-0.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                  title="Enter Focus Mode"
+                                >
+                                  <BrainCircuit size={14} className="animate-pulse" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -9716,9 +9807,44 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Weekly Review Reminder Toast */}
+      {showWeeklyReviewReminder && !showWeeklyReview && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm">
+          <div className={`${cardBg} rounded-lg shadow-xl ${borderClass} border p-3`}>
+            <div className="flex items-start gap-2">
+              <BarChart3 size={16} className="text-purple-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${textPrimary}`}>Weekly Review</p>
+                <p className={`text-xs ${textSecondary}`}>Time for your weekly review!</p>
+              </div>
+              <button
+                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); }}
+                className={`${textSecondary} hover:${textPrimary} flex-shrink-0`}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <button
+                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReview(true); setShowWeeklyReviewReminder(false); }}
+                className="px-2.5 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+              >
+                Open Review
+              </button>
+              <button
+                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); }}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reminder Toasts */}
       {activeReminders.length > 0 && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-2 max-w-sm">
+        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 max-w-sm ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-28' : 'bottom-6'}`}>
           {activeReminders.slice(0, 5).map((reminder) => (
             <div
               key={reminder.id}
@@ -10185,7 +10311,7 @@ const DayPlanner = () => {
                   <img
                     src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
                     alt="dayGLANCE"
-                    className="h-16"
+                    className="h-[4.5rem]"
                   />
                   <div>
                     <div className={`text-lg font-bold ${textPrimary}`}>
@@ -10981,6 +11107,60 @@ const DayPlanner = () => {
               </div>
             )}
 
+            {/* Weekly Review */}
+            <div className={`border-t ${borderClass} mt-4 pt-4`}>
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 size={16} className="text-purple-500" />
+                <span className={`text-sm font-semibold ${textPrimary}`}>Weekly Review</span>
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer mb-3">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={reminderSettings.weeklyReview?.enabled ?? true}
+                    onChange={(e) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, enabled: e.target.checked } }))}
+                    className="sr-only"
+                  />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.weeklyReview?.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.weeklyReview?.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </div>
+                </div>
+                <span className={`text-sm ${textPrimary}`}>Notify me for weekly review</span>
+              </label>
+              {reminderSettings.weeklyReview?.enabled && (
+                <div className="space-y-3 ml-1">
+                  <div>
+                    <p className={`text-xs ${textSecondary} mb-1.5`}>Day</p>
+                    <div className="flex gap-1">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, i) => (
+                        <button
+                          key={label}
+                          onClick={() => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, day: i } }))}
+                          className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                            reminderSettings.weeklyReview.day === i
+                              ? 'bg-blue-600 text-white'
+                              : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className={`text-xs ${textSecondary} mb-1.5`}>Time</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowWeeklyReviewTimePicker(true)}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                    >
+                      {reminderSettings.weeklyReview.time}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={() => setShowRemindersSettings(false)}
               className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
@@ -10996,6 +11176,14 @@ const DayPlanner = () => {
           value={reminderSettings.morningReminderTime}
           onChange={(time) => setReminderSettings(prev => ({ ...prev, morningReminderTime: time }))}
           onClose={() => setShowMorningTimePicker(false)}
+        />
+      )}
+
+      {showWeeklyReviewTimePicker && (
+        <ClockTimePicker
+          value={reminderSettings.weeklyReview?.time || '19:00'}
+          onChange={(time) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, time } }))}
+          onClose={() => setShowWeeklyReviewTimePicker(false)}
         />
       )}
 
@@ -11160,6 +11348,327 @@ const DayPlanner = () => {
           </div>
         </div>
       )}
+
+      {/* Weekly Review Modal */}
+      {showWeeklyReview && (() => {
+        // Compute rolling 7-day boundaries
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Past 7 days: 6 days ago through today
+        const pastStart = new Date(today);
+        pastStart.setDate(pastStart.getDate() - 6);
+
+        // Next 7 days: tomorrow through 7 days from now
+        const nextStart = new Date(today);
+        nextStart.setDate(nextStart.getDate() + 1);
+        const nextEnd = new Date(today);
+        nextEnd.setDate(nextEnd.getDate() + 7);
+
+        const pastWeekDates = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(pastStart);
+          d.setDate(d.getDate() + i);
+          pastWeekDates.push(dateToString(d));
+        }
+        const nextWeekDates = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(nextStart);
+          d.setDate(d.getDate() + i);
+          nextWeekDates.push(dateToString(d));
+        }
+
+        const pastStartStr = pastWeekDates[0];
+        const pastEndStr = pastWeekDates[6];
+        const nextStartStr = nextWeekDates[0];
+        const nextEndStr = nextWeekDates[6];
+
+        // Past week stats - regular tasks
+        const pastRegular = tasks.filter(t => !t.imported && pastWeekDates.includes(t.date));
+        const pastRegularCompleted = pastRegular.filter(t => t.completed);
+
+        // Past week stats - recurring tasks
+        let pastRecurringScheduled = 0;
+        let pastRecurringCompleted = 0;
+        const pastRecurringIncomplete = [];
+        recurringTasks.forEach(t => {
+          const occurrences = getOccurrencesInRange(t, pastStartStr, pastEndStr);
+          pastRecurringScheduled += occurrences.length;
+          occurrences.forEach(ds => {
+            const completed = (t.completedDates || []).includes(ds);
+            if (completed) {
+              pastRecurringCompleted++;
+            } else {
+              pastRecurringIncomplete.push({
+                id: `recurring-${t.id}-${ds}`,
+                title: t.title,
+                date: ds,
+                startTime: t.startTime,
+                color: t.color,
+                duration: t.duration || 0,
+                isRecurring: true,
+              });
+            }
+          });
+        });
+
+        const pastScheduled = pastRegular.length + pastRecurringScheduled;
+        const pastCompleted = pastRegularCompleted.length + pastRecurringCompleted;
+        const pastCompletionRate = pastScheduled > 0 ? Math.round((pastCompleted / pastScheduled) * 100) : 0;
+
+        // Time stats
+        const pastTimeSpent = pastRegularCompleted.reduce((sum, t) => sum + (t.duration || 0), 0)
+          + recurringTasks.reduce((sum, t) => {
+            const occs = getOccurrencesInRange(t, pastStartStr, pastEndStr);
+            return sum + occs.filter(ds => (t.completedDates || []).includes(ds)).length * (t.duration || 0);
+          }, 0);
+        const pastTimePlanned = pastRegular.reduce((sum, t) => sum + (t.duration || 0), 0)
+          + recurringTasks.reduce((sum, t) => {
+            return sum + getOccurrencesInRange(t, pastStartStr, pastEndStr).length * (t.duration || 0);
+          }, 0);
+        const pastFocusMinutes = pastRegularCompleted.filter(t => t.tags && t.tags.includes('focus')).reduce((sum, t) => sum + (t.duration || 0), 0);
+
+        // Best day
+        const dayCompletions = {};
+        pastRegularCompleted.forEach(t => {
+          dayCompletions[t.date] = (dayCompletions[t.date] || 0) + 1;
+        });
+        recurringTasks.forEach(t => {
+          const occs = getOccurrencesInRange(t, pastStartStr, pastEndStr);
+          occs.forEach(ds => {
+            if ((t.completedDates || []).includes(ds)) {
+              dayCompletions[ds] = (dayCompletions[ds] || 0) + 1;
+            }
+          });
+        });
+        let bestDay = null;
+        let bestDayCount = 0;
+        Object.entries(dayCompletions).forEach(([ds, count]) => {
+          if (count > bestDayCount) {
+            bestDay = ds;
+            bestDayCount = count;
+          }
+        });
+        const bestDayName = bestDay ? new Date(bestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : null;
+
+        // Incomplete list
+        const pastIncomplete = [
+          ...pastRegular.filter(t => !t.completed).map(t => ({ ...t, isRecurring: false })),
+          ...pastRecurringIncomplete,
+        ].sort((a, b) => a.date.localeCompare(b.date));
+
+        // Next week stats - regular tasks
+        const nextRegular = tasks.filter(t => !t.imported && nextWeekDates.includes(t.date));
+        const nextImported = tasks.filter(t => t.imported && nextWeekDates.includes(t.date));
+
+        let nextRecurringCount = 0;
+        let nextRecurringMinutes = 0;
+        recurringTasks.forEach(t => {
+          const occs = getOccurrencesInRange(t, nextStartStr, nextEndStr);
+          nextRecurringCount += occs.length;
+          nextRecurringMinutes += occs.length * (t.duration || 0);
+        });
+
+        const nextScheduled = nextRegular.length + nextRecurringCount;
+        const nextPlannedMinutes = nextRegular.reduce((sum, t) => sum + (t.duration || 0), 0) + nextRecurringMinutes;
+
+        // Day load map
+        const dayLoad = {};
+        nextWeekDates.forEach(ds => { dayLoad[ds] = { count: 0, totalMinutes: 0 }; });
+        nextRegular.forEach(t => {
+          if (dayLoad[t.date]) {
+            dayLoad[t.date].count++;
+            dayLoad[t.date].totalMinutes += (t.duration || 0);
+          }
+        });
+        nextImported.forEach(t => {
+          if (dayLoad[t.date]) {
+            dayLoad[t.date].count++;
+            dayLoad[t.date].totalMinutes += (t.duration || 0);
+          }
+        });
+        recurringTasks.forEach(t => {
+          const occs = getOccurrencesInRange(t, nextStartStr, nextEndStr);
+          occs.forEach(ds => {
+            if (dayLoad[ds]) {
+              dayLoad[ds].count++;
+              dayLoad[ds].totalMinutes += (t.duration || 0);
+            }
+          });
+        });
+
+        // Busiest day
+        let busiestDay = null;
+        let busiestMinutes = 0;
+        Object.entries(dayLoad).forEach(([ds, load]) => {
+          if (load.totalMinutes > busiestMinutes) {
+            busiestDay = ds;
+            busiestMinutes = load.totalMinutes;
+          }
+        });
+        const busiestDayName = busiestDay ? new Date(busiestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : null;
+
+        // Open days (< 60 min of commitments)
+        const openDays = nextWeekDates.filter(ds => dayLoad[ds].totalMinutes < 60);
+        const openDayNames = openDays.map(ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }));
+
+        // Format date range
+        const formatRange = (start, end) => {
+          const s = new Date(start + 'T12:00:00');
+          const e = new Date(end + 'T12:00:00');
+          const sMonth = s.toLocaleDateString('en-US', { month: 'short' });
+          const eMonth = e.toLocaleDateString('en-US', { month: 'short' });
+          if (sMonth === eMonth) {
+            return `${sMonth} ${s.getDate()} \u2014 ${e.getDate()}, ${s.getFullYear()}`;
+          }
+          return `${sMonth} ${s.getDate()} \u2014 ${eMonth} ${e.getDate()}, ${e.getFullYear()}`;
+        };
+
+        const formatMinutes = (min) => {
+          const h = Math.floor(min / 60);
+          const m = min % 60;
+          if (h === 0) return `${m}m`;
+          if (m === 0) return `${h}h`;
+          return `${h}h ${m}m`;
+        };
+
+        const StatCard = ({ value, label, icon }) => (
+          <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-lg p-3`}>
+            <div className={`text-xl font-bold ${textPrimary} flex items-center gap-1.5`}>
+              {icon}
+              {value}
+            </div>
+            <div className={`text-xs ${textSecondary} mt-0.5`}>{label}</div>
+          </div>
+        );
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWeeklyReview(false)}>
+            <div
+              className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border max-w-2xl w-full mx-4 flex flex-col`}
+              style={{ maxHeight: '90vh' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="overflow-y-auto p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                      alt="dayGLANCE"
+                      className="h-[4.5rem]"
+                    />
+                    <div>
+                      <h2 className={`text-xl font-bold ${textPrimary}`}>Weekly Review</h2>
+                      <p className={`text-sm ${textSecondary}`}>{formatRange(pastStartStr, pastEndStr)}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowWeeklyReview(false)} className={`${textSecondary} hover:${textPrimary}`}>
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* LAST WEEK */}
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-3`}>Past 7 Days</h3>
+
+                {pastScheduled === 0 ? (
+                  <p className={`text-sm ${textSecondary} mb-5 italic`}>No tasks were scheduled in the past 7 days</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <StatCard value={`${pastCompleted}/${pastScheduled}`} label="Tasks done" icon={<CheckSquare size={16} className="text-green-400" />} />
+                      <StatCard value={`${pastCompletionRate}%`} label="Completion" icon={<Target size={16} className="text-blue-400" />} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
+                      <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<BrainCircuit size={16} className="text-purple-400" />} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                      {bestDayName && (
+                        <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Incomplete list */}
+                {pastIncomplete.length > 0 && (
+                  <div className={`rounded-lg border ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'} p-3 mb-5`}>
+                    <div className={`flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'} font-bold text-sm mb-2`}>
+                      <AlertCircle size={16} />
+                      {pastIncomplete.length} incomplete task{pastIncomplete.length !== 1 ? 's' : ''}
+                    </div>
+                    <div className="max-h-40 overflow-y-auto -mx-1">
+                      {pastIncomplete.map((task) => (
+                        <button
+                          key={task.id}
+                          className={`w-full flex items-center gap-3 px-2 py-1.5 rounded text-left ${darkMode ? 'hover:bg-red-900/40' : 'hover:bg-red-100/60'} transition-colors`}
+                          onClick={() => {
+                            const d = new Date(task.date + 'T12:00:00');
+                            setSelectedDate(d);
+                            setShowWeeklyReview(false);
+                          }}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
+                          <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{task.title}</span>
+                          <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
+                            {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {task.startTime ? ` \u00b7 ${task.startTime}` : ''}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Divider */}
+                <div className={`border-t ${borderClass} my-5`} />
+
+                {/* WEEK AHEAD */}
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-0.5`}>Next 7 Days</h3>
+                <p className={`text-sm ${textSecondary} mb-3`}>{formatRange(nextStartStr, nextEndStr)}</p>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
+                  <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {busiestDayName && busiestMinutes > 0 && (
+                    <StatCard value={busiestDayName} label="Busiest" icon={<Zap size={16} className="text-amber-400" />} />
+                  )}
+                  {nextRecurringCount > 0 && (
+                    <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                  )}
+                </div>
+
+                {/* Open days nudge */}
+                {openDays.length > 0 && (
+                  <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3 mb-2`}>
+                    <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm mb-3`}>
+                      <Sparkles size={16} />
+                      {openDays.length} open day{openDays.length !== 1 ? 's' : ''} ahead
+                    </div>
+                    <p className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                      {openDayNames.join(', ')} \u2014 great for deep work or planning
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Done button */}
+              <div className={`p-4 border-t ${borderClass}`}>
+                <button
+                  onClick={() => setShowWeeklyReview(false)}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Welcome Modal for New Users */}
       {showWelcome && (
