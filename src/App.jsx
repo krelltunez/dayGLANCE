@@ -7400,7 +7400,7 @@ const DayPlanner = () => {
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
 
   return (
-    <div className={`min-h-screen ${bgClass}`}>
+    <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className={`${cardBg} border-b ${borderClass}`}>
         <div className="max-w-[2000px] mx-auto px-6 py-4">
           <div className="flex gap-4">
