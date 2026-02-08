@@ -11213,17 +11213,26 @@ const DayPlanner = () => {
                 ) : (
                   <div className="space-y-2">
                     {items.map(task => (
-                      <div key={task.id} className={`flex items-center gap-3 p-2 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                      <button
+                        key={task.id}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left cursor-pointer ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}
+                        onClick={() => {
+                          if (task.date) {
+                            setSelectedDate(new Date(task.date + 'T12:00:00'));
+                          }
+                          setShowIncompleteTasks(null);
+                        }}
+                      >
                         <span className={`w-3 h-3 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
                         <div className="min-w-0 flex-1">
                           <div className={`text-sm ${textPrimary} truncate`}>{task.title}</div>
                           <div className={`text-xs ${textSecondary}`}>
                             {isDaily
                               ? (task.startTime || 'All day')
-                              : [task.date, task.startTime].filter(Boolean).join(' · ') || 'No date'}
+                              : [task.date && new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), task.startTime].filter(Boolean).join(' · ') || 'No date'}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -11383,8 +11392,19 @@ const DayPlanner = () => {
         const nextStartStr = nextWeekDates[0];
         const nextEndStr = nextWeekDates[6];
 
-        // Past week stats - regular tasks
-        const pastRegular = tasks.filter(t => !t.imported && pastWeekDates.includes(t.date));
+        // Helper to identify today's tasks that haven't started yet
+        const todayStr = dateToString(today);
+        const actualNow = new Date();
+        const actualNowMin = actualNow.getHours() * 60 + actualNow.getMinutes();
+        const isFutureToday = (date, startTime) => {
+          if (date !== todayStr) return false;
+          if (!startTime) return false;
+          const [h, m] = startTime.split(':').map(Number);
+          return h * 60 + m > actualNowMin;
+        };
+
+        // Past week stats - regular tasks (exclude future today tasks)
+        const pastRegular = tasks.filter(t => !t.imported && pastWeekDates.includes(t.date) && !isFutureToday(t.date, t.startTime));
         const pastRegularCompleted = pastRegular.filter(t => t.completed);
 
         // Past week stats - recurring tasks
@@ -11392,7 +11412,8 @@ const DayPlanner = () => {
         let pastRecurringCompleted = 0;
         const pastRecurringIncomplete = [];
         recurringTasks.forEach(t => {
-          const occurrences = getOccurrencesInRange(t, pastStartStr, pastEndStr);
+          const occurrences = getOccurrencesInRange(t, pastStartStr, pastEndStr)
+            .filter(ds => !isFutureToday(ds, t.exceptions?.[ds]?.startTime || t.startTime));
           pastRecurringScheduled += occurrences.length;
           occurrences.forEach(ds => {
             const completed = (t.completedDates || []).includes(ds);
@@ -11403,7 +11424,7 @@ const DayPlanner = () => {
                 id: `recurring-${t.id}-${ds}`,
                 title: t.title,
                 date: ds,
-                startTime: t.startTime,
+                startTime: t.exceptions?.[ds]?.startTime || t.startTime,
                 color: t.color,
                 duration: t.duration || 0,
                 isRecurring: true,
@@ -11419,12 +11440,14 @@ const DayPlanner = () => {
         // Time stats
         const pastTimeSpent = pastRegularCompleted.reduce((sum, t) => sum + (t.duration || 0), 0)
           + recurringTasks.reduce((sum, t) => {
-            const occs = getOccurrencesInRange(t, pastStartStr, pastEndStr);
+            const occs = getOccurrencesInRange(t, pastStartStr, pastEndStr)
+              .filter(ds => !isFutureToday(ds, t.exceptions?.[ds]?.startTime || t.startTime));
             return sum + occs.filter(ds => (t.completedDates || []).includes(ds)).length * (t.duration || 0);
           }, 0);
         const pastTimePlanned = pastRegular.reduce((sum, t) => sum + (t.duration || 0), 0)
           + recurringTasks.reduce((sum, t) => {
-            return sum + getOccurrencesInRange(t, pastStartStr, pastEndStr).length * (t.duration || 0);
+            return sum + getOccurrencesInRange(t, pastStartStr, pastEndStr)
+              .filter(ds => !isFutureToday(ds, t.exceptions?.[ds]?.startTime || t.startTime)).length * (t.duration || 0);
           }, 0);
         const pastFocusMinutes = pastRegularCompleted.filter(t => t.tags && t.tags.includes('focus')).reduce((sum, t) => sum + (t.duration || 0), 0);
 
@@ -11434,7 +11457,8 @@ const DayPlanner = () => {
           dayCompletions[t.date] = (dayCompletions[t.date] || 0) + 1;
         });
         recurringTasks.forEach(t => {
-          const occs = getOccurrencesInRange(t, pastStartStr, pastEndStr);
+          const occs = getOccurrencesInRange(t, pastStartStr, pastEndStr)
+            .filter(ds => !isFutureToday(ds, t.exceptions?.[ds]?.startTime || t.startTime));
           occs.forEach(ds => {
             if ((t.completedDates || []).includes(ds)) {
               dayCompletions[ds] = (dayCompletions[ds] || 0) + 1;
@@ -11451,7 +11475,7 @@ const DayPlanner = () => {
         });
         const bestDayName = bestDay ? new Date(bestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : null;
 
-        // Incomplete list
+        // Incomplete list (future-today tasks already excluded from pastRegular/pastRecurringIncomplete)
         const pastIncomplete = [
           ...pastRegular.filter(t => !t.completed).map(t => ({ ...t, isRecurring: false })),
           ...pastRecurringIncomplete,
