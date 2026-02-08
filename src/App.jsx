@@ -12387,13 +12387,10 @@ const DayPlanner = () => {
                 {/* Open days nudge */}
                 {openDays.length > 0 && (
                   <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3 mb-2`}>
-                    <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm mb-3`}>
+                    <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm`}>
                       <Sparkles size={16} />
-                      {openDays.length} open day{openDays.length !== 1 ? 's' : ''} ahead
+                      {openDayNames.join(', ')} {openDays.length === 1 ? 'is' : 'are'} open. {openDays.length === 1 ? 'That would be a great day' : 'Those would be great days'} for deep work or planning.
                     </div>
-                    <p className={`text-xs ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                      {openDayNames.join(', ')} — great for deep work or planning
-                    </p>
                   </div>
                 )}
               </div>
