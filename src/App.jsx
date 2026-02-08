@@ -769,6 +769,9 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
             />
             <span className={textPrimary}>Enable automatic remote backups</span>
           </label>
+          <p className={`text-xs ${textSecondary} ml-7`}>
+            Only enable on one device. If you use multiple devices, use Cloud Sync to keep them in sync and set up remote backups on your primary device only.
+          </p>
           {remoteConfig.enabled && (
             <div className="ml-7 space-y-3">
               <div>
