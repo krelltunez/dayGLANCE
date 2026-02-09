@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -22,6 +22,26 @@ const useVisibleDays = () => {
   }, []);
 
   return visibleDays;
+};
+
+// Hook to detect mobile viewport
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isMobile;
 };
 
 // URL detection regex for notes
@@ -850,6 +870,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
 
 const DayPlanner = () => {
   const visibleDays = useVisibleDays();
+  const isMobile = useIsMobile();
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-darkmode');
     return saved ? JSON.parse(saved) : false;
@@ -957,6 +978,10 @@ const DayPlanner = () => {
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
+  // Mobile layout state
+  const [mobileActiveTab, setMobileActiveTab] = useState('timeline');
+  const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
+
   // Onboarding state - start false, set true after data loads if zero tasks
   const [showWelcome, setShowWelcome] = useState(false);
   const [sectionInfoDismissed, setSectionInfoDismissed] = useState(() => {
@@ -1930,12 +1955,13 @@ const DayPlanner = () => {
     if (isToday && calendarRef.current) {
       setTimeout(() => {
         const currentHour = new Date().getHours();
-        // Scroll to show 2 hours before current time (each hour is 161px: 160px height + 1px border)
-        const scrollPosition = Math.max(0, (currentHour - 2) * 161);
+        // On mobile show current hour near top; on desktop show 2 hours before
+        const hoursBefore = isMobile ? 0 : 2;
+        const scrollPosition = Math.max(0, (currentHour - hoursBefore) * 161);
         calendarRef.current.scrollTop = scrollPosition;
       }, 100);
     }
-  }, [selectedDate]);
+  }, [selectedDate, isMobile]);
 
   useEffect(() => {
     saveData();
@@ -7555,6 +7581,992 @@ const DayPlanner = () => {
 
   return (
     <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {isMobile ? (
+        <>
+          {/* Mobile Layout */}
+          <div style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            {/* Mobile Header */}
+            {mobileActiveTab === 'timeline' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg ${hoverBg}`}>
+                    <ChevronLeft size={20} className={textSecondary} />
+                  </button>
+                  <div className="flex flex-col items-center gap-1">
+                    <button
+                      onClick={() => {
+                        if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                        setShowMonthView(!showMonthView);
+                      }}
+                      className={`month-view-toggle ${textPrimary} font-bold text-lg px-2 py-1 rounded-lg ${hoverBg} transition-colors`}
+                    >
+                      {formatDateRange(visibleDates)}
+                    </button>
+                    {dateToString(selectedDate) !== dateToString(new Date()) && (
+                      <button
+                        onClick={goToToday}
+                        className="px-3 py-0.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700"
+                      >
+                        Today
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => changeDate(1)} className={`p-2 rounded-lg ${hoverBg}`}>
+                    <ChevronRight size={20} className={textSecondary} />
+                  </button>
+                </div>
+                {/* Month View Popup for mobile */}
+                {showMonthView && (
+                  <div className={`month-view-container absolute left-4 right-4 top-full mt-1 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }}
+                        className={`p-1 rounded ${hoverBg}`}
+                      >
+                        <ChevronLeft size={18} className={textSecondary} />
+                      </button>
+                      <div className={`font-bold ${textPrimary}`}>
+                        {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }}
+                        className={`p-1 rounded ${hoverBg}`}
+                      >
+                        <ChevronRight size={18} className={textSecondary} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                        <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {getMonthDays().map((day, index) => {
+                        const isDayToday = day && day.toDateString() === new Date().toDateString();
+                        const isSelected = day && day.toDateString() === selectedDate.toDateString();
+                        const hasTasks = hasTasksOnDate(day);
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => day && goToDate(day)}
+                            disabled={!day}
+                            className={`
+                              h-10 rounded text-sm relative
+                              ${!day ? 'invisible' : ''}
+                              ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
+                              ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
+                              ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
+                              ${!day ? '' : 'cursor-pointer'}
+                            `}
+                          >
+                            {day && day.getDate()}
+                            {hasTasks && (
+                              <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {mobileActiveTab === 'inbox' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                    <Inbox size={20} /> Inbox
+                  </h2>
+                  <button
+                    onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); }}
+                    className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                    title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
+                  >
+                    {[0, 1, 2].map(i => (
+                      <span
+                        key={i}
+                        className={`w-2.5 h-1 rounded-full ${
+                          inboxPriorityFilter === 0
+                            ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                            : i < inboxPriorityFilter
+                              ? 'bg-blue-500'
+                              : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                        }`}
+                      />
+                    ))}
+                  </button>
+                </div>
+              </div>
+            )}
+            {mobileActiveTab === 'routines' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                    <Sparkles size={20} /> Routines
+                  </h2>
+                </div>
+              </div>
+            )}
+            {mobileActiveTab === 'settings' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                    <Settings size={20} /> Settings
+                  </h2>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Tab Content */}
+            {mobileActiveTab === 'timeline' && (
+              <div className="px-0">
+                {/* Reuse existing calendar grid for single day */}
+                <div
+                  ref={calendarRef}
+                  className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
+                  style={{ height: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}
+                >
+                  {/* Date header */}
+                  <div className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
+                    <div className={`w-12 flex-shrink-0 border-r ${borderClass}`}></div>
+                    {visibleDates.map((date, idx) => {
+                      const isDateToday = dateToString(date) === dateToString(new Date());
+                      const dateStr = dateToString(date);
+                      return (
+                        <div
+                          key={dateStr}
+                          className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : (darkMode ? 'bg-gray-700/50' : 'bg-gray-50')}`}
+                          onClick={() => {
+                            setNewTask({
+                              title: '',
+                              startTime: getNextQuarterHour(),
+                              duration: 30,
+                              date: dateStr,
+                              isAllDay: true
+                            });
+                            setShowAddTask(true);
+                          }}
+                          title="Tap to add all-day task"
+                        >
+                          <div className={`font-bold text-sm ${isDateToday ? 'text-blue-600' : textPrimary}`}>
+                            {formatShortDate(date)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* All-day tasks - sticky below date header */}
+                  {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || todayRoutines.some(r => r.isAllDay && !String(r.id).startsWith('example-'))) && (
+                    <div className={`border-b ${borderClass} ${cardBg} sticky top-[41px] z-20`}>
+                      <div className="flex">
+                        <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
+                          ALL DAY
+                        </div>
+                        <div className="flex-1 p-2 space-y-1.5">
+                          {visibleDates.map((date) => {
+                            const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample);
+                            const dateStr = dateToString(date);
+                            const deadlineTasks = getDeadlineTasksForDate(dateStr).filter(t => !t.isExample);
+                            return (
+                              <React.Fragment key={dateStr}>
+                                {dayTasks.map((task) => {
+                                  const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm ${task.completed ? 'opacity-50' : ''}`}
+                                      style={taskCalendarStyle || {}}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                        >
+                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                        </button>
+                                        <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>
+                                          {renderTitle(task.title)}
+                                        </span>
+                                        {typeof task.id === 'string' && task.id.startsWith('recurring-') && (
+                                          <RefreshCw size={10} className="flex-shrink-0 opacity-60" />
+                                        )}
+                                        <button
+                                          onMouseDown={() => {
+                                            if (isLinkOnlyTask(task)) {
+                                              longPressTriggeredRef.current = false;
+                                              longPressTimerRef.current = setTimeout(() => {
+                                                longPressTriggeredRef.current = true;
+                                                setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                              }, 500);
+                                            }
+                                          }}
+                                          onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                          onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isLinkOnlyTask(task)) {
+                                              if (!longPressTriggeredRef.current) {
+                                                window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                              }
+                                              longPressTriggeredRef.current = false;
+                                            } else {
+                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            }
+                                          }}
+                                          className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                        >
+                                          {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
+                                          className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                        >
+                                          <SkipForward size={14} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {deadlineTasks.map((task) => (
+                                  <div
+                                    key={`deadline-${task.id}`}
+                                    className={`${task.color} rounded-lg p-2.5 text-white text-sm border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => toggleComplete(task.id, true)}
+                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                      >
+                                        {task.completed && <Check size={10} strokeWidth={3} />}
+                                      </button>
+                                      <AlertCircle size={14} className="flex-shrink-0" />
+                                      <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</span>
+                                      <button
+                                        onMouseDown={() => {
+                                          if (isLinkOnlyTask(task)) {
+                                            longPressTriggeredRef.current = false;
+                                            longPressTimerRef.current = setTimeout(() => {
+                                              longPressTriggeredRef.current = true;
+                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            }, 500);
+                                          }
+                                        }}
+                                        onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                        onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isLinkOnlyTask(task)) {
+                                            if (!longPressTriggeredRef.current) {
+                                              window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                            }
+                                            longPressTriggeredRef.current = false;
+                                          } else {
+                                            setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                          }
+                                        }}
+                                        className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                      >
+                                        {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); moveToInbox(task.id); }}
+                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                      >
+                                        <Inbox size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Time grid */}
+                  <div ref={timeGridRef} className="relative">
+                    {hours.map((hour, index) => (
+                      <div key={hour} className="relative">
+                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
+                          <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center`}>
+                            {use24HourClock
+                              ? `${hour.toString().padStart(2, '0')}:00`
+                              : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[9px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>
+                            }
+                          </div>
+                          {visibleDates.map((date, idx) => (
+                            <div
+                              key={dateToString(date)}
+                              className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+                              data-date={dateToString(date)}
+                            ></div>
+                          ))}
+                        </div>
+                        {/* Half-hour dashed line */}
+                        <div className="absolute left-0 right-0 pointer-events-none" style={{ top: '80px' }}>
+                          <div className={`flex border-b border-dashed ${borderClass} opacity-50`}>
+                            <div className="w-12 flex-shrink-0"></div>
+                            {visibleDates.map((date, idx) => (
+                              <div key={dateToString(date)} className={`flex-1 ${idx > 0 ? `border-l ${borderClass}` : ''}`}></div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Task overlays */}
+                    <div className="absolute top-0 left-12 right-0 bottom-0 pointer-events-none flex">
+                      {visibleDates.map((date, dayIndex) => {
+                        const dateStr = dateToString(date);
+                        const isDateToday = dateStr === dateToString(new Date());
+                        const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample);
+
+                        return (
+                          <div
+                            key={dateStr}
+                            className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
+                          >
+                            {/* Current time line */}
+                            {isDateToday && (
+                              <div
+                                className="absolute left-0 right-0 pointer-events-none z-10"
+                                style={{ top: `${currentTimeTop}px` }}
+                              >
+                                <div className="flex items-center">
+                                  <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
+                                  <div className="flex-1 h-0.5 bg-red-500"></div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Task blocks */}
+                            {dayTasks.map(task => {
+                              const { top, height } = calculateTaskPosition(task);
+                              const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                              const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
+                              const conflictPos = calculateConflictPosition(task, dayTasks);
+
+                              return (
+                                <div
+                                  key={task.id}
+                                  className={`absolute pointer-events-auto ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20 overflow-hidden ${task.completed ? 'opacity-50' : ''}`}
+                                  style={{
+                                    top: `${top}px`,
+                                    height: `${height}px`,
+                                    left: conflictPos.left,
+                                    right: conflictPos.right,
+                                    width: conflictPos.width,
+                                    ...taskCalendarStyle,
+                                  }}
+                                >
+                                    <div
+                                      className="h-full px-2 py-1.5 flex flex-col"
+                                    >
+                                      <div className="flex items-start justify-between gap-1">
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                          <button
+                                            onClick={() => toggleComplete(task.id)}
+                                            className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                          >
+                                            {task.completed && <Check size={10} strokeWidth={3} />}
+                                          </button>
+                                          <span className={`text-white text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                                            {renderTitle(task.title)}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                          {isRecurring && <RefreshCw size={10} className="text-white/60" />}
+                                          {height >= 50 && (
+                                            <>
+                                              <button
+                                                onMouseDown={() => {
+                                                  if (isLinkOnlyTask(task)) {
+                                                    longPressTriggeredRef.current = false;
+                                                    longPressTimerRef.current = setTimeout(() => {
+                                                      longPressTriggeredRef.current = true;
+                                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                    }, 500);
+                                                  }
+                                                }}
+                                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (isLinkOnlyTask(task)) {
+                                                    if (!longPressTriggeredRef.current) {
+                                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                                    }
+                                                    longPressTriggeredRef.current = false;
+                                                  } else {
+                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                  }
+                                                }}
+                                                className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors text-white ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                              >
+                                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                              </button>
+                                              <button
+                                                onClick={() => postponeTask(task.id)}
+                                                className="hover:bg-white/20 rounded p-1 transition-colors text-white"
+                                              >
+                                                <SkipForward size={14} />
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {height >= 55 && (
+                                        <div className="text-xs text-white/70 mt-0.5">
+                                          {formatTime(task.startTime)} · {task.duration}m
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                            {/* Timeline routine pills (today only) */}
+                            {dateStr === dateToString(new Date()) && (() => {
+                              const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime && !String(r.id).startsWith('example-'));
+                              if (timelineRoutines.length === 0) return null;
+
+                              const now = new Date();
+                              const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+                              return timelineRoutines.map(routine => {
+                                const { top: rTop, height: rHeight } = calculateTaskPosition(routine);
+                                const endMinutes = timeToMinutes(routine.startTime) + routine.duration;
+                                const isPast = endMinutes <= nowMinutes;
+
+                                return (
+                                  <div
+                                    key={`routine-tl-${routine.id}`}
+                                    className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                                    style={{
+                                      top: `${rTop}px`,
+                                      height: `${Math.max(rHeight, 27)}px`,
+                                      left: '4px',
+                                      right: '4px',
+                                    }}
+                                  >
+                                    <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
+                                    <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
+                                    <span className={`relative rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'}`}>{routine.name}</span>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
+                {expandedNotesTaskId && (() => {
+                  const scheduledTask = visibleDates.reduce((found, date) => {
+                    if (found) return found;
+                    return getTasksForDate(date).find(t => t.id === expandedNotesTaskId);
+                  }, null);
+                  const deadlineTask = !scheduledTask ? unscheduledTasks.find(t => t.id === expandedNotesTaskId && t.deadline) : null;
+                  const noteTask = scheduledTask || deadlineTask;
+                  if (!noteTask) return null;
+                  return (
+                    <div className="notes-panel-container fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setExpandedNotesTaskId(null)}>
+                      <div className="bg-black/30 absolute inset-0" />
+                      <div
+                        className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[60vh] overflow-y-auto`}
+                        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{noteTask.title}</div>
+                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg}`}>
+                            <X size={18} className={textSecondary} />
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          <NotesSubtasksPanel
+                            task={noteTask}
+                            isInbox={!!deadlineTask}
+                            darkMode={darkMode}
+                            updateTaskNotes={updateTaskNotes}
+                            addSubtask={addSubtask}
+                            toggleSubtask={toggleSubtask}
+                            deleteSubtask={deleteSubtask}
+                            updateSubtaskTitle={updateSubtaskTitle}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {mobileActiveTab === 'inbox' && (
+              <div className="px-4 py-4">
+                <div className="space-y-2">
+                  {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center py-8`}>
+                      {unscheduledTasks.filter(t => !t.isExample).length === 0
+                        ? "No tasks in inbox yet"
+                        : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
+                          ? "All tasks have overdue deadlines"
+                          : "No tasks match current filter"}
+                    </p>
+                  ) : (
+                    filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
+                      <div key={task.id} className="notes-panel-container">
+                        <div
+                          className={`${task.color} rounded-lg p-3 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                        >
+                          {task.isExample && (
+                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                              Example
+                            </span>
+                          )}
+                          <div className="flex items-start justify-between text-white">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleComplete(task.id, true)}
+                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                              >
+                                {task.completed && <Check size={10} strokeWidth={3} />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div
+                                  className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditingTask(task, true);
+                                  }}
+                                >
+                                  {renderTitle(task.title)}
+                                </div>
+                                <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
+                                  <span className="flex items-center gap-1"><Clock size={10} />{task.duration}m</span>
+                                  {task.deadline && (
+                                    <span className="flex items-center gap-1">
+                                      <AlertCircle size={10} />
+                                      {formatDeadlineDate(task.deadline)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    }
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  }
+                                }}
+                                className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                              >
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                              </button>
+                              <div className="deadline-picker-container relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                  }}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                  title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                >
+                                  <Calendar size={14} />
+                                </button>
+                                {showDeadlinePicker === task.id && (
+                                  <DeadlinePickerPopover
+                                    taskId={task.id}
+                                    currentDeadline={task.deadline}
+                                    onClose={() => setShowDeadlinePicker(null)}
+                                  />
+                                )}
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cyclePriority(task.id);
+                                }}
+                                className="flex gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors"
+                              >
+                                {[0, 1, 2].map(i => (
+                                  <span
+                                    key={i}
+                                    className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
+                                  />
+                                ))}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Mobile notes panel overlay for inbox tasks */}
+                {expandedNotesTaskId && (() => {
+                  const noteTask = filteredUnscheduledTasks.find(t => t.id === expandedNotesTaskId);
+                  if (!noteTask) return null;
+                  return (
+                    <div className="notes-panel-container fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setExpandedNotesTaskId(null)}>
+                      <div className="bg-black/30 absolute inset-0" />
+                      <div
+                        className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[60vh] overflow-y-auto`}
+                        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{noteTask.title}</div>
+                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg}`}>
+                            <X size={18} className={textSecondary} />
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          <NotesSubtasksPanel
+                            task={noteTask}
+                            isInbox={true}
+                            darkMode={darkMode}
+                            updateTaskNotes={updateTaskNotes}
+                            addSubtask={addSubtask}
+                            toggleSubtask={toggleSubtask}
+                            deleteSubtask={deleteSubtask}
+                            updateSubtaskTitle={updateSubtaskTitle}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {mobileActiveTab === 'routines' && (
+              <div className="px-4 py-4">
+                {(() => {
+                  const today = new Date();
+                  const todayDayName = getDayName(today);
+                  const weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                  const todayIdx = weekDays.indexOf(todayDayName);
+                  const rotatedDays = todayIdx >= 0 ? [...weekDays.slice(todayIdx), ...weekDays.slice(0, todayIdx)] : weekDays;
+                  const allBuckets = ['everyday', ...rotatedDays];
+                  const bucketLabel = (b) => b === 'everyday' ? 'Every Day' : b.charAt(0).toUpperCase() + b.slice(1);
+                  const isHighlighted = (b) => b === todayDayName || b === 'everyday';
+
+                  const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => !String(c.id).startsWith('example-')));
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Today's selected routine */}
+                      <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-gray-300'} p-4`}>
+                        <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary} text-center`}>Today's Routine</div>
+                        {dashboardSelectedChips.filter(c => !String(c.id).startsWith('example-')).length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 justify-center">
+                            {dashboardSelectedChips.filter(c => !String(c.id).startsWith('example-')).map(chip => (
+                              <div
+                                key={chip.id}
+                                className={`group relative rounded-full px-3 py-1.5 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                                onClick={() => setRoutineTimePickerChipId(chip.id)}
+                              >
+                                <span className="flex items-center gap-1">
+                                  {chip.name}
+                                  {chip.startTime && (
+                                    <>
+                                      <Clock size={10} className="ml-0.5" />
+                                      <span className="opacity-90">{formatTime(chip.startTime)}</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDashboardSelectedChips(prev => prev.map(c => c.id === chip.id ? { ...c, startTime: null } : c));
+                                        }}
+                                        className="hover:opacity-100 opacity-60 transition-opacity"
+                                        title="Clear time"
+                                      >
+                                        <X size={10} />
+                                      </button>
+                                    </>
+                                  )}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
+                                  className={`absolute -top-1.5 -right-1.5 ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center`}
+                                >
+                                  <Undo2 size={10} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4">
+                            <Sparkles size={28} className={`${textSecondary} mx-auto mb-2 opacity-40`} />
+                            <p className={`text-sm ${textSecondary}`}>
+                              {hasAnyChips ? 'Tap chips below to add to today' : 'Add routines with the + button below'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Day buckets */}
+                      {allBuckets.map(bucket => {
+                        const chips = (routineDefinitions[bucket] || []).filter(c => !String(c.id).startsWith('example-'));
+                        return (
+                          <div
+                            key={bucket}
+                            className={`${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-lg p-3 ${isHighlighted(bucket) ? (darkMode ? 'ring-2 ring-teal-400 bg-teal-900/20' : 'ring-2 ring-teal-500 bg-teal-50') : ''}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className={`text-xs font-semibold uppercase tracking-wide ${isHighlighted(bucket) ? 'text-teal-500' : textSecondary}`}>
+                                {bucketLabel(bucket)}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setRoutineAddingToBucket(routineAddingToBucket === bucket ? null : bucket);
+                                  setRoutineNewChipName('');
+                                }}
+                                className={`p-0.5 rounded ${hoverBg}`}
+                              >
+                                <Plus size={14} className={textSecondary} />
+                              </button>
+                            </div>
+                            {routineAddingToBucket === bucket && (
+                              <div className="flex gap-1 mb-2">
+                                <input
+                                  autoFocus
+                                  value={routineNewChipName}
+                                  onChange={(e) => setRoutineNewChipName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') addRoutineChip(bucket);
+                                    if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
+                                  }}
+                                  placeholder="Name..."
+                                  className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-gray-900 placeholder-gray-400 border border-gray-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
+                                />
+                                <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {chips.map(chip => {
+                                const isSelected = dashboardSelectedChips.some(c => c.id === chip.id);
+                                return (
+                                  <div
+                                    key={chip.id}
+                                    onClick={() => toggleRoutineChipSelection(chip, bucket)}
+                                    className={`group relative rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
+                                      isSelected
+                                        ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
+                                        : (darkMode ? 'bg-teal-700/80 text-teal-100 hover:bg-teal-600/80' : 'bg-teal-600/80 text-white hover:bg-teal-500/80')
+                                    }`}
+                                  >
+                                    {chip.name}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
+                                      className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {chips.length === 0 && routineAddingToBucket !== bucket && (
+                                <span className={`text-xs ${textSecondary} italic`}>No routines</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Done button */}
+                      <button
+                        onClick={handleRoutinesDone}
+                        className="w-full py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
+                      >
+                        Save Routines
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {mobileActiveTab === 'settings' && (
+              <div className="px-4 py-4 space-y-4">
+                {/* Quick toggles */}
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setDarkMode(!darkMode)}
+                    className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                  >
+                    {darkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} className={textSecondary} />}
+                    <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
+                  </button>
+                  <button
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                  >
+                    {soundEnabled ? <Volume2 size={24} className="text-green-500" /> : <VolumeX size={24} className={textSecondary} />}
+                    <span className={`text-xs font-medium ${textPrimary}`}>Sound {soundEnabled ? 'On' : 'Off'}</span>
+                  </button>
+                  <button
+                    onClick={() => setUse24HourClock(!use24HourClock)}
+                    className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                  >
+                    <Clock size={24} className={textSecondary} />
+                    <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
+                  </button>
+                </div>
+
+                {/* Sync buttons */}
+                {(syncUrl || taskCalendarUrl || cloudSyncConfig?.enabled) && (
+                  <div className="space-y-2">
+                    <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
+                    {(syncUrl || taskCalendarUrl) && (
+                      <button
+                        onClick={() => {
+                          if (!isSyncing) {
+                            syncAll();
+                          }
+                        }}
+                        disabled={isSyncing}
+                        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
+                      >
+                        <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
+                      </button>
+                    )}
+                    {cloudSyncConfig?.enabled && (
+                      <button
+                        onClick={() => cloudSyncUpload()}
+                        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                      >
+                        <Cloud size={20} className={textSecondary} />
+                        <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub-menu buttons */}
+                <div className="space-y-2">
+                  <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                  >
+                    <Settings size={20} className={textSecondary} />
+                    <span className={`font-medium ${textPrimary}`}>App Settings</span>
+                  </button>
+                  <button
+                    onClick={() => setShowRemindersSettings(true)}
+                    className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                  >
+                    <Bell size={20} className={textSecondary} />
+                    <span className={`font-medium ${textPrimary}`}>Notifications</span>
+                  </button>
+                  <button
+                    onClick={() => setShowBackupMenu(true)}
+                    className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                  >
+                    <Save size={20} className={textSecondary} />
+                    <span className={`font-medium ${textPrimary}`}>Backups</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* FAB - Floating Action Button */}
+          {(mobileActiveTab === 'timeline' || mobileActiveTab === 'inbox') && (
+            <button
+              onClick={() => mobileActiveTab === 'timeline' ? openNewTaskForm() : openNewInboxTask()}
+              className="fixed right-4 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:bg-blue-800 flex items-center justify-center transition-colors"
+              style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <Plus size={28} />
+            </button>
+          )}
+
+          {/* Bottom Tab Bar */}
+          <div
+            className={`fixed bottom-0 left-0 right-0 z-40 ${cardBg} border-t ${borderClass}`}
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
+            <div className="flex items-center justify-around h-14">
+              <button
+                onClick={() => setMobileActiveTab('timeline')}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? 'text-blue-500' : textSecondary}`}
+              >
+                <Calendar size={20} />
+                <span className="text-[10px] font-medium">Timeline</span>
+              </button>
+              <button
+                onClick={() => setMobileActiveTab('inbox')}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative ${mobileActiveTab === 'inbox' ? 'text-blue-500' : textSecondary}`}
+              >
+                <div className="relative">
+                  <Inbox size={20} />
+                  {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                      {filteredUnscheduledTasks.filter(t => !t.isExample).length}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-medium">Inbox</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMobileActiveTab('routines');
+                  if (!showRoutinesDashboard) {
+                    setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
+                    setRoutineAddingToBucket(null);
+                    setRoutineNewChipName('');
+                  }
+                }}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'routines' ? 'text-blue-500' : textSecondary}`}
+              >
+                <Sparkles size={20} />
+                <span className="text-[10px] font-medium">Routines</span>
+              </button>
+              <button
+                onClick={() => setMobileActiveTab('settings')}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'settings' ? 'text-blue-500' : textSecondary}`}
+              >
+                <Settings size={20} />
+                <span className="text-[10px] font-medium">Settings</span>
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+      <>
+      {/* Desktop Layout */}
       <div className={`${cardBg} border-b ${borderClass}`}>
         <div className="max-w-[2000px] mx-auto px-6 py-4">
           <div className="flex gap-4">
@@ -10045,6 +11057,8 @@ const DayPlanner = () => {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {showTimePicker && (
         <ClockTimePicker
@@ -12736,8 +13750,136 @@ const DayPlanner = () => {
         );
       })()}
 
+      {/* Mobile Routine Time Picker (outside routines dashboard modal) */}
+      {isMobile && routineTimePickerChipId !== null && !showRoutinesDashboard && (
+        <ClockTimePicker
+          value={dashboardSelectedChips.find(c => c.id === routineTimePickerChipId)?.startTime || '09:00'}
+          onChange={(time) => {
+            setDashboardSelectedChips(prev => prev.map(c => c.id === routineTimePickerChipId ? { ...c, startTime: time } : c));
+            setRoutineTimePickerChipId(null);
+          }}
+          onClose={() => setRoutineTimePickerChipId(null)}
+        />
+      )}
+
       {/* Welcome Modal for New Users */}
-      {showWelcome && (
+      {showWelcome && isMobile && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: darkMode ? '#1f2937' : '#ffffff' }}>
+          {/* Progress dots */}
+          <div className="flex justify-center gap-2 pt-6 pb-4">
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div
+                key={i}
+                className={`w-2 h-2 rounded-full transition-colors ${i === mobileWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+              />
+            ))}
+          </div>
+
+          {/* Carousel content */}
+          <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-y-auto">
+            {mobileWelcomeStep === 0 && (
+              <div className="text-center">
+                <img
+                  src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                  alt="dayGLANCE"
+                  className="h-24 mx-auto mb-6"
+                />
+                <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>Welcome to dayGLANCE</h1>
+                <p className={`${textSecondary}`}>Your minimalist day planner</p>
+              </div>
+            )}
+            {mobileWelcomeStep === 1 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Calendar size={32} className="text-blue-500" />
+                </div>
+                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Timeline</h2>
+                <p className={`${textSecondary} text-sm`}>View and manage your scheduled tasks on a visual timeline. Tap any time slot to add a new task.</p>
+              </div>
+            )}
+            {mobileWelcomeStep === 2 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Inbox size={32} className="text-blue-500" />
+                </div>
+                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Inbox</h2>
+                <p className={`${textSecondary} text-sm`}>Capture tasks quickly without scheduling them. Prioritize and organize them later.</p>
+              </div>
+            )}
+            {mobileWelcomeStep === 3 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Sparkles size={32} className="text-teal-500" />
+                </div>
+                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Routines</h2>
+                <p className={`${textSecondary} text-sm`}>Build daily habits by assigning routine chips to days of the week. Track what you complete each day.</p>
+              </div>
+            )}
+            {mobileWelcomeStep === 4 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Settings size={32} className={textSecondary} />
+                </div>
+                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Settings</h2>
+                <p className={`${textSecondary} text-sm`}>Toggle dark mode, manage notifications, configure calendar sync, and backup your data.</p>
+              </div>
+            )}
+            {mobileWelcomeStep === 5 && (
+              <div className="text-center">
+                <img
+                  src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                  alt="dayGLANCE"
+                  className="h-20 mx-auto mb-6"
+                />
+                <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>You're All Set!</h2>
+                <div className="space-y-3 w-full max-w-xs mx-auto">
+                  <button
+                    onClick={() => setShowWelcome(false)}
+                    className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors"
+                  >
+                    Just Get Started
+                  </button>
+                  <button
+                    onClick={() => { setShowWelcome(false); setShowSettings(true); }}
+                    className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                  >
+                    <Cloud size={18} /> Set Up Cloud Sync
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between px-6 py-6">
+            <button
+              onClick={() => setShowWelcome(false)}
+              className={`text-sm ${textSecondary} px-3 py-2`}
+            >
+              Skip
+            </button>
+            <div className="flex gap-3">
+              {mobileWelcomeStep > 0 && (
+                <button
+                  onClick={() => setMobileWelcomeStep(s => s - 1)}
+                  className={`p-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}
+                >
+                  <ChevronLeft size={20} className={textSecondary} />
+                </button>
+              )}
+              {mobileWelcomeStep < 5 && (
+                <button
+                  onClick={() => setMobileWelcomeStep(s => s + 1)}
+                  className="p-2 rounded-full bg-blue-600"
+                >
+                  <ChevronRight size={20} className="text-white" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showWelcome && !isMobile && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWelcome(false)}>
           <div
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-xl w-full mx-4`}
