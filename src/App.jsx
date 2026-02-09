@@ -12813,6 +12813,16 @@ const DayPlanner = () => {
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
+                  Keyboard Shortcuts
+                </h3>
+                <p className={`text-sm ${textSecondary} ml-8`}>
+                  Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>?</kbd> at any time to see all available keyboard shortcuts.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
                   Weekly Review
                 </h3>
                 <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
@@ -12825,7 +12835,7 @@ const DayPlanner = () => {
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">6</span>
                   Sync Your Calendars
                 </h3>
                 <p className={`text-sm ${textSecondary} ml-8`}>
@@ -12835,7 +12845,7 @@ const DayPlanner = () => {
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">6</span>
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">7</span>
                   App Settings
                 </h3>
                 <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
