@@ -1010,6 +1010,7 @@ const DayPlanner = () => {
   const [dashboardSelectedChips, setDashboardSelectedChips] = useState([]);
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
   const [routineNewChipName, setRoutineNewChipName] = useState('');
+  const [routineTimePickerChipId, setRoutineTimePickerChipId] = useState(null);
 
   // Keyboard shortcut cheat sheet
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
@@ -2189,10 +2190,10 @@ const DayPlanner = () => {
         setRecurringTasks(exampleRecurringTasks);
         setRoutineDefinitions(prev => ({
           ...prev,
-          everyday: [...prev.everyday, { id: 'example-routine-1', name: 'Drag Me' }, { id: 'example-routine-2', name: 'Breaktime' }]
+          everyday: [{ id: 'example-routine-1', name: 'Unscheduled' }, { id: 'example-routine-2', name: 'Breaktime' }]
         }));
         setTodayRoutines([
-          { id: 'example-routine-1', name: 'Drag Me', bucket: 'everyday', startTime: null, duration: 15, isAllDay: true },
+          { id: 'example-routine-1', name: 'Unscheduled', bucket: 'everyday', startTime: null, duration: 15, isAllDay: true },
           { id: 'example-routine-2', name: 'Breaktime', bucket: 'everyday', startTime: toTime(baseHour + 3, 0), duration: 15, isAllDay: false }
         ]);
         setRoutinesDate(todayStr);
@@ -4471,7 +4472,7 @@ const DayPlanner = () => {
 
   const openRoutinesDashboard = () => {
     // Pre-populate center with chips already placed today
-    setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket })));
+    setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
     setRoutineAddingToBucket(null);
     setRoutineNewChipName('');
     setShowRoutinesDashboard(true);
@@ -4504,7 +4505,7 @@ const DayPlanner = () => {
     if (isSelected) {
       setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id));
     } else {
-      setDashboardSelectedChips(prev => [...prev, { id: chip.id, name: chip.name, bucket }]);
+      setDashboardSelectedChips(prev => [...prev, { id: chip.id, name: chip.name, bucket, startTime: null }]);
     }
   };
 
@@ -4517,14 +4518,15 @@ const DayPlanner = () => {
     const newTodayRoutines = dashboardSelectedChips.map(chip => {
       const existing = existingMap[chip.id];
       if (existing) {
-        return { ...existing, name: chip.name, bucket: chip.bucket };
+        return { ...existing, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || existing.startTime, isAllDay: !chip.startTime && existing.isAllDay };
       }
-      return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: null, duration: 15, isAllDay: true };
+      return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || null, duration: 15, isAllDay: !chip.startTime };
     });
 
     setTodayRoutines(newTodayRoutines);
     setRoutinesDate(todayStr);
     setShowRoutinesDashboard(false);
+    setRoutineTimePickerChipId(null);
     if (!onboardingProgress.hasSetupRoutines) {
       setOnboardingProgress(prev => ({ ...prev, hasSetupRoutines: true }));
     }
@@ -11274,7 +11276,7 @@ const DayPlanner = () => {
       )}
 
       {/* Routines Dashboard Modal */}
-      {showRoutinesDashboard && (
+      {showRoutinesDashboard && (<>
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => handleRoutinesDone()} onKeyDown={(e) => { if ((e.key === 'Escape' || e.key === 'Enter') && !routineAddingToBucket) { e.preventDefault(); handleRoutinesDone(); } }} tabIndex={-1} ref={(el) => { if (el && !routineAddingToBucket) el.focus(); }}>
           <div className={`${cardBg} rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
@@ -11396,11 +11398,31 @@ const DayPlanner = () => {
                           {dashboardSelectedChips.map(chip => (
                             <div
                               key={chip.id}
-                              className={`group relative rounded-full px-3 py-1.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                              className={`group relative rounded-full px-3 py-1.5 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                              onClick={() => setRoutineTimePickerChipId(chip.id)}
+                              title="Click to set time"
                             >
-                              {chip.name}
+                              <span className="flex items-center gap-1">
+                                {chip.name}
+                                {chip.startTime && (
+                                  <>
+                                    <Clock size={10} className="ml-0.5" />
+                                    <span className="opacity-90">{formatTime(chip.startTime)}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDashboardSelectedChips(prev => prev.map(c => c.id === chip.id ? { ...c, startTime: null } : c));
+                                      }}
+                                      className="hover:opacity-100 opacity-60 transition-opacity"
+                                      title="Clear time"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </>
+                                )}
+                              </span>
                               <button
-                                onClick={() => setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id))}
+                                onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
                                 className={`absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
                                 title="Remove from today"
                               >
@@ -11442,7 +11464,17 @@ const DayPlanner = () => {
             </div>
           </div>
         </div>
-      )}
+        {routineTimePickerChipId !== null && (
+          <ClockTimePicker
+            value={dashboardSelectedChips.find(c => c.id === routineTimePickerChipId)?.startTime || '09:00'}
+            onChange={(time) => {
+              setDashboardSelectedChips(prev => prev.map(c => c.id === routineTimePickerChipId ? { ...c, startTime: time } : c));
+              setRoutineTimePickerChipId(null);
+            }}
+            onClose={() => setRoutineTimePickerChipId(null)}
+          />
+        )}
+      </>)}
 
       {/* Focus Mode Overlay */}
       {showFocusMode && (
