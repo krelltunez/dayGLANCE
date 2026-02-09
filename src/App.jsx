@@ -9354,7 +9354,7 @@ const DayPlanner = () => {
                 ))}
 
                 {/* Task overlay for each day column */}
-                <div className="absolute top-0 left-20 right-0 bottom-0 pointer-events-none flex">
+                <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none flex">
                   {visibleDates.map((date, dayIndex) => {
                     const dateStr = dateToString(date);
                     const isDateToday = dateStr === dateToString(new Date());
@@ -10702,7 +10702,7 @@ const DayPlanner = () => {
 
       {/* Weekly Review Reminder Toast */}
       {showWeeklyReviewReminder && !showWeeklyReview && (
-        <div className="fixed bottom-6 right-6 z-50 w-sm">
+        <div className="fixed bottom-6 right-6 z-50 w-96">
           <div className={`${cardBg} rounded-lg shadow-xl ${borderClass} border p-3`}>
             <div className="flex items-start gap-2">
               <BarChart3 size={16} className="text-purple-500 mt-0.5 flex-shrink-0" />
@@ -10737,7 +10737,7 @@ const DayPlanner = () => {
 
       {/* Reminder Toasts */}
       {activeReminders.length > 0 && (
-        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 w-sm ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-36' : 'bottom-6'}`}>
+        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 w-96 ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-36' : 'bottom-6'}`}>
           {activeReminders.slice(0, 5).map((reminder) => (
             <div
               key={reminder.id}
