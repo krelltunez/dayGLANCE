@@ -10702,7 +10702,7 @@ const DayPlanner = () => {
 
       {/* Weekly Review Reminder Toast */}
       {showWeeklyReviewReminder && !showWeeklyReview && (
-        <div className="fixed bottom-6 right-6 z-50 w-96">
+        <div className="fixed bottom-6 right-6 z-50 w-64">
           <div className={`${cardBg} rounded-lg shadow-xl ${borderClass} border p-3`}>
             <div className="flex items-start gap-2">
               <BarChart3 size={16} className="text-purple-500 mt-0.5 flex-shrink-0" />
@@ -10737,7 +10737,7 @@ const DayPlanner = () => {
 
       {/* Reminder Toasts */}
       {activeReminders.length > 0 && (
-        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 w-96 ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-36' : 'bottom-6'}`}>
+        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 w-64 ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-36' : 'bottom-6'}`}>
           {activeReminders.slice(0, 5).map((reminder) => (
             <div
               key={reminder.id}
@@ -10746,7 +10746,7 @@ const DayPlanner = () => {
               <div className="flex items-start gap-2">
                 <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${reminder.taskColor || 'bg-blue-500'}`} />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${textPrimary} truncate`}>{reminder.taskTitle}</p>
+                  <p className={`text-sm font-medium ${textPrimary}`}>{reminder.taskTitle}</p>
                   <div className="flex items-center gap-2">
                     <p className={`text-xs ${textSecondary}`}>{reminder.message}</p>
                     {reminder.startTime && (
