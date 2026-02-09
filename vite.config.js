@@ -7,11 +7,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,ico,svg}'],
         globIgnores: ['**/dayglance-dark.svg', '**/dayglance-light.svg'],
-        cleanupOutdatedCaches: true,
       },
       manifest: {
         name: 'dayGLANCE',

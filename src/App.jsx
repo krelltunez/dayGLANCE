@@ -1113,6 +1113,7 @@ const DayPlanner = () => {
   const [activeReminders, setActiveReminders] = useState([]);
   const [showMorningTimePicker, setShowMorningTimePicker] = useState(false);
   const firedRemindersRef = useRef(new Set());
+  const swMessageHandlersRef = useRef({});
   const lastReminderDateRef = useRef((() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })());
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-sound-enabled');
@@ -7147,7 +7148,20 @@ const DayPlanner = () => {
           localStorage.setItem('day-planner-weekly-review-fired', isoWeek);
           playUISound('reminder');
           if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            try { new Notification('dayGLANCE', { body: 'Time for your weekly review!', icon: '/favicon.png' }); } catch {}
+            try {
+              navigator.serviceWorker?.ready.then(reg => {
+                reg.showNotification('dayGLANCE', {
+                  body: 'Time for your weekly review!',
+                  icon: '/icon-192.png',
+                  tag: 'weekly-review',
+                  actions: [
+                    { action: 'open-weekly-review', title: 'Open Review' },
+                    { action: 'dismiss', title: 'Dismiss' },
+                  ],
+                  data: { type: 'weekly-review' },
+                });
+              });
+            } catch {}
           }
         }
       } else {
@@ -7214,9 +7228,27 @@ const DayPlanner = () => {
         setActiveReminders(prev => [...prev.filter(r => !newTaskIds.has(r.taskId)), ...newReminders]);
       }
       if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        for (const r of newReminders) {
-          try { new Notification(r.taskTitle, { body: r.message, icon: '/favicon.png' }); } catch {}
-        }
+        navigator.serviceWorker?.ready.then(reg => {
+          for (const r of newReminders) {
+            const actions = [];
+            if (r.type === 'end' && !r.isCalendarEvent) {
+              actions.push({ action: 'complete', title: 'Complete' });
+            }
+            if (r.type !== 'end' && r.type !== 'morning' && r.startTime) {
+              actions.push({ action: 'snooze', title: 'Snooze 15m' });
+            }
+            actions.push({ action: 'dismiss', title: 'Dismiss' });
+            try {
+              reg.showNotification(r.taskTitle, {
+                body: r.message,
+                icon: '/icon-192.png',
+                tag: r.id,
+                actions,
+                data: r,
+              });
+            } catch {}
+          }
+        });
       }
     }
   }, [currentTime, reminderSettings, tasks, expandedRecurringTasks]);
@@ -7235,6 +7267,32 @@ const DayPlanner = () => {
     }, 30000);
     return () => clearInterval(timer);
   }, [activeReminders.length > 0]);
+
+  // Keep SW message handler refs up to date (avoids stale closures)
+  swMessageHandlersRef.current = { toggleComplete, snoozeReminder, dismissReminder, setShowWeeklyReview };
+
+  // Listen for service worker notification action messages
+  useEffect(() => {
+    if (!navigator.serviceWorker) return;
+    const handler = (event) => {
+      const msg = event.data;
+      if (!msg || msg.type !== 'notification-action') return;
+      const { action, data } = msg;
+      const handlers = swMessageHandlersRef.current;
+      if (action === 'open-weekly-review') {
+        handlers.setShowWeeklyReview(true);
+      } else if (action === 'complete' && data?.taskId) {
+        handlers.toggleComplete(data.taskId);
+        handlers.dismissReminder(data.id);
+      } else if (action === 'snooze' && data) {
+        handlers.snoozeReminder(data);
+      } else if (action === 'dismiss' && data?.id) {
+        handlers.dismissReminder(data.id);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, []);
 
   // Spotlight search results
   const spotlightResults = useMemo(() => {
@@ -9402,7 +9460,7 @@ const DayPlanner = () => {
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
 
                           // Layout tiers for timeline tasks
-                          const isMicroHeight = height < 40;  // 15min tasks
+                          const isMicroHeight = height <= 40;  // 15min tasks
                           const taskWidth = taskWidths[task.id];
                           const isMeasured = taskWidth !== undefined;
                           const isNarrowWidth = taskWidth < 300;
