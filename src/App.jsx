@@ -895,7 +895,7 @@ const DayPlanner = () => {
   });
   const [use24HourClock, setUse24HourClock] = useState(() => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : false;
   });
   const [pendingPriorities, setPendingPriorities] = useState({});
   const [syncUrl, setSyncUrl] = useState('');
@@ -1129,7 +1129,9 @@ const DayPlanner = () => {
   const lastWeeklyReviewFiredRef = useRef(
     localStorage.getItem('day-planner-weekly-review-fired') || ''
   );
-  const weeklyReviewDismissedRef = useRef('');
+  const weeklyReviewDismissedRef = useRef(
+    localStorage.getItem('day-planner-weekly-review-dismissed') || ''
+  );
 
   // Spotlight search
   const [showSpotlight, setShowSpotlight] = useState(false);
@@ -3240,10 +3242,26 @@ const DayPlanner = () => {
     // Calculate next day's date based on task's current date
     const nextDay = new Date(task.date + 'T12:00:00');
     nextDay.setDate(nextDay.getDate() + 1);
+    const nextDateStr = nextDay.toISOString().split('T')[0];
+
+    // Check for conflicts with imported calendar events on the target date
+    const { conflicted, conflictingEvent } = getAdjustedTimeForImportedConflicts(
+      id, task.startTime, task.duration, nextDateStr
+    );
+
+    if (conflicted) {
+      playUISound('error');
+      setSyncNotification({
+        type: 'error',
+        title: "Can't Postpone",
+        message: `Time slot conflicts with "${conflictingEvent?.title || 'a calendar event'}" on ${nextDateStr}`
+      });
+      return;
+    }
 
     // Update the task with the new date (same time)
     setTasks(tasks.map(t =>
-      t.id === id ? { ...t, date: nextDay.toISOString().split('T')[0] } : t
+      t.id === id ? { ...t, date: nextDateStr } : t
     ));
 
     playUISound('slide');
@@ -4733,6 +4751,21 @@ const DayPlanner = () => {
           });
           break;
         }
+        case 'error': {
+          // Short double-buzz: two quick low-frequency oscillations
+          [150, 120].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.12, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.1);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.1);
+          });
+          break;
+        }
       }
     } catch (e) { /* Audio API not available */ }
   };
@@ -5359,6 +5392,7 @@ const DayPlanner = () => {
 
     // Show notification if task was rescheduled to avoid calendar conflict
     if (conflicted && conflictingEvent) {
+      playUISound('error');
       setSyncNotification({
         type: 'info',
         title: 'Task Rescheduled',
@@ -5925,7 +5959,7 @@ const DayPlanner = () => {
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
         cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
         reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null'),
-        use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'true')
+        use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false')
       }
     };
 
@@ -7749,7 +7783,7 @@ const DayPlanner = () => {
                     <Sparkles size={24} />
                   </button>
                   <button
-                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
+                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Weekly Review"
                   >
@@ -7850,7 +7884,7 @@ const DayPlanner = () => {
                   </button>
                   {/* Weekly Review */}
                   <button
-                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
+                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Weekly Review"
                   >
@@ -8895,7 +8929,7 @@ const DayPlanner = () => {
             >
               {/* Date headers row - sticky at top */}
               <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
-                <div className={`w-20 flex-shrink-0 border-r ${borderClass}`}></div>
+                <div className={`w-16 flex-shrink-0 border-r ${borderClass}`}></div>
                 {visibleDates.map((date, idx) => {
                   const isDateToday = dateToString(date) === dateToString(new Date());
                   const dateStr = dateToString(date);
@@ -8939,7 +8973,7 @@ const DayPlanner = () => {
               {/* All-day tasks section - sticky below date headers */}
               {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || todayRoutines.some(r => r.isAllDay)) && (
                 <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
-                  <div className={`w-20 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
+                  <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
                     ALL DAY
                   </div>
                   {visibleDates.map((date, idx) => {
@@ -9288,7 +9322,7 @@ const DayPlanner = () => {
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
                     <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
-                      <div className={`w-20 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass}`}>
+                      <div className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass}`}>
                         {use24HourClock
                           ? `${hour.toString().padStart(2, '0')}:00`
                           : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[10px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>
@@ -9310,7 +9344,7 @@ const DayPlanner = () => {
                     {/* Half-hour dashed line (no label) */}
                     <div className="absolute left-0 right-0 pointer-events-none" style={{ top: '80px' }}>
                       <div className={`flex border-b border-dashed ${borderClass} opacity-50`}>
-                        <div className="w-20 flex-shrink-0"></div>
+                        <div className="w-16 flex-shrink-0"></div>
                         {visibleDates.map((date, idx) => (
                           <div key={dateToString(date)} className={`flex-1 ${idx > 0 ? `border-l ${borderClass}` : ''}`}></div>
                         ))}
@@ -9899,7 +9933,7 @@ const DayPlanner = () => {
                           >
                             <div className="absolute left-0 right-12 h-0.5 bg-blue-400/60"></div>
                             <div className="absolute right-1 bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded -translate-y-1/2">
-                              {hoverPreviewTime}
+                              {formatTime(hoverPreviewTime)}
                             </div>
                           </div>
                         )}
@@ -9914,7 +9948,7 @@ const DayPlanner = () => {
                                 top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60) - 30}px`
                               }}
                             >
-                              {dragPreviewTime}
+                              {formatTime(dragPreviewTime)}
                             </div>
                             {/* Preview box */}
                             <div
@@ -10677,7 +10711,7 @@ const DayPlanner = () => {
                 <p className={`text-xs ${textSecondary}`}>Time for your weekly review!</p>
               </div>
               <button
-                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); }}
+                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); }}
                 className={`${textSecondary} hover:${textPrimary} flex-shrink-0`}
               >
                 <X size={14} />
@@ -10685,13 +10719,13 @@ const DayPlanner = () => {
             </div>
             <div className="flex items-center justify-center gap-2 mt-2">
               <button
-                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReview(true); setShowWeeklyReviewReminder(false); }}
+                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReview(true); setShowWeeklyReviewReminder(false); }}
                 className="px-2.5 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
               >
                 Open Review
               </button>
               <button
-                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); }}
+                onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); }}
                 className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 Dismiss
@@ -11654,6 +11688,88 @@ const DayPlanner = () => {
                 <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
                   {/* Left column */}
                   <div className="space-y-6">
+                    {/* Clock Format Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Clock size={16} className={textSecondary} />
+                        Clock Format
+                      </h4>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setUse24HourClock(true)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                          }`}
+                        >
+                          24-hour
+                        </button>
+                        <button
+                          onClick={() => setUse24HourClock(false)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            !use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                          }`}
+                        >
+                          12-hour
+                        </button>
+                      </div>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Sound Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Bell size={16} className={textSecondary} />
+                        Sound
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={soundEnabled}
+                            onChange={(e) => setSoundEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+
+                    {/* Cloud Sync Section - narrow screens only */}
+                    <hr className={`${borderClass} lg:hidden`} />
+                    <div className="space-y-3 lg:hidden">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Cloud size={16} className={textSecondary} />
+                        Cloud Sync
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage.
+                      </p>
+                      <CloudSyncSettingsForm
+                        darkMode={darkMode}
+                        textPrimary={textPrimary}
+                        textSecondary={textSecondary}
+                        borderClass={borderClass}
+                        hoverBg={hoverBg}
+                        cloudSyncConfig={cloudSyncConfig}
+                        setCloudSyncConfig={setCloudSyncConfig}
+                        cloudSyncTest={cloudSyncTest}
+                        provider={provider}
+                        currentProvider={currentProvider}
+                        onClose={() => setShowSettings(false)}
+                        cloudSyncLastSynced={cloudSyncLastSynced}
+                      />
+                    </div>
+
+                    <hr className={borderClass} />
+
                     {/* Calendar Sync Section */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
@@ -11705,7 +11821,7 @@ const DayPlanner = () => {
                       )}
                     </div>
 
-                    <hr className={`${borderClass} lg:block`} />
+                    <hr className={borderClass} />
 
                     {/* iCal Import Section */}
                     <div className="space-y-3">
@@ -11722,67 +11838,10 @@ const DayPlanner = () => {
                         Import events from an iCal (.ics) file
                       </p>
                     </div>
-
-                    {/* Clock Format Section */}
-                    <hr className={`${borderClass} lg:block`} />
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Clock size={16} className={textSecondary} />
-                        Clock Format
-                      </h4>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setUse24HourClock(true)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
-                          }`}
-                        >
-                          24-hour
-                        </button>
-                        <button
-                          onClick={() => setUse24HourClock(false)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            !use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
-                          }`}
-                        >
-                          12-hour
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Sound Section - shown here on wide, below cloud on narrow */}
-                    <hr className={`${borderClass} lg:block`} />
-                    <div className="space-y-3 lg:block hidden">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Bell size={16} className={textSecondary} />
-                        Sound
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={soundEnabled}
-                            onChange={(e) => setSoundEnabled(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
-                      </label>
-                    </div>
                   </div>
 
-                  {/* Dividers: hr on narrow, vertical line on wide */}
-                  <hr className={`${borderClass} lg:hidden`} />
-
-                  {/* Right column */}
-                  <div className={`space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
+                  {/* Right column - wide screens only */}
+                  <div className={`hidden lg:block space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
                     {/* Cloud Sync Section */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
@@ -11806,29 +11865,6 @@ const DayPlanner = () => {
                         onClose={() => setShowSettings(false)}
                         cloudSyncLastSynced={cloudSyncLastSynced}
                       />
-                    </div>
-
-                    {/* Sound Section - narrow screens only */}
-                    <hr className={`${borderClass} lg:hidden`} />
-                    <div className="space-y-3 lg:hidden">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Bell size={16} className={textSecondary} />
-                        Sound
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={soundEnabled}
-                            onChange={(e) => setSoundEnabled(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
-                      </label>
                     </div>
                   </div>
                 </div>
