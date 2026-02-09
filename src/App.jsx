@@ -889,6 +889,10 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-selected-tags');
     return saved ? JSON.parse(saved) : [];
   });
+  const [showUntagged, setShowUntagged] = useState(() => {
+    const saved = localStorage.getItem('day-planner-show-untagged');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [pendingPriorities, setPendingPriorities] = useState({});
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1233,12 +1237,6 @@ const DayPlanner = () => {
     return title.replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
   };
 
-  const TITLE_MAX_LENGTH = 32;
-
-  // Check if title (excluding tags) is within limit
-  const isTitleWithinLimit = (title) => {
-    return renderTitleWithoutTags(title).length <= TITLE_MAX_LENGTH;
-  };
 
   // Extract partial tag being typed at cursor position
   const getPartialTag = (text, cursorPos) => {
@@ -1779,6 +1777,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-selected-tags', JSON.stringify(selectedTags));
   }, [selectedTags]);
+
+  // Persist showUntagged to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-show-untagged', JSON.stringify(showUntagged));
+  }, [showUntagged]);
 
   // Persist reminderSettings to localStorage
   useEffect(() => {
@@ -2746,10 +2749,12 @@ const DayPlanner = () => {
 
   const clearTagFilter = () => {
     setSelectedTags([]);
+    setShowUntagged(false);
   };
 
   const selectAllTags = () => {
     setSelectedTags([...allTags]);
+    setShowUntagged(true);
   };
 
   // Get today's date string for overdue comparisons
@@ -2882,12 +2887,11 @@ const DayPlanner = () => {
 
     const cluster = buildConflictCluster(task);
 
-    // Sort by start time, then by duration (longer first), then by id for stability
+    // Sort by start time, then by id for stable column assignment during resize
     const sorted = [...cluster].sort((a, b) => {
       const aStart = timeToMinutes(a.startTime);
       const bStart = timeToMinutes(b.startTime);
       if (aStart !== bStart) return aStart - bStart;
-      if (a.duration !== b.duration) return b.duration - a.duration;
       return String(a.id).localeCompare(String(b.id));
     });
 
@@ -3743,8 +3747,6 @@ const DayPlanner = () => {
   // Handle suggestions for editing task input
   const handleEditInputChange = (e, isInbox = false) => {
     const value = e.target.value;
-    if (!isTitleWithinLimit(value)) return;
-
     setEditingTaskText(value);
     editingInputRef.current = e.target;
 
@@ -3815,8 +3817,6 @@ const DayPlanner = () => {
   // Handle suggestions for new task input
   const handleNewTaskInputChange = (e) => {
     const value = e.target.value;
-    if (!isTitleWithinLimit(value)) return;
-
     const cursorPos = e.target.selectionStart;
     const allSuggestions = buildSuggestions(value, cursorPos, newTask.openInInbox);
 
@@ -6977,8 +6977,10 @@ const DayPlanner = () => {
   const filterByTags = (taskList) => {
     return taskList.filter(task => {
       const taskTags = extractTags(task.title);
-      // Always show untagged tasks and imported events
-      if (taskTags.length === 0 || task.imported) return true;
+      // Imported events always shown
+      if (task.imported) return true;
+      // Untagged tasks: respect showUntagged toggle
+      if (taskTags.length === 0) return showUntagged;
       // If no tags are selected, hide tagged tasks
       if (selectedTags.length === 0) return false;
       // Show tagged tasks only if they match a selected tag
@@ -8445,7 +8447,7 @@ const DayPlanner = () => {
                 </h3>
                 <div className="flex items-center gap-2">
                   {!minimizedSections.tags && allTags.length > 0 && (
-                    allTags.every(tag => selectedTags.includes(tag)) ? (
+                    allTags.every(tag => selectedTags.includes(tag)) && showUntagged ? (
                       <button
                         onClick={clearTagFilter}
                         className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
@@ -8534,6 +8536,23 @@ const DayPlanner = () => {
                           </label>
                         );
                       })}
+                      {(() => {
+                        const untaggedRegular = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).length === 0).length;
+                        const untaggedRecurring = recurringTasks.filter(t => extractTags(t.title).length === 0).length;
+                        const untaggedCount = untaggedRegular + untaggedRecurring;
+                        if (untaggedCount === 0) return null;
+                        return (
+                          <label className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors italic`}>
+                            <input
+                              type="checkbox"
+                              checked={showUntagged}
+                              onChange={() => setShowUntagged(!showUntagged)}
+                              className="rounded"
+                            />
+                            <span>untagged <span className={`text-xs ${textSecondary}`}>({untaggedCount})</span></span>
+                          </label>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -8758,7 +8777,7 @@ const DayPlanner = () => {
           <div className="flex-1 min-w-0">
             <div
               ref={calendarRef}
-              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll ${darkMode ? 'dark-scrollbar' : ''} relative`}
+              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
               style={{ height: '1168px' }}
             >
               {/* Date headers row - sticky at top */}
@@ -9218,26 +9237,15 @@ const DayPlanner = () => {
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
 
-                          // Height-based tiers (160px/hour: 15min=39px, 30min=79px, 45min=119px)
+                          // Layout tiers for timeline tasks
                           const isMicroHeight = height < 40;  // 15min tasks
-                          const isShortHeight = height < 80;  // 15-30min tasks
-                          const isMediumHeight = height < 120; // 15-45min tasks
-
-                          // Width-based tiers using measured pixel width
                           const taskWidth = taskWidths[task.id];
                           const isMeasured = taskWidth !== undefined;
-                          const isVeryNarrowWidth = taskWidth < 120;
-                          const isNarrowWidth = taskWidth < 200;
+                          const isNarrowWidth = taskWidth < 300;
 
-                          // Combined layout modes - height constraints only apply when width is also limited
-                          // Wide tasks (>= 200px) always get full layout regardless of height
-                          // Micro: micro height AND narrow, or short AND very narrow
-                          const useMicroLayout = (isMicroHeight && isNarrowWidth) || (isShortHeight && isVeryNarrowWidth);
-                          // Compact: very narrow (but not micro), or short AND narrow
-                          const useCompactLayout = !useMicroLayout && (isVeryNarrowWidth || (isShortHeight && isNarrowWidth));
-                          // Medium: narrow width (but not compact or micro)
-                          const useMediumLayout = !useMicroLayout && !useCompactLayout && isNarrowWidth;
-                          // Full layout is the default when none of the above apply (wide tasks)
+                          const useMicroLayout = isMicroHeight;  // all 15-min tasks (unchanged)
+                          const useNarrowLayout = !useMicroLayout && isNarrowWidth;  // 30+ min, squished
+                          // Default: wide layout (30+ min, >= 200px)
 
                           // Action buttons component (reused in different layouts)
                           const ActionButtons = ({ inMenu = false }) => (
@@ -9352,7 +9360,7 @@ const DayPlanner = () => {
                                   Example
                                 </span>
                               )}
-                              <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : 'justify-between'} rounded-lg relative`}>
+                              <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : ''} rounded-lg relative`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
                                   <div className="flex items-center justify-between gap-2">
@@ -9367,8 +9375,8 @@ const DayPlanner = () => {
                                       {task.startTime} • {task.duration}m
                                     </div>
                                   </div>
-                                ) : useMicroLayout ? (
-                                  /* MICRO LAYOUT: Single line - checkbox + truncated title + ... menu in top-right */
+                                ) : useMicroLayout && isNarrowWidth ? (
+                                  /* MICRO NARROW: ... menu + checkbox + truncated title + tag, single row */
                                   <>
                                     {!isImported && (
                                       <button
@@ -9405,35 +9413,27 @@ const DayPlanner = () => {
                                       >
                                         {renderTitleWithoutTags(task.title)}
                                       </div>
+                                      {extractTags(task.title).length > 0 && (
+                                        <div className="text-xs italic opacity-75 whitespace-nowrap flex-shrink-0">
+                                          {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                        </div>
+                                      )}
                                     </div>
                                   </>
-                                ) : useCompactLayout ? (
-                                  /* COMPACT LAYOUT: Single row - checkbox, truncated title, ... menu in top-right */
-                                  <>
-                                    {!isImported && (
-                                      <button
-                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                        className="task-menu-container absolute top-1 right-1 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
-                                      >
-                                        <MoreHorizontal size={14} />
-                                        {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                            <ActionButtons inMenu={true} />
-                                          </div>
-                                        )}
-                                      </button>
-                                    )}
-                                    <div className="flex items-center gap-1 pr-5">
+                                ) : useMicroLayout ? (
+                                  /* MICRO WIDE: checkbox + truncated title + tag + action buttons, single row */
+                                  <div className="flex items-center justify-between gap-1 min-w-0">
+                                    <div className="flex items-center gap-1 min-w-0">
                                       {(!isImported || task.isTaskCalendar) && (
                                         <button
                                           onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                         >
-                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                          {task.completed && <Check size={8} strokeWidth={3} />}
                                         </button>
                                       )}
-                                      {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
-                                      <div className="flex-1 min-w-0 overflow-hidden">
+                                      {task.isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+                                      <div className="flex-1 min-w-0">
                                         {editingTaskId === task.id ? (
                                           <div className="relative tag-autocomplete-container">
                                             <input
@@ -9475,10 +9475,24 @@ const DayPlanner = () => {
                                           </div>
                                         )}
                                       </div>
+                                      {extractTags(task.title).length > 0 && (
+                                        <div className="text-xs italic opacity-75 whitespace-nowrap flex-shrink-0">
+                                          {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                        </div>
+                                      )}
                                     </div>
-                                  </>
-                                ) : useMediumLayout ? (
-                                  /* MEDIUM LAYOUT: Title can wrap (clamped), tags, time, ... menu in top-right */
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      {renderTitleWithoutTags(task.title).length <= 20 && (
+                                        <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
+                                          <Clock size={10} />
+                                          {task.startTime} • {task.duration}m
+                                        </div>
+                                      )}
+                                      {!isImported && <ActionButtons />}
+                                    </div>
+                                  </div>
+                                ) : useNarrowLayout ? (
+                                  /* NARROW LAYOUT (<200px): ... menu, checkbox + title with line-clamp-3, no time */
                                   <>
                                     {!isImported && (
                                       <button
@@ -9493,7 +9507,7 @@ const DayPlanner = () => {
                                         )}
                                       </button>
                                     )}
-                                    <div className="pr-5">
+                                    <div className="pr-6">
                                       <div className="flex items-start gap-1">
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
@@ -9545,88 +9559,93 @@ const DayPlanner = () => {
                                               {renderTitleWithoutTags(task.title)}
                                             </div>
                                           )}
-                                        </div>
-                                      </div>
-                                      {extractTags(task.title).length > 0 && (
-                                        <div className="text-xs italic opacity-75 truncate mt-0.5">
-                                          {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
-                                        </div>
-                                      )}
-                                      <div className="flex items-center gap-1 mt-auto">
-                                        <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
-                                          <Clock size={10} />
-                                          {task.startTime} • {task.duration}m
+                                          {extractTags(task.title).length > 0 && (
+                                            <div className="text-xs italic opacity-75 truncate">
+                                              {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
                                   </>
                                 ) : (
-                                  /* FULL LAYOUT: Title can wrap, tags inline, time and full action buttons */
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                                      {(!isImported || task.isTaskCalendar) && (
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                        >
-                                          {task.completed && <Check size={10} strokeWidth={3} />}
-                                        </button>
-                                      )}
-                                      {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
-                                      <div className="flex-1 min-w-0">
-                                        {editingTaskId === task.id ? (
-                                          <div className="relative tag-autocomplete-container">
-                                            <input
-                                              type="text"
-                                              value={editingTaskText}
-                                              onChange={(e) => handleEditInputChange(e, false)}
-                                              onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                              onBlur={() => {
-                                                setTimeout(() => {
-                                                  if (!showSuggestions) {
-                                                    saveTaskTitle(false);
-                                                  }
-                                                }, 100);
-                                              }}
-                                              autoFocus
-                                              className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                              onClick={(e) => e.stopPropagation()}
-                                            />
-                                            {showSuggestions && suggestionContext === 'editing' && (
-                                              <SuggestionAutocomplete
-                                                suggestions={suggestions}
-                                                selectedIndex={selectedSuggestionIndex}
-                                                onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
-                                              />
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                            onDoubleClick={(e) => {
-                                              if (!isImported) {
-                                                e.stopPropagation();
-                                                startEditingTask(task, false);
-                                              }
-                                            }}
-                                            title={!isImported ? "Double-click to edit" : undefined}
+                                  /* WIDE LAYOUT (>=200px): Title+tags row 1 with action buttons, time row 2 */
+                                  <>
+                                    <div className="flex items-start justify-between gap-1">
+                                      <div className="flex items-start gap-1 flex-1 min-w-0">
+                                        {(!isImported || task.isTaskCalendar) && (
+                                          <button
+                                            onClick={() => toggleComplete(task.id)}
+                                            className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                           >
-                                            {renderTitle(task.title)}
-                                          </div>
+                                            {task.completed && <Check size={10} strokeWidth={3} />}
+                                          </button>
                                         )}
+                                        {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+                                        <div className="flex-1 min-w-0">
+                                          {editingTaskId === task.id ? (
+                                            <div className="relative tag-autocomplete-container">
+                                              <input
+                                                type="text"
+                                                value={editingTaskText}
+                                                onChange={(e) => handleEditInputChange(e, false)}
+                                                onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                                onBlur={() => {
+                                                  setTimeout(() => {
+                                                    if (!showSuggestions) {
+                                                      saveTaskTitle(false);
+                                                    }
+                                                  }, 100);
+                                                }}
+                                                autoFocus
+                                                className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                              {showSuggestions && suggestionContext === 'editing' && (
+                                                <SuggestionAutocomplete
+                                                  suggestions={suggestions}
+                                                  selectedIndex={selectedSuggestionIndex}
+                                                  onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
+                                                />
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div
+                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
+                                              onDoubleClick={(e) => {
+                                                if (!isImported) {
+                                                  e.stopPropagation();
+                                                  startEditingTask(task, false);
+                                                }
+                                              }}
+                                              title={!isImported ? "Double-click to edit" : undefined}
+                                            >
+                                              {renderTitleWithoutTags(task.title)}
+                                            </div>
+                                          )}
+                                          {extractTags(task.title).length > 0 && (
+                                            <div className="text-xs italic opacity-75 truncate">
+                                              {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
+                                      {!isImported && (
+                                        <div className="flex flex-col items-end flex-shrink-0">
+                                          <div className="flex items-start gap-0.5">
+                                            <ActionButtons />
+                                          </div>
+                                          <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 mt-0.5">
+                                            <Clock size={10} />
+                                            {task.startTime} • {task.duration}min
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="flex items-start gap-1 flex-shrink-0">
-                                      <div className="text-xs opacity-90 whitespace-nowrap mr-1 mt-0.5 flex items-center gap-1">
-                                        <Clock size={12} />
-                                        {task.startTime} • {task.duration}min
-                                      </div>
-                                      {!isImported && <ActionButtons />}
-                                    </div>
-                                  </div>
+                                  </>
                                 )}
                                 {/* Resize handle at bottom - solid white for visibility */}
-                                {!useMicroLayout && !isImported && (
+                                {!isImported && (
                                   <div
                                     onMouseDown={(e) => handleResizeStart(task, e)}
                                     className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
