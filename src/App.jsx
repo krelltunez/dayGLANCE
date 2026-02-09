@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -893,6 +893,10 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-show-untagged');
     return saved !== null ? JSON.parse(saved) : true;
   });
+  const [use24HourClock, setUse24HourClock] = useState(() => {
+    const saved = localStorage.getItem('day-planner-use-24h-clock');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [pendingPriorities, setPendingPriorities] = useState({});
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1640,8 +1644,10 @@ const DayPlanner = () => {
     return candidates.length > 0 ? candidates[0] : null;
   };
 
-  // Format time for display (12-hour format)
-  const formatTimeDisplay = (timeStr) => {
+  // Format time for display (respects 12h/24h setting)
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    if (use24HourClock) return timeStr;
     const [hours, minutes] = timeStr.split(':').map(Number);
     const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -1782,6 +1788,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-show-untagged', JSON.stringify(showUntagged));
   }, [showUntagged]);
+
+  // Persist use24HourClock to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(use24HourClock));
+  }, [use24HourClock]);
 
   // Persist reminderSettings to localStorage
   useEffect(() => {
@@ -5913,7 +5924,8 @@ const DayPlanner = () => {
         selectedTags: JSON.parse(localStorage.getItem('day-planner-selected-tags') || '[]'),
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
         cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
-        reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null')
+        reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null'),
+        use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'true')
       }
     };
 
@@ -6091,6 +6103,7 @@ const DayPlanner = () => {
         if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
         if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
         if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
+        if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
 
         // Reload app to reflect changes
         window.location.reload();
@@ -6583,6 +6596,7 @@ const DayPlanner = () => {
   const ClockTimePicker = ({ value, onChange, onClose }) => {
     const [selectedHour, setSelectedHour] = useState(parseInt(value.split(':')[0]));
     const [selectedMinute, setSelectedMinute] = useState(parseInt(value.split(':')[1]));
+    const [isAM, setIsAM] = useState(parseInt(value.split(':')[0]) < 12);
     const [mode, setMode] = useState('hour');
 
     const handleConfirm = () => {
@@ -6591,65 +6605,99 @@ const DayPlanner = () => {
       onClose();
     };
 
+    const handleHourSelect = (hour24) => {
+      setSelectedHour(hour24);
+      setIsAM(hour24 < 12);
+      setMode('minute');
+    };
+
+    const toggleAMPM = () => {
+      const newIsAM = !isAM;
+      setIsAM(newIsAM);
+      if (newIsAM && selectedHour >= 12) {
+        setSelectedHour(selectedHour - 12);
+      } else if (!newIsAM && selectedHour < 12) {
+        setSelectedHour(selectedHour + 12);
+      }
+    };
+
+    const displayHour = use24HourClock
+      ? selectedHour.toString().padStart(2, '0')
+      : (selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour).toString();
+
     const renderClock = () => {
-      const numbers = mode === 'hour' ? Array.from({ length: 24 }, (_, i) => i) : [0, 15, 30, 45];
+      const numbers = mode === 'hour'
+        ? (use24HourClock ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: 12 }, (_, i) => i + 1))
+        : [0, 15, 30, 45];
       const radius = 100;
       const centerX = 120;
       const centerY = 120;
+
+      // For 12h mode: map display hour (1-12) to angle
+      const getHourAngle = (num) => {
+        if (use24HourClock) return num * 15 - 90;
+        return num * 30 - 90; // 12 hours * 30 degrees each
+      };
+
+      const selectedAngle = mode === 'hour'
+        ? (use24HourClock
+          ? selectedHour * 15
+          : ((selectedHour % 12 || 12) * 30))
+        : selectedMinute * 6;
 
       return (
         <div className="relative" style={{ width: '240px', height: '240px' }}>
           <svg width="240" height="240" className="absolute top-0 left-0">
             <circle cx={centerX} cy={centerY} r={radius} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
-            
+
             {/* Selected time indicator */}
-            {mode === 'hour' && (
-              <line
-                x1={centerX}
-                y1={centerY}
-                x2={centerX + radius * Math.sin((selectedHour * 15) * Math.PI / 180)}
-                y2={centerY - radius * Math.cos((selectedHour * 15) * Math.PI / 180)}
-                stroke="#3b82f6"
-                strokeWidth="2"
-              />
-            )}
-            {mode === 'minute' && (
-              <line
-                x1={centerX}
-                y1={centerY}
-                x2={centerX + radius * Math.sin((selectedMinute * 6) * Math.PI / 180)}
-                y2={centerY - radius * Math.cos((selectedMinute * 6) * Math.PI / 180)}
-                stroke="#3b82f6"
-                strokeWidth="2"
-              />
-            )}
-            
+            <line
+              x1={centerX}
+              y1={centerY}
+              x2={centerX + radius * Math.sin(selectedAngle * Math.PI / 180)}
+              y2={centerY - radius * Math.cos(selectedAngle * Math.PI / 180)}
+              stroke="#3b82f6"
+              strokeWidth="2"
+            />
+
             {/* Center dot */}
             <circle cx={centerX} cy={centerY} r="4" fill="#3b82f6" />
           </svg>
 
           {numbers.map((num) => {
-            const angle = mode === 'hour' ? (num * 15 - 90) : (num * 6 - 90);
+            const angle = mode === 'hour' ? getHourAngle(num) : (num * 6 - 90);
             const x = centerX + radius * Math.cos(angle * Math.PI / 180);
             const y = centerY + radius * Math.sin(angle * Math.PI / 180);
-            const isSelected = mode === 'hour' ? num === selectedHour : num === selectedMinute;
+            const isSelected = mode === 'hour'
+              ? (use24HourClock ? num === selectedHour : num === (selectedHour % 12 || 12))
+              : num === selectedMinute;
 
             return (
               <button
                 key={num}
                 onClick={() => {
                   if (mode === 'hour') {
-                    setSelectedHour(num);
-                    setMode('minute');
+                    if (use24HourClock) {
+                      handleHourSelect(num);
+                    } else {
+                      // Convert 12h display to 24h internal
+                      let hour24;
+                      if (isAM) {
+                        hour24 = num === 12 ? 0 : num;
+                      } else {
+                        hour24 = num === 12 ? 12 : num + 12;
+                      }
+                      handleHourSelect(hour24);
+                    }
                   } else {
                     setSelectedMinute(num);
                   }
                 }}
                 className={`absolute w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                  isSelected 
-                    ? 'bg-blue-600 text-white' 
-                    : darkMode 
-                      ? 'hover:bg-gray-700 text-gray-300' 
+                  isSelected
+                    ? 'bg-blue-600 text-white'
+                    : darkMode
+                      ? 'hover:bg-gray-700 text-gray-300'
                       : 'hover:bg-gray-200 text-gray-700'
                 }`}
                 style={{
@@ -6686,7 +6734,7 @@ const DayPlanner = () => {
                   mode === 'hour' ? 'bg-blue-600 text-white' : textSecondary
                 }`}
               >
-                {selectedHour.toString().padStart(2, '0')}
+                {displayHour}
               </button>
               <span className={`text-3xl ${textPrimary}`}>:</span>
               <button
@@ -6697,6 +6745,14 @@ const DayPlanner = () => {
               >
                 {selectedMinute.toString().padStart(2, '0')}
               </button>
+              {!use24HourClock && (
+                <button
+                  onClick={toggleAMPM}
+                  className={`text-lg font-bold px-2 py-1 rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  {isAM ? 'AM' : 'PM'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -7367,7 +7423,7 @@ const DayPlanner = () => {
   const allTimeFocusMinutes = nonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
 
   // Incomplete task lists for modal
-  const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => !t.completed);
+  const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => !t.completed).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   const allTimeIncompleteTasks = useMemo(() => {
     const regularIncomplete = nonImportedTasks.filter(t => !t.completed);
     const recurringIncomplete = [];
@@ -7388,7 +7444,7 @@ const DayPlanner = () => {
         }
       });
     });
-    return [...regularIncomplete, ...recurringIncomplete].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return [...regularIncomplete, ...recurringIncomplete].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.startTime || '').localeCompare(b.startTime || ''));
   }, [nonImportedTasks, recurringTasks, todayStr]);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
@@ -7693,7 +7749,7 @@ const DayPlanner = () => {
                     <Sparkles size={24} />
                   </button>
                   <button
-                    onClick={() => setShowWeeklyReview(true)}
+                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Weekly Review"
                   >
@@ -7794,7 +7850,7 @@ const DayPlanner = () => {
                   </button>
                   {/* Weekly Review */}
                   <button
-                    onClick={() => setShowWeeklyReview(true)}
+                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Weekly Review"
                   >
@@ -7908,7 +7964,7 @@ const DayPlanner = () => {
                                 {task._overdueType === 'scheduled' ? (
                                   <>
                                     <Clock size={10} />
-                                    {task.date} {task.isAllDay ? '' : `• ${task.startTime}`}
+                                    {task.date} {task.isAllDay ? '' : `• ${formatTime(task.startTime)}`}
                                   </>
                                 ) : (
                                   <>
@@ -8034,7 +8090,7 @@ const DayPlanner = () => {
                         const endMin = startMin + (task.duration || 0);
                         const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
                         const endM = String(endMin % 60).padStart(2, '0');
-                        timeLabel = `${task.startTime} – ${endH}:${endM}`;
+                        timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
                         const diff = startMin - nowMin;
                         if (diff > 0) {
                           relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
@@ -8053,9 +8109,62 @@ const DayPlanner = () => {
                         >
                           <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`}></div>
                           <div className="min-w-0 flex-1">
-                            <div className={`text-sm font-semibold truncate ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
+                            <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
                               {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
-                              {renderTitleWithoutTags(task.title)}
+                              <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                              {hasNotesOrSubtasks(task) && (
+                                <button
+                                  onMouseDown={() => {
+                                    if (isLinkOnlyTask(task)) {
+                                      longPressTriggeredRef.current = false;
+                                      longPressTimerRef.current = setTimeout(() => {
+                                        longPressTriggeredRef.current = true;
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }, 500);
+                                    }
+                                  }}
+                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isLinkOnlyTask(task)) {
+                                      if (!longPressTriggeredRef.current) {
+                                        window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                      }
+                                      longPressTriggeredRef.current = false;
+                                    } else {
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }
+                                  }}
+                                  className={`notes-toggle-button flex-shrink-0 rounded p-0.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}
+                                  title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
+                                >
+                                  {isLinkOnlyTask(task) ? <ExternalLink size={12} /> : hasOnlySubtasks(task) ? <CheckSquare size={12} /> : <FileText size={12} />}
+                                </button>
+                              )}
+                              {relativeLabel === 'Overdue' && (
+                                task.isRecurring ? (
+                                  <span
+                                    className="flex-shrink-0 p-0.5 text-orange-500"
+                                    title="Recurring tasks can't be moved to Inbox"
+                                  >
+                                    <Ban size={12} />
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTasks(prev => prev.filter(t => t.id !== task.id));
+                                      const { startTime, date, _agendaType, ...rest } = task;
+                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                    }}
+                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    title="Move to Inbox"
+                                  >
+                                    <Inbox size={12} />
+                                  </button>
+                                )
+                              )}
                             </div>
                             <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
                               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
@@ -8090,10 +8199,14 @@ const DayPlanner = () => {
                     }).map(r => {
                       let timeLabel = '';
                       if (!r.isAllDay && r.startTime) {
-                        const [h, m] = r.startTime.split(':').map(Number);
-                        const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                        const ampm = h < 12 ? 'a' : 'p';
-                        timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                        if (use24HourClock) {
+                          timeLabel = r.startTime;
+                        } else {
+                          const [h, m] = r.startTime.split(':').map(Number);
+                          const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                          const ampm = h < 12 ? 'a' : 'p';
+                          timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                        }
                       }
                       return (
                         <span key={r.id} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
@@ -8542,7 +8655,7 @@ const DayPlanner = () => {
                         const untaggedCount = untaggedRegular + untaggedRecurring;
                         if (untaggedCount === 0) return null;
                         return (
-                          <label className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors italic`}>
+                          <label className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}>
                             <input
                               type="checkbox"
                               checked={showUntagged}
@@ -8738,7 +8851,7 @@ const DayPlanner = () => {
                                   {task._deletedFrom === 'inbox' ? (
                                     <>Inbox • {task.duration}min</>
                                   ) : task.startTime ? (
-                                    <>{task.startTime} • {task.duration}min</>
+                                    <>{formatTime(task.startTime)} • {task.duration}min</>
                                   ) : (
                                     <>{task.duration}min</>
                                   )}
@@ -8801,7 +8914,7 @@ const DayPlanner = () => {
                         });
                         setShowAddTask(true);
                       }}
-                      onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
+                      onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
                       onDragEnter={(e) => {
                         e.preventDefault();
                         setDragOverAllDay(dateStr);
@@ -8838,7 +8951,7 @@ const DayPlanner = () => {
                       <div
                         key={dateStr}
                         className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
-                        onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
+                        onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
                         onDragEnter={(e) => {
                           e.preventDefault();
                           setDragOverAllDay(dateStr);
@@ -9176,7 +9289,10 @@ const DayPlanner = () => {
                     {/* Main hour row with solid border */}
                     <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
                       <div className={`w-20 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass}`}>
-                        {hour.toString().padStart(2, '0')}:00
+                        {use24HourClock
+                          ? `${hour.toString().padStart(2, '0')}:00`
+                          : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[10px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>
+                        }
                       </div>
                       {visibleDates.map((date, idx) => (
                         <div
@@ -9372,7 +9488,7 @@ const DayPlanner = () => {
                                     </div>
                                     <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                                       <Clock size={10} />
-                                      {task.startTime} • {task.duration}m
+                                      {formatTime(task.startTime)} • {task.duration}m
                                     </div>
                                   </div>
                                 ) : useMicroLayout && isNarrowWidth ? (
@@ -9485,7 +9601,7 @@ const DayPlanner = () => {
                                       {renderTitleWithoutTags(task.title).length <= 20 && (
                                         <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
                                           <Clock size={10} />
-                                          {task.startTime} • {task.duration}m
+                                          {formatTime(task.startTime)} • {task.duration}m
                                         </div>
                                       )}
                                       {!isImported && <ActionButtons />}
@@ -9637,7 +9753,7 @@ const DayPlanner = () => {
                                           </div>
                                           <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 mt-0.5">
                                             <Clock size={10} />
-                                            {task.startTime} • {task.duration}min
+                                            {formatTime(task.startTime)} • {task.duration}min
                                           </div>
                                         </div>
                                       )}
@@ -9654,10 +9770,11 @@ const DayPlanner = () => {
                                     <div className="w-12 h-1 bg-white rounded-full"></div>
                                   </div>
                                 )}
-                                {/* Notes panel - floating below task (or above for 22:00+ hour) */}
+                                {/* Notes panel - floating below task (or above if task ends after 22:00) */}
                                 {expandedNotesTaskId === task.id && !isImported && (() => {
-                                  const hour = parseInt(task.startTime?.split(':')[0] || '0', 10);
-                                  const showAbove = hour >= 22;
+                                  const startMin = timeToMinutes(task.startTime || '0:00');
+                                  const endMin = startMin + (task.duration || 0);
+                                  const showAbove = endMin >= 22 * 60;
                                   return (
                                     <div
                                       className="notes-panel-container absolute left-0 right-0 z-40"
@@ -10551,7 +10668,7 @@ const DayPlanner = () => {
 
       {/* Weekly Review Reminder Toast */}
       {showWeeklyReviewReminder && !showWeeklyReview && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm">
+        <div className="fixed bottom-6 right-6 z-50 w-sm">
           <div className={`${cardBg} rounded-lg shadow-xl ${borderClass} border p-3`}>
             <div className="flex items-start gap-2">
               <BarChart3 size={16} className="text-purple-500 mt-0.5 flex-shrink-0" />
@@ -10586,11 +10703,11 @@ const DayPlanner = () => {
 
       {/* Reminder Toasts */}
       {activeReminders.length > 0 && (
-        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 max-w-sm ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-28' : 'bottom-6'}`}>
+        <div className={`fixed right-6 z-50 flex flex-col-reverse gap-2 w-sm ${showWeeklyReviewReminder && !showWeeklyReview ? 'bottom-36' : 'bottom-6'}`}>
           {activeReminders.slice(0, 5).map((reminder) => (
             <div
               key={reminder.id}
-              className={`${cardBg} rounded-lg shadow-xl ${borderClass} border p-3 animate-in slide-in-from-right`}
+              className={`w-full ${cardBg} rounded-lg shadow-xl ${borderClass} border p-3 animate-in slide-in-from-right`}
             >
               <div className="flex items-start gap-2">
                 <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${reminder.taskColor || 'bg-blue-500'}`} />
@@ -10611,6 +10728,14 @@ const DayPlanner = () => {
                 </button>
               </div>
               <div className="flex items-center justify-center gap-2 mt-2">
+                {reminder.type === 'end' && (
+                  <button
+                    onClick={() => { toggleComplete(reminder.taskId); dismissReminder(reminder.id); }}
+                    className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Complete
+                  </button>
+                )}
                 {reminder.type !== 'end' && reminder.type !== 'morning' && reminder.startTime && (
                   <button
                     onClick={() => snoozeReminder(reminder)}
@@ -10985,7 +11110,7 @@ const DayPlanner = () => {
                         disabled={newTask.isAllDay}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {newTask.isAllDay ? 'All Day' : newTask.startTime}
+                        {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
                       </button>
                     </div>
                     <div>
@@ -11320,7 +11445,7 @@ const DayPlanner = () => {
                       <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{task.title}</div>
-                        <div className="text-xs text-gray-500">{formatTimeDisplay(task.startTime)} - {formatTimeDisplay(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
+                        <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
                         {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
                           <div className="mt-2">
                             <NotesSubtasksPanel
@@ -11598,6 +11723,37 @@ const DayPlanner = () => {
                       </p>
                     </div>
 
+                    {/* Clock Format Section */}
+                    <hr className={`${borderClass} lg:block`} />
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Clock size={16} className={textSecondary} />
+                        Clock Format
+                      </h4>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setUse24HourClock(true)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                          }`}
+                        >
+                          24-hour
+                        </button>
+                        <button
+                          onClick={() => setUse24HourClock(false)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            !use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                          }`}
+                        >
+                          12-hour
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Sound Section - shown here on wide, below cloud on narrow */}
                     <hr className={`${borderClass} lg:block`} />
                     <div className="space-y-3 lg:block hidden">
@@ -11842,7 +11998,7 @@ const DayPlanner = () => {
                       onClick={() => setShowMorningTimePicker(true)}
                       className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
                     >
-                      {reminderSettings.morningReminderTime}
+                      {formatTime(reminderSettings.morningReminderTime)}
                     </button>
                   </div>
                 </div>
@@ -11896,7 +12052,7 @@ const DayPlanner = () => {
                       onClick={() => setShowWeeklyReviewTimePicker(true)}
                       className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
                     >
-                      {reminderSettings.weeklyReview.time}
+                      {formatTime(reminderSettings.weeklyReview.time)}
                     </button>
                   </div>
                 </div>
@@ -11962,6 +12118,13 @@ const DayPlanner = () => {
                           if (task.date) {
                             setSelectedDate(new Date(task.date + 'T12:00:00'));
                           }
+                          if (task.startTime && calendarRef.current) {
+                            setTimeout(() => {
+                              const minutes = timeToMinutes(task.startTime);
+                              const scrollPosition = Math.max(0, (minutes / 60 - 1) * 161);
+                              calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+                            }, 150);
+                          }
                           setShowIncompleteTasks(null);
                         }}
                       >
@@ -11970,8 +12133,8 @@ const DayPlanner = () => {
                           <div className={`text-sm ${textPrimary} truncate`}>{task.title}</div>
                           <div className={`text-xs ${textSecondary}`}>
                             {isDaily
-                              ? (task.startTime || 'All day')
-                              : [task.date && new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), task.startTime].filter(Boolean).join(' · ') || 'No date'}
+                              ? (task.startTime ? formatTime(task.startTime) : 'All day')
+                              : [task.date && new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), task.startTime && formatTime(task.startTime)].filter(Boolean).join(' · ') || 'No date'}
                           </div>
                         </div>
                       </button>
@@ -12380,7 +12543,7 @@ const DayPlanner = () => {
                           <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{task.title}</span>
                           <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
                             {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {task.startTime ? ` \u00b7 ${task.startTime}` : ''}
+                            {task.startTime ? ` \u00b7 ${formatTime(task.startTime)}` : ''}
                           </span>
                         </button>
                       ))}
