@@ -1948,7 +1948,7 @@ const DayPlanner = () => {
       cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, cloudSyncConfig?.enabled]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, use24HourClock, cloudSyncConfig?.enabled]);
 
   // Cloud sync: download on app load or when sync is first enabled
   useEffect(() => {
@@ -2369,9 +2369,9 @@ const DayPlanner = () => {
 
     // Fetch quote
     try {
-      const response = await fetch('https://api.quotable.io/random');
+      const response = await fetch('https://dummyjson.com/quotes/random');
       const data = await response.json();
-      if (data.content) content.quote = { text: decodeHTML(data.content), author: decodeHTML(data.author) };
+      if (data.quote) content.quote = { text: decodeHTML(data.quote), author: decodeHTML(data.author) };
     } catch (error) {
       console.error('Failed to fetch quote:', error);
     }
@@ -6282,7 +6282,6 @@ const DayPlanner = () => {
       tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
       unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
-      darkMode: JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'),
       syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
       taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
       completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
@@ -6291,7 +6290,7 @@ const DayPlanner = () => {
       todayRoutines: JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]'),
       routinesDate: localStorage.getItem('day-planner-routines-date') || '',
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
-      reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null')
+      use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false')
     }
   });
 
@@ -6329,7 +6328,6 @@ const DayPlanner = () => {
     if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
     if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
-    if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
     if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
     if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
@@ -6339,13 +6337,13 @@ const DayPlanner = () => {
     if (data.routinesDate !== undefined) localStorage.setItem('day-planner-routines-date', data.routinesDate);
     // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
-    if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
+    if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
+    // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload)
     if (data.tasks) setTasks(data.tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
     if (data.unscheduledTasks) setUnscheduledTasks(data.unscheduledTasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
     if (data.recycleBin) setRecycleBin(data.recycleBin);
-    if (data.darkMode !== undefined) setDarkMode(data.darkMode);
     if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
     if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
@@ -6353,7 +6351,7 @@ const DayPlanner = () => {
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
-    if (data.reminderSettings) setReminderSettings(data.reminderSettings);
+    if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
 
     setTimeout(() => { suppressCloudUploadRef.current = false; }, 500);
   };
@@ -7202,6 +7200,7 @@ const DayPlanner = () => {
             startTime: task.startTime || null,
             message: messageMap[point.type] || 'Reminder',
             type: point.type,
+            isCalendarEvent: task.imported && !task.isTaskCalendar,
             firedAt: Date.now(),
           });
         }
@@ -7790,6 +7789,13 @@ const DayPlanner = () => {
                     <BarChart3 size={24} />
                   </button>
                   <button
+                    onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Spotlight Search (Ctrl+K)"
+                  >
+                    <Search size={24} />
+                  </button>
+                  <button
                     onClick={() => setSidebarCollapsed(false)}
                     className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Expand sidebar"
@@ -7857,46 +7863,54 @@ const DayPlanner = () => {
               <div className="flex-1 min-h-0">
                 <div className={`h-full overflow-y-auto w-[calc(100%+14px)] ${darkMode ? 'dark-scrollbar' : ''}`}>
                 <div className="w-72">
-                <div className={`flex gap-2 mb-4`}>
+                <div className={`flex gap-1.5 mb-4`}>
                   {/* Calendar - new scheduled task */}
                   <button
                     onClick={openNewTaskForm}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Scheduled Task"
                   >
-                    <Calendar size={24} />
+                    <Calendar size={22} />
                   </button>
                   {/* Inbox - add to inbox */}
                   <button
                     onClick={openNewInboxTask}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="New Inbox Task"
                   >
-                    <Inbox size={24} />
+                    <Inbox size={22} />
                   </button>
                   {/* Routines */}
                   <button
                     onClick={openRoutinesDashboard}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Routines"
                   >
-                    <Sparkles size={24} />
+                    <Sparkles size={22} />
                   </button>
                   {/* Weekly Review */}
                   <button
                     onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Weekly Review"
                   >
-                    <BarChart3 size={24} />
+                    <BarChart3 size={22} />
+                  </button>
+                  {/* Spotlight Search */}
+                  <button
+                    onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Spotlight Search (Ctrl+K)"
+                  >
+                    <Search size={22} />
                   </button>
                   {/* Collapse sidebar */}
                   <button
                     onClick={() => setSidebarCollapsed(true)}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-[33px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     title="Collapse sidebar"
                   >
-                    <ChevronsLeft size={24} />
+                    <ChevronsLeft size={20} />
                   </button>
                 </div>
 
@@ -10749,7 +10763,7 @@ const DayPlanner = () => {
                   <p className={`text-sm font-medium ${textPrimary}`}>{reminder.taskTitle}</p>
                   <div className="flex items-center gap-2">
                     <p className={`text-xs ${textSecondary}`}>{reminder.message}</p>
-                    {reminder.startTime && (
+                    {reminder.startTime && reminder.type !== 'morning' && (
                       <span className={`text-xs ${textSecondary}`}>{reminder.startTime}</span>
                     )}
                   </div>
@@ -10762,7 +10776,7 @@ const DayPlanner = () => {
                 </button>
               </div>
               <div className="flex items-center justify-center gap-2 mt-2">
-                {reminder.type === 'end' && (
+                {reminder.type === 'end' && !reminder.isCalendarEvent && (
                   <button
                     onClick={() => { toggleComplete(reminder.taskId); dismissReminder(reminder.id); }}
                     className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -12681,7 +12695,7 @@ const DayPlanner = () => {
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
                   Interacting with Tasks
                 </h3>
-                <ul className={`text-sm ${textSecondary} ml-8 space-y-1 list-disc list-inside`}>
+                <ul className={`text-sm ${textSecondary} ml-12 space-y-1 list-disc`}>
                   <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
                   <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
                   <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
@@ -12689,61 +12703,99 @@ const DayPlanner = () => {
                   <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
                   <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
                   <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
+                  <li>Click on <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> in the dayGLANCE section (when available) to start a distraction-free deep work session featuring a Pomodoro timer</li>
                 </ul>
               </div>
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
-                  Focus Mode
+                  Spotlight Search
                 </h3>
                 <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
                   <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <BrainCircuit size={16} />
+                    <Search size={16} />
                   </span>
-                  <span>When you have a 45+ minute block of tasks in progress, click the <strong className={textPrimary}>Focus Mode</strong> button in the sidebar for a distraction-free experience with a Pomodoro timer.</span>
+                  <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
-                  Sync Your Calendar
+                  Weekly Review
                 </h3>
-                <p className={`text-sm ${textSecondary} ml-8`}>
-                  Click <Settings size={14} className="inline mx-1" /> in the top bar to open Settings, where you can configure calendar sync URLs and import iCal files.
-                </p>
+                <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
+                  <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <BarChart3 size={16} />
+                  </span>
+                  <span>Click <BarChart3 size={14} className="inline mx-0.5" /> in the sidebar to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+                </div>
               </div>
 
               <div className="space-y-3">
                 <h3 className="font-semibold flex items-center gap-2">
                   <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
-                  Settings & Backup
+                  Sync Your Calendars
+                </h3>
+                <p className={`text-sm ${textSecondary} ml-8`}>
+                  Click <Settings size={14} className="inline mx-1" /> in the top bar to open Settings, where you can configure calendar sync URLs for CalDAV calendars and reminders and import iCal files.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">6</span>
+                  App Settings
                 </h3>
                 <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
                   <div className="flex items-center gap-2">
                     <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
                       <Settings size={16} className={textPrimary} />
                     </span>
-                    <span>Open <strong className={textPrimary}>Settings</strong> for calendar sync, cloud sync, iCal import, and sounds</span>
+                    <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
+                      {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
+                    </span>
+                    <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
+                      <Cloud size={16} className={textPrimary} />
+                    </span>
+                    <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
+                      <Bell size={16} className={textPrimary} />
+                    </span>
+                    <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
                       <Save size={16} className={textPrimary} />
                     </span>
-                    <span><strong className={textPrimary}>Backup & restore</strong> your data as a JSON file</span>
+                    <span><strong className={textPrimary}>Backup & Restore</strong> — export or import your data as a JSON file</span>
                   </div>
-                  <p className="text-xs opacity-75 mt-1">Your data is stored locally in your browser. Use backup to transfer between devices or keep a safe copy.</p>
+                  <p className="text-xs opacity-75 mt-1">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-center gap-3">
               <button
                 onClick={() => setShowWelcome(false)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                className={`px-6 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg font-medium transition-colors`}
               >
-                Get Started
+                Just Get Started
+              </button>
+              <button
+                onClick={() => { setShowWelcome(false); setShowSettings(true); }}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 transition-colors"
+              >
+                <Cloud size={18} /> Set Up Cloud Sync
               </button>
             </div>
           </div>
