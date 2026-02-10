@@ -2841,7 +2841,7 @@ const DayPlanner = () => {
 
     // Inbox tasks with past deadlines
     const overdueDeadlines = unscheduledTasks.filter(t =>
-      t.deadline && t.deadline < todayStr
+      t.deadline && t.deadline < todayStr && !t.completed
     ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
     return [...overdueScheduled, ...overdueDeadlines];
@@ -7932,7 +7932,7 @@ const DayPlanner = () => {
             {mobileActiveTab === 'timeline' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-between px-4 py-3">
-                  <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg ${hoverBg}`}>
+                  <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
                     <ChevronLeft size={20} className={textSecondary} />
                   </button>
                   <div className="flex flex-col items-center gap-1">
@@ -7941,20 +7941,20 @@ const DayPlanner = () => {
                         if (!showMonthView) setViewedMonth(new Date(selectedDate));
                         setShowMonthView(!showMonthView);
                       }}
-                      className={`month-view-toggle ${textPrimary} font-bold text-lg px-2 py-1 rounded-lg ${hoverBg} transition-colors`}
+                      className={`month-view-toggle ${textPrimary} font-bold text-lg px-2 py-1 rounded-lg active:bg-black/10 dark:active:bg-white/10 transition-colors`}
                     >
                       {formatDateRange(visibleDates)}
                     </button>
                     {dateToString(selectedDate) !== dateToString(new Date()) && (
                       <button
                         onClick={goToToday}
-                        className="px-3 py-0.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700"
+                        className="px-3 py-0.5 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
                       >
                         Today
                       </button>
                     )}
                   </div>
-                  <button onClick={() => changeDate(1)} className={`p-2 rounded-lg ${hoverBg}`}>
+                  <button onClick={() => changeDate(1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
                     <ChevronRight size={20} className={textSecondary} />
                   </button>
                 </div>
