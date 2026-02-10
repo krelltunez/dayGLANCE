@@ -1952,16 +1952,16 @@ const DayPlanner = () => {
 
   useEffect(() => {
     const isToday = dateToString(selectedDate) === dateToString(new Date());
-    if (isToday && calendarRef.current) {
+    if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
       setTimeout(() => {
         const currentHour = new Date().getHours();
         // On mobile show current hour near top; on desktop show 2 hours before
         const hoursBefore = isMobile ? 0 : 2;
         const scrollPosition = Math.max(0, (currentHour - hoursBefore) * 161);
-        calendarRef.current.scrollTop = scrollPosition;
+        if (calendarRef.current) calendarRef.current.scrollTop = scrollPosition;
       }, 100);
     }
-  }, [selectedDate, isMobile]);
+  }, [selectedDate, isMobile, mobileActiveTab]);
 
   useEffect(() => {
     saveData();
@@ -7964,16 +7964,74 @@ const DayPlanner = () => {
                               const isCalendarEvent = task.imported && !task.isTaskCalendar;
                               const conflictPos = calculateConflictPosition(task, dayTasks);
 
+                              // Layout tiers (matching desktop logic)
+                              const isMicroHeight = height <= 40;
+                              const taskWidth = taskWidths[task.id];
+                              const isMeasured = taskWidth !== undefined;
+                              const isNarrowWidth = taskWidth < 120;
+
+                              // Mobile action buttons component
+                              const MobileActionButtons = ({ inMenu = false }) => (
+                                <>
+                                  <button
+                                    onMouseDown={() => {
+                                      if (isLinkOnlyTask(task)) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
+                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        }, 500);
+                                      }
+                                    }}
+                                    onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isLinkOnlyTask(task)) {
+                                        if (!longPressTriggeredRef.current) {
+                                          window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                        }
+                                        longPressTriggeredRef.current = false;
+                                      } else {
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }
+                                    }}
+                                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                  >
+                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                    {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  >
+                                    <SkipForward size={14} />
+                                    {inMenu && <span className="text-xs">Postpone</span>}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  >
+                                    <Trash2 size={14} />
+                                    {inMenu && <span className="text-xs">Delete</span>}
+                                  </button>
+                                </>
+                              );
+
                               return (
                                 <div
                                   key={task.id}
-                                  className={`absolute pointer-events-auto ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20 overflow-hidden ${task.completed && !isImported ? 'opacity-50' : ''}`}
+                                  ref={setTaskRef(task.id)}
+                                  data-task-id={task.id}
+                                  className={`absolute pointer-events-auto ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20 ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${task.completed && !isImported ? 'opacity-50' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
+                                    minHeight: isMicroHeight ? '27px' : '39px',
                                     left: conflictPos.left,
                                     right: conflictPos.right,
                                     width: conflictPos.width,
+                                    visibility: isMeasured ? 'visible' : 'hidden',
                                     ...taskCalendarStyle,
                                   }}
                                 >
@@ -7982,33 +8040,107 @@ const DayPlanner = () => {
                                       <span className="text-sm font-semibold truncate flex-1 min-w-0">
                                         {renderTitle(task.title)}
                                       </span>
-                                      <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
-                                        <Clock size={10} />
-                                        {formatTime(task.startTime)} • {task.duration}m
-                                      </div>
-                                    </div>
-                                  ) : isImported ? (
-                                    <div className="h-full px-2 py-1.5 flex flex-col text-white">
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
-                                        >
-                                          {task.completed && <Check size={10} strokeWidth={3} />}
-                                        </button>
-                                        <span className={`text-sm font-bold truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''}`}>
-                                          {renderTitle(task.title)}
-                                        </span>
+                                      {!isNarrowWidth && (
                                         <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                                           <Clock size={10} />
                                           {formatTime(task.startTime)} • {task.duration}m
                                         </div>
+                                      )}
+                                    </div>
+                                  ) : isImported ? (
+                                    <div className="h-full px-2 py-1.5 flex items-center gap-1.5 text-white">
+                                      <button
+                                        onClick={() => toggleComplete(task.id)}
+                                        className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
+                                      >
+                                        {task.completed && <Check size={8} strokeWidth={3} />}
+                                      </button>
+                                      <span className={`text-sm font-bold truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''}`}>
+                                        {renderTitle(task.title)}
+                                      </span>
+                                      {!isNarrowWidth && (
+                                        <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
+                                          <Clock size={10} />
+                                          {formatTime(task.startTime)} • {task.duration}m
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : isMicroHeight && isNarrowWidth ? (
+                                    /* MICRO NARROW: ... menu + checkbox + truncated title */
+                                    <div className={`h-full px-1.5 py-1 flex items-center text-white justify-center`}>
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container absolute top-0.5 right-0.5 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
+                                      >
+                                        <MoreHorizontal size={12} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <MobileActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
+                                      <div className="flex items-center gap-1 min-w-0 pr-5">
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
+                                        >
+                                          {task.completed && <Check size={8} strokeWidth={3} />}
+                                        </button>
+                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
+                                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                                          {renderTitle(task.title)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : isMicroHeight ? (
+                                    /* MICRO WIDE: checkbox + title + action buttons inline */
+                                    <div className="h-full px-1.5 py-1 flex items-center justify-between gap-1 text-white">
+                                      <div className="flex items-center gap-1 min-w-0">
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
+                                        >
+                                          {task.completed && <Check size={8} strokeWidth={3} />}
+                                        </button>
+                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
+                                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                                          {renderTitle(task.title)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                                        <MobileActionButtons />
+                                      </div>
+                                    </div>
+                                  ) : isNarrowWidth ? (
+                                    /* NARROW: ... menu + checkbox + title, no time row */
+                                    <div className="h-full px-2 py-1.5 flex flex-col text-white">
+                                      <button
+                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                        className="task-menu-container absolute top-1 right-1 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
+                                      >
+                                        <MoreHorizontal size={14} />
+                                        {expandedTaskMenu === task.id && (
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                            <MobileActionButtons inMenu={true} />
+                                          </div>
+                                        )}
+                                      </button>
+                                      <div className="flex items-start gap-1 pr-6">
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                        >
+                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                        </button>
+                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60 mt-1" />}
+                                        <span className={`text-sm font-medium leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''}`}>
+                                          {renderTitle(task.title)}
+                                        </span>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div
-                                      className="h-full px-2 py-1.5 flex flex-col"
-                                    >
+                                    /* WIDE: checkbox + title + action buttons + time row */
+                                    <div className="h-full px-2 py-1.5 flex flex-col text-white">
                                       <div className="flex items-start justify-between gap-1">
                                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                           <button
@@ -8017,81 +8149,13 @@ const DayPlanner = () => {
                                           >
                                             {task.completed && <Check size={10} strokeWidth={3} />}
                                           </button>
-                                          <span className={`text-white text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
+                                          {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
+                                          <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                                             {renderTitle(task.title)}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                          {isRecurring && <RefreshCw size={10} className="text-white/60" />}
-                                          {height >= 50 ? (
-                                            <>
-                                              <button
-                                                onMouseDown={() => {
-                                                  if (isLinkOnlyTask(task)) {
-                                                    longPressTriggeredRef.current = false;
-                                                    longPressTimerRef.current = setTimeout(() => {
-                                                      longPressTriggeredRef.current = true;
-                                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                                    }, 500);
-                                                  }
-                                                }}
-                                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  if (isLinkOnlyTask(task)) {
-                                                    if (!longPressTriggeredRef.current) {
-                                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                                    }
-                                                    longPressTriggeredRef.current = false;
-                                                  } else {
-                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                                  }
-                                                }}
-                                                className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors text-white ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                              >
-                                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                                              </button>
-                                              <button
-                                                onClick={() => postponeTask(task.id)}
-                                                className="hover:bg-white/20 rounded p-1 transition-colors text-white"
-                                              >
-                                                <SkipForward size={14} />
-                                              </button>
-                                            </>
-                                          ) : (
-                                            <button
-                                              onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                              className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors text-white"
-                                            >
-                                              <MoreHorizontal size={14} />
-                                              {expandedTaskMenu === task.id && (
-                                                <div className="task-menu-container absolute top-full right-1 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px] text-gray-800 dark:text-white">
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); setExpandedNotesTaskId(task.id); setExpandedTaskMenu(null); }}
-                                                    className={`flex items-center gap-2 w-full hover:bg-gray-100 dark:hover:bg-gray-700 rounded p-1.5 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                                  >
-                                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                                                    <span className="text-xs">Notes</span>
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); postponeTask(task.id); setExpandedTaskMenu(null); }}
-                                                    className="flex items-center gap-2 w-full hover:bg-gray-100 dark:hover:bg-gray-700 rounded p-1.5"
-                                                  >
-                                                    <SkipForward size={14} />
-                                                    <span className="text-xs">Postpone</span>
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); setExpandedTaskMenu(null); }}
-                                                    className="flex items-center gap-2 w-full hover:bg-gray-100 dark:hover:bg-gray-700 rounded p-1.5"
-                                                  >
-                                                    <Trash2 size={14} />
-                                                    <span className="text-xs">Delete</span>
-                                                  </button>
-                                                </div>
-                                              )}
-                                            </button>
-                                          )}
+                                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                                          <MobileActionButtons />
                                         </div>
                                       </div>
                                       {height >= 55 && (
@@ -9436,11 +9500,18 @@ const DayPlanner = () => {
                 )
               )}
               {/* Routines row */}
-              {!minimizedSections.dayglance && todayRoutines.length > 0 && (
+              {!minimizedSections.dayglance && todayRoutines.length > 0 && (() => {
+                const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                const visibleRoutines = todayRoutines.filter(r => {
+                  if (!r.startTime || r.isAllDay) return true;
+                  return (timeToMinutes(r.startTime) + r.duration + 120) > nowMin;
+                });
+                if (visibleRoutines.length === 0) return null;
+                return (
                 <div className={`mt-3 pt-3 border-t ${borderClass}`}>
                   <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
                   <div className="flex flex-wrap gap-1">
-                    {[...todayRoutines].sort((a, b) => {
+                    {[...visibleRoutines].sort((a, b) => {
                       // All-day first, then by start time
                       if (a.isAllDay && !b.isAllDay) return -1;
                       if (!a.isAllDay && b.isAllDay) return 1;
@@ -9466,7 +9537,8 @@ const DayPlanner = () => {
                     })}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             <div
