@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -2692,6 +2692,7 @@ const DayPlanner = () => {
       const occs = getOccurrencesInRange(template, dateStr, dateStr);
       for (const ds of occs) {
         const exception = template.exceptions?.[ds];
+        if (exception?.deleted) continue;
         recurringForDate.push({
           id: `recurring-${template.id}-${ds}`,
           startTime: exception?.startTime ?? template.startTime,
@@ -4628,7 +4629,7 @@ const DayPlanner = () => {
     const newTodayRoutines = dashboardSelectedChips.map(chip => {
       const existing = existingMap[chip.id];
       if (existing) {
-        return { ...existing, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || existing.startTime, isAllDay: !chip.startTime && existing.isAllDay };
+        return { ...existing, name: chip.name, bucket: chip.bucket, startTime: chip.startTime, isAllDay: !chip.startTime };
       }
       return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || null, duration: 15, isAllDay: !chip.startTime };
     });
@@ -5312,6 +5313,8 @@ const DayPlanner = () => {
       mobileDragTimer.current = setTimeout(() => {
         mobileDragActive.current = true;
         setMobileDragTaskIdState(task.id);
+        // Disable scroll on timeline during drag
+        if (calendarRef.current) calendarRef.current.style.overflowY = 'hidden';
         // Haptic feedback
         if (navigator.vibrate) navigator.vibrate(50);
       }, 500);
@@ -5509,6 +5512,8 @@ const DayPlanner = () => {
       clearInterval(mobileDragAutoScrollInterval.current);
       mobileDragAutoScrollInterval.current = null;
     }
+    // Re-enable scroll on timeline after drag
+    if (calendarRef.current) calendarRef.current.style.overflowY = 'scroll';
 
     if (mobileDragActive.current && mobileDragPreviewTime && mobileDragOriginalTask.current) {
       const task = mobileDragOriginalTask.current;
@@ -8316,9 +8321,20 @@ const DayPlanner = () => {
                             {dayTasks.map(task => {
                               const { top, height } = calculateTaskPosition(task);
                               const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                              const mobileCalendarStyle = task.isTaskCalendar ? (
+                                task.completed
+                                  ? { backgroundColor: darkMode ? '#6b7280' : '#9ca3af', opacity: 0.5 }
+                                  : { background: `repeating-linear-gradient(-45deg, ${darkMode ? '#6b7280' : '#9ca3af'}, ${darkMode ? '#6b7280' : '#9ca3af'} 8px, ${darkMode ? '#9ca3af' : '#d1d5db'} 8px, ${darkMode ? '#9ca3af' : '#d1d5db'} 16px)` }
+                              ) : taskCalendarStyle;
                               const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
                               const isImported = task.imported;
                               const isCalendarEvent = task.imported && !task.isTaskCalendar;
+                              const isConflicted = !task.isAllDay && dayTasks.some(other => {
+                                if (other.id === task.id || other.isAllDay || other.completed) return false;
+                                const s1 = timeToMinutes(task.startTime), e1 = s1 + task.duration;
+                                const s2 = timeToMinutes(other.startTime), e2 = s2 + other.duration;
+                                return s1 < e2 && e1 > s2;
+                              });
                               const conflictPos = calculateConflictPosition(task, dayTasks);
 
                               // Layout tiers (matching desktop logic)
@@ -8365,6 +8381,20 @@ const DayPlanner = () => {
                                     <SkipForward size={14} />
                                     {inMenu && <span className="text-xs">Postpone</span>}
                                   </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  >
+                                    <Pencil size={14} />
+                                    {inMenu && <span className="text-xs">Edit</span>}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  >
+                                    <Trash2 size={14} />
+                                    {inMenu && <span className="text-xs">Delete</span>}
+                                  </button>
                                 </>
                               );
 
@@ -8373,7 +8403,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -8388,20 +8418,20 @@ const DayPlanner = () => {
                                   {/* Swipe action strips */}
                                   {!(task.imported && !task.isTaskCalendar) && (
                                     <>
-                                      <div className="absolute inset-y-0 left-0 right-1/2 bg-green-500 rounded-l-lg flex items-center pl-3 text-white text-xs font-medium">
+                                      <div className={`absolute inset-y-0 left-0 right-1/2 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-l-lg flex items-center pl-3 text-xs font-medium`}>
                                         {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
                                           <><Inbox size={14} className="mr-1" />Inbox</>
                                         )}
                                       </div>
-                                      <div className="absolute inset-y-0 left-1/2 right-0 bg-blue-500 rounded-r-lg flex items-center justify-end pr-3 text-white text-xs font-medium">
+                                      <div className={`absolute inset-y-0 left-1/2 right-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-r-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                         Edit<Settings size={14} className="ml-1" />
                                       </div>
                                     </>
                                   )}
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
-                                    className={`relative h-full ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20`}
-                                    style={taskCalendarStyle}
+                                    className={`relative h-full ${task.isTaskCalendar ? '' : (isCalendarEvent ? (darkMode ? 'bg-gray-500' : 'bg-gray-400') : task.color)} rounded-lg shadow-sm border border-white/20`}
+                                    style={mobileCalendarStyle}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
@@ -8671,12 +8701,12 @@ const DayPlanner = () => {
                   ) : (
                     filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
                       <div key={task.id} className="notes-panel-container">
-                        <div className="relative overflow-hidden rounded-lg">
+                        <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                           {/* Swipe action strips */}
-                          <div className="absolute inset-y-0 left-0 right-1/2 bg-blue-500 rounded-l-lg flex items-center pl-3 text-white text-xs font-medium">
+                          <div className={`absolute inset-y-0 left-0 right-1/2 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-l-lg flex items-center pl-3 text-xs font-medium`}>
                             <Calendar size={14} className="mr-1" />Schedule
                           </div>
-                          <div className="absolute inset-y-0 left-1/2 right-0 bg-blue-500 rounded-r-lg flex items-center justify-end pr-3 text-white text-xs font-medium">
+                          <div className={`absolute inset-y-0 left-1/2 right-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-r-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                             Edit<Settings size={14} className="ml-1" />
                           </div>
                         <div
@@ -8779,6 +8809,18 @@ const DayPlanner = () => {
                                     className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
                                   />
                                 ))}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </div>
@@ -9150,7 +9192,7 @@ const DayPlanner = () => {
                         <Upload size={16} className={textSecondary} />
                         iCal Import
                       </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}>
                         <Upload size={14} className={textSecondary} />
                         Choose .ics file
                         <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
@@ -9239,6 +9281,9 @@ const DayPlanner = () => {
                                 {label}
                               </button>
                             ))}
+                            {reminderSettings.preset === 'custom' && (
+                              <span className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white">Custom</span>
+                            )}
                           </div>
                         </div>
 
@@ -9322,6 +9367,16 @@ const DayPlanner = () => {
                                     </button>
                                   ))}
                                 </div>
+                              </div>
+                              <div>
+                                <p className={`text-xs ${textSecondary} mb-1.5`}>Time</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowWeeklyReviewTimePicker(true)}
+                                  className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                                >
+                                  {formatTime(reminderSettings.weeklyReview.time)}
+                                </button>
                               </div>
                             </div>
                           )}
@@ -10147,7 +10202,7 @@ const DayPlanner = () => {
                 ) : (
                   <div className="space-y-1">
                     {todayAgenda.map(task => {
-                      const colorClass = task.imported && !task.isTaskCalendar ? 'bg-gray-400' : (task.color === 'task-calendar' ? 'bg-gray-400' : task.color);
+                      const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                       let timeLabel = '';
                       let relativeLabel = '';
@@ -10178,7 +10233,7 @@ const DayPlanner = () => {
                           key={`${task._agendaType}-${task.id}`}
                           className={`flex gap-2 py-1.5 ${task.completed ? 'opacity-50' : ''}`}
                         >
-                          <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`}></div>
+                          <div className={`${task.isTaskCalendar ? 'w-2' : 'w-1'} rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
                           <div className="min-w-0 flex-1">
                             <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
                               {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
@@ -12887,7 +12942,7 @@ const DayPlanner = () => {
                   placeholder="Task title"
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
-                  autoFocus
+                  autoFocus={!mobileEditingTask}
                   className={`w-full px-3 py-3 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-base`}
                 />
               </div>
@@ -14987,7 +15042,7 @@ const DayPlanner = () => {
                   <Calendar size={32} className="text-blue-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Timeline</h2>
-                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
                   <li>Swipe a task <strong className={textPrimary}>right</strong> to move it to inbox</li>
                   <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
                   <li><strong className={textPrimary}>Long-press</strong> and drag to reschedule a task</li>
@@ -15001,7 +15056,7 @@ const DayPlanner = () => {
                   <Inbox size={32} className="text-blue-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Inbox</h2>
-                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
                   <li>Swipe a task <strong className={textPrimary}>right</strong> to schedule it</li>
                   <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
                   <li>Tap the <strong className={textPrimary}>+</strong> button to add a new inbox task</li>
@@ -15015,9 +15070,9 @@ const DayPlanner = () => {
                   <Sparkles size={32} className="text-teal-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Routines</h2>
-                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
                   <li>Create <strong className={textPrimary}>daily habits</strong> for each day of the week</li>
-                  <li>Tap chips to <strong className={textPrimary}>check off</strong> today's routines</li>
+                  <li>Tap chips to <strong className={textPrimary}>add routines</strong> to today's timeline</li>
                   <li>Set a <strong className={textPrimary}>time</strong> to see routines on the timeline</li>
                 </ul>
               </div>
@@ -15028,9 +15083,10 @@ const DayPlanner = () => {
                   <Settings size={32} className={textSecondary} />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Settings</h2>
-                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
-                  <li><strong className={textPrimary}>Quick toggles</strong> for dark mode, sound, and clock format</li>
-                  <li>Configure <strong className={textPrimary}>calendar sync</strong>, cloud sync, and notifications</li>
+                <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
+                  <li><strong className={textPrimary}>Quick toggles</strong> for common settings</li>
+                  <li><strong className={textPrimary}>Sync</strong> your calendars</li>
+                  <li>Set up <strong className={textPrimary}>cloud sync</strong> between devices</li>
                   <li><strong className={textPrimary}>Backup</strong> and restore your data</li>
                 </ul>
               </div>
