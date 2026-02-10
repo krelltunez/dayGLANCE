@@ -7776,58 +7776,66 @@ const DayPlanner = () => {
                               <React.Fragment key={dateStr}>
                                 {dayTasks.map((task) => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                                  const isImported = task.imported;
                                   return (
                                     <div
                                       key={task.id}
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm ${task.completed ? 'opacity-50' : ''}`}
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm ${task.completed && !isImported ? 'opacity-50' : ''}`}
                                       style={taskCalendarStyle || {}}
                                     >
                                       <div className="flex items-center gap-2">
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
-                                        >
-                                          {task.completed && <Check size={10} strokeWidth={3} />}
-                                        </button>
-                                        <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>
+                                        {(!isImported || task.isTaskCalendar) && (
+                                          <button
+                                            onClick={() => toggleComplete(task.id)}
+                                            className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                          >
+                                            {task.completed && <Check size={10} strokeWidth={3} />}
+                                          </button>
+                                        )}
+                                        <Calendar size={14} className="flex-shrink-0" />
+                                        <span className={`truncate flex-1 ${task.isTaskCalendar ? 'font-bold' : 'font-medium'} ${task.completed && !isImported ? 'line-through' : ''}`}>
                                           {renderTitle(task.title)}
                                         </span>
-                                        {typeof task.id === 'string' && task.id.startsWith('recurring-') && (
-                                          <RefreshCw size={10} className="flex-shrink-0 opacity-60" />
+                                        {!isImported && (
+                                          <>
+                                            {typeof task.id === 'string' && task.id.startsWith('recurring-') && (
+                                              <RefreshCw size={10} className="flex-shrink-0 opacity-60" />
+                                            )}
+                                            <button
+                                              onMouseDown={() => {
+                                                if (isLinkOnlyTask(task)) {
+                                                  longPressTriggeredRef.current = false;
+                                                  longPressTimerRef.current = setTimeout(() => {
+                                                    longPressTriggeredRef.current = true;
+                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                  }, 500);
+                                                }
+                                              }}
+                                              onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                              onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (isLinkOnlyTask(task)) {
+                                                  if (!longPressTriggeredRef.current) {
+                                                    window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                                  }
+                                                  longPressTriggeredRef.current = false;
+                                                } else {
+                                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                }
+                                              }}
+                                              className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                            >
+                                              {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                            </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
+                                              className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                            >
+                                              <SkipForward size={14} />
+                                            </button>
+                                          </>
                                         )}
-                                        <button
-                                          onMouseDown={() => {
-                                            if (isLinkOnlyTask(task)) {
-                                              longPressTriggeredRef.current = false;
-                                              longPressTimerRef.current = setTimeout(() => {
-                                                longPressTriggeredRef.current = true;
-                                                setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                              }, 500);
-                                            }
-                                          }}
-                                          onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                          onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (isLinkOnlyTask(task)) {
-                                              if (!longPressTriggeredRef.current) {
-                                                window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                              }
-                                              longPressTriggeredRef.current = false;
-                                            } else {
-                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                            }
-                                          }}
-                                          className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                        >
-                                          {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
-                                          className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                        >
-                                          <SkipForward size={14} />
-                                        </button>
                                       </div>
                                     </div>
                                   );
@@ -7874,8 +7882,9 @@ const DayPlanner = () => {
                                         {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                       </button>
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); moveToInbox(task.id); }}
+                                        onClick={(e) => { e.stopPropagation(); clearDeadline(task.id); }}
                                         className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                        title="Move to Inbox"
                                       >
                                         <Inbox size={14} />
                                       </button>
@@ -7951,12 +7960,14 @@ const DayPlanner = () => {
                               const { top, height } = calculateTaskPosition(task);
                               const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                               const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
+                              const isImported = task.imported;
+                              const isCalendarEvent = task.imported && !task.isTaskCalendar;
                               const conflictPos = calculateConflictPosition(task, dayTasks);
 
                               return (
                                 <div
                                   key={task.id}
-                                  className={`absolute pointer-events-auto ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20 overflow-hidden ${task.completed ? 'opacity-50' : ''}`}
+                                  className={`absolute pointer-events-auto ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20 overflow-hidden ${task.completed && !isImported ? 'opacity-50' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -7966,6 +7977,35 @@ const DayPlanner = () => {
                                     ...taskCalendarStyle,
                                   }}
                                 >
+                                  {isCalendarEvent ? (
+                                    <div className="h-full px-2 py-1.5 flex items-center gap-2 text-white">
+                                      <span className="text-sm font-semibold truncate flex-1 min-w-0">
+                                        {renderTitle(task.title)}
+                                      </span>
+                                      <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
+                                        <Clock size={10} />
+                                        {formatTime(task.startTime)} • {task.duration}m
+                                      </div>
+                                    </div>
+                                  ) : isImported ? (
+                                    <div className="h-full px-2 py-1.5 flex flex-col text-white">
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          onClick={() => toggleComplete(task.id)}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                        >
+                                          {task.completed && <Check size={10} strokeWidth={3} />}
+                                        </button>
+                                        <span className={`text-sm font-bold truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''}`}>
+                                          {renderTitle(task.title)}
+                                        </span>
+                                        <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
+                                          <Clock size={10} />
+                                          {formatTime(task.startTime)} • {task.duration}m
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
                                     <div
                                       className="h-full px-2 py-1.5 flex flex-col"
                                     >
@@ -7983,7 +8023,7 @@ const DayPlanner = () => {
                                         </div>
                                         <div className="flex items-center gap-1 flex-shrink-0">
                                           {isRecurring && <RefreshCw size={10} className="text-white/60" />}
-                                          {height >= 50 && (
+                                          {height >= 50 ? (
                                             <>
                                               <button
                                                 onMouseDown={() => {
@@ -8019,6 +8059,38 @@ const DayPlanner = () => {
                                                 <SkipForward size={14} />
                                               </button>
                                             </>
+                                          ) : (
+                                            <button
+                                              onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
+                                              className="task-menu-container hover:bg-white/20 rounded p-0.5 transition-colors text-white"
+                                            >
+                                              <MoreHorizontal size={14} />
+                                              {expandedTaskMenu === task.id && (
+                                                <div className="task-menu-container absolute top-full right-1 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px] text-gray-800 dark:text-white">
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); setExpandedNotesTaskId(task.id); setExpandedTaskMenu(null); }}
+                                                    className={`flex items-center gap-2 w-full hover:bg-gray-100 dark:hover:bg-gray-700 rounded p-1.5 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                                  >
+                                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                                    <span className="text-xs">Notes</span>
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); postponeTask(task.id); setExpandedTaskMenu(null); }}
+                                                    className="flex items-center gap-2 w-full hover:bg-gray-100 dark:hover:bg-gray-700 rounded p-1.5"
+                                                  >
+                                                    <SkipForward size={14} />
+                                                    <span className="text-xs">Postpone</span>
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); setExpandedTaskMenu(null); }}
+                                                    className="flex items-center gap-2 w-full hover:bg-gray-100 dark:hover:bg-gray-700 rounded p-1.5"
+                                                  >
+                                                    <Trash2 size={14} />
+                                                    <span className="text-xs">Delete</span>
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </button>
                                           )}
                                         </div>
                                       </div>
@@ -8028,7 +8100,8 @@ const DayPlanner = () => {
                                         </div>
                                       )}
                                     </div>
-                                  </div>
+                                  )}
+                                </div>
                                 );
                               })}
 
@@ -8037,11 +8110,47 @@ const DayPlanner = () => {
                               const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime && !String(r.id).startsWith('example-'));
                               if (timelineRoutines.length === 0) return null;
 
+                              // Compute side-by-side columns for overlapping routine chips
+                              const routineColumns = [];
+                              const sorted = [...timelineRoutines].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+                              sorted.forEach(r => {
+                                const rStart = timeToMinutes(r.startTime);
+                                let placed = false;
+                                for (let c = 0; c < routineColumns.length; c++) {
+                                  const lastInCol = routineColumns[c][routineColumns[c].length - 1];
+                                  if (timeToMinutes(lastInCol.startTime) + lastInCol.duration <= rStart) {
+                                    routineColumns[c].push(r);
+                                    placed = true;
+                                    break;
+                                  }
+                                }
+                                if (!placed) routineColumns.push([r]);
+                              });
+                              const colMap = {};
+                              routineColumns.forEach((col, ci) => col.forEach(r => { colMap[r.id] = ci; }));
+                              const overlapCount = {};
+                              timelineRoutines.forEach(r => {
+                                const rStart = timeToMinutes(r.startTime);
+                                const rEnd = rStart + r.duration;
+                                let maxCols = 1;
+                                timelineRoutines.forEach(other => {
+                                  if (other.id === r.id) return;
+                                  const oStart = timeToMinutes(other.startTime);
+                                  const oEnd = oStart + other.duration;
+                                  if (rStart < oEnd && rEnd > oStart) maxCols++;
+                                });
+                                overlapCount[r.id] = maxCols;
+                              });
+
                               const now = new Date();
                               const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
                               return timelineRoutines.map(routine => {
                                 const { top: rTop, height: rHeight } = calculateTaskPosition(routine);
+                                const colIdx = colMap[routine.id];
+                                const cols = overlapCount[routine.id];
+                                const widthPercent = cols > 1 ? `${100 / cols}%` : '100%';
+                                const leftPercent = cols > 1 ? `${(colIdx * 100) / cols}%` : '0%';
                                 const endMinutes = timeToMinutes(routine.startTime) + routine.duration;
                                 const isPast = endMinutes <= nowMinutes;
 
@@ -8052,8 +8161,8 @@ const DayPlanner = () => {
                                     style={{
                                       top: `${rTop}px`,
                                       height: `${Math.max(rHeight, 27)}px`,
-                                      left: '4px',
-                                      right: '4px',
+                                      left: `calc(${leftPercent} + 4px)`,
+                                      width: `calc(${widthPercent} - 8px)`,
                                     }}
                                   >
                                     <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
@@ -8153,7 +8262,7 @@ const DayPlanner = () => {
                                   {renderTitle(task.title)}
                                 </div>
                                 <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
-                                  <span className="flex items-center gap-1"><Clock size={10} />{task.duration}m</span>
+                                  <span>{task.duration} min</span>
                                   {task.deadline && (
                                     <span className="flex items-center gap-1">
                                       <AlertCircle size={10} />
@@ -8403,13 +8512,6 @@ const DayPlanner = () => {
                         );
                       })}
 
-                      {/* Done button */}
-                      <button
-                        onClick={handleRoutinesDone}
-                        className="w-full py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
-                      >
-                        Save Routines
-                      </button>
                     </div>
                   );
                 })()}
@@ -8457,7 +8559,14 @@ const DayPlanner = () => {
                         disabled={isSyncing}
                         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
                       >
-                        <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+                        <div className="relative">
+                          <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+                          <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                            isSyncing ? 'bg-blue-500 animate-pulse' :
+                            calSyncStatus === 'error' ? 'bg-red-500' :
+                            'bg-green-500'
+                          }`} />
+                        </div>
                         <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
                       </button>
                     )}
@@ -8466,7 +8575,14 @@ const DayPlanner = () => {
                         onClick={() => cloudSyncUpload()}
                         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
                       >
-                        <Cloud size={20} className={textSecondary} />
+                        <div className="relative">
+                          <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+                          <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                            (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
+                            cloudSyncStatus === 'error' ? 'bg-red-500' :
+                            'bg-green-500'
+                          }`} />
+                        </div>
                         <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
                       </button>
                     )}
@@ -8520,14 +8636,27 @@ const DayPlanner = () => {
           >
             <div className="flex items-center justify-around h-14">
               <button
-                onClick={() => setMobileActiveTab('timeline')}
+                onClick={() => {
+                  if (mobileActiveTab === 'routines') handleRoutinesDone();
+                  setMobileActiveTab('timeline');
+                  if (calendarRef.current) {
+                    const currentHour = new Date().getHours();
+                    const scrollPosition = Math.max(0, currentHour * 161);
+                    setTimeout(() => {
+                      if (calendarRef.current) calendarRef.current.scrollTop = scrollPosition;
+                    }, 50);
+                  }
+                }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? 'text-blue-500' : textSecondary}`}
               >
                 <Calendar size={20} />
                 <span className="text-[10px] font-medium">Timeline</span>
               </button>
               <button
-                onClick={() => setMobileActiveTab('inbox')}
+                onClick={() => {
+                  if (mobileActiveTab === 'routines') handleRoutinesDone();
+                  setMobileActiveTab('inbox');
+                }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative ${mobileActiveTab === 'inbox' ? 'text-blue-500' : textSecondary}`}
               >
                 <div className="relative">
@@ -8543,11 +8672,9 @@ const DayPlanner = () => {
               <button
                 onClick={() => {
                   setMobileActiveTab('routines');
-                  if (!showRoutinesDashboard) {
-                    setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
-                    setRoutineAddingToBucket(null);
-                    setRoutineNewChipName('');
-                  }
+                  setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
+                  setRoutineAddingToBucket(null);
+                  setRoutineNewChipName('');
                 }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'routines' ? 'text-blue-500' : textSecondary}`}
               >
@@ -8555,7 +8682,10 @@ const DayPlanner = () => {
                 <span className="text-[10px] font-medium">Routines</span>
               </button>
               <button
-                onClick={() => setMobileActiveTab('settings')}
+                onClick={() => {
+                  if (mobileActiveTab === 'routines') handleRoutinesDone();
+                  setMobileActiveTab('settings');
+                }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'settings' ? 'text-blue-500' : textSecondary}`}
               >
                 <Settings size={20} />
@@ -10923,7 +11053,9 @@ const DayPlanner = () => {
 
                         {/* Timeline routine pills (today only) */}
                         {dateStr === dateToString(new Date()) && (() => {
-                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
+                          const now0 = new Date();
+                          const nowMin0 = now0.getHours() * 60 + now0.getMinutes();
+                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime && (timeToMinutes(r.startTime) + r.duration + 60) > nowMin0);
                           if (timelineRoutines.length === 0) return null;
 
                           // Compute side-by-side columns for overlapping routine chips
