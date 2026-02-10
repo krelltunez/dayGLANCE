@@ -1210,17 +1210,20 @@ const DayPlanner = () => {
     });
 
     return () => observer.disconnect();
-  }, [tasks, visibleDays]); // Re-setup when tasks or visible days change
+  }, [tasks, visibleDays, mobileActiveTab]); // Re-setup when tasks, visible days, or mobile tab change
 
   // Ref callback for task elements
   const setTaskRef = (taskId) => (element) => {
     if (element) {
       taskElementRefs.current[taskId] = element;
-      // Measure immediately on first attach
-      const width = element.offsetWidth;
-      if (taskWidths[taskId] !== width) {
-        setTaskWidths(prev => ({ ...prev, [taskId]: width }));
-      }
+      // Measure after layout settles (calc-based widths need a frame to resolve)
+      requestAnimationFrame(() => {
+        if (!element.isConnected) return;
+        const width = element.offsetWidth;
+        if (width > 0 && taskWidths[taskId] !== width) {
+          setTaskWidths(prev => ({ ...prev, [taskId]: width }));
+        }
+      });
     } else {
       delete taskElementRefs.current[taskId];
     }
@@ -8008,13 +8011,6 @@ const DayPlanner = () => {
                                     <SkipForward size={14} />
                                     {inMenu && <span className="text-xs">Postpone</span>}
                                   </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
-                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                  >
-                                    <Trash2 size={14} />
-                                    {inMenu && <span className="text-xs">Delete</span>}
-                                  </button>
                                 </>
                               );
 
@@ -8702,14 +8698,8 @@ const DayPlanner = () => {
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
+                  if (mobileActiveTab !== 'timeline') goToToday();
                   setMobileActiveTab('timeline');
-                  if (calendarRef.current) {
-                    const currentHour = new Date().getHours();
-                    const scrollPosition = Math.max(0, currentHour * 161);
-                    setTimeout(() => {
-                      if (calendarRef.current) calendarRef.current.scrollTop = scrollPosition;
-                    }, 50);
-                  }
                 }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? 'text-blue-500' : textSecondary}`}
               >
