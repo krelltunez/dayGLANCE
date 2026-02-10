@@ -981,6 +981,11 @@ const DayPlanner = () => {
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('timeline');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
+  const [mobileEditingTask, setMobileEditingTask] = useState(null);
+  const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
+  const [mobileSettingsView, setMobileSettingsView] = useState('main');
+  const [mobileDragPreviewTime, setMobileDragPreviewTime] = useState(null);
+  const [mobileDragTaskIdState, setMobileDragTaskIdState] = useState(null);
 
   // Onboarding state - start false, set true after data loads if zero tasks
   const [showWelcome, setShowWelcome] = useState(false);
@@ -1026,6 +1031,24 @@ const DayPlanner = () => {
   const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
   const taskElementRefs = useRef({});
   const [taskWidths, setTaskWidths] = useState({});
+
+  // Mobile swipe gesture refs
+  const swipeTouchStartX = useRef(0);
+  const swipeTouchStartY = useRef(0);
+  const swipeCurrentOffset = useRef(0);
+  const swipedTaskId = useRef(null);
+  const swipeDirection = useRef(null); // 'left' | 'right' | null
+  const swipeLocked = useRef(false);
+  const swipeIsVertical = useRef(false);
+  const swipeTaskElement = useRef(null);
+
+  // Mobile long-press drag refs
+  const mobileDragActive = useRef(false);
+  const mobileDragTaskId = useRef(null);
+  const mobileDragTimer = useRef(null);
+  const mobileDragOriginalTask = useRef(null);
+  const mobileDragTouchStartPos = useRef({ x: 0, y: 0 });
+  const mobileDragAutoScrollInterval = useRef(null);
 
   // Routines state
   const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
@@ -4494,6 +4517,64 @@ const DayPlanner = () => {
     setShowAddTask(true);
   };
 
+  const openMobileEditTask = (task, isInbox) => {
+    setMobileEditingTask(task);
+    setMobileEditIsInbox(isInbox);
+    if (isInbox) {
+      setNewTask({
+        title: task.title,
+        duration: task.duration || 30,
+        color: task.color || colors[0].class,
+        openInInbox: true,
+        deadline: task.deadline || null,
+        priority: task.priority || 0,
+        startTime: getNextQuarterHour(),
+        date: dateToString(selectedDate),
+        isAllDay: false,
+      });
+    } else {
+      setNewTask({
+        title: task.title,
+        startTime: task.startTime || getNextQuarterHour(),
+        duration: task.duration || 30,
+        date: task.date || dateToString(selectedDate),
+        isAllDay: task.isAllDay || false,
+        color: task.color || colors[0].class,
+        recurrence: null,
+      });
+    }
+    setShowAddTask(true);
+  };
+
+  const saveMobileEditTask = () => {
+    if (!mobileEditingTask || !newTask.title.trim()) return;
+    pushUndo();
+    const taskId = mobileEditingTask.id;
+    if (mobileEditIsInbox) {
+      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? {
+        ...t,
+        title: cleanTitle(newTask.title),
+        duration: newTask.duration,
+        color: newTask.color || colors[0].class,
+        deadline: newTask.deadline || null,
+        priority: newTask.priority || 0,
+      } : t));
+    } else {
+      setTasks(prev => prev.map(t => t.id === taskId ? {
+        ...t,
+        title: cleanTitle(newTask.title),
+        startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+        duration: newTask.duration,
+        date: newTask.date || t.date,
+        isAllDay: newTask.isAllDay || false,
+        color: newTask.color || colors[0].class,
+      } : t));
+    }
+    setShowAddTask(false);
+    setMobileEditingTask(null);
+    setMobileEditIsInbox(false);
+  };
+
   // --- Routines handlers ---
   const getDayName = (date) => {
     return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
@@ -5207,6 +5288,260 @@ const DayPlanner = () => {
       clearInterval(autoScrollInterval.current);
       autoScrollInterval.current = null;
     }
+  };
+
+  // --- Mobile swipe + long-press drag handlers ---
+  const handleMobileTaskTouchStart = (e, task, taskType) => {
+    // Skip swipe for imported calendar events (non-task-calendar)
+    if (task.imported && !task.isTaskCalendar) return;
+    const touch = e.touches[0];
+    swipeTouchStartX.current = touch.clientX;
+    swipeTouchStartY.current = touch.clientY;
+    swipeCurrentOffset.current = 0;
+    swipedTaskId.current = task.id;
+    swipeDirection.current = null;
+    swipeLocked.current = false;
+    swipeIsVertical.current = false;
+    swipeTaskElement.current = e.currentTarget;
+
+    // Start long-press timer for timeline tasks only
+    if (taskType === 'timeline' && !task.imported) {
+      mobileDragTouchStartPos.current = { x: touch.clientX, y: touch.clientY };
+      mobileDragTaskId.current = task.id;
+      mobileDragOriginalTask.current = task;
+      mobileDragTimer.current = setTimeout(() => {
+        mobileDragActive.current = true;
+        setMobileDragTaskIdState(task.id);
+        // Haptic feedback
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, 500);
+    }
+  };
+
+  const handleMobileTaskTouchMove = (e) => {
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipeTouchStartX.current;
+    const dy = touch.clientY - swipeTouchStartY.current;
+
+    // If drag is active, handle drag movement
+    if (mobileDragActive.current) {
+      e.preventDefault();
+      handleMobileLongPressMove(touch);
+      return;
+    }
+
+    // Cancel long-press if finger moved too far before timer fired
+    if (mobileDragTimer.current) {
+      const dragDist = Math.sqrt(
+        Math.pow(touch.clientX - mobileDragTouchStartPos.current.x, 2) +
+        Math.pow(touch.clientY - mobileDragTouchStartPos.current.y, 2)
+      );
+      if (dragDist > 10) {
+        clearTimeout(mobileDragTimer.current);
+        mobileDragTimer.current = null;
+      }
+    }
+
+    // Swipe direction lock
+    if (!swipeLocked.current) {
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      if (absDx < 10 && absDy < 10) return;
+      if (absDy > absDx) {
+        swipeIsVertical.current = true;
+        swipeLocked.current = true;
+        return;
+      }
+      swipeLocked.current = true;
+      swipeDirection.current = dx > 0 ? 'right' : 'left';
+    }
+
+    if (swipeIsVertical.current) return;
+
+    e.preventDefault();
+    swipeCurrentOffset.current = dx;
+    if (swipeTaskElement.current) {
+      swipeTaskElement.current.style.transform = `translateX(${dx}px)`;
+      swipeTaskElement.current.style.transition = 'none';
+    }
+  };
+
+  const handleMobileTaskTouchEnd = (e, taskId, taskType) => {
+    // Clear long-press timer
+    if (mobileDragTimer.current) {
+      clearTimeout(mobileDragTimer.current);
+      mobileDragTimer.current = null;
+    }
+
+    // If drag was active, handle drag end
+    if (mobileDragActive.current) {
+      handleMobileLongPressEnd(e);
+      return;
+    }
+
+    const offset = swipeCurrentOffset.current;
+    const el = swipeTaskElement.current;
+
+    if (!el || swipeIsVertical.current || !swipeLocked.current) {
+      // Reset
+      if (el) {
+        el.style.transform = '';
+        el.style.transition = '';
+      }
+      swipeCurrentOffset.current = 0;
+      swipedTaskId.current = null;
+      return;
+    }
+
+    const elWidth = el.offsetWidth;
+    const threshold = elWidth * 0.4;
+
+    if (Math.abs(offset) > threshold) {
+      // Trigger action
+      const direction = offset > 0 ? 'right' : 'left';
+      // Animate off-screen
+      el.style.transform = `translateX(${direction === 'right' ? elWidth : -elWidth}px)`;
+      el.style.transition = 'transform 200ms ease-out';
+      setTimeout(() => {
+        if (direction === 'right') {
+          if (taskType === 'timeline') {
+            // Move to inbox (skip for recurring)
+            if (!(typeof taskId === 'string' && taskId.startsWith('recurring-'))) {
+              moveToInbox(taskId);
+            }
+          } else if (taskType === 'inbox') {
+            // Schedule: open edit modal as scheduled task
+            const task = unscheduledTasks.find(t => t.id === taskId);
+            if (task) {
+              // Remove from inbox and create as scheduled
+              setMobileEditingTask(null);
+              setNewTask({
+                title: task.title,
+                startTime: getNextQuarterHour(),
+                duration: task.duration || 30,
+                date: dateToString(selectedDate),
+                isAllDay: false,
+                color: task.color || colors[0].class,
+                recurrence: null,
+              });
+              // Remove from inbox first
+              pushUndo();
+              setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
+              setShowAddTask(true);
+            }
+          }
+        } else {
+          // Left swipe = edit
+          const isInbox = taskType === 'inbox';
+          const task = isInbox
+            ? unscheduledTasks.find(t => t.id === taskId)
+            : tasks.find(t => t.id === taskId) || (() => {
+                // Check recurring instances
+                if (typeof taskId === 'string' && taskId.startsWith('recurring-')) return null;
+                return null;
+              })();
+          if (task && !task.imported) {
+            openMobileEditTask(task, isInbox);
+          }
+        }
+        // Reset element
+        if (el) {
+          el.style.transform = '';
+          el.style.transition = '';
+        }
+      }, 200);
+    } else {
+      // Snap back
+      el.style.transform = 'translateX(0)';
+      el.style.transition = 'transform 200ms ease-out';
+      setTimeout(() => {
+        if (el) {
+          el.style.transform = '';
+          el.style.transition = '';
+        }
+      }, 200);
+    }
+
+    swipeCurrentOffset.current = 0;
+    swipedTaskId.current = null;
+  };
+
+  // --- Mobile long-press drag handlers ---
+  const handleMobileLongPressMove = (touch) => {
+    if (!calendarRef.current || !timeGridRef.current) return;
+    const calendarRect = calendarRef.current.getBoundingClientRect();
+    const scrollTop = calendarRef.current.scrollTop;
+    const headerHeight = timeGridRef.current.offsetTop;
+    const y = Math.max(0, touch.clientY - calendarRect.top + scrollTop - headerHeight);
+    const hourFromTop = Math.floor(y / 161);
+    const pixelsIntoHour = y - (hourFromTop * 161);
+    const minutesIntoHour = (Math.min(pixelsIntoHour, 160) / 160) * 60;
+    const totalMinutes = hourFromTop * 60 + minutesIntoHour;
+    const roundedMinutes = Math.round(totalMinutes / 15) * 15;
+    const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
+    const hrs = Math.floor(clampedMinutes / 60);
+    const mins = clampedMinutes % 60;
+    const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    setMobileDragPreviewTime(timeStr);
+
+    // Auto-scroll near edges
+    if (mobileDragAutoScrollInterval.current) {
+      clearInterval(mobileDragAutoScrollInterval.current);
+      mobileDragAutoScrollInterval.current = null;
+    }
+    const scrollZoneSize = 60;
+    const scrollSpeed = 8;
+    const distFromTop = touch.clientY - calendarRect.top;
+    const distFromBottom = calendarRect.bottom - touch.clientY;
+    if (distFromTop < scrollZoneSize && distFromTop > 0 && calendarRef.current.scrollTop > 0) {
+      mobileDragAutoScrollInterval.current = setInterval(() => {
+        if (calendarRef.current) calendarRef.current.scrollTop -= scrollSpeed;
+      }, 16);
+    } else if (distFromBottom < scrollZoneSize && distFromBottom > 0) {
+      mobileDragAutoScrollInterval.current = setInterval(() => {
+        if (calendarRef.current) calendarRef.current.scrollTop += scrollSpeed;
+      }, 16);
+    }
+  };
+
+  const handleMobileLongPressEnd = () => {
+    if (mobileDragAutoScrollInterval.current) {
+      clearInterval(mobileDragAutoScrollInterval.current);
+      mobileDragAutoScrollInterval.current = null;
+    }
+
+    if (mobileDragActive.current && mobileDragPreviewTime && mobileDragOriginalTask.current) {
+      const task = mobileDragOriginalTask.current;
+      const newTime = mobileDragPreviewTime;
+
+      // Handle recurring task instances via exceptions
+      if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
+        const parts = task.id.split('-');
+        const templateId = Number(parts[1]);
+        const dateStr = parts.slice(2).join('-');
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id === templateId) {
+            return {
+              ...t,
+              exceptions: {
+                ...t.exceptions,
+                [dateStr]: { ...(t.exceptions?.[dateStr] || {}), startTime: newTime }
+              }
+            };
+          }
+          return t;
+        }));
+      } else {
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, startTime: newTime } : t));
+      }
+      playUISound('slide');
+    }
+
+    mobileDragActive.current = false;
+    mobileDragTaskId.current = null;
+    mobileDragOriginalTask.current = null;
+    setMobileDragPreviewTime(null);
+    setMobileDragTaskIdState(null);
   };
 
   const updateDragAutoScroll = (e) => {
@@ -7958,6 +8293,25 @@ const DayPlanner = () => {
                               </div>
                             )}
 
+                            {/* Mobile drag time preview */}
+                            {mobileDragPreviewTime && isDateToday && (() => {
+                              const dragMinutes = timeToMinutes(mobileDragPreviewTime);
+                              const dragTop = Math.round(minutesToPosition(dragMinutes));
+                              return (
+                                <div
+                                  className="absolute left-0 right-0 pointer-events-none z-20"
+                                  style={{ top: `${dragTop}px` }}
+                                >
+                                  <div className="flex items-center">
+                                    <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
+                                      {formatTime(mobileDragPreviewTime)}
+                                    </div>
+                                    <div className="flex-1 h-0.5 bg-blue-500"></div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
                             {/* Task blocks */}
                             {dayTasks.map(task => {
                               const { top, height } = calculateTaskPosition(task);
@@ -8019,7 +8373,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20 ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${task.completed && !isImported ? 'opacity-50' : ''}`}
+                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -8028,9 +8382,30 @@ const DayPlanner = () => {
                                     right: conflictPos.right,
                                     width: conflictPos.width,
                                     visibility: isMeasured ? 'visible' : 'hidden',
-                                    ...taskCalendarStyle,
+                                    transition: mobileDragTaskIdState === task.id ? 'transform 0.15s, box-shadow 0.15s' : undefined,
                                   }}
                                 >
+                                  {/* Swipe action strips */}
+                                  {!(task.imported && !task.isTaskCalendar) && (
+                                    <>
+                                      <div className="absolute inset-y-0 left-0 right-1/2 bg-green-500 rounded-l-lg flex items-center pl-3 text-white text-xs font-medium">
+                                        {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
+                                          <><Inbox size={14} className="mr-1" />Inbox</>
+                                        )}
+                                      </div>
+                                      <div className="absolute inset-y-0 left-1/2 right-0 bg-blue-500 rounded-r-lg flex items-center justify-end pr-3 text-white text-xs font-medium">
+                                        Edit<Settings size={14} className="ml-1" />
+                                      </div>
+                                    </>
+                                  )}
+                                  {/* Task content with swipe + drag touch handlers */}
+                                  <div
+                                    className={`relative h-full ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20`}
+                                    style={taskCalendarStyle}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
+                                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
+                                  >
                                   {isCalendarEvent ? (
                                     <div className="h-full px-2 py-1.5 flex items-center gap-2 text-white">
                                       <span className="text-sm font-semibold truncate flex-1 min-w-0">
@@ -8161,6 +8536,7 @@ const DayPlanner = () => {
                                       )}
                                     </div>
                                   )}
+                                  </div>{/* end swipe content */}
                                 </div>
                                 );
                               })}
@@ -8295,8 +8671,19 @@ const DayPlanner = () => {
                   ) : (
                     filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
                       <div key={task.id} className="notes-panel-container">
+                        <div className="relative overflow-hidden rounded-lg">
+                          {/* Swipe action strips */}
+                          <div className="absolute inset-y-0 left-0 right-1/2 bg-blue-500 rounded-l-lg flex items-center pl-3 text-white text-xs font-medium">
+                            <Calendar size={14} className="mr-1" />Schedule
+                          </div>
+                          <div className="absolute inset-y-0 left-1/2 right-0 bg-blue-500 rounded-r-lg flex items-center justify-end pr-3 text-white text-xs font-medium">
+                            Edit<Settings size={14} className="ml-1" />
+                          </div>
                         <div
-                          className={`${task.color} rounded-lg p-3 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                          className={`relative ${task.color} rounded-lg p-3 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                          onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'inbox')}
+                          onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                          onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'inbox')}
                         >
                           {task.isExample && (
                             <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
@@ -8396,6 +8783,7 @@ const DayPlanner = () => {
                             </div>
                           </div>
                         </div>
+                        </div>{/* end swipe wrapper */}
                       </div>
                     ))
                   )}
@@ -8579,101 +8967,477 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'settings' && (
-              <div className="px-4 py-4 space-y-4">
-                {/* Quick toggles */}
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => setDarkMode(!darkMode)}
-                    className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
-                  >
-                    {darkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} className={textSecondary} />}
-                    <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
-                  </button>
-                  <button
-                    onClick={() => setSoundEnabled(!soundEnabled)}
-                    className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
-                  >
-                    {soundEnabled ? <Volume2 size={24} className="text-green-500" /> : <VolumeX size={24} className={textSecondary} />}
-                    <span className={`text-xs font-medium ${textPrimary}`}>Sound {soundEnabled ? 'On' : 'Off'}</span>
-                  </button>
-                  <button
-                    onClick={() => setUse24HourClock(!use24HourClock)}
-                    className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
-                  >
-                    <Clock size={24} className={textSecondary} />
-                    <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
-                  </button>
+              <div className="relative overflow-hidden">
+                {/* Main settings view */}
+                <div
+                  className={`px-4 py-4 space-y-4 transition-transform duration-200 ${mobileSettingsView !== 'main' ? '-translate-x-full' : 'translate-x-0'}`}
+                  style={{ display: mobileSettingsView !== 'main' ? 'none' : undefined }}
+                >
+                  {/* Quick toggles */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      onClick={() => setDarkMode(!darkMode)}
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                    >
+                      {darkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} className={textSecondary} />}
+                      <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
+                    </button>
+                    <button
+                      onClick={() => setSoundEnabled(!soundEnabled)}
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                    >
+                      {soundEnabled ? <Volume2 size={24} className="text-green-500" /> : <VolumeX size={24} className={textSecondary} />}
+                      <span className={`text-xs font-medium ${textPrimary}`}>Sound {soundEnabled ? 'On' : 'Off'}</span>
+                    </button>
+                    <button
+                      onClick={() => setUse24HourClock(!use24HourClock)}
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                    >
+                      <Clock size={24} className={textSecondary} />
+                      <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
+                    </button>
+                  </div>
+
+                  {/* Sync buttons */}
+                  {(syncUrl || taskCalendarUrl || cloudSyncConfig?.enabled) && (
+                    <div className="space-y-2">
+                      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
+                      {(syncUrl || taskCalendarUrl) && (
+                        <button
+                          onClick={() => { if (!isSyncing) syncAll(); }}
+                          disabled={isSyncing}
+                          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
+                        >
+                          <div className="relative">
+                            <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                              isSyncing ? 'bg-blue-500 animate-pulse' : calSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+                            }`} />
+                          </div>
+                          <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
+                        </button>
+                      )}
+                      {cloudSyncConfig?.enabled && (
+                        <button
+                          onClick={() => cloudSyncUpload()}
+                          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                        >
+                          <div className="relative">
+                            <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                              (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+                            }`} />
+                          </div>
+                          <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Sub-menu buttons */}
+                  <div className="space-y-2">
+                    <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
+                    <button
+                      onClick={() => setMobileSettingsView('app')}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <Settings size={20} className={textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>App Settings</span>
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
+                    <button
+                      onClick={() => setMobileSettingsView('notifications')}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <Bell size={20} className={textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>Notifications</span>
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
+                    <button
+                      onClick={() => setMobileSettingsView('backups')}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <Save size={20} className={textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>Backups</span>
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Sync buttons */}
-                {(syncUrl || taskCalendarUrl || cloudSyncConfig?.enabled) && (
-                  <div className="space-y-2">
-                    <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
-                    {(syncUrl || taskCalendarUrl) && (
+                {/* App Settings sub-view */}
+                {mobileSettingsView === 'app' && (() => {
+                  const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
+                  const provider = cloudSyncProviders[currentProvider];
+                  return (
+                  <div className="px-4 py-4 space-y-4">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} mb-2`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">App Settings</span>
+                    </button>
+
+                    {/* Calendar Sync */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <RefreshCw size={16} className={textSecondary} />
+                        Calendar Sync
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>Calendar URL (iCal/CalDAV)</label>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={syncUrl}
+                          onChange={(e) => setSyncUrl(e.target.value)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>Task Calendar URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={taskCalendarUrl}
+                          onChange={(e) => setTaskCalendarUrl(e.target.value)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        />
+                      </div>
                       <button
-                        onClick={() => {
-                          if (!isSyncing) {
-                            syncAll();
-                          }
-                        }}
-                        disabled={isSyncing}
-                        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
+                        onClick={() => syncAll()}
+                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        <div className="relative">
-                          <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-                          <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                            isSyncing ? 'bg-blue-500 animate-pulse' :
-                            calSyncStatus === 'error' ? 'bg-red-500' :
-                            'bg-green-500'
-                          }`} />
-                        </div>
-                        <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
+                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                        {isSyncing ? 'Syncing...' : 'Sync Now'}
                       </button>
-                    )}
-                    {cloudSyncConfig?.enabled && (
-                      <button
-                        onClick={() => cloudSyncUpload()}
-                        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-                      >
-                        <div className="relative">
-                          <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-                          <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                            (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
-                            cloudSyncStatus === 'error' ? 'bg-red-500' :
-                            'bg-green-500'
-                          }`} />
+                      {calSyncLastSynced && (
+                        <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(calSyncLastSynced).toLocaleString()}</p>
+                      )}
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Cloud Sync */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Cloud size={16} className={textSecondary} />
+                        Cloud Sync
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>Sync all your data as a JSON file to your cloud storage.</p>
+                      <CloudSyncSettingsForm
+                        darkMode={darkMode}
+                        textPrimary={textPrimary}
+                        textSecondary={textSecondary}
+                        borderClass={borderClass}
+                        hoverBg={hoverBg}
+                        cloudSyncConfig={cloudSyncConfig}
+                        setCloudSyncConfig={setCloudSyncConfig}
+                        cloudSyncTest={cloudSyncTest}
+                        provider={provider}
+                        currentProvider={currentProvider}
+                        onClose={() => setMobileSettingsView('main')}
+                        cloudSyncLastSynced={cloudSyncLastSynced}
+                      />
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* iCal Import */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Upload size={16} className={textSecondary} />
+                        iCal Import
+                      </h4>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                        <Upload size={14} className={textSecondary} />
+                        Choose .ics file
+                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
+                  );
+                })()}
+
+                {/* Notifications sub-view */}
+                {mobileSettingsView === 'notifications' && (
+                  <div className="px-4 py-4 space-y-4">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} mb-2`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">Notifications</span>
+                    </button>
+
+                    {/* Master toggle */}
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={reminderSettings.enabled}
+                          onChange={(e) => setReminderSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                          className="sr-only"
+                        />
+                        <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                         </div>
-                        <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
-                      </button>
+                      </div>
+                      <span className={`text-sm ${textPrimary}`}>Enable reminders</span>
+                    </label>
+
+                    {reminderSettings.enabled && (
+                      <div className="space-y-4">
+                        {/* In-app toasts */}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <div className="relative">
+                            <input type="checkbox" checked={reminderSettings.inAppToasts !== false} onChange={(e) => setReminderSettings(prev => ({ ...prev, inAppToasts: e.target.checked }))} className="sr-only" />
+                            <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.inAppToasts !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.inAppToasts !== false ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </div>
+                          </div>
+                          <span className={`text-sm ${textPrimary}`}>In-app toasts</span>
+                        </label>
+
+                        {/* Browser notifications */}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <div className="relative">
+                            <input type="checkbox" checked={reminderSettings.browserNotifications} onChange={(e) => {
+                              const val = e.target.checked;
+                              if (val && typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
+                              setReminderSettings(prev => ({ ...prev, browserNotifications: val }));
+                            }} className="sr-only" />
+                            <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.browserNotifications ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.browserNotifications ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`text-sm ${textPrimary}`}>Browser notifications</span>
+                            <p className={`text-xs ${textSecondary}`}>
+                              {typeof Notification !== 'undefined'
+                                ? Notification.permission === 'granted' ? 'Permission granted'
+                                : Notification.permission === 'denied' ? 'Permission denied'
+                                : 'Will request permission when enabled'
+                                : 'Not supported'}
+                            </p>
+                          </div>
+                        </label>
+
+                        {/* Presets */}
+                        <div>
+                          <p className={`text-xs font-medium ${textSecondary} mb-2`}>Presets</p>
+                          <div className="flex gap-2">
+                            {[['standard', 'Standard'], ['aggressive', 'Aggressive'], ['minimal', 'Minimal']].map(([key, label]) => (
+                              <button
+                                key={key}
+                                onClick={() => applyReminderPreset(key)}
+                                className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                                  reminderSettings.preset === key ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Per-category grids */}
+                        {[
+                          ['calendarEvents', 'Calendar Events'],
+                          ['calendarTasks', 'Calendar Tasks'],
+                          ['scheduledTasks', 'Scheduled Tasks'],
+                          ['recurringTasks', 'Recurring Tasks'],
+                        ].map(([catKey, catLabel]) => (
+                          <div key={catKey}>
+                            <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{catLabel}</p>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {[['before15', '-15m'], ['before10', '-10m'], ['before5', '-5m'], ['atStart', 'Start'], ['atEnd', 'End']].map(([field, label]) => (
+                                <button
+                                  key={field}
+                                  onClick={() => updateCategoryReminder(catKey, field, !reminderSettings.categories[catKey]?.[field])}
+                                  className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                                    reminderSettings.categories[catKey]?.[field] ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} ${hoverBg}`
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* All-day tasks */}
+                        <div>
+                          <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>All-Day Tasks</p>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={reminderSettings.categories.allDayTasks?.morningReminder ?? true}
+                                onChange={(e) => updateCategoryReminder('allDayTasks', 'morningReminder', e.target.checked)}
+                                className="rounded border-gray-300"
+                              />
+                              <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setShowMorningTimePicker(true)}
+                              className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                            >
+                              {formatTime(reminderSettings.morningReminderTime)}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Weekly Review */}
+                        <div className={`border-t ${borderClass} pt-4`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <BarChart3 size={16} className="text-purple-500" />
+                            <span className={`text-sm font-semibold ${textPrimary}`}>Weekly Review</span>
+                          </div>
+                          <label className="flex items-center gap-3 cursor-pointer mb-3">
+                            <div className="relative">
+                              <input type="checkbox" checked={reminderSettings.weeklyReview?.enabled ?? true} onChange={(e) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, enabled: e.target.checked } }))} className="sr-only" />
+                              <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.weeklyReview?.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.weeklyReview?.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                              </div>
+                            </div>
+                            <span className={`text-sm ${textPrimary}`}>Notify me for weekly review</span>
+                          </label>
+                          {reminderSettings.weeklyReview?.enabled && (
+                            <div className="space-y-3 ml-1">
+                              <div>
+                                <p className={`text-xs ${textSecondary} mb-1.5`}>Day</p>
+                                <div className="flex gap-1 flex-wrap">
+                                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, i) => (
+                                    <button
+                                      key={label}
+                                      onClick={() => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, day: i } }))}
+                                      className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                                        reminderSettings.weeklyReview.day === i ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
 
-                {/* Sub-menu buttons */}
-                <div className="space-y-2">
-                  <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
-                  <button
-                    onClick={() => setShowSettings(true)}
-                    className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-                  >
-                    <Settings size={20} className={textSecondary} />
-                    <span className={`font-medium ${textPrimary}`}>App Settings</span>
-                  </button>
-                  <button
-                    onClick={() => setShowRemindersSettings(true)}
-                    className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-                  >
-                    <Bell size={20} className={textSecondary} />
-                    <span className={`font-medium ${textPrimary}`}>Notifications</span>
-                  </button>
-                  <button
-                    onClick={() => setShowBackupMenu(true)}
-                    className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-                  >
-                    <Save size={20} className={textSecondary} />
-                    <span className={`font-medium ${textPrimary}`}>Backups</span>
-                  </button>
-                </div>
+                {/* Backups sub-view */}
+                {mobileSettingsView === 'backups' && (
+                  <div className="px-4 py-4 space-y-4">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} mb-2`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">Backups</span>
+                    </button>
+
+                    {/* Export / Restore */}
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => exportBackup()}
+                        className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                      >
+                        <div className="font-medium flex items-center gap-2">
+                          <Upload size={16} className="rotate-180" />
+                          Export Backup
+                        </div>
+                        <div className={`text-sm ${textSecondary}`}>Download all tasks and settings as JSON</div>
+                      </button>
+                      <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
+                        <div className="font-medium flex items-center gap-2">
+                          <Upload size={16} />
+                          Restore Backup
+                        </div>
+                        <div className={`text-sm ${textSecondary}`}>Load data from a backup file</div>
+                        <input type="file" accept=".json" onChange={handleBackupFileSelect} className="hidden" />
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Auto-Backup settings inline */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Clock size={16} className={textSecondary} />
+                        Auto-Backup
+                        {(autoBackupConfig.local.enabled || autoBackupConfig.remote.enabled) && (
+                          <span className="ml-auto text-xs px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">Active</span>
+                        )}
+                      </h4>
+                      <AutoBackupSettingsForm
+                        config={autoBackupConfig}
+                        setConfig={setAutoBackupConfig}
+                        status={autoBackupStatus}
+                        darkMode={darkMode}
+                        textPrimary={textPrimary}
+                        textSecondary={textSecondary}
+                        borderClass={borderClass}
+                        hoverBg={hoverBg}
+                        onRemoteBackupNow={performRemoteBackup}
+                      />
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Backup history */}
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => { loadAutoBackupHistory(); }}
+                        className={`px-4 py-2 text-sm ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg}`}
+                      >
+                        Load Backup History
+                      </button>
+                      {autoBackupHistory.local.length > 0 && (
+                        <div>
+                          <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>Local ({autoBackupHistory.local.length})</h4>
+                          <div className="space-y-1">
+                            {autoBackupHistory.local.map(b => (
+                              <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-sm ${textPrimary} truncate`}>{new Date(b.timestamp).toLocaleString()}</p>
+                                  <p className={`text-xs ${textSecondary}`}>{b.frequency}</p>
+                                </div>
+                                <div className="flex items-center gap-1 ml-2 shrink-0">
+                                  <button onClick={() => setAutoBackupRestoreConfirm({ type: 'local', id: b.id, timestamp: b.timestamp })} className={`p-1.5 rounded ${hoverBg}`}><Undo2 size={14} className={textSecondary} /></button>
+                                  <button onClick={() => deleteLocalAutoBackup(b.id)} className={`p-1.5 rounded ${hoverBg}`}><Trash2 size={14} className={textSecondary} /></button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {autoBackupConfig.remote.enabled && autoBackupHistory.remote.length > 0 && (
+                        <div>
+                          <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>Remote ({autoBackupHistory.remote.length})</h4>
+                          <div className="space-y-1">
+                            {autoBackupHistory.remote.map(b => (
+                              <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-sm ${textPrimary} truncate`}>{b.lastModified ? new Date(b.lastModified).toLocaleString() : b.filename}</p>
+                                </div>
+                                <div className="flex items-center gap-1 ml-2 shrink-0">
+                                  <button onClick={() => setAutoBackupRestoreConfirm({ type: 'remote', filename: b.filename, timestamp: b.lastModified })} className={`p-1.5 rounded ${hoverBg}`}><Undo2 size={14} className={textSecondary} /></button>
+                                  <button onClick={() => deleteRemoteAutoBackup(b.filename)} className={`p-1.5 rounded ${hoverBg}`}><Trash2 size={14} className={textSecondary} /></button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -8700,6 +9464,7 @@ const DayPlanner = () => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
                   if (mobileActiveTab !== 'timeline') goToToday();
                   setMobileActiveTab('timeline');
+                  setMobileSettingsView('main');
                 }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? 'text-blue-500' : textSecondary}`}
               >
@@ -8710,6 +9475,7 @@ const DayPlanner = () => {
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
                   setMobileActiveTab('inbox');
+                  setMobileSettingsView('main');
                 }}
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative ${mobileActiveTab === 'inbox' ? 'text-blue-500' : textSecondary}`}
               >
@@ -8726,6 +9492,7 @@ const DayPlanner = () => {
               <button
                 onClick={() => {
                   setMobileActiveTab('routines');
+                  setMobileSettingsView('main');
                   setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
                   setRoutineAddingToBucket(null);
                   setRoutineNewChipName('');
@@ -12083,8 +12850,240 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Mobile New/Edit Task Modal */}
+      {showAddTask && isMobile && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }}>
+          <div className="bg-black/30 absolute inset-0" />
+          <div
+            className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto`}
+            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+              <h3 className={`font-semibold ${textPrimary} text-lg`}>
+                {mobileEditingTask ? 'Edit Task' : newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
+              </h3>
+              <button onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
+                <X size={18} className={textSecondary} />
+              </button>
+            </div>
+            <form
+              className="p-4 space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (mobileEditingTask) {
+                  saveMobileEditTask();
+                } else {
+                  addTask(!!newTask.openInInbox);
+                  setShowNewTaskDeadlinePicker(false);
+                }
+              }}
+            >
+              {/* Title */}
+              <div>
+                <input
+                  ref={newTaskInputRef}
+                  type="text"
+                  placeholder="Task title"
+                  value={newTask.title}
+                  onChange={handleNewTaskInputChange}
+                  autoFocus
+                  className={`w-full px-3 py-3 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-base`}
+                />
+              </div>
+
+              {/* Color row */}
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-2`}>Color</label>
+                <div className="flex gap-2 flex-wrap">
+                  {colors.map((color) => (
+                    <button
+                      type="button"
+                      key={color.class}
+                      onClick={() => setNewTask({ ...newTask, color: color.class })}
+                      className={`${color.class} w-8 h-8 rounded-full transition-transform ${(newTask.color || colors[0].class) === color.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : ''}`}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Fields grid */}
+              {newTask.openInInbox ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>Priority</label>
+                    <button
+                      type="button"
+                      onClick={() => setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
+                      className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1`}
+                    >
+                      {[1, 2, 3].map((level) => (
+                        <div
+                          key={level}
+                          className={`w-4 h-1 rounded-full ${(newTask.priority || 0) >= level ? 'bg-orange-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                        />
+                      ))}
+                    </button>
+                  </div>
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>Deadline</label>
+                    <div className="relative deadline-picker-container">
+                      <button
+                        type="button"
+                        onClick={() => setShowNewTaskDeadlinePicker(!showNewTaskDeadlinePicker)}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} flex items-center gap-2`}
+                      >
+                        <Calendar size={14} className={textSecondary} />
+                        {newTask.deadline
+                          ? new Date(newTask.deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          : 'None'}
+                      </button>
+                      {showNewTaskDeadlinePicker && (
+                        <div className={`absolute bottom-12 left-0 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px] z-20`}>
+                          <div className="space-y-1">
+                            <button type="button" onClick={() => { setNewTask({ ...newTask, deadline: dateToString(new Date()) }); setShowNewTaskDeadlinePicker(false); }} className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}><Calendar size={14} />Today</button>
+                            <button type="button" onClick={() => { const d = new Date(); d.setDate(d.getDate() + 1); setNewTask({ ...newTask, deadline: dateToString(d) }); setShowNewTaskDeadlinePicker(false); }} className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}><Calendar size={14} />Tomorrow</button>
+                            <button type="button" onClick={() => { const d = new Date(); d.setDate(d.getDate() + 7); setNewTask({ ...newTask, deadline: dateToString(d) }); setShowNewTaskDeadlinePicker(false); }} className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}><Calendar size={14} />Next week</button>
+                            {newTask.deadline && (
+                              <>
+                                <div className={`border-t ${borderClass} my-1`}></div>
+                                <button type="button" onClick={() => { setNewTask({ ...newTask, deadline: null }); setShowNewTaskDeadlinePicker(false); }} className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}><X size={14} />Clear</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                    <select
+                      value={newTask.duration}
+                      onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                    >
+                      {durationOptions.map(minutes => (
+                        <option key={minutes} value={minutes}>{minutes} min</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowDatePicker(true)}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                    >
+                      {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
+                    </button>
+                  </div>
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
+                    <button
+                      type="button"
+                      onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
+                      disabled={newTask.isAllDay}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                    >
+                      {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
+                    </button>
+                  </div>
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                    <select
+                      value={newTask.duration}
+                      onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                      disabled={newTask.isAllDay}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                    >
+                      {durationOptions.map(minutes => (
+                        <option key={minutes} value={minutes}>{minutes} min</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
+                    <label className="flex items-center h-10 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newTask.isAllDay}
+                        onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
+                    </label>
+                  </div>
+                  {!mobileEditingTask && (
+                    <div className="col-span-2 relative">
+                      <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowRecurrencePicker(!showRecurrencePicker)}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''}`}
+                      >
+                        {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
+                      </button>
+                      {showRecurrencePicker && (() => {
+                        const presets = getRecurrencePresets(newTask.date || dateToString(selectedDate));
+                        return (
+                          <div className={`absolute bottom-full left-0 mb-1 ${cardBg} rounded-lg shadow-xl z-30 border ${borderClass} min-w-[250px] max-h-[200px] overflow-y-auto`}>
+                            {presets.map((preset, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => {
+                                  setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value } : null });
+                                  setShowRecurrencePicker(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${textPrimary}`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  {mobileEditingTask ? 'Save Changes' : newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
+                </button>
+              </div>
+
+              {/* Delete button for edit mode */}
+              {mobileEditingTask && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    moveToRecycleBin(mobileEditingTask.id, mobileEditIsInbox);
+                    setShowAddTask(false);
+                    setMobileEditingTask(null);
+                    setMobileEditIsInbox(false);
+                  }}
+                  className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                >
+                  Delete Task
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* New Task Modal */}
-      {showAddTask && (
+      {showAddTask && !isMobile && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}>
           <form
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
@@ -13988,7 +14987,12 @@ const DayPlanner = () => {
                   <Calendar size={32} className="text-blue-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Timeline</h2>
-                <p className={`${textSecondary} text-sm`}>View and manage your scheduled tasks on a visual timeline. Tap any time slot to add a new task.</p>
+                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                  <li>Swipe a task <strong className={textPrimary}>right</strong> to move it to inbox</li>
+                  <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
+                  <li><strong className={textPrimary}>Long-press</strong> and drag to reschedule a task</li>
+                  <li>Tap the <strong className={textPrimary}>+</strong> button to add a new task</li>
+                </ul>
               </div>
             )}
             {mobileWelcomeStep === 2 && (
@@ -13997,7 +15001,12 @@ const DayPlanner = () => {
                   <Inbox size={32} className="text-blue-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Inbox</h2>
-                <p className={`${textSecondary} text-sm`}>Capture tasks quickly without scheduling them. Prioritize and organize them later.</p>
+                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                  <li>Swipe a task <strong className={textPrimary}>right</strong> to schedule it</li>
+                  <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
+                  <li>Tap the <strong className={textPrimary}>+</strong> button to add a new inbox task</li>
+                  <li>Use the <strong className={textPrimary}>priority filter</strong> to focus on what matters</li>
+                </ul>
               </div>
             )}
             {mobileWelcomeStep === 3 && (
@@ -14006,7 +15015,11 @@ const DayPlanner = () => {
                   <Sparkles size={32} className="text-teal-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Routines</h2>
-                <p className={`${textSecondary} text-sm`}>Build daily habits by assigning routine chips to days of the week. Track what you complete each day.</p>
+                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                  <li>Create <strong className={textPrimary}>daily habits</strong> for each day of the week</li>
+                  <li>Tap chips to <strong className={textPrimary}>check off</strong> today's routines</li>
+                  <li>Set a <strong className={textPrimary}>time</strong> to see routines on the timeline</li>
+                </ul>
               </div>
             )}
             {mobileWelcomeStep === 4 && (
@@ -14015,7 +15028,11 @@ const DayPlanner = () => {
                   <Settings size={32} className={textSecondary} />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Settings</h2>
-                <p className={`${textSecondary} text-sm`}>Toggle dark mode, manage notifications, configure calendar sync, and backup your data.</p>
+                <ul className={`${textSecondary} text-sm text-left space-y-2 max-w-xs mx-auto`}>
+                  <li><strong className={textPrimary}>Quick toggles</strong> for dark mode, sound, and clock format</li>
+                  <li>Configure <strong className={textPrimary}>calendar sync</strong>, cloud sync, and notifications</li>
+                  <li><strong className={textPrimary}>Backup</strong> and restore your data</li>
+                </ul>
               </div>
             )}
             {mobileWelcomeStep === 5 && (
