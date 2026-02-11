@@ -2845,15 +2845,31 @@ const DayPlanner = () => {
   // Get today's date string for overdue comparisons
   const getTodayStr = () => dateToString(new Date());
 
-  // Get overdue tasks: incomplete scheduled tasks from past dates + inbox tasks with past deadlines
+  // Get overdue tasks: incomplete tasks past their end time + inbox tasks with past deadlines
+  // Includes recurring instances for today (matches dayGLANCE widget behavior)
   const getOverdueTasks = () => {
     const todayStr = getTodayStr();
+    const now = currentTime || new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const isOverdueToday = (t) => {
+      if (t.date !== todayStr || t.isAllDay) return false;
+      const [h, m] = (t.startTime || '00:00').split(':').map(Number);
+      const endMinutes = h * 60 + m + (t.duration || 30);
+      return endMinutes <= nowMinutes;
+    };
 
     // Incomplete scheduled tasks from past dates (not imported events)
-    const overdueScheduled = tasks.filter(t =>
-      t.date < todayStr &&
-      !t.completed &&
-      !t.imported
+    // + today's tasks whose end time has passed
+    const overdueScheduled = tasks.filter(t => {
+      if (t.completed || t.imported) return false;
+      if (t.date < todayStr) return true;
+      return isOverdueToday(t);
+    }).map(t => ({ ...t, _overdueType: 'scheduled' }));
+
+    // Today's recurring instances past their end time
+    const todayRecurring = expandedRecurringTasks.filter(t =>
+      t.date === todayStr && !t.completed && isOverdueToday(t)
     ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
     // Inbox tasks with past deadlines
@@ -2861,7 +2877,7 @@ const DayPlanner = () => {
       t.deadline && t.deadline < todayStr && !t.completed
     ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
-    return [...overdueScheduled, ...overdueDeadlines];
+    return [...overdueScheduled, ...todayRecurring, ...overdueDeadlines];
   };
 
   // Get inbox tasks with deadlines for a specific date (not overdue)
