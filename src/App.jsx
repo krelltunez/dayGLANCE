@@ -2870,12 +2870,12 @@ const DayPlanner = () => {
 
     // Today's recurring instances past their end time
     const todayRecurring = expandedRecurringTasks.filter(t =>
-      t.date === todayStr && !t.completed && isOverdueToday(t)
+      t.date === todayStr && !t.completed && !t.isExample && isOverdueToday(t)
     ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
     // Inbox tasks with past deadlines
     const overdueDeadlines = unscheduledTasks.filter(t =>
-      t.deadline && t.deadline < todayStr && !t.completed
+      t.deadline && t.deadline < todayStr && !t.completed && !t.isExample
     ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
     return [...overdueScheduled, ...todayRecurring, ...overdueDeadlines];
