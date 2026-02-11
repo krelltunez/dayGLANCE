@@ -2863,7 +2863,7 @@ const DayPlanner = () => {
     // Incomplete scheduled tasks from past dates (not imported events)
     // + today's tasks whose end time has passed
     const overdueScheduled = tasks.filter(t => {
-      if (t.completed || t.imported) return false;
+      if (t.completed || t.imported || t.isExample) return false;
       if (t.date < todayStr) return true;
       return isOverdueToday(t);
     }).map(t => ({ ...t, _overdueType: 'scheduled' }));
@@ -8212,7 +8212,7 @@ const DayPlanner = () => {
           <div style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}>
             {/* Mobile Header */}
             {mobileActiveTab === 'timeline' && (
-              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 ${showMonthView ? 'z-50' : 'z-30'}`}>
                 <div className="flex items-center justify-between px-4 py-3">
                   <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
                     <ChevronLeft size={20} className={textSecondary} />
@@ -8744,7 +8744,7 @@ const DayPlanner = () => {
                                   )}
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
-                                    className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20`}
+                                    className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${task.isTaskCalendar ? '' : 'border border-white/20'}`}
                                     style={mobileCalendarStyle}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
