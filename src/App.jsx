@@ -1175,6 +1175,7 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-sound-enabled');
     return saved !== null ? JSON.parse(saved) : true;
   });
+  const audioCtxRef = useRef(null);
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -1907,17 +1908,11 @@ const DayPlanner = () => {
   }, [syncUrl, taskCalendarUrl, onboardingProgress.hasSetupSync]);
 
   useEffect(() => {
-    // Align first tick to the next minute boundary, then tick every 60s
-    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000 - new Date().getMilliseconds();
-    let interval;
-    const timeout = setTimeout(() => {
+    // Tick every 15s for responsive reminders; firedRemindersRef prevents duplicates
+    const interval = setInterval(() => {
       setCurrentTime(new Date());
-      interval = setInterval(() => {
-        setCurrentTime(new Date());
-      }, 60000);
-    }, msUntilNextMinute);
-
-    return () => { clearTimeout(timeout); clearInterval(interval); };
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // Catch up on missed reminders when tab becomes visible
@@ -4659,10 +4654,20 @@ const DayPlanner = () => {
   };
 
   // --- Focus Mode handlers ---
+  const getAudioCtx = () => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  };
+
   const playFocusSound = (type) => {
     if (!soundEnabled) return;
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = getAudioCtx();
       if (type === 'work') {
         // Ascending chime: C5 → E5
         const osc = ctx.createOscillator();
@@ -4708,7 +4713,7 @@ const DayPlanner = () => {
   const playUISound = (type) => {
     if (!soundEnabled) return;
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = getAudioCtx();
       const now = ctx.currentTime;
       switch (type) {
         case 'pop': {
@@ -5545,18 +5550,19 @@ const DayPlanner = () => {
     mobileDragLastTouch.current = { clientX: touch.clientX, clientY: touch.clientY };
     updateMobileDragPreview();
 
-    // Auto-scroll near edges (but not when in the all-day header zone)
-    const allDayZone = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom || mobileDateHeaderRef.current?.getBoundingClientRect().bottom || 0;
-    const inAllDayZone = touch.clientY < allDayZone;
+    // Auto-scroll near edges
+    const allDayZoneBottom = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom || mobileDateHeaderRef.current?.getBoundingClientRect().bottom || 0;
+    const inAllDayZone = touch.clientY < allDayZoneBottom;
     const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollZoneSize = 60;
-    const distFromTop = touch.clientY - calendarRect.top;
+    // Measure scroll-up zone from below the sticky headers, not from calendar top
+    const distFromTimeGridTop = touch.clientY - allDayZoneBottom;
     const distFromBottom = calendarRect.bottom - touch.clientY;
 
     let newDir = null;
     if (inAllDayZone) {
       // Don't auto-scroll while hovering over the all-day drop zone
-    } else if (distFromTop < scrollZoneSize && distFromTop > 0) {
+    } else if (distFromTimeGridTop < scrollZoneSize && distFromTimeGridTop > 0) {
       newDir = 'up';
     } else if (distFromBottom < scrollZoneSize && distFromBottom > 0) {
       newDir = 'down';
@@ -8299,6 +8305,18 @@ const DayPlanner = () => {
                                             >
                                               <SkipForward size={14} />
                                             </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
+                                              className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                            >
+                                              <Pencil size={14} />
+                                            </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
+                                              className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
                                           </>
                                         )}
                                       </div>
@@ -8350,11 +8368,23 @@ const DayPlanner = () => {
                                         {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                       </button>
                                       <button
+                                        onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
+                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                      >
+                                        <Pencil size={14} />
+                                      </button>
+                                      <button
                                         onClick={(e) => { e.stopPropagation(); clearDeadline(task.id); }}
                                         className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
                                         title="Move to Inbox"
                                       >
                                         <Inbox size={14} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
+                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                      >
+                                        <Trash2 size={14} />
                                       </button>
                                     </div>
                                   </div>
@@ -8424,7 +8454,7 @@ const DayPlanner = () => {
                             )}
 
                             {/* Mobile drag time preview */}
-                            {mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && isDateToday && (() => {
+                            {mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && (() => {
                               const dragMinutes = timeToMinutes(mobileDragPreviewTime);
                               const dragTop = Math.round(minutesToPosition(dragMinutes));
                               return (
@@ -8543,12 +8573,12 @@ const DayPlanner = () => {
                                   {/* Swipe action strips */}
                                   {!(task.imported && !task.isTaskCalendar) && (
                                     <>
-                                      <div className={`absolute inset-y-0 left-0 right-1/2 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-l-lg flex items-center pl-3 text-xs font-medium`}>
+                                      <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                         {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
                                           <><Inbox size={14} className="mr-1" />Inbox</>
                                         )}
                                       </div>
-                                      <div className={`absolute inset-y-0 left-1/2 right-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-r-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                      <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                         Edit<Settings size={14} className="ml-1" />
                                       </div>
                                     </>
@@ -8828,14 +8858,14 @@ const DayPlanner = () => {
                       <div key={task.id} className="notes-panel-container">
                         <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                           {/* Swipe action strips */}
-                          <div className={`absolute inset-y-0 left-0 right-1/2 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-l-lg flex items-center pl-3 text-xs font-medium`}>
+                          <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                             <Calendar size={14} className="mr-1" />Schedule
                           </div>
-                          <div className={`absolute inset-y-0 left-1/2 right-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-r-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                          <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                             Edit<Settings size={14} className="ml-1" />
                           </div>
                         <div
-                          className={`relative ${task.color} rounded-lg p-3 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                          className={`relative ${task.color} rounded-lg px-3 py-4 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'inbox')}
                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'inbox')}
@@ -8845,82 +8875,98 @@ const DayPlanner = () => {
                               Example
                             </span>
                           )}
-                          <div className="flex items-start justify-between text-white">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <button
-                                onClick={() => toggleComplete(task.id, true)}
-                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                              >
-                                {task.completed && <Check size={10} strokeWidth={3} />}
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <div
-                                  className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}
-                                  onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    startEditingTask(task, true);
-                                  }}
+                          <div className="text-white">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <button
+                                  onClick={() => toggleComplete(task.id, true)}
+                                  className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                 >
-                                  {renderTitle(task.title)}
-                                </div>
-                                <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
-                                  <span>{task.duration} min</span>
-                                  {task.deadline && (
-                                    <span className="flex items-center gap-1">
-                                      <AlertCircle size={10} />
-                                      {formatDeadlineDate(task.deadline)}
-                                    </span>
-                                  )}
+                                  {task.completed && <Check size={10} strokeWidth={3} />}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div
+                                    className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      startEditingTask(task, true);
+                                    }}
+                                  >
+                                    {renderTitle(task.title)}
+                                  </div>
+                                  <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
+                                    <span>{task.duration} min</span>
+                                    {task.deadline && (
+                                      <span className="flex items-center gap-1">
+                                        <AlertCircle size={10} />
+                                        {formatDeadlineDate(task.deadline)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button
-                                onMouseDown={() => {
-                                  if (isLinkOnlyTask(task)) {
-                                    longPressTriggeredRef.current = false;
-                                    longPressTimerRef.current = setTimeout(() => {
-                                      longPressTriggeredRef.current = true;
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                    }, 500);
-                                  }
-                                }}
-                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isLinkOnlyTask(task)) {
-                                    if (!longPressTriggeredRef.current) {
-                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                    }
-                                    longPressTriggeredRef.current = false;
-                                  } else {
-                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                  }
-                                }}
-                                className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                              >
-                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                              </button>
-                              <div className="deadline-picker-container relative">
+                              <div className="flex items-center gap-1 flex-shrink-0">
                                 <button
+                                  onMouseDown={() => {
+                                    if (isLinkOnlyTask(task)) {
+                                      longPressTriggeredRef.current = false;
+                                      longPressTimerRef.current = setTimeout(() => {
+                                        longPressTriggeredRef.current = true;
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }, 500);
+                                    }
+                                  }}
+                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                    if (isLinkOnlyTask(task)) {
+                                      if (!longPressTriggeredRef.current) {
+                                        window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                      }
+                                      longPressTriggeredRef.current = false;
+                                    } else {
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }
                                   }}
-                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
-                                  title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                  className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                                 >
-                                  <Calendar size={14} />
+                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 </button>
-                                {showDeadlinePicker === task.id && (
-                                  <DeadlinePickerPopover
-                                    taskId={task.id}
-                                    currentDeadline={task.deadline}
-                                    onClose={() => setShowDeadlinePicker(null)}
-                                  />
-                                )}
+                                <div className="deadline-picker-container relative">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                    }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                    title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                  >
+                                    <Calendar size={14} />
+                                  </button>
+                                  {showDeadlinePicker === task.id && (
+                                    <DeadlinePickerPopover
+                                      taskId={task.id}
+                                      currentDeadline={task.deadline}
+                                      onClose={() => setShowDeadlinePicker(null)}
+                                    />
+                                  )}
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
+                                  className="hover:bg-white/20 rounded p-1 transition-colors"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
+                                  className="hover:bg-white/20 rounded p-1 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
                               </div>
+                            </div>
+                            <div className="flex justify-end mt-1.5">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -8934,18 +8980,6 @@ const DayPlanner = () => {
                                     className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
                                   />
                                 ))}
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                              >
-                                <Trash2 size={14} />
                               </button>
                             </div>
                           </div>
