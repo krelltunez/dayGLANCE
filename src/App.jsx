@@ -5431,6 +5431,12 @@ const DayPlanner = () => {
       }
       swipeLocked.current = true;
       swipeDirection.current = dx > 0 ? 'right' : 'left';
+      // Show only the relevant swipe strip
+      const parent = swipeTaskElement.current?.parentElement;
+      if (parent) {
+        const strip = parent.querySelector(`[data-swipe-strip="${swipeDirection.current}"]`);
+        if (strip) strip.style.display = 'flex';
+      }
     }
 
     if (swipeIsVertical.current) return;
@@ -5459,11 +5465,22 @@ const DayPlanner = () => {
     const offset = swipeCurrentOffset.current;
     const el = swipeTaskElement.current;
 
+    // Helper to hide swipe strips
+    const hideSwipeStrips = (element) => {
+      const parent = element?.parentElement;
+      if (parent) {
+        parent.querySelectorAll('[data-swipe-strip]').forEach(strip => {
+          strip.style.display = 'none';
+        });
+      }
+    };
+
     if (!el || swipeIsVertical.current || !swipeLocked.current) {
       // Reset
       if (el) {
         el.style.transform = '';
         el.style.transition = '';
+        hideSwipeStrips(el);
       }
       swipeCurrentOffset.current = 0;
       swipedTaskId.current = null;
@@ -5525,6 +5542,7 @@ const DayPlanner = () => {
         if (el) {
           el.style.transform = '';
           el.style.transition = '';
+          hideSwipeStrips(el);
         }
       }, 200);
     } else {
@@ -5535,6 +5553,7 @@ const DayPlanner = () => {
         if (el) {
           el.style.transform = '';
           el.style.transition = '';
+          hideSwipeStrips(el);
         }
       }, 200);
     }
@@ -8235,7 +8254,7 @@ const DayPlanner = () => {
                   style={{ height: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}
                 >
                   {/* Date header */}
-                  <div ref={mobileDateHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
+                  <div ref={mobileDateHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-40 ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                     <div className={`w-12 flex-shrink-0 border-r ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'flex items-center justify-center' : ''}`}>
                       {mobileDragPreviewTime === 'all-day' && (
                         <span className="text-[9px] font-bold text-blue-500">ALL DAY</span>
@@ -8270,7 +8289,7 @@ const DayPlanner = () => {
 
                   {/* All-day tasks - sticky below date header */}
                   {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || todayRoutines.some(r => r.isAllDay && !String(r.id).startsWith('example-'))) && (
-                    <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} sticky top-[41px] z-20 ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
+                    <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} sticky top-[41px] z-40 ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                       <div className="flex">
                         <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
                           ALL DAY
@@ -8610,15 +8629,15 @@ const DayPlanner = () => {
                                     transition: mobileDragTaskIdState === task.id ? 'transform 0.15s, box-shadow 0.15s' : undefined,
                                   }}
                                 >
-                                  {/* Swipe action strips */}
+                                  {/* Swipe action strips - hidden until swipe direction determined */}
                                   {!(task.imported && !task.isTaskCalendar) && (
                                     <>
-                                      <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                      <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                         {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
                                           <><Inbox size={14} className="mr-1" />Inbox</>
                                         )}
                                       </div>
-                                      <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                      <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                         Edit<Settings size={14} className="ml-1" />
                                       </div>
                                     </>
@@ -8897,11 +8916,11 @@ const DayPlanner = () => {
                     filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
                       <div key={task.id} className="notes-panel-container">
                         <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
-                          {/* Swipe action strips */}
-                          <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                          {/* Swipe action strips - hidden until swipe direction determined */}
+                          <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-green-900/80 text-green-300' : 'bg-green-100 text-green-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                             <Calendar size={14} className="mr-1" />Schedule
                           </div>
-                          <div className={`absolute inset-0 ${darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-500'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                          <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                             Edit<Settings size={14} className="ml-1" />
                           </div>
                         <div
