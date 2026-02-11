@@ -8409,7 +8409,7 @@ const DayPlanner = () => {
                                   return (
                                     <div
                                       key={task.id}
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={taskCalendarStyle || {}}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -8487,7 +8487,7 @@ const DayPlanner = () => {
                                 {deadlineTasks.map((task) => (
                                   <div
                                     key={`deadline-${task.id}`}
-                                    className={`${task.color} rounded-lg p-2.5 text-white text-sm border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    className={`${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -8658,7 +8658,7 @@ const DayPlanner = () => {
                               const isMicroHeight = height <= 40;
                               const taskWidth = taskWidths[task.id];
                               const isMeasured = taskWidth !== undefined;
-                              const isNarrowWidth = taskWidth < 120;
+                              const isNarrowWidth = taskWidth < 180;
 
                               // Mobile action buttons component
                               const MobileActionButtons = ({ inMenu = false }) => (
@@ -8747,7 +8747,7 @@ const DayPlanner = () => {
                                   )}
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
-                                    className={`relative h-full ${task.isTaskCalendar ? '' : (isCalendarEvent ? (darkMode ? 'bg-gray-500' : 'bg-gray-400') : task.color)} rounded-lg shadow-sm border border-white/20`}
+                                    className={`relative h-full select-none ${task.isTaskCalendar ? '' : (isCalendarEvent ? (darkMode ? 'bg-gray-500' : 'bg-gray-400') : task.color)} rounded-lg shadow-sm border border-white/20`}
                                     style={mobileCalendarStyle}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -9027,7 +9027,7 @@ const DayPlanner = () => {
                             Edit<Settings size={14} className="ml-1" />
                           </div>
                         <div
-                          className={`relative ${task.color} rounded-lg px-3 py-4 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                          className={`relative select-none ${task.color} rounded-lg px-3 py-4 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'inbox')}
                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'inbox')}
@@ -10561,7 +10561,7 @@ const DayPlanner = () => {
                           key={`${task._agendaType}-${task.id}`}
                           className={`flex gap-2 py-1.5 ${task.completed ? 'opacity-50' : ''}`}
                         >
-                          <div className={`${task.isTaskCalendar ? 'w-2' : 'w-1'} rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                          <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
                           <div className="min-w-0 flex-1">
                             <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
                               {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
