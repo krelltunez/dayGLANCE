@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -8345,6 +8345,17 @@ const DayPlanner = () => {
                 </div>
               </div>
             )}
+            {mobileActiveTab === 'dayglance' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-center px-4 py-3">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Mobile Tab Content */}
             {mobileActiveTab === 'timeline' && (
@@ -8994,6 +9005,149 @@ const DayPlanner = () => {
                             updateSubtaskTitle={updateSubtaskTitle}
                           />
                         </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {mobileActiveTab === 'dayglance' && (
+              <div className="px-4 py-4" style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
+                {todayAgenda.length === 0 ? (
+                  <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
+                ) : (
+                  <div className="space-y-1">
+                    {todayAgenda.map(task => {
+                      const colorClass = task.color === 'task-calendar' ? '' : task.color;
+                      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                      let timeLabel = '';
+                      let relativeLabel = '';
+                      if (task._agendaType === 'allday') {
+                        timeLabel = 'ALL DAY';
+                      } else if (task._agendaType === 'deadline') {
+                        timeLabel = 'DUE TODAY';
+                      } else {
+                        const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                        const startMin = h * 60 + m;
+                        const endMin = startMin + (task.duration || 0);
+                        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                        const endM = String(endMin % 60).padStart(2, '0');
+                        timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                        const diff = startMin - nowMin;
+                        if (diff > 0) {
+                          relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                        } else if (diff === 0) {
+                          relativeLabel = 'now';
+                        } else if (nowMin < endMin && !task.completed) {
+                          relativeLabel = 'In Progress';
+                        } else if (nowMin >= endMin && !task.completed) {
+                          relativeLabel = 'Overdue';
+                        }
+                      }
+                      return (
+                        <div
+                          key={`mobile-glance-${task._agendaType}-${task.id}`}
+                          className={`flex gap-2 py-2 ${task.completed ? 'opacity-50' : ''}`}
+                        >
+                          <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
+                              {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
+                              <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                              {hasNotesOrSubtasks(task) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isLinkOnlyTask(task)) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    } else {
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }
+                                  }}
+                                  className={`notes-toggle-button flex-shrink-0 rounded p-1 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}
+                                  title={isLinkOnlyTask(task) ? getLinkUrl(task) : "Notes & subtasks"}
+                                >
+                                  {isLinkOnlyTask(task) ? <ExternalLink size={12} /> : hasOnlySubtasks(task) ? <CheckSquare size={12} /> : <FileText size={12} />}
+                                </button>
+                              )}
+                              {relativeLabel === 'Overdue' && (
+                                task.isRecurring ? (
+                                  <span
+                                    className="flex-shrink-0 p-1 text-orange-500"
+                                    title="Recurring tasks can't be moved to Inbox"
+                                  >
+                                    <Ban size={12} />
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTasks(prev => prev.filter(t => t.id !== task.id));
+                                      const { startTime, date, _agendaType, ...rest } = task;
+                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                    }}
+                                    className={`flex-shrink-0 rounded p-1 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    title="Move to Inbox"
+                                  >
+                                    <Inbox size={12} />
+                                  </button>
+                                )
+                              )}
+                            </div>
+                            <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
+                              {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                              {relativeLabel === 'In Progress' && focusModeAvailable && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                  className="ml-1 p-1 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                  title="Enter Focus Mode"
+                                >
+                                  <BrainCircuit size={14} className="animate-pulse" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Routines row */}
+                {todayRoutines.length > 0 && (() => {
+                  const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                  const visibleRoutines = todayRoutines.filter(r => {
+                    if (!r.startTime || r.isAllDay) return true;
+                    return (timeToMinutes(r.startTime) + r.duration + 120) > nowMin;
+                  });
+                  if (visibleRoutines.length === 0) return null;
+                  return (
+                    <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                      <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[...visibleRoutines].sort((a, b) => {
+                          if (a.isAllDay && !b.isAllDay) return -1;
+                          if (!a.isAllDay && b.isAllDay) return 1;
+                          if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+                          return 0;
+                        }).map(r => {
+                          let timeLabel = '';
+                          if (!r.isAllDay && r.startTime) {
+                            if (use24HourClock) {
+                              timeLabel = r.startTime;
+                            } else {
+                              const [h, m] = r.startTime.split(':').map(Number);
+                              const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                              const ampm = h < 12 ? 'a' : 'p';
+                              timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                            }
+                          }
+                          return (
+                            <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                              {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -9832,6 +9986,17 @@ const DayPlanner = () => {
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
             <div className="flex items-center justify-around h-14">
+              <button
+                onClick={() => {
+                  if (mobileActiveTab === 'routines') handleRoutinesDone();
+                  setMobileActiveTab('dayglance');
+                  setMobileSettingsView('main');
+                }}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'dayglance' ? 'text-blue-500' : textSecondary}`}
+              >
+                <Eye size={20} />
+                <span className="text-[10px] font-medium">Glance</span>
+              </button>
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
