@@ -4584,6 +4584,29 @@ const DayPlanner = () => {
         deadline: newTask.deadline || null,
         priority: newTask.priority || 0,
       } : t));
+    } else if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      const parsed = parseRecurringId(taskId);
+      if (parsed) {
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id === parsed.templateId) {
+            return {
+              ...t,
+              exceptions: {
+                ...t.exceptions,
+                [parsed.dateStr]: {
+                  ...(t.exceptions?.[parsed.dateStr] || {}),
+                  title: cleanTitle(newTask.title),
+                  startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+                  duration: newTask.duration,
+                  isAllDay: newTask.isAllDay || false,
+                  color: newTask.color || colors[0].class,
+                }
+              }
+            };
+          }
+          return t;
+        }));
+      }
     } else {
       setTasks(prev => prev.map(t => t.id === taskId ? {
         ...t,
@@ -5555,11 +5578,11 @@ const DayPlanner = () => {
           const isInbox = taskType === 'inbox';
           const task = isInbox
             ? unscheduledTasks.find(t => t.id === taskId)
-            : tasks.find(t => t.id === taskId) || (() => {
-                // Check recurring instances
-                if (typeof taskId === 'string' && taskId.startsWith('recurring-')) return null;
-                return null;
-              })();
+            : tasks.find(t => t.id === taskId) || (
+                typeof taskId === 'string' && taskId.startsWith('recurring-')
+                  ? expandedRecurringTasks.find(t => t.id === taskId)
+                  : null
+              );
           if (task && !task.imported) {
             openMobileEditTask(task, isInbox);
           }
@@ -7689,12 +7712,12 @@ const DayPlanner = () => {
         const exception = template.exceptions?.[dateStr];
         instances.push({
           id: `recurring-${template.id}-${dateStr}`,
-          title: template.title,
+          title: exception?.title ?? template.title,
           startTime: exception?.startTime ?? template.startTime,
           duration: exception?.duration ?? template.duration,
-          color: template.color,
+          color: exception?.color ?? template.color,
           completed,
-          isAllDay: template.isAllDay || false,
+          isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
           date: dateStr,
@@ -13354,7 +13377,7 @@ const DayPlanner = () => {
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                     </label>
                   </div>
-                  {!mobileEditingTask && (
+                  {!mobileEditingTask && (<>
                     <div className="col-span-2 relative">
                       <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
                       <button
@@ -13373,7 +13396,10 @@ const DayPlanner = () => {
                                 key={i}
                                 type="button"
                                 onClick={() => {
-                                  setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value } : null });
+                                  const endFields = {};
+                                  if (newTask.recurrence?.endDate) endFields.endDate = newTask.recurrence.endDate;
+                                  if (newTask.recurrence?.maxOccurrences) endFields.maxOccurrences = newTask.recurrence.maxOccurrences;
+                                  setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value, ...endFields } : null });
                                   setShowRecurrencePicker(false);
                                 }}
                                 className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${textPrimary}`}
@@ -13385,7 +13411,76 @@ const DayPlanner = () => {
                         );
                       })()}
                     </div>
-                  )}
+                    {newTask.recurrence && (
+                      <div className="col-span-2">
+                        <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Ends</label>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const { endDate: _e, maxOccurrences: _m, ...rest } = newTask.recurrence;
+                              setNewTask({ ...newTask, recurrence: rest });
+                            }}
+                            className={`px-3 py-1.5 text-sm rounded-lg border ${borderClass} ${
+                              !newTask.recurrence.endDate && !newTask.recurrence.maxOccurrences
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
+                            }`}
+                          >
+                            Never
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowRecurrenceEndDatePicker({ source: 'new' })}
+                            className={`px-3 py-1.5 text-sm rounded-lg border ${borderClass} ${
+                              newTask.recurrence.endDate
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
+                            }`}
+                          >
+                            {newTask.recurrence.endDate
+                              ? `Until ${new Date(newTask.recurrence.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                              : 'On date'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newTask.recurrence.maxOccurrences) {
+                                const { endDate: _e, ...rest } = newTask.recurrence;
+                                setNewTask({ ...newTask, recurrence: { ...rest, maxOccurrences: 10 } });
+                              }
+                            }}
+                            className={`px-3 py-1.5 text-sm rounded-lg border ${borderClass} ${
+                              newTask.recurrence.maxOccurrences
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
+                            }`}
+                          >
+                            After
+                          </button>
+                          {newTask.recurrence.maxOccurrences && (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="1"
+                                max="999"
+                                value={newTask.recurrence.maxOccurrences}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  if (val > 0) {
+                                    const { endDate: _e, ...rest } = newTask.recurrence;
+                                    setNewTask({ ...newTask, recurrence: { ...rest, maxOccurrences: val } });
+                                  }
+                                }}
+                                className={`w-16 px-2 py-1 text-sm border ${borderClass} rounded ${darkMode ? 'bg-gray-700 text-white dark-spinner' : 'bg-white'}`}
+                              />
+                              <span className={`text-sm ${textSecondary}`}>times</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>)}
                 </div>
               )}
 
