@@ -1985,7 +1985,8 @@ const DayPlanner = () => {
         const currentHour = new Date().getHours();
         // On mobile show current hour near top; on desktop show 2 hours before
         const hoursBefore = isMobile ? 0 : 2;
-        const scrollPosition = Math.max(0, (currentHour - hoursBefore) * 161);
+        const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+        const scrollPosition = Math.max(0, (currentHour - hoursBefore) * hourHeight);
         if (calendarRef.current) calendarRef.current.scrollTop = scrollPosition;
       }, 100);
     }
@@ -5224,11 +5225,7 @@ const DayPlanner = () => {
     // Calculate y position relative to the time grid content
     const y = Math.max(0, e.clientY - rect.top + scrollTop - headerHeight);
 
-    // Each hour is 161px (160px content + 1px border)
-    const hourFromTop = Math.floor(y / 161);
-    const pixelsIntoHour = y - (hourFromTop * 161);
-    const minutesIntoHour = (Math.min(pixelsIntoHour, 160) / 160) * 60;
-    const totalMinutesFromTop = hourFromTop * 60 + minutesIntoHour;
+    const totalMinutesFromTop = positionToMinutes(y);
 
     // Round to nearest interval
     const totalMinutesRounded = Math.round(totalMinutesFromTop / roundTo) * roundTo;
@@ -5272,11 +5269,57 @@ const DayPlanner = () => {
     setHoverPreviewDate(null);
   };
 
-  // Convert minutes from midnight to pixel position (accounting for 1px borders between hours)
+  // Measure actual hour row height from DOM (handles sub-pixel borders on high-DPI screens)
+  const getHourHeight = () => {
+    if (timeGridRef.current && timeGridRef.current.children.length > 2) {
+      // Use second row (index 1) to avoid first row's border-t variation
+      return timeGridRef.current.children[1].offsetHeight;
+    }
+    return 161; // fallback: 160px content + 1px border
+  };
+
+  // Convert minutes from midnight to pixel position using actual DOM row positions
+  // This eliminates cumulative drift from sub-pixel border rounding on high-DPI screens
   const minutesToPosition = (minutes) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    return hours * 161 + mins * 160 / 60; // 160px per hour + 1px border
+    if (timeGridRef.current) {
+      const children = timeGridRef.current.children;
+      if (hours < children.length) {
+        const rowTop = children[hours].offsetTop;
+        if (mins === 0) return rowTop;
+        const nextRow = hours + 1 < children.length ? children[hours + 1] : null;
+        const rowHeight = nextRow ? nextRow.offsetTop - rowTop : children[hours].offsetHeight;
+        return rowTop + mins * rowHeight / 60;
+      }
+    }
+    // Fallback when DOM not available
+    const hourHeight = 161;
+    return hours * hourHeight + mins * 160 / 60;
+  };
+
+  // Convert pixel position (relative to time grid top) to minutes from midnight
+  const positionToMinutes = (y) => {
+    if (timeGridRef.current) {
+      const children = timeGridRef.current.children;
+      for (let i = 0; i < 24 && i < children.length; i++) {
+        const rowTop = children[i].offsetTop;
+        const nextTop = i + 1 < children.length ? children[i + 1].offsetTop : rowTop + children[i].offsetHeight;
+        if (y < nextTop || i === 23) {
+          const rowHeight = nextTop - rowTop;
+          const pixelsIntoRow = Math.max(0, Math.min(y - rowTop, rowHeight));
+          return i * 60 + (pixelsIntoRow / rowHeight) * 60;
+        }
+      }
+    }
+    // Fallback
+    return (y / 161) * 60;
+  };
+
+  // Convert duration in minutes to pixel height
+  const durationToHeight = (durationMinutes) => {
+    const contentHeight = getHourHeight() - 1;
+    return durationMinutes * contentHeight / 60;
   };
 
   const calculateTaskPosition = (task) => {
@@ -5519,10 +5562,7 @@ const DayPlanner = () => {
       if (!timeGridRef.current) return;
       const headerHeight = timeGridRef.current.offsetTop;
       const y = Math.max(0, touch.clientY - calendarRect.top + scrollTop - headerHeight);
-      const hourFromTop = Math.floor(y / 161);
-      const pixelsIntoHour = y - (hourFromTop * 161);
-      const minutesIntoHour = (Math.min(pixelsIntoHour, 160) / 160) * 60;
-      const totalMinutes = hourFromTop * 60 + minutesIntoHour;
+      const totalMinutes = positionToMinutes(y);
       const roundedMinutes = Math.round(totalMinutes / 15) * 15;
       const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
       const hrs = Math.floor(clampedMinutes / 60);
@@ -5534,7 +5574,7 @@ const DayPlanner = () => {
     const currentY = touch.clientY - calendarRect.top + scrollTop;
     const startY = mobileDragTouchStartPos.current.y - calendarRect.top + mobileDragStartScrollTop.current;
     const deltaPixels = currentY - startY;
-    const deltaMinutes = (deltaPixels / 161) * 60;
+    const deltaMinutes = (deltaPixels / getHourHeight()) * 60;
     const originalMinutes = timeToMinutes(mobileDragOriginalTask.current.startTime);
     const newMinutes = originalMinutes + deltaMinutes;
     const roundedMinutes = Math.round(newMinutes / 15) * 15;
@@ -8033,7 +8073,7 @@ const DayPlanner = () => {
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
   const currentHour = currentTime.getHours();
-  const currentTimeTop = currentHour * 160 + currentHour + (currentTime.getMinutes() * 160 / 60);
+  const currentTimeTop = minutesToPosition(currentTimeMinutes);
   const showCurrentTimeLine = isToday;
 
   const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
@@ -8462,11 +8502,11 @@ const DayPlanner = () => {
                                   className="absolute left-0 right-0 pointer-events-none z-20"
                                   style={{ top: `${dragTop}px` }}
                                 >
-                                  <div className="flex items-center">
-                                    <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
+                                  <div className="relative">
+                                    <div className={`absolute bottom-0.5 left-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
                                       {formatTime(mobileDragPreviewTime)}
                                     </div>
-                                    <div className="flex-1 h-0.5 bg-blue-500"></div>
+                                    <div className="h-0.5 bg-blue-500"></div>
                                   </div>
                                 </div>
                               );
@@ -12189,7 +12229,7 @@ const DayPlanner = () => {
                           <div
                             className="absolute left-0 right-0 pointer-events-none z-30"
                             style={{
-                              top: `${(Math.floor(timeToMinutes(hoverPreviewTime) / 60) * 161) + (timeToMinutes(hoverPreviewTime) % 60 * 160 / 60)}px`
+                              top: `${minutesToPosition(timeToMinutes(hoverPreviewTime))}px`
                             }}
                           >
                             <div className="absolute left-0 right-12 h-0.5 bg-blue-400/60"></div>
@@ -12206,7 +12246,7 @@ const DayPlanner = () => {
                             <div
                               className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
                               style={{
-                                top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60) - 30}px`
+                                top: `${minutesToPosition(timeToMinutes(dragPreviewTime)) - 30}px`
                               }}
                             >
                               {formatTime(dragPreviewTime)}
@@ -12215,8 +12255,8 @@ const DayPlanner = () => {
                             <div
                               className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
                               style={{
-                                top: `${(Math.floor(timeToMinutes(dragPreviewTime) / 60) * 161) + (timeToMinutes(dragPreviewTime) % 60 * 160 / 60)}px`,
-                                height: `${draggedTask.duration * 160 / 60}px`,
+                                top: `${minutesToPosition(timeToMinutes(dragPreviewTime))}px`,
+                                height: `${durationToHeight(draggedTask.duration)}px`,
                                 minHeight: '39px'
                               }}
                             >
@@ -14682,7 +14722,8 @@ const DayPlanner = () => {
                           if (task.startTime && calendarRef.current) {
                             setTimeout(() => {
                               const minutes = timeToMinutes(task.startTime);
-                              const scrollPosition = Math.max(0, (minutes / 60 - 1) * 161);
+                              const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+                              const scrollPosition = Math.max(0, (minutes / 60 - 1) * hourHeight);
                               calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
                             }, 150);
                           }
