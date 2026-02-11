@@ -979,7 +979,7 @@ const DayPlanner = () => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
   // Mobile layout state
-  const [mobileActiveTab, setMobileActiveTab] = useState('timeline');
+  const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
   const [mobileEditingTask, setMobileEditingTask] = useState(null);
   const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
@@ -8039,7 +8039,7 @@ const DayPlanner = () => {
       ...deadlines.map(t => ({ ...t, _agendaType: 'deadline' })),
       ...allDay.map(t => ({ ...t, _agendaType: 'allday' })),
       ...scheduled.map(t => ({ ...t, _agendaType: 'scheduled' })),
-    ];
+    ].filter(t => !t.isExample);
   }, [tasks, unscheduledTasks, currentTime, expandedRecurringTasks]);
 
   // Helper to get tasks for a specific date (must be after filterByTags)
@@ -8422,7 +8422,7 @@ const DayPlanner = () => {
                                     <div
                                       key={task.id}
                                       className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
-                                      style={taskCalendarStyle || {}}
+                                      style={{ touchAction: 'none', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -8500,6 +8500,7 @@ const DayPlanner = () => {
                                   <div
                                     key={`deadline-${task.id}`}
                                     className={`${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    style={{ touchAction: 'none' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -8560,6 +8561,15 @@ const DayPlanner = () => {
                                         <Trash2 size={14} />
                                       </button>
                                     </div>
+                                  </div>
+                                ))}
+                                {/* Routine pills in all-day (today only) */}
+                                {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-')).map((routine) => (
+                                  <div
+                                    key={`routine-${routine.id}`}
+                                    className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                                  >
+                                    {routine.name}
                                   </div>
                                 ))}
                               </React.Fragment>
@@ -9017,7 +9027,7 @@ const DayPlanner = () => {
                 {todayAgenda.length === 0 ? (
                   <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {todayAgenda.map(task => {
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -9048,12 +9058,12 @@ const DayPlanner = () => {
                       return (
                         <div
                           key={`mobile-glance-${task._agendaType}-${task.id}`}
-                          className={`flex gap-2 py-2 ${task.completed ? 'opacity-50' : ''}`}
+                          className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''}`}
                         >
-                          <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                          <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
                           <div className="min-w-0 flex-1">
-                            <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
-                              {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
+                            <div className={`text-base font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
+                              {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                               <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
                               {hasNotesOrSubtasks(task) && (
                                 <button
@@ -9065,19 +9075,19 @@ const DayPlanner = () => {
                                       setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
                                     }
                                   }}
-                                  className={`notes-toggle-button flex-shrink-0 rounded p-1 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}
+                                  className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}
                                   title={isLinkOnlyTask(task) ? getLinkUrl(task) : "Notes & subtasks"}
                                 >
-                                  {isLinkOnlyTask(task) ? <ExternalLink size={12} /> : hasOnlySubtasks(task) ? <CheckSquare size={12} /> : <FileText size={12} />}
+                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 </button>
                               )}
                               {relativeLabel === 'Overdue' && (
                                 task.isRecurring ? (
                                   <span
-                                    className="flex-shrink-0 p-1 text-orange-500"
+                                    className="flex-shrink-0 p-1.5 text-orange-500"
                                     title="Recurring tasks can't be moved to Inbox"
                                   >
-                                    <Ban size={12} />
+                                    <Ban size={14} />
                                   </span>
                                 ) : (
                                   <button
@@ -9087,23 +9097,23 @@ const DayPlanner = () => {
                                       const { startTime, date, _agendaType, ...rest } = task;
                                       setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
                                     }}
-                                    className={`flex-shrink-0 rounded p-1 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    className={`flex-shrink-0 rounded p-1.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
                                     title="Move to Inbox"
                                   >
-                                    <Inbox size={12} />
+                                    <Inbox size={14} />
                                   </button>
                                 )
                               )}
                             </div>
-                            <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
+                            <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                               {relativeLabel === 'In Progress' && focusModeAvailable && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
-                                  className="ml-1 p-1 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                  className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
                                   title="Enter Focus Mode"
                                 >
-                                  <BrainCircuit size={14} className="animate-pulse" />
+                                  <BrainCircuit size={16} className="animate-pulse" />
                                 </button>
                               )}
                             </div>
@@ -9148,6 +9158,42 @@ const DayPlanner = () => {
                             </span>
                           );
                         })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Mobile notes panel overlay for dayglance tasks */}
+                {expandedNotesTaskId && (() => {
+                  const agendaTask = todayAgenda.find(t => t.id === expandedNotesTaskId);
+                  if (!agendaTask) return null;
+                  const isInbox = agendaTask._agendaType === 'deadline';
+                  return (
+                    <div className="notes-panel-container fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setExpandedNotesTaskId(null)}>
+                      <div className="bg-black/30 absolute inset-0" />
+                      <div
+                        className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[60vh] overflow-y-auto`}
+                        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{agendaTask.title}</div>
+                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg}`}>
+                            <X size={18} className={textSecondary} />
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          <NotesSubtasksPanel
+                            task={agendaTask}
+                            isInbox={isInbox}
+                            darkMode={darkMode}
+                            updateTaskNotes={updateTaskNotes}
+                            addSubtask={addSubtask}
+                            toggleSubtask={toggleSubtask}
+                            deleteSubtask={deleteSubtask}
+                            updateSubtaskTitle={updateSubtaskTitle}
+                          />
+                        </div>
                       </div>
                     </div>
                   );
@@ -10004,7 +10050,7 @@ const DayPlanner = () => {
                   setMobileActiveTab('timeline');
                   setMobileSettingsView('main');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${getOverdueTasks().length > 0 ? 'text-red-500' : mobileActiveTab === 'timeline' ? 'text-blue-500' : textSecondary}`}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? (getOverdueTasks().length > 0 ? 'text-red-500' : 'text-blue-500') : textSecondary}`}
               >
                 <div className="relative">
                   <Calendar size={20} />
@@ -15578,7 +15624,7 @@ const DayPlanner = () => {
         <div className="fixed inset-0 z-50 flex flex-col" style={{ background: darkMode ? '#1f2937' : '#ffffff' }}>
           {/* Progress dots */}
           <div className="flex justify-center gap-2 pt-6 pb-4">
-            {[0, 1, 2, 3, 4, 5].map(i => (
+            {[0, 1, 2, 3, 4, 5, 6].map(i => (
               <div
                 key={i}
                 className={`w-2 h-2 rounded-full transition-colors ${i === mobileWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
@@ -15602,6 +15648,19 @@ const DayPlanner = () => {
             {mobileWelcomeStep === 1 && (
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Eye size={32} className="text-blue-500" />
+                </div>
+                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Glance</h2>
+                <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
+                  <li>Your <strong className={textPrimary}>smart agenda</strong> for today at a glance</li>
+                  <li>See <strong className={textPrimary}>upcoming</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>overdue</strong> tasks in real time</li>
+                  <li>Tap <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> on an in-progress task to start a distraction-free deep work session with a Pomodoro timer</li>
+                </ul>
+              </div>
+            )}
+            {mobileWelcomeStep === 2 && (
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Calendar size={32} className="text-blue-500" />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Timeline</h2>
@@ -15613,7 +15672,7 @@ const DayPlanner = () => {
                 </ul>
               </div>
             )}
-            {mobileWelcomeStep === 2 && (
+            {mobileWelcomeStep === 3 && (
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Inbox size={32} className="text-blue-500" />
@@ -15627,7 +15686,7 @@ const DayPlanner = () => {
                 </ul>
               </div>
             )}
-            {mobileWelcomeStep === 3 && (
+            {mobileWelcomeStep === 4 && (
               <div className="text-center">
                 <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Sparkles size={32} className="text-teal-500" />
@@ -15640,7 +15699,7 @@ const DayPlanner = () => {
                 </ul>
               </div>
             )}
-            {mobileWelcomeStep === 4 && (
+            {mobileWelcomeStep === 5 && (
               <div className="text-center">
                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Settings size={32} className={textSecondary} />
@@ -15654,7 +15713,7 @@ const DayPlanner = () => {
                 </ul>
               </div>
             )}
-            {mobileWelcomeStep === 5 && (
+            {mobileWelcomeStep === 6 && (
               <div className="text-center">
                 <img
                   src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
@@ -15697,7 +15756,7 @@ const DayPlanner = () => {
                   <ChevronLeft size={20} className={textSecondary} />
                 </button>
               )}
-              {mobileWelcomeStep < 5 && (
+              {mobileWelcomeStep < 6 && (
                 <button
                   onClick={() => setMobileWelcomeStep(s => s + 1)}
                   className="p-2 rounded-full bg-blue-600"
