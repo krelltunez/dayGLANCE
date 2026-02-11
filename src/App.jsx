@@ -1049,6 +1049,8 @@ const DayPlanner = () => {
   const mobileDragOriginalTask = useRef(null);
   const mobileDragTouchStartPos = useRef({ x: 0, y: 0 });
   const mobileDragAutoScrollInterval = useRef(null);
+  const mobileDragLastTouch = useRef({ clientX: 0, clientY: 0 });
+  const mobileDragScrollDir = useRef(null);
 
   // Routines state
   const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
@@ -2048,7 +2050,8 @@ const DayPlanner = () => {
       const now = Date.now() / 1000;
 
       if (localEnabled) {
-        const lastLocal = autoBackupStatus.local.lastBackup;
+        // Read from localStorage directly to avoid stale closure
+        const lastLocal = localStorage.getItem('day-planner-auto-backup-local-last');
         const elapsed = lastLocal ? now - new Date(lastLocal).getTime() / 1000 : Infinity;
         if (elapsed >= AUTO_BACKUP_INTERVALS[autoBackupConfig.local.frequency]) {
           performLocalBackup(autoBackupConfig.local.frequency);
@@ -2056,7 +2059,7 @@ const DayPlanner = () => {
       }
 
       if (remoteEnabled) {
-        const lastRemote = autoBackupStatus.remote.lastBackup;
+        const lastRemote = localStorage.getItem('day-planner-auto-backup-remote-last');
         const elapsed = lastRemote ? now - new Date(lastRemote).getTime() / 1000 : Infinity;
         if (elapsed >= AUTO_BACKUP_INTERVALS[autoBackupConfig.remote.frequency]) {
           performRemoteBackup(autoBackupConfig.remote.frequency);
@@ -3838,8 +3841,12 @@ const DayPlanner = () => {
     const allSuggestions = buildSuggestions(value, cursorPos, isInbox);
 
     // Auto-apply attribute suggestions in real-time as the user types
+    // Use first (best) match per type, not last
+    const appliedTypes = new Set();
     for (const s of allSuggestions) {
       if (s.type === 'tag') continue;
+      if (appliedTypes.has(s.type)) continue;
+      appliedTypes.add(s.type);
       if (s.type === 'date' || s.type === 'time') {
         if (isInbox) {
           setUnscheduledTasks(prev => prev.map(t => {
@@ -3907,11 +3914,12 @@ const DayPlanner = () => {
     // Auto-apply attribute suggestions in real-time as the user types
     const updates = { title: value };
     for (const s of allSuggestions) {
-      if (s.type === 'date') updates.date = s.value;
-      else if (s.type === 'time') updates.startTime = s.value;
-      else if (s.type === 'deadline') updates.deadline = s.value;
-      else if (s.type === 'priority') updates.priority = s.value;
-      else if (s.type === 'duration') updates.duration = s.value;
+      // Use first (best) match per type, not last
+      if (s.type === 'date' && !('date' in updates)) updates.date = s.value;
+      else if (s.type === 'time' && !('startTime' in updates)) updates.startTime = s.value;
+      else if (s.type === 'deadline' && !('deadline' in updates)) updates.deadline = s.value;
+      else if (s.type === 'priority' && !('priority' in updates)) updates.priority = s.value;
+      else if (s.type === 'duration' && !('duration' in updates)) updates.duration = s.value;
     }
     setNewTask({ ...newTask, ...updates });
 
@@ -5470,8 +5478,9 @@ const DayPlanner = () => {
   };
 
   // --- Mobile long-press drag handlers ---
-  const handleMobileLongPressMove = (touch) => {
+  const updateMobileDragPreview = () => {
     if (!calendarRef.current || !timeGridRef.current) return;
+    const touch = mobileDragLastTouch.current;
     const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollTop = calendarRef.current.scrollTop;
     const headerHeight = timeGridRef.current.offsetTop;
@@ -5486,24 +5495,40 @@ const DayPlanner = () => {
     const mins = clampedMinutes % 60;
     const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     setMobileDragPreviewTime(timeStr);
+  };
+
+  const handleMobileLongPressMove = (touch) => {
+    if (!calendarRef.current || !timeGridRef.current) return;
+    mobileDragLastTouch.current = { clientX: touch.clientX, clientY: touch.clientY };
+    updateMobileDragPreview();
 
     // Auto-scroll near edges
-    if (mobileDragAutoScrollInterval.current) {
-      clearInterval(mobileDragAutoScrollInterval.current);
-      mobileDragAutoScrollInterval.current = null;
-    }
+    const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollZoneSize = 60;
-    const scrollSpeed = 8;
     const distFromTop = touch.clientY - calendarRect.top;
     const distFromBottom = calendarRect.bottom - touch.clientY;
-    if (distFromTop < scrollZoneSize && distFromTop > 0 && calendarRef.current.scrollTop > 0) {
-      mobileDragAutoScrollInterval.current = setInterval(() => {
-        if (calendarRef.current) calendarRef.current.scrollTop -= scrollSpeed;
-      }, 16);
+
+    let newDir = null;
+    if (distFromTop < scrollZoneSize && distFromTop > 0) {
+      newDir = 'up';
     } else if (distFromBottom < scrollZoneSize && distFromBottom > 0) {
-      mobileDragAutoScrollInterval.current = setInterval(() => {
-        if (calendarRef.current) calendarRef.current.scrollTop += scrollSpeed;
-      }, 16);
+      newDir = 'down';
+    }
+
+    if (newDir !== mobileDragScrollDir.current) {
+      mobileDragScrollDir.current = newDir;
+      if (mobileDragAutoScrollInterval.current) {
+        clearInterval(mobileDragAutoScrollInterval.current);
+        mobileDragAutoScrollInterval.current = null;
+      }
+      if (newDir) {
+        const scrollSpeed = 8;
+        mobileDragAutoScrollInterval.current = setInterval(() => {
+          if (!calendarRef.current) return;
+          calendarRef.current.scrollTop += (newDir === 'up' ? -scrollSpeed : scrollSpeed);
+          updateMobileDragPreview();
+        }, 16);
+      }
     }
   };
 
@@ -5512,6 +5537,7 @@ const DayPlanner = () => {
       clearInterval(mobileDragAutoScrollInterval.current);
       mobileDragAutoScrollInterval.current = null;
     }
+    mobileDragScrollDir.current = null;
     // Re-enable scroll on timeline after drag
     if (calendarRef.current) calendarRef.current.style.overflowY = 'scroll';
 
@@ -6216,7 +6242,7 @@ const DayPlanner = () => {
 
   // Helper to expand multi-day events into separate tasks for each day
   const expandMultiDayEvent = (event, options = {}) => {
-    const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor } = options;
+    const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor, importSource = 'sync' } = options;
     const startDate = parseDatetime(event.dtstart);
     const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
     const duration = Math.round((endDate - startDate) / (1000 * 60));
@@ -6255,7 +6281,8 @@ const DayPlanner = () => {
         completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
         imported: true,
         isTaskCalendar: asTaskCalendar,
-        isAllDay: isAllDay
+        isAllDay: isAllDay,
+        importSource: importSource
       });
     }
 
@@ -6286,15 +6313,15 @@ const DayPlanner = () => {
       );
 
       const importedTasks = events.flatMap(event =>
-        expandMultiDayEvent(event, { asTaskCalendar, freshCompletedUids, color: importColor })
+        expandMultiDayEvent(event, { asTaskCalendar, freshCompletedUids, color: importColor, importSource: 'file' })
       );
 
       if (asTaskCalendar) {
-        const nonTaskCalendarTasks = tasks.filter(t => !t.isTaskCalendar);
-        setTasks([...nonTaskCalendarTasks, ...importedTasks]);
+        const kept = tasks.filter(t => !(t.isTaskCalendar && t.importSource === 'file'));
+        setTasks([...kept, ...importedTasks]);
       } else {
-        const nonImportedTasks = tasks.filter(t => !t.imported || t.isTaskCalendar);
-        setTasks([...nonImportedTasks, ...importedTasks]);
+        const kept = tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource === 'file'));
+        setTasks([...kept, ...importedTasks]);
       }
 
       setPendingImportFile(null);
@@ -6542,11 +6569,11 @@ const DayPlanner = () => {
         expandMultiDayEvent(event, { asTaskCalendar: false })
       );
 
-      // Remove old regular imported events (not task calendar) and add the fresh ones
-      // Use functional form to avoid stale closure when both syncs run in parallel
+      // Remove old sync-sourced imported events (not task calendar) and add the fresh ones
+      // Preserves file-imported events; uses functional form to avoid stale closures
       setTasks(prevTasks => {
-        const nonImportedTasks = prevTasks.filter(t => !t.imported || t.isTaskCalendar);
-        return [...nonImportedTasks, ...importedTasks];
+        const kept = prevTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
+        return [...kept, ...importedTasks];
       });
       return { success: true, count: importedTasks.length };
     } catch (error) {
@@ -6578,11 +6605,11 @@ const DayPlanner = () => {
         expandMultiDayEvent(event, { asTaskCalendar: true, freshCompletedUids })
       );
 
-      // Remove old task calendar items and add the fresh ones (preserve regular imports + user tasks)
-      // Use functional form to avoid stale closure when both syncs run in parallel
+      // Remove old sync-sourced task calendar items and add the fresh ones
+      // Preserves file-imported task calendar items; uses functional form to avoid stale closures
       setTasks(prevTasks => {
-        const nonTaskCalendarTasks = prevTasks.filter(t => !t.isTaskCalendar);
-        return [...nonTaskCalendarTasks, ...taskCalendarItems];
+        const kept = prevTasks.filter(t => !(t.isTaskCalendar && t.importSource !== 'file'));
+        return [...kept, ...taskCalendarItems];
       });
       return { success: true, count: taskCalendarItems.length };
     } catch (error) {
