@@ -1103,6 +1103,8 @@ const DayPlanner = () => {
   const suppressCloudUploadRef = useRef(false);
   const cloudSyncInProgressRef = useRef(false);
   const cloudSyncInitialDoneRef = useRef(false);
+  const cloudSyncDownloadRef = useRef(null);
+  const drainNotificationQueueRef = useRef(null);
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
   // Auto-Backup state
@@ -1915,10 +1917,21 @@ const DayPlanner = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Catch up on missed reminders when tab becomes visible
+  // Catch up on missed reminders and sync when tab becomes visible
+  // Drain queued notification actions first, then update time and sync
   useEffect(() => {
     const handleVisibility = () => {
-      if (!document.hidden) setCurrentTime(new Date());
+      if (!document.hidden) {
+        // Process any queued SW notification actions (snooze/dismiss) before
+        // updating time, so the reminder engine sees the updated task state
+        drainNotificationQueueRef.current?.().then(() => {
+          setCurrentTime(new Date());
+          cloudSyncDownloadRef.current?.();
+        }).catch(() => {
+          setCurrentTime(new Date());
+          cloudSyncDownloadRef.current?.();
+        });
+      }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
@@ -5285,11 +5298,14 @@ const DayPlanner = () => {
     const mins = minutes % 60;
     if (timeGridRef.current) {
       const children = timeGridRef.current.children;
-      if (hours < children.length) {
+      // Only use hour row children (first 24), not overlay divs that follow
+      const numRows = Math.min(24, children.length);
+      if (hours < numRows) {
         const rowTop = children[hours].offsetTop;
         if (mins === 0) return rowTop;
-        const nextRow = hours + 1 < children.length ? children[hours + 1] : null;
-        const rowHeight = nextRow ? nextRow.offsetTop - rowTop : children[hours].offsetHeight;
+        const rowHeight = hours + 1 < numRows
+          ? children[hours + 1].offsetTop - rowTop
+          : children[hours].offsetHeight;
         return rowTop + mins * rowHeight / 60;
       }
     }
@@ -5302,10 +5318,14 @@ const DayPlanner = () => {
   const positionToMinutes = (y) => {
     if (timeGridRef.current) {
       const children = timeGridRef.current.children;
-      for (let i = 0; i < 24 && i < children.length; i++) {
+      // Only use hour row children (first 24), not overlay divs that follow
+      const numRows = Math.min(24, children.length);
+      for (let i = 0; i < numRows; i++) {
         const rowTop = children[i].offsetTop;
-        const nextTop = i + 1 < children.length ? children[i + 1].offsetTop : rowTop + children[i].offsetHeight;
-        if (y < nextTop || i === 23) {
+        const nextTop = i + 1 < numRows
+          ? children[i + 1].offsetTop
+          : rowTop + children[i].offsetHeight;
+        if (y < nextTop || i === numRows - 1) {
           const rowHeight = nextTop - rowTop;
           const pixelsIntoRow = Math.max(0, Math.min(y - rowTop, rowHeight));
           return i * 60 + (pixelsIntoRow / rowHeight) * 60;
@@ -5694,27 +5714,30 @@ const DayPlanner = () => {
         }]);
       } else if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
         // Recurring task instances via exceptions
-        const parts = task.id.split('-');
-        const templateId = Number(parts[1]);
-        const dateStr = parts.slice(2).join('-');
-        setRecurringTasks(prev => prev.map(t => {
-          if (t.id === templateId) {
-            return {
-              ...t,
-              exceptions: {
-                ...t.exceptions,
-                [dateStr]: {
-                  ...(t.exceptions?.[dateStr] || {}),
-                  startTime: newTime,
-                  isAllDay: droppingToAllDay,
+        const parsed = parseRecurringId(task.id);
+        if (parsed) {
+          pushUndo();
+          setRecurringTasks(prev => prev.map(t => {
+            if (t.id === parsed.templateId) {
+              return {
+                ...t,
+                exceptions: {
+                  ...t.exceptions,
+                  [parsed.dateStr]: {
+                    ...(t.exceptions?.[parsed.dateStr] || {}),
+                    startTime: newTime,
+                    isAllDay: droppingToAllDay,
+                    duration: task.duration,
+                  }
                 }
-              }
-            };
-          }
-          return t;
-        }));
+              };
+            }
+            return t;
+          }));
+        }
       } else {
         // Regular task: update time and isAllDay status
+        pushUndo();
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
           startTime: newTime,
@@ -6971,6 +6994,9 @@ const DayPlanner = () => {
     }
   };
 
+  // Keep ref updated so visibilitychange handler can call latest version
+  cloudSyncDownloadRef.current = cloudSyncDownload;
+
   const cloudSyncTest = async (config) => {
     const provider = cloudSyncProviders[config.provider];
     if (!provider) return { success: false, error: 'Unknown provider' };
@@ -7828,24 +7854,54 @@ const DayPlanner = () => {
   // Keep SW message handler refs up to date (avoids stale closures)
   swMessageHandlersRef.current = { toggleComplete, snoozeReminder, dismissReminder, setShowWeeklyReview };
 
+  // Process a notification action message (shared by postMessage and IndexedDB queue)
+  const processNotificationAction = (msg) => {
+    if (!msg || msg.type !== 'notification-action') return;
+    const { action, data } = msg;
+    const handlers = swMessageHandlersRef.current;
+    if (action === 'open-weekly-review') {
+      handlers.setShowWeeklyReview(true);
+    } else if (action === 'complete' && data?.taskId) {
+      handlers.toggleComplete(data.taskId);
+      handlers.dismissReminder(data.id);
+    } else if (action === 'snooze' && data) {
+      handlers.snoozeReminder(data);
+    } else if (action === 'dismiss' && data?.id) {
+      handlers.dismissReminder(data.id);
+    }
+  };
+
+  // Drain any queued notification actions from IndexedDB (fallback for mobile)
+  const drainNotificationActionQueue = async (processItems = true) => {
+    try {
+      const req = indexedDB.open('dayglance-sw', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('actions', { autoIncrement: true });
+      const db = await new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = reject; });
+      const tx = db.transaction('actions', 'readwrite');
+      const store = tx.objectStore('actions');
+      if (processItems) {
+        const all = await new Promise((resolve, reject) => { const r = store.getAll(); r.onsuccess = () => resolve(r.result); r.onerror = reject; });
+        if (all.length > 0) {
+          for (const msg of all) processNotificationAction(msg);
+        }
+      }
+      store.clear();
+      db.close();
+    } catch (e) {
+      // IndexedDB not available or empty — no-op
+    }
+  };
+
+  drainNotificationQueueRef.current = drainNotificationActionQueue;
+
   // Listen for service worker notification action messages
+  // When postMessage arrives, process it and clear the IndexedDB queue to prevent double-processing
   useEffect(() => {
     if (!navigator.serviceWorker) return;
     const handler = (event) => {
-      const msg = event.data;
-      if (!msg || msg.type !== 'notification-action') return;
-      const { action, data } = msg;
-      const handlers = swMessageHandlersRef.current;
-      if (action === 'open-weekly-review') {
-        handlers.setShowWeeklyReview(true);
-      } else if (action === 'complete' && data?.taskId) {
-        handlers.toggleComplete(data.taskId);
-        handlers.dismissReminder(data.id);
-      } else if (action === 'snooze' && data) {
-        handlers.snoozeReminder(data);
-      } else if (action === 'dismiss' && data?.id) {
-        handlers.dismissReminder(data.id);
-      }
+      processNotificationAction(event.data);
+      // Clear queue without re-processing (postMessage already handled the action)
+      drainNotificationQueueRef.current?.(false).catch(() => {});
     };
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
@@ -13168,7 +13224,7 @@ const DayPlanner = () => {
                   placeholder="Task title"
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
-                  autoFocus={!mobileEditingTask}
+                  autoFocus={!mobileEditingTask && !newTask.title}
                   className={`w-full px-3 py-3 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-base`}
                 />
               </div>
