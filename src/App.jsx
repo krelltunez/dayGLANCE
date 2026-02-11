@@ -5431,11 +5431,14 @@ const DayPlanner = () => {
       }
       swipeLocked.current = true;
       swipeDirection.current = dx > 0 ? 'right' : 'left';
-      // Show only the relevant swipe strip
-      const parent = swipeTaskElement.current?.parentElement;
-      if (parent) {
-        const strip = parent.querySelector(`[data-swipe-strip="${swipeDirection.current}"]`);
-        if (strip) strip.style.display = 'flex';
+      // Show only the relevant swipe strip (skip right strip for recurring tasks — no inbox action)
+      const isRecurringSwipe = typeof swipedTaskId.current === 'string' && swipedTaskId.current.startsWith('recurring-');
+      if (!(isRecurringSwipe && swipeDirection.current === 'right')) {
+        const parent = swipeTaskElement.current?.parentElement;
+        if (parent) {
+          const strip = parent.querySelector(`[data-swipe-strip="${swipeDirection.current}"]`);
+          if (strip) strip.style.display = 'flex';
+        }
       }
     }
 
@@ -5489,8 +5492,11 @@ const DayPlanner = () => {
 
     const elWidth = el.offsetWidth;
     const threshold = elWidth * 0.4;
+    // Recurring tasks can't be moved to inbox — block right swipe
+    const isRecurring = typeof taskId === 'string' && taskId.startsWith('recurring-');
+    const isRightSwipeBlocked = isRecurring && taskType === 'timeline' && offset > 0;
 
-    if (Math.abs(offset) > threshold) {
+    if (Math.abs(offset) > threshold && !isRightSwipeBlocked) {
       // Trigger action
       const direction = offset > 0 ? 'right' : 'left';
       // Animate off-screen
@@ -8253,8 +8259,9 @@ const DayPlanner = () => {
                   className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
                   style={{ height: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}
                 >
-                  {/* Date header */}
-                  <div ref={mobileDateHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-40 ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
+                  {/* Sticky header group: date header + all-day section */}
+                  <div ref={mobileDateHeaderRef} className={`sticky top-0 z-40 ${cardBg}`}>
+                  <div className={`flex border-b ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                     <div className={`w-12 flex-shrink-0 border-r ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'flex items-center justify-center' : ''}`}>
                       {mobileDragPreviewTime === 'all-day' && (
                         <span className="text-[9px] font-bold text-blue-500">ALL DAY</span>
@@ -8287,9 +8294,9 @@ const DayPlanner = () => {
                     })}
                   </div>
 
-                  {/* All-day tasks - sticky below date header */}
+                  {/* All-day tasks - inside sticky header group */}
                   {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || todayRoutines.some(r => r.isAllDay && !String(r.id).startsWith('example-'))) && (
-                    <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} sticky top-[41px] z-40 ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
+                    <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                       <div className="flex">
                         <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
                           ALL DAY
@@ -8455,6 +8462,7 @@ const DayPlanner = () => {
                       </div>
                     </div>
                   )}
+                  </div>{/* end sticky header group */}
 
                   {/* Time grid */}
                   <div ref={timeGridRef} className="relative">
