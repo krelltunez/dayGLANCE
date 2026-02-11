@@ -1835,6 +1835,7 @@ const DayPlanner = () => {
   // Persist darkMode to localStorage and update theme-color meta tag
   useEffect(() => {
     localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
+    document.documentElement.classList.toggle('dark', darkMode);
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#2563eb');
   }, [darkMode]);
@@ -8638,11 +8639,7 @@ const DayPlanner = () => {
                             {dayTasks.map(task => {
                               const { top, height } = calculateTaskPosition(task);
                               const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
-                              const mobileCalendarStyle = task.isTaskCalendar ? (
-                                task.completed
-                                  ? { backgroundColor: darkMode ? '#6b7280' : '#9ca3af', opacity: 0.5 }
-                                  : { background: `repeating-linear-gradient(-45deg, ${darkMode ? '#6b7280' : '#9ca3af'}, ${darkMode ? '#6b7280' : '#9ca3af'} 8px, ${darkMode ? '#9ca3af' : '#d1d5db'} 8px, ${darkMode ? '#9ca3af' : '#d1d5db'} 16px)` }
-                              ) : taskCalendarStyle;
+                              const mobileCalendarStyle = taskCalendarStyle;
                               const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
                               const isImported = task.imported;
                               const isCalendarEvent = task.imported && !task.isTaskCalendar;
@@ -8747,7 +8744,7 @@ const DayPlanner = () => {
                                   )}
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
-                                    className={`relative h-full select-none ${task.isTaskCalendar ? '' : (isCalendarEvent ? (darkMode ? 'bg-gray-500' : 'bg-gray-400') : task.color)} rounded-lg shadow-sm border border-white/20`}
+                                    className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm border border-white/20`}
                                     style={mobileCalendarStyle}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
