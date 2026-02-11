@@ -1051,6 +1051,11 @@ const DayPlanner = () => {
   const mobileDragAutoScrollInterval = useRef(null);
   const mobileDragLastTouch = useRef({ clientX: 0, clientY: 0 });
   const mobileDragScrollDir = useRef(null);
+  const mobileDragPreventScrollRef = useRef(null);
+  const mobileDragStartScrollTop = useRef(0);
+  const mobileDateHeaderRef = useRef(null);
+  const mobileAllDaySectionRef = useRef(null);
+  const mobileDragSourceType = useRef(null); // 'timeline' or 'allday'
 
   // Routines state
   const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
@@ -2903,6 +2908,7 @@ const DayPlanner = () => {
 
     // Update visual immediately
     setPendingPriorities(prev => ({ ...prev, [taskId]: newPriority }));
+    playUISound('click');
 
     // Track for onboarding
     if (!onboardingProgress.hasSetPriority) {
@@ -3239,6 +3245,7 @@ const DayPlanner = () => {
 
   const toggleComplete = (id, fromInbox = false) => {
     pushUndo();
+    playUISound('tick');
     // Handle recurring task instances
     if (typeof id === 'string' && id.startsWith('recurring-')) {
       const { templateId, dateStr } = parseRecurringId(id);
@@ -5313,16 +5320,27 @@ const DayPlanner = () => {
     swipeIsVertical.current = false;
     swipeTaskElement.current = e.currentTarget;
 
-    // Start long-press timer for timeline tasks only
-    if (taskType === 'timeline' && !task.imported) {
+    // Start long-press timer for timeline and all-day tasks
+    if ((taskType === 'timeline' || taskType === 'allday') && !task.imported) {
       mobileDragTouchStartPos.current = { x: touch.clientX, y: touch.clientY };
       mobileDragTaskId.current = task.id;
       mobileDragOriginalTask.current = task;
+      mobileDragSourceType.current = taskType;
       mobileDragTimer.current = setTimeout(() => {
         mobileDragActive.current = true;
         setMobileDragTaskIdState(task.id);
-        // Disable scroll on timeline during drag
-        if (calendarRef.current) calendarRef.current.style.overflowY = 'hidden';
+        // Capture initial scroll position and finger position for delta-based drag
+        if (calendarRef.current) {
+          mobileDragStartScrollTop.current = calendarRef.current.scrollTop;
+          calendarRef.current.style.overflowY = 'hidden';
+        }
+        // Set initial preview based on source
+        setMobileDragPreviewTime(taskType === 'allday' ? 'all-day' : task.startTime);
+        // Add native non-passive touchmove listener to prevent browser scroll
+        // (React 18 registers touchmove as passive, so e.preventDefault() in onTouchMove is a no-op)
+        const preventScroll = (e) => e.preventDefault();
+        document.addEventListener('touchmove', preventScroll, { passive: false });
+        mobileDragPreventScrollRef.current = preventScroll;
         // Haptic feedback
         if (navigator.vibrate) navigator.vibrate(50);
       }, 500);
@@ -5479,17 +5497,42 @@ const DayPlanner = () => {
 
   // --- Mobile long-press drag handlers ---
   const updateMobileDragPreview = () => {
-    if (!calendarRef.current || !timeGridRef.current) return;
+    if (!calendarRef.current || !mobileDragOriginalTask.current) return;
     const touch = mobileDragLastTouch.current;
     const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollTop = calendarRef.current.scrollTop;
-    const headerHeight = timeGridRef.current.offsetTop;
-    const y = Math.max(0, touch.clientY - calendarRect.top + scrollTop - headerHeight);
-    const hourFromTop = Math.floor(y / 161);
-    const pixelsIntoHour = y - (hourFromTop * 161);
-    const minutesIntoHour = (Math.min(pixelsIntoHour, 160) / 160) * 60;
-    const totalMinutes = hourFromTop * 60 + minutesIntoHour;
-    const roundedMinutes = Math.round(totalMinutes / 15) * 15;
+    // Detect if finger is in the date header or all-day section (all-day zone)
+    const headerBottom = mobileDateHeaderRef.current?.getBoundingClientRect().bottom ?? 0;
+    const allDayBottom = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom;
+    const allDayZoneBottom = allDayBottom || headerBottom;
+    if (touch.clientY < allDayZoneBottom) {
+      setMobileDragPreviewTime('all-day');
+      return;
+    }
+    // For all-day source tasks, use absolute position (finger = time)
+    if (mobileDragSourceType.current === 'allday') {
+      if (!timeGridRef.current) return;
+      const headerHeight = timeGridRef.current.offsetTop;
+      const y = Math.max(0, touch.clientY - calendarRect.top + scrollTop - headerHeight);
+      const hourFromTop = Math.floor(y / 161);
+      const pixelsIntoHour = y - (hourFromTop * 161);
+      const minutesIntoHour = (Math.min(pixelsIntoHour, 160) / 160) * 60;
+      const totalMinutes = hourFromTop * 60 + minutesIntoHour;
+      const roundedMinutes = Math.round(totalMinutes / 15) * 15;
+      const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
+      const hrs = Math.floor(clampedMinutes / 60);
+      const mins = clampedMinutes % 60;
+      setMobileDragPreviewTime(`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+      return;
+    }
+    // For timeline source tasks, use delta-based computation (no jump)
+    const currentY = touch.clientY - calendarRect.top + scrollTop;
+    const startY = mobileDragTouchStartPos.current.y - calendarRect.top + mobileDragStartScrollTop.current;
+    const deltaPixels = currentY - startY;
+    const deltaMinutes = (deltaPixels / 161) * 60;
+    const originalMinutes = timeToMinutes(mobileDragOriginalTask.current.startTime);
+    const newMinutes = originalMinutes + deltaMinutes;
+    const roundedMinutes = Math.round(newMinutes / 15) * 15;
     const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
     const hrs = Math.floor(clampedMinutes / 60);
     const mins = clampedMinutes % 60;
@@ -5498,18 +5541,22 @@ const DayPlanner = () => {
   };
 
   const handleMobileLongPressMove = (touch) => {
-    if (!calendarRef.current || !timeGridRef.current) return;
+    if (!calendarRef.current) return;
     mobileDragLastTouch.current = { clientX: touch.clientX, clientY: touch.clientY };
     updateMobileDragPreview();
 
-    // Auto-scroll near edges
+    // Auto-scroll near edges (but not when in the all-day header zone)
+    const allDayZone = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom || mobileDateHeaderRef.current?.getBoundingClientRect().bottom || 0;
+    const inAllDayZone = touch.clientY < allDayZone;
     const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollZoneSize = 60;
     const distFromTop = touch.clientY - calendarRect.top;
     const distFromBottom = calendarRect.bottom - touch.clientY;
 
     let newDir = null;
-    if (distFromTop < scrollZoneSize && distFromTop > 0) {
+    if (inAllDayZone) {
+      // Don't auto-scroll while hovering over the all-day drop zone
+    } else if (distFromTop < scrollZoneSize && distFromTop > 0) {
       newDir = 'up';
     } else if (distFromBottom < scrollZoneSize && distFromBottom > 0) {
       newDir = 'down';
@@ -5525,7 +5572,11 @@ const DayPlanner = () => {
         const scrollSpeed = 8;
         mobileDragAutoScrollInterval.current = setInterval(() => {
           if (!calendarRef.current) return;
-          calendarRef.current.scrollTop += (newDir === 'up' ? -scrollSpeed : scrollSpeed);
+          const el = calendarRef.current;
+          const maxScroll = el.scrollHeight - el.clientHeight;
+          if (newDir === 'down' && el.scrollTop >= maxScroll) return;
+          if (newDir === 'up' && el.scrollTop <= 0) return;
+          el.scrollTop += (newDir === 'up' ? -scrollSpeed : scrollSpeed);
           updateMobileDragPreview();
         }, 16);
       }
@@ -5540,13 +5591,38 @@ const DayPlanner = () => {
     mobileDragScrollDir.current = null;
     // Re-enable scroll on timeline after drag
     if (calendarRef.current) calendarRef.current.style.overflowY = 'scroll';
+    // Remove native touchmove prevention listener
+    if (mobileDragPreventScrollRef.current) {
+      document.removeEventListener('touchmove', mobileDragPreventScrollRef.current);
+      mobileDragPreventScrollRef.current = null;
+    }
 
     if (mobileDragActive.current && mobileDragPreviewTime && mobileDragOriginalTask.current) {
       const task = mobileDragOriginalTask.current;
-      const newTime = mobileDragPreviewTime;
+      const droppingToAllDay = mobileDragPreviewTime === 'all-day';
+      const newTime = droppingToAllDay ? '00:00' : mobileDragPreviewTime;
+      const fromAllDay = mobileDragSourceType.current === 'allday';
 
-      // Handle recurring task instances via exceptions
-      if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
+      // If dragging from all-day back to all-day, no change needed
+      if (fromAllDay && droppingToAllDay) {
+        // no-op
+      } else if (task.isDeadlineDrag) {
+        // Deadline task: move from unscheduled to scheduled
+        pushUndo();
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== task.id));
+        setTasks(prev => [...prev, {
+          id: task.id,
+          title: task.title,
+          startTime: droppingToAllDay ? '00:00' : newTime,
+          duration: task.duration || 30,
+          date: dateToString(selectedDate),
+          isAllDay: droppingToAllDay,
+          color: task.color || colors[0].class,
+          notes: task.notes || '',
+          completed: task.completed || false,
+        }]);
+      } else if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
+        // Recurring task instances via exceptions
         const parts = task.id.split('-');
         const templateId = Number(parts[1]);
         const dateStr = parts.slice(2).join('-');
@@ -5556,21 +5632,33 @@ const DayPlanner = () => {
               ...t,
               exceptions: {
                 ...t.exceptions,
-                [dateStr]: { ...(t.exceptions?.[dateStr] || {}), startTime: newTime }
+                [dateStr]: {
+                  ...(t.exceptions?.[dateStr] || {}),
+                  startTime: newTime,
+                  isAllDay: droppingToAllDay,
+                }
               }
             };
           }
           return t;
         }));
       } else {
-        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, startTime: newTime } : t));
+        // Regular task: update time and isAllDay status
+        setTasks(prev => prev.map(t => t.id === task.id ? {
+          ...t,
+          startTime: newTime,
+          isAllDay: droppingToAllDay,
+        } : t));
       }
-      playUISound('slide');
+      if (!(fromAllDay && droppingToAllDay)) {
+        playUISound(droppingToAllDay ? 'drop' : 'slide');
+      }
     }
 
     mobileDragActive.current = false;
     mobileDragTaskId.current = null;
     mobileDragOriginalTask.current = null;
+    mobileDragSourceType.current = null;
     setMobileDragPreviewTime(null);
     setMobileDragTaskIdState(null);
   };
@@ -8052,7 +8140,7 @@ const DayPlanner = () => {
                     <Inbox size={20} /> Inbox
                   </h2>
                   <button
-                    onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); }}
+                    onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                     className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
                     title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
                   >
@@ -8101,15 +8189,19 @@ const DayPlanner = () => {
                   style={{ height: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}
                 >
                   {/* Date header */}
-                  <div className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
-                    <div className={`w-12 flex-shrink-0 border-r ${borderClass}`}></div>
+                  <div ref={mobileDateHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
+                    <div className={`w-12 flex-shrink-0 border-r ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'flex items-center justify-center' : ''}`}>
+                      {mobileDragPreviewTime === 'all-day' && (
+                        <span className="text-[9px] font-bold text-blue-500">ALL DAY</span>
+                      )}
+                    </div>
                     {visibleDates.map((date, idx) => {
                       const isDateToday = dateToString(date) === dateToString(new Date());
                       const dateStr = dateToString(date);
                       return (
                         <div
                           key={dateStr}
-                          className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : (darkMode ? 'bg-gray-700/50' : 'bg-gray-50')}`}
+                          className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${mobileDragPreviewTime === 'all-day' ? (darkMode ? 'bg-blue-900/40' : 'bg-blue-100') : isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : (darkMode ? 'bg-gray-700/50' : 'bg-gray-50')}`}
                           onClick={() => {
                             setNewTask({
                               title: '',
@@ -8132,7 +8224,7 @@ const DayPlanner = () => {
 
                   {/* All-day tasks - sticky below date header */}
                   {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || todayRoutines.some(r => r.isAllDay && !String(r.id).startsWith('example-'))) && (
-                    <div className={`border-b ${borderClass} ${cardBg} sticky top-[41px] z-20`}>
+                    <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} sticky top-[41px] z-20 ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                       <div className="flex">
                         <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
                           ALL DAY
@@ -8150,8 +8242,11 @@ const DayPlanner = () => {
                                   return (
                                     <div
                                       key={task.id}
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm ${task.completed && !isImported ? 'opacity-50' : ''}`}
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={taskCalendarStyle || {}}
+                                      onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
+                                      onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                      onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                     >
                                       <div className="flex items-center gap-2">
                                         {(!isImported || task.isTaskCalendar) && (
@@ -8213,7 +8308,10 @@ const DayPlanner = () => {
                                 {deadlineTasks.map((task) => (
                                   <div
                                     key={`deadline-${task.id}`}
-                                    className={`${task.color} rounded-lg p-2.5 text-white text-sm border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'}`}
+                                    className={`${task.color} rounded-lg p-2.5 text-white text-sm border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
+                                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                   >
                                     <div className="flex items-center gap-2">
                                       <button
@@ -8326,7 +8424,7 @@ const DayPlanner = () => {
                             )}
 
                             {/* Mobile drag time preview */}
-                            {mobileDragPreviewTime && isDateToday && (() => {
+                            {mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && isDateToday && (() => {
                               const dragMinutes = timeToMinutes(mobileDragPreviewTime);
                               const dragTop = Math.round(minutesToPosition(dragMinutes));
                               return (
