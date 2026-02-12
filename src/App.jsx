@@ -11828,7 +11828,7 @@ const DayPlanner = () => {
                     return (
                       <div
                         key={dateStr}
-                        className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
+                        className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis || (isTablet && mobileDragPreviewTime === 'all-day') ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
                         onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
                         onDragEnter={(e) => {
                           e.preventDefault();
@@ -11951,8 +11951,13 @@ const DayPlanner = () => {
                                 setDragPreviewTime(null);
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
+                              {...(isTablet && (!isImported || task.isTaskCalendar) ? {
+                                onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
+                                onTouchMove: (e) => handleMobileTaskTouchMove(e),
+                                onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
+                              } : {})}
                               className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
-                              style={taskCalendarStyle}
+                              style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'none' } : {}) }}
                             >
                               {task.isExample && (
                                 <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
@@ -12337,6 +12342,11 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
+                              {...(isTablet && (!isImported || task.isTaskCalendar) ? {
+                                onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'timeline'),
+                                onTouchMove: (e) => handleMobileTaskTouchMove(e),
+                                onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
+                              } : {})}
                               className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
@@ -12346,6 +12356,7 @@ const DayPlanner = () => {
                                 right: conflictPos.right,
                                 width: conflictPos.width,
                                 visibility: isMeasured ? 'visible' : 'hidden',
+                                ...(isTablet ? { touchAction: 'none' } : {}),
                                 ...taskCalendarStyle
                               }}
                             >
@@ -12808,6 +12819,32 @@ const DayPlanner = () => {
                             </div>
                           </>
                         )}
+
+                        {/* Tablet touch drag preview */}
+                        {isTablet && mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && mobileDragTaskIdState && (() => {
+                          const dragMinutes = timeToMinutes(mobileDragPreviewTime);
+                          const dragTop = minutesToPosition(dragMinutes);
+                          const originalTask = mobileDragOriginalTask.current;
+                          const dragDuration = originalTask?.duration || 30;
+                          return (
+                            <>
+                              <div
+                                className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
+                                style={{ top: `${dragTop - 30}px` }}
+                              >
+                                {formatTime(mobileDragPreviewTime)}
+                              </div>
+                              <div
+                                className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg pointer-events-none z-5"
+                                style={{
+                                  top: `${dragTop}px`,
+                                  height: `${durationToHeight(dragDuration)}px`,
+                                  minHeight: '39px'
+                                }}
+                              />
+                            </>
+                          );
+                        })()}
                       </div>
                     );
                   })}
