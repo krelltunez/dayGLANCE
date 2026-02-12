@@ -4309,22 +4309,20 @@ const DayPlanner = () => {
     const onTouchStart = (e) => {
       if (e.touches.length >= 2) {
         gestureStartTime = Date.now();
-        gestureFingerCount = e.touches.length;
+        gestureFingerCount = Math.max(gestureFingerCount, e.touches.length);
         gestureStartPositions = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
       }
     };
 
     const onTouchEnd = (e) => {
       if (gestureFingerCount < 2) return;
-      // All fingers must be lifted (no remaining touches)
       if (e.touches.length > 0) return;
       const duration = Date.now() - gestureStartTime;
-      if (duration > 400) { gestureFingerCount = 0; return; }
-      // Check fingers didn't move much (not a pinch/pan)
+      if (duration > 600) { gestureFingerCount = 0; return; }
       const moved = Array.from(e.changedTouches).some((t, i) => {
         const start = gestureStartPositions[i];
         if (!start) return false;
-        return Math.abs(t.clientX - start.x) > 15 || Math.abs(t.clientY - start.y) > 15;
+        return Math.abs(t.clientX - start.x) > 30 || Math.abs(t.clientY - start.y) > 30;
       });
       if (moved) { gestureFingerCount = 0; return; }
       if (gestureFingerCount === 2) performUndo();
