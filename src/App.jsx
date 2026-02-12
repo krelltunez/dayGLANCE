@@ -10459,7 +10459,7 @@ const DayPlanner = () => {
               <div className={`w-2 h-2 rounded-full ${cloudSyncConfig?.provider ? 'bg-green-400' : 'bg-gray-400'}`} title="Cloud sync active" />
             )}
             <button
-              onClick={() => { setTabletSidePanel(tabletSidePanel === 'settings' ? null : 'settings'); }}
+              onClick={() => setShowSettings(true)}
               className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
             >
               <Settings size={18} className={textSecondary} />
@@ -10535,8 +10535,8 @@ const DayPlanner = () => {
                 )}
               </button>
               <button
-                onClick={() => setTabletSidePanel(tabletSidePanel === 'routines' ? null : 'routines')}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 ${tabletSidePanel === 'routines' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                onClick={() => { setTabletSidePanel(null); openRoutinesDashboard(); }}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
                 title="Routines"
               >
                 <RefreshCw size={20} className={textSecondary} />
@@ -10553,8 +10553,8 @@ const DayPlanner = () => {
                 })()}
               </button>
               <button
-                onClick={() => setTabletSidePanel(tabletSidePanel === 'search' ? null : 'search')}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 ${tabletSidePanel === 'search' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                onClick={() => { setTabletSidePanel(null); setShowSpotlight(true); playUISound('spotlight'); }}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
                 title="Search"
               >
                 <Search size={20} className={textSecondary} />
@@ -10568,8 +10568,8 @@ const DayPlanner = () => {
                 {darkMode ? <Sun size={20} className={textSecondary} /> : <Moon size={20} className={textSecondary} />}
               </button>
               <button
-                onClick={() => setTabletSidePanel(tabletSidePanel === 'settings' ? null : 'settings')}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 ${tabletSidePanel === 'settings' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                onClick={() => { setTabletSidePanel(null); setShowSettings(true); }}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
                 title="Settings"
               >
                 <Settings size={20} className={textSecondary} />
@@ -10592,22 +10592,140 @@ const DayPlanner = () => {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className={`font-semibold text-lg ${textPrimary}`}>
-                      {tabletSidePanel === 'inbox' && 'Inbox'}
-                      {tabletSidePanel === 'routines' && 'Routines'}
-                      {tabletSidePanel === 'overdue' && 'Overdue'}
-                      {tabletSidePanel === 'search' && 'Search'}
-                      {tabletSidePanel === 'settings' && 'Settings'}
+                      {tabletSidePanel === 'inbox' && `Inbox (${unscheduledTasks.length})`}
+                      {tabletSidePanel === 'overdue' && `Overdue (${getOverdueTasks().length})`}
                     </h2>
                     <button
                       onClick={() => setTabletSidePanel(null)}
-                      className={`p-2 rounded-lg ${hoverBg} active:bg-black/10`}
+                      className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
                     >
                       <X size={18} className={textSecondary} />
                     </button>
                   </div>
-                  <p className={`text-sm ${textSecondary}`}>
-                    {tabletSidePanel} panel content — to be wired up
-                  </p>
+
+                  {/* Overdue panel content */}
+                  {tabletSidePanel === 'overdue' && (
+                    <div className="space-y-2">
+                      {getOverdueTasks().length === 0 ? (
+                        <p className={`text-sm ${textSecondary} text-center py-4`}>No overdue tasks</p>
+                      ) : (
+                        getOverdueTasks().map(task => (
+                          <div
+                            key={task.id}
+                            className={`${task.color} rounded-lg p-3 shadow-sm ${task.completed ? 'opacity-50' : ''} relative border-2 border-orange-500/50`}
+                          >
+                            <div className="flex items-start justify-between text-white">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <button
+                                  onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
+                                  className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                >
+                                  {task.completed && <Check size={10} strokeWidth={3} />}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>
+                                    {renderTitle(task.title)}
+                                  </div>
+                                  <div className="text-xs opacity-90 mt-1 flex items-center gap-1">
+                                    {task._overdueType === 'scheduled' ? (
+                                      <><Clock size={10} /> {task.date} {task.isAllDay ? '' : `• ${formatTime(task.startTime)}`}</>
+                                    ) : (
+                                      <><AlertCircle size={10} /> Due: {formatDeadlineDate(task.deadline)}</>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    if (task._overdueType === 'scheduled') {
+                                      setTasks(tasks.filter(t => t.id !== task.id));
+                                      const { startTime, date, _overdueType, ...rest } = task;
+                                      setUnscheduledTasks([...unscheduledTasks, { ...rest, priority: rest.priority || 0 }]);
+                                    } else {
+                                      clearDeadline(task.id);
+                                    }
+                                  }}
+                                  className="active:bg-white/20 rounded p-1"
+                                  title="Move to Inbox"
+                                >
+                                  <Inbox size={14} />
+                                </button>
+                                <button
+                                  onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
+                                  className="active:bg-white/20 rounded p-1"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Inbox panel content */}
+                  {tabletSidePanel === 'inbox' && (
+                    <div className="space-y-2">
+                      {unscheduledTasks.length === 0 ? (
+                        <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks in inbox</p>
+                      ) : (
+                        unscheduledTasks.map(task => (
+                          <div
+                            key={task.id}
+                            className={`${task.color} rounded-lg p-3 shadow-sm ${task.completed ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                          >
+                            {task.isExample && (
+                              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                                Example
+                              </span>
+                            )}
+                            <div className="flex items-start justify-between text-white">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <button
+                                  onClick={() => toggleComplete(task.id, true)}
+                                  className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                >
+                                  {task.completed && <Check size={10} strokeWidth={3} />}
+                                </button>
+                                <div
+                                  className="flex-1 min-w-0 cursor-pointer"
+                                  onClick={() => { openMobileEditTask(task, true); setTabletSidePanel(null); }}
+                                >
+                                  <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>
+                                    {renderTitle(task.title)}
+                                  </div>
+                                  {task.deadline && (
+                                    <div className="text-xs opacity-90 mt-1 flex items-center gap-1">
+                                      <AlertCircle size={10} /> Due: {formatDeadlineDate(task.deadline)}
+                                    </div>
+                                  )}
+                                  {task.priority > 0 && (
+                                    <div className="flex gap-0.5 mt-1">
+                                      {Array.from({ length: task.priority }, (_, i) => (
+                                        <div key={i} className="w-1 h-2.5 bg-white/60 rounded-full" />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => moveToRecycleBin(task.id, true)}
+                                  className="active:bg-white/20 rounded p-1"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
