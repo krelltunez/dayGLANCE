@@ -2841,12 +2841,10 @@ const DayPlanner = () => {
 
   const clearTagFilter = () => {
     setSelectedTags([]);
-    setShowUntagged(false);
   };
 
   const selectAllTags = () => {
     setSelectedTags([...allTags]);
-    setShowUntagged(true);
   };
 
   // Get today's date string for overdue comparisons
@@ -7815,14 +7813,12 @@ const DayPlanner = () => {
   }, [allTags]);
 
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
-  // Tasks with no tags are always shown (they can't be filtered by tags)
+  // Untagged tasks are always shown — the filter only scopes tagged tasks
   const filterByTags = (taskList) => {
     return taskList.filter(task => {
       const taskTags = extractTags(task.title);
-      // Imported events always shown
-      if (task.imported) return true;
-      // Untagged tasks: respect showUntagged toggle
-      if (taskTags.length === 0) return showUntagged;
+      // Imported events and untagged tasks always shown
+      if (task.imported || taskTags.length === 0) return true;
       // If no tags are selected, hide tagged tasks
       if (selectedTags.length === 0) return false;
       // Show tagged tasks only if they match a selected tag
@@ -9213,7 +9209,7 @@ const DayPlanner = () => {
                     <button
                       onClick={() => setShowMobileTagFilter(true)}
                       className={`relative flex-shrink-0 p-2.5 rounded-lg transition-colors ${
-                        !(allTags.every(tag => selectedTags.includes(tag)) && showUntagged)
+                        !allTags.every(tag => selectedTags.includes(tag))
                           ? 'bg-blue-500 text-white'
                           : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
                       }`}
@@ -10644,7 +10640,7 @@ const DayPlanner = () => {
                     <span className={`font-semibold ${textPrimary}`}>Filter by Tag</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    {allTags.every(tag => selectedTags.includes(tag)) && showUntagged ? (
+                    {allTags.every(tag => selectedTags.includes(tag)) ? (
                       <button
                         onClick={clearTagFilter}
                         className="text-sm text-blue-500 active:text-blue-600 font-medium"
@@ -10697,33 +10693,6 @@ const DayPlanner = () => {
                       </button>
                     );
                   })}
-                  {/* Untagged */}
-                  {(() => {
-                    const untaggedRegular = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).length === 0).length;
-                    const untaggedRecurring = recurringTasks.filter(t => extractTags(t.title).length === 0).length;
-                    const untaggedCount = untaggedRegular + untaggedRecurring;
-                    if (untaggedCount === 0) return null;
-                    return (
-                      <button
-                        onClick={() => setShowUntagged(!showUntagged)}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
-                          showUntagged
-                            ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                            : darkMode ? 'active:bg-white/5' : 'active:bg-gray-50'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                          showUntagged
-                            ? 'bg-blue-500 border-blue-500'
-                            : darkMode ? 'border-gray-600' : 'border-gray-300'
-                        }`}>
-                          {showUntagged && <Check size={14} className="text-white" />}
-                        </div>
-                        <span className={`flex-1 text-left text-sm ${textSecondary} italic`}>untagged</span>
-                        <span className={`text-xs ${textSecondary} tabular-nums`}>{untaggedCount}</span>
-                      </button>
-                    );
-                  })()}
                 </div>
               </div>
             </div>
@@ -12031,7 +12000,7 @@ const DayPlanner = () => {
                 </h3>
                 <div className="flex items-center gap-2">
                   {!minimizedSections.tags && allTags.length > 0 && (
-                    allTags.every(tag => selectedTags.includes(tag)) && showUntagged ? (
+                    allTags.every(tag => selectedTags.includes(tag)) ? (
                       <button
                         onClick={clearTagFilter}
                         className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
@@ -12120,23 +12089,6 @@ const DayPlanner = () => {
                           </label>
                         );
                       })}
-                      {(() => {
-                        const untaggedRegular = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).length === 0).length;
-                        const untaggedRecurring = recurringTasks.filter(t => extractTags(t.title).length === 0).length;
-                        const untaggedCount = untaggedRegular + untaggedRecurring;
-                        if (untaggedCount === 0) return null;
-                        return (
-                          <label className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}>
-                            <input
-                              type="checkbox"
-                              checked={showUntagged}
-                              onChange={() => setShowUntagged(!showUntagged)}
-                              className="rounded"
-                            />
-                            <span>untagged <span className={`text-xs ${textSecondary}`}>({untaggedCount})</span></span>
-                          </label>
-                        );
-                      })()}
                     </div>
                   )}
                 </div>
