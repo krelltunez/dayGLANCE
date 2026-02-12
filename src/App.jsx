@@ -936,6 +936,8 @@ const DayPlanner = () => {
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
   const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
+  const [mobileReviewPage, setMobileReviewPage] = useState(0);
+  const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
   const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
@@ -15990,7 +15992,150 @@ const DayPlanner = () => {
           </div>
         );
 
-        return (
+        return isMobile ? (
+          <div className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
+            {/* Close button */}
+            <div className="flex justify-end px-4 pt-3">
+              <button onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }} className={`p-2 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
+                <X size={18} className={textSecondary} />
+              </button>
+            </div>
+
+            {/* Swipeable cards */}
+            <div
+              ref={reviewScrollRef}
+              className="flex-1 flex overflow-x-auto overflow-y-hidden review-carousel"
+              style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              onScroll={(e) => {
+                const page = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                if (page !== mobileReviewPage) setMobileReviewPage(page);
+              }}
+            >
+              {/* Card 1: Past 7 Days */}
+              <div className="flex-shrink-0 w-full h-full overflow-y-auto px-5 pb-6" style={{ scrollSnapAlign: 'start' }}>
+                <div className="flex flex-col items-center mb-5 pt-2">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-12 mb-2"
+                  />
+                  <h2 className={`text-lg font-bold ${textPrimary}`}>Weekly Review</h2>
+                  <p className={`text-sm ${textSecondary}`}>{formatRange(pastStartStr, pastEndStr)}</p>
+                </div>
+
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-3`}>Past 7 Days</h3>
+
+                {pastScheduled === 0 ? (
+                  <p className={`text-sm ${textSecondary} italic`}>No tasks were scheduled in the past 7 days</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <StatCard value={`${pastCompleted}/${pastScheduled}`} label="Tasks done" icon={<CheckSquare size={16} className="text-green-400" />} />
+                      <StatCard value={`${pastCompletionRate}%`} label="Completion" icon={<Target size={16} className="text-blue-400" />} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
+                      <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<BrainCircuit size={16} className="text-purple-400" />} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                      {bestDayName && (
+                        <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Incomplete list */}
+                {pastIncomplete.length > 0 && (
+                  <div className={`rounded-lg border ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'} p-3`}>
+                    <div className={`flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'} font-bold text-sm mb-2`}>
+                      <AlertCircle size={16} />
+                      {pastIncomplete.length} incomplete
+                    </div>
+                    <div className="max-h-40 overflow-y-auto -mx-1">
+                      {pastIncomplete.map((task) => (
+                        <button
+                          key={task.id}
+                          className={`w-full flex items-center gap-3 px-2 py-1.5 rounded text-left ${darkMode ? 'active:bg-red-900/40' : 'active:bg-red-100/60'} transition-colors`}
+                          onClick={() => {
+                            const d = new Date(task.date + 'T12:00:00');
+                            setSelectedDate(d);
+                            setShowWeeklyReview(false);
+                            setMobileReviewPage(0);
+                          }}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
+                          <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{task.title}</span>
+                          <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
+                            {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Card 2: Next 7 Days */}
+              <div className="flex-shrink-0 w-full h-full overflow-y-auto px-5 pb-6" style={{ scrollSnapAlign: 'start' }}>
+                <div className="flex flex-col items-center mb-5 pt-2">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-12 mb-2"
+                  />
+                  <h2 className={`text-lg font-bold ${textPrimary}`}>Next 7 Days</h2>
+                  <p className={`text-sm ${textSecondary}`}>{formatRange(nextStartStr, nextEndStr)}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
+                  <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {busiestDayName && busiestMinutes > 0 && (
+                    <StatCard value={busiestDayName} label="Busiest" icon={<Zap size={16} className="text-amber-400" />} />
+                  )}
+                  {nextRecurringCount > 0 && (
+                    <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                  )}
+                </div>
+
+                {/* Open days nudge */}
+                {openDays.length > 0 && (
+                  <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3`}>
+                    <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm`}>
+                      <Sparkles size={16} />
+                      {openDayNames.join(', ')} {openDays.length === 1 ? 'is' : 'are'} open for deep work.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Dot indicators + Done button */}
+            <div className="px-5 pb-5" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}>
+              <div className="flex justify-center gap-2 mb-3">
+                {[0, 1].map(i => (
+                  <button
+                    key={i}
+                    className={`w-2.5 h-2.5 rounded-full transition-colors ${mobileReviewPage === i ? 'bg-blue-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                    onClick={() => {
+                      reviewScrollRef.current?.scrollTo({ left: i * reviewScrollRef.current.clientWidth, behavior: 'smooth' });
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}
+                className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 text-sm font-medium"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWeeklyReview(false)}>
             <div
               className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border max-w-2xl w-full mx-4 flex flex-col`}

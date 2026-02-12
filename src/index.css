@@ -70,6 +70,9 @@ body {
   color-scheme: dark;
 }
 
+/* Hide scrollbar on review carousel */
+.review-carousel::-webkit-scrollbar { display: none; }
+
 /* Mobile tab switch animation */
 @keyframes mobile-tab-fade-in {
   from { opacity: 0; }
