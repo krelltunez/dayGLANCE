@@ -937,6 +937,7 @@ const DayPlanner = () => {
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
   const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
+  const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
   const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
@@ -9510,6 +9511,33 @@ const DayPlanner = () => {
                   );
                 })()}
 
+                {/* Daily stats row */}
+                {actualTodayNonImportedTasks.length > 0 && (
+                  <button
+                    onClick={() => setShowMobileDailySummary(true)}
+                    className={`w-full mt-3 pt-3 border-t ${borderClass} flex items-center justify-between`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-10 h-10">
+                        <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
+                          <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-700' : 'stroke-gray-200'} />
+                          <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-blue-500"
+                            strokeDasharray={`${(actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 97.4} 97.4`}
+                          />
+                        </svg>
+                        <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
+                          {Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}%
+                        </span>
+                      </div>
+                      <div className="text-left">
+                        <div className={`text-sm font-semibold ${textPrimary}`}>{actualTodayCompletedTasks.length}/{actualTodayNonImportedTasks.length} tasks</div>
+                        <div className={`text-xs ${textSecondary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m spent</div>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className={textSecondary} />
+                  </button>
+                )}
+
                 {/* Mobile notes panel overlay for dayglance tasks */}
                 {expandedNotesTaskId && (() => {
                   const agendaTask = todayAgenda.find(t => t.id === expandedNotesTaskId);
@@ -9994,6 +10022,54 @@ const DayPlanner = () => {
                       <span className={`font-medium ${textPrimary} flex-1 text-left`}>Backups</span>
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
+                  </div>
+
+                  {/* All Time Summary */}
+                  <div className={`${cardBg} border ${borderClass} rounded-xl p-4`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <TrendingUp size={16} className={textSecondary} />
+                      <h3 className={`text-sm font-semibold ${textPrimary}`}>All Time</h3>
+                    </div>
+                    <div className={`space-y-2 text-sm ${textSecondary}`}>
+                      <div className="flex justify-between">
+                        <span>Tasks scheduled</span>
+                        <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tasks completed</span>
+                        <span className={`font-medium ${textPrimary}`}>
+                          {allTimeCompletedCount}
+                          {allTimeIncompleteTasks.length > 0 && (
+                            <button
+                              onClick={() => setShowIncompleteTasks('allTime')}
+                              className="ml-1 text-blue-500"
+                            >
+                              ({allTimeIncompleteTasks.length} incomplete)
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Time spent</span>
+                        <span className={`font-medium ${textPrimary}`}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Time planned</span>
+                        <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                      </div>
+                      {allTimeFocusMinutes > 0 && (
+                        <div className="flex justify-between">
+                          <span>Focus time</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                        </div>
+                      )}
+                      {allTimeScheduledCount > 0 && (
+                        <div className={`flex justify-between pt-1 border-t ${borderClass}`}>
+                          <span className="font-medium">Completion rate</span>
+                          <span className={`font-bold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -10507,6 +10583,87 @@ const DayPlanner = () => {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Daily Summary Bottom Sheet */}
+          {showMobileDailySummary && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileDailySummary(false)}>
+              <div className="bg-black/30 absolute inset-0" />
+              <div
+                className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
+                  </div>
+                  <button
+                    onClick={() => setShowMobileDailySummary(false)}
+                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                  >
+                    <X size={16} className={textSecondary} />
+                  </button>
+                </div>
+                {/* Stats */}
+                <div className="px-4 pb-4">
+                  {actualTodayNonImportedTasks.length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
+                  ) : (
+                    <>
+                      {/* Progress ring + headline */}
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="relative w-16 h-16 flex-shrink-0">
+                          <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                            <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-700' : 'stroke-gray-200'} />
+                            <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-blue-500"
+                              strokeDasharray={`${(actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 97.4} 97.4`}
+                            />
+                          </svg>
+                          <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${textPrimary}`}>
+                            {Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}%
+                          </span>
+                        </div>
+                        <div>
+                          <div className={`text-lg font-bold ${textPrimary}`}>{actualTodayCompletedTasks.length} of {actualTodayNonImportedTasks.length} done</div>
+                          {todayIncompleteTasks.length > 0 && (
+                            <button
+                              onClick={() => { setShowIncompleteTasks('today'); setShowMobileDailySummary(false); }}
+                              className="text-sm text-blue-500 active:text-blue-600"
+                            >
+                              {todayIncompleteTasks.length} incomplete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {/* Stat rows */}
+                      <div className={`space-y-3 ${textSecondary}`}>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m</span>
+                        </div>
+                        {actualTodayFocusMinutes > 0 && (
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m</span>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
