@@ -9302,7 +9302,30 @@ const DayPlanner = () => {
                   );
                 })()}
                 {todayAgenda.length === 0 ? (
-                  <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
+                  <div className="flex flex-col items-center justify-center py-12 px-6">
+                    <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-blue-500/15' : 'bg-blue-50'} flex items-center justify-center mb-4`}>
+                      <Calendar size={28} className={`${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
+                      <Sparkles size={14} className={`absolute -top-1 -right-1 ${darkMode ? 'text-yellow-400' : 'text-yellow-500'}`} />
+                    </div>
+                    <p className={`text-base font-semibold ${textPrimary} mb-1`}>Your day is clear</p>
+                    <p className={`text-sm ${textSecondary} text-center mb-5`}>No tasks scheduled for today</p>
+                    <div className="flex gap-2.5">
+                      <button
+                        onClick={openNewTaskForm}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500 text-white active:bg-blue-600' : 'bg-blue-500 text-white active:bg-blue-600'} transition-colors`}
+                      >
+                        <Plus size={16} />
+                        Add task
+                      </button>
+                      <button
+                        onClick={() => setMobileActiveTab('inbox')}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-white/10 text-gray-300 active:bg-white/15' : 'bg-gray-100 text-gray-600 active:bg-gray-200'} transition-colors`}
+                      >
+                        <Inbox size={16} />
+                        Inbox
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-1.5">
                     {todayAgenda.map(task => {
@@ -9526,13 +9549,37 @@ const DayPlanner = () => {
               <div className="px-4 py-4">
                 <div className="space-y-2">
                   {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
-                    <p className={`text-sm ${textSecondary} text-center py-8`}>
-                      {unscheduledTasks.filter(t => !t.isExample).length === 0
-                        ? "No tasks in inbox yet"
-                        : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
-                          ? "All tasks have overdue deadlines"
-                          : "No tasks match current filter"}
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-12 px-6">
+                      <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-emerald-500/15' : 'bg-emerald-50'} flex items-center justify-center mb-4`}>
+                        <Inbox size={28} className={`${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
+                        {unscheduledTasks.filter(t => !t.isExample).length === 0 && (
+                          <Check size={14} className={`absolute -top-1 -right-1 ${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
+                        )}
+                      </div>
+                      <p className={`text-base font-semibold ${textPrimary} mb-1`}>
+                        {unscheduledTasks.filter(t => !t.isExample).length === 0
+                          ? "Inbox zero"
+                          : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
+                            ? "All overdue"
+                            : "No matches"}
+                      </p>
+                      <p className={`text-sm ${textSecondary} text-center mb-5`}>
+                        {unscheduledTasks.filter(t => !t.isExample).length === 0
+                          ? "Add tasks here to schedule later"
+                          : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
+                            ? "All inbox tasks have overdue deadlines"
+                            : "No tasks match the current filter"}
+                      </p>
+                      {unscheduledTasks.filter(t => !t.isExample).length === 0 && (
+                        <button
+                          onClick={openNewInboxTask}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-emerald-500 text-white active:bg-emerald-600' : 'bg-emerald-500 text-white active:bg-emerald-600'} transition-colors`}
+                        >
+                          <Plus size={16} />
+                          Add task
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
                       <div key={task.id} className="notes-panel-container">
