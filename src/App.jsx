@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -938,6 +938,7 @@ const DayPlanner = () => {
   const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
   const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
+  const [showMobileTagFilter, setShowMobileTagFilter] = useState(false);
   const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
@@ -9200,13 +9201,27 @@ const DayPlanner = () => {
 
             {mobileActiveTab === 'dayglance' && (
               <div className={`px-4 py-4 mobile-tab-fade-in`} style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
-                <button
-                  onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                  className={`w-full flex items-center gap-2 px-3 py-2.5 mb-4 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors`}
-                >
-                  <Search size={16} />
-                  <span className="text-sm">Search tasks...</span>
-                </button>
+                <div className="flex items-center gap-2 mb-4">
+                  <button
+                    onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                    className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors`}
+                  >
+                    <Search size={16} />
+                    <span className="text-sm">Search tasks...</span>
+                  </button>
+                  {allTags.length > 0 && (
+                    <button
+                      onClick={() => setShowMobileTagFilter(true)}
+                      className={`relative flex-shrink-0 p-2.5 rounded-lg transition-colors ${
+                        !(allTags.every(tag => selectedTags.includes(tag)) && showUntagged)
+                          ? 'bg-blue-500 text-white'
+                          : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                      }`}
+                    >
+                      <Filter size={16} />
+                    </button>
+                  )}
+                </div>
                 {/* Overdue tasks from past days */}
                 {(() => {
                   const todayStr = getTodayStr();
@@ -9306,7 +9321,7 @@ const DayPlanner = () => {
                     </div>
                   );
                 })()}
-                {todayAgenda.length === 0 ? (
+                {(() => { const filteredAgenda = filterByTags(todayAgenda); return filteredAgenda.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-6">
                     <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-blue-500/15' : 'bg-blue-50'} flex items-center justify-center mb-4`}>
                       <Calendar size={28} className={`${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
@@ -9333,7 +9348,7 @@ const DayPlanner = () => {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {todayAgenda.map(task => {
+                    {filteredAgenda.map(task => {
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                       let timeLabel = '';
@@ -9463,7 +9478,7 @@ const DayPlanner = () => {
                       );
                     })}
                   </div>
-                )}
+                ); })()}
                 {/* Routines row */}
                 {todayRoutines.length > 0 && (() => {
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -10604,6 +10619,111 @@ const DayPlanner = () => {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Tag Filter Bottom Sheet */}
+          {showMobileTagFilter && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileTagFilter(false)}>
+              <div className="bg-black/30 absolute inset-0" />
+              <div
+                className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Filter size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>Filter by Tag</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {allTags.every(tag => selectedTags.includes(tag)) && showUntagged ? (
+                      <button
+                        onClick={clearTagFilter}
+                        className="text-sm text-blue-500 active:text-blue-600 font-medium"
+                      >
+                        Clear
+                      </button>
+                    ) : (
+                      <button
+                        onClick={selectAllTags}
+                        className="text-sm text-blue-500 active:text-blue-600 font-medium"
+                      >
+                        Select All
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowMobileTagFilter(false)}
+                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                    >
+                      <X size={16} className={textSecondary} />
+                    </button>
+                  </div>
+                </div>
+                {/* Tag list */}
+                <div className="px-4 pb-4 space-y-1 max-h-[50vh] overflow-y-auto">
+                  {allTags.map(tag => {
+                    const regularCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
+                    const recurringCount = recurringTasks.filter(t => extractTags(t.title).includes(tag)).length;
+                    const tagCount = regularCount + recurringCount;
+                    if (tagCount === 0) return null;
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
+                          selectedTags.includes(tag)
+                            ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                            : darkMode ? 'active:bg-white/5' : 'active:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                          selectedTags.includes(tag)
+                            ? 'bg-blue-500 border-blue-500'
+                            : darkMode ? 'border-gray-600' : 'border-gray-300'
+                        }`}>
+                          {selectedTags.includes(tag) && <Check size={14} className="text-white" />}
+                        </div>
+                        <Hash size={14} className={textSecondary} />
+                        <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
+                        <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                      </button>
+                    );
+                  })}
+                  {/* Untagged */}
+                  {(() => {
+                    const untaggedRegular = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).length === 0).length;
+                    const untaggedRecurring = recurringTasks.filter(t => extractTags(t.title).length === 0).length;
+                    const untaggedCount = untaggedRegular + untaggedRecurring;
+                    if (untaggedCount === 0) return null;
+                    return (
+                      <button
+                        onClick={() => setShowUntagged(!showUntagged)}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
+                          showUntagged
+                            ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                            : darkMode ? 'active:bg-white/5' : 'active:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                          showUntagged
+                            ? 'bg-blue-500 border-blue-500'
+                            : darkMode ? 'border-gray-600' : 'border-gray-300'
+                        }`}>
+                          {showUntagged && <Check size={14} className="text-white" />}
+                        </div>
+                        <span className={`flex-1 text-left text-sm ${textSecondary} italic`}>untagged</span>
+                        <span className={`text-xs ${textSecondary} tabular-nums`}>{untaggedCount}</span>
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
