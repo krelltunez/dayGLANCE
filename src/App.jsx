@@ -11195,7 +11195,13 @@ const DayPlanner = () => {
 
                 {/* Section icons - clicking expands sidebar */}
                 <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} w-[51px] py-2 flex flex-col items-center gap-2`}>
-                  {getOverdueTasks().length > 0 && (
+                  {(() => {
+                    const todayStr = getTodayStr();
+                    const pastOverdue = getOverdueTasks().filter(t => {
+                      if (t._overdueType === 'scheduled') return t.date < todayStr;
+                      return true;
+                    });
+                    return pastOverdue.length > 0 ? (
                     <button
                       onClick={() => setSidebarCollapsed(false)}
                       className={`p-2 rounded ${hoverBg} relative`}
@@ -11203,10 +11209,11 @@ const DayPlanner = () => {
                     >
                       <AlertTriangle size={20} className="text-orange-500" />
                       <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {getOverdueTasks().length > 9 ? '9+' : getOverdueTasks().length}
+                        {pastOverdue.length > 9 ? '9+' : pastOverdue.length}
                       </span>
                     </button>
-                  )}
+                    ) : null;
+                  })()}
                   <button
                     onClick={() => setSidebarCollapsed(false)}
                     className={`p-2 rounded ${hoverBg} relative`}
@@ -11355,8 +11362,15 @@ const DayPlanner = () => {
               </div>
             )}
 
-            {/* Overdue Tasks Section */}
-            {getOverdueTasks().length > 0 && (
+            {/* Overdue Tasks Section - only past days (today's overdue shown in dayGLANCE) */}
+            {(() => {
+              const todayStr = getTodayStr();
+              const pastOverdue = getOverdueTasks().filter(t => {
+                if (t._overdueType === 'scheduled') return t.date < todayStr;
+                return true; // deadline overdue are always from past dates
+              });
+              if (pastOverdue.length === 0) return null;
+              return (
               <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} border-orange-500/50 p-4 mb-4`}>
                 <div className={`flex items-center justify-between ${minimizedSections.overdue ? '' : 'mb-4'}`}>
                   <h3 className={`font-semibold text-orange-500 flex items-center gap-2`}>
@@ -11364,7 +11378,7 @@ const DayPlanner = () => {
                     Overdue
                   </h3>
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm text-orange-500`}>{getOverdueTasks().length}</span>
+                    <span className={`text-sm text-orange-500`}>{pastOverdue.length}</span>
                     <button
                       onClick={() => toggleSection('overdue')}
                       className={`text-orange-500 hover:text-orange-400 transition-colors`}
@@ -11377,7 +11391,7 @@ const DayPlanner = () => {
 
                 {!minimizedSections.overdue && (
                   <div className="space-y-2">
-                    {getOverdueTasks().map(task => (
+                    {pastOverdue.map(task => (
                       <div
                         key={task.id}
                         draggable
@@ -11451,7 +11465,8 @@ const DayPlanner = () => {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* dayGLANCE Agenda Section */}
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
