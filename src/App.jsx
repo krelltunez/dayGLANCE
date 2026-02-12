@@ -4299,6 +4299,47 @@ const DayPlanner = () => {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview]);
 
+  // Mobile multi-finger tap gestures: 2-finger tap = undo, 3-finger tap = redo
+  useEffect(() => {
+    if (!isMobile) return;
+    let gestureStartTime = 0;
+    let gestureFingerCount = 0;
+    let gestureStartPositions = [];
+
+    const onTouchStart = (e) => {
+      if (e.touches.length >= 2) {
+        gestureStartTime = Date.now();
+        gestureFingerCount = e.touches.length;
+        gestureStartPositions = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+      }
+    };
+
+    const onTouchEnd = (e) => {
+      if (gestureFingerCount < 2) return;
+      // All fingers must be lifted (no remaining touches)
+      if (e.touches.length > 0) return;
+      const duration = Date.now() - gestureStartTime;
+      if (duration > 400) { gestureFingerCount = 0; return; }
+      // Check fingers didn't move much (not a pinch/pan)
+      const moved = Array.from(e.changedTouches).some((t, i) => {
+        const start = gestureStartPositions[i];
+        if (!start) return false;
+        return Math.abs(t.clientX - start.x) > 15 || Math.abs(t.clientY - start.y) > 15;
+      });
+      if (moved) { gestureFingerCount = 0; return; }
+      if (gestureFingerCount === 2) performUndo();
+      else if (gestureFingerCount >= 3) performRedo();
+      gestureFingerCount = 0;
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile]);
+
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
     if (typeof id === 'string' && id.startsWith('recurring-')) {
@@ -13496,7 +13537,7 @@ const DayPlanner = () => {
 
       {/* Undo/Redo Toast */}
       {undoToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <div className={`px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white'}`}>
             {undoToast}
           </div>
