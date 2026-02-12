@@ -9147,7 +9147,7 @@ const DayPlanner = () => {
                             <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
                               <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
                               <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium text-red-500">Blank time, {gapStr} until your next task</div>
+                                <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
                                 <div className="text-xs text-red-400 mt-0.5">Maybe tackle your inbox?</div>
                               </div>
                               <button
@@ -11219,7 +11219,7 @@ const DayPlanner = () => {
                             <div key="now-marker" className="flex gap-2 py-1.5">
                               <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
                               <div className="min-w-0 flex-1">
-                                <div className="text-xs font-medium text-red-500">Blank time, {gapStr} until your next task</div>
+                                <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
                                 <div className="text-[10px] text-red-400 mt-0.5">Maybe tackle your inbox?</div>
                               </div>
                             </div>
