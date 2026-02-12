@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Smartphone } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -44,6 +44,30 @@ const useIsMobile = () => {
   }, []);
 
   return isMobile;
+};
+
+// Hook to detect landscape orientation
+const useIsLandscape = () => {
+  const [isLandscape, setIsLandscape] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth > window.innerHeight;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleChange = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    window.addEventListener('resize', handleChange);
+    window.addEventListener('orientationchange', handleChange);
+    return () => {
+      window.removeEventListener('resize', handleChange);
+      window.removeEventListener('orientationchange', handleChange);
+    };
+  }, []);
+
+  return isLandscape;
 };
 
 // URL detection regex for notes
@@ -873,6 +897,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
 const DayPlanner = () => {
   const visibleDays = useVisibleDays();
   const isMobile = useIsMobile();
+  const isLandscape = useIsLandscape();
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-darkmode');
     return saved ? JSON.parse(saved) : false;
@@ -1216,6 +1241,13 @@ const DayPlanner = () => {
     { name: 'Yellow', class: 'bg-yellow-500' },
   ];
   const durationOptions = [15, 30, 45, 60, 90, 120];
+
+  // Try to lock orientation to portrait on mobile (works for installed PWAs)
+  useEffect(() => {
+    if (isMobile && screen.orientation?.lock) {
+      screen.orientation.lock('portrait').catch(() => {});
+    }
+  }, [isMobile]);
 
   // Measure task widths using ResizeObserver
   useEffect(() => {
@@ -8208,6 +8240,15 @@ const DayPlanner = () => {
 
   return (
     <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* Landscape blocker overlay for mobile devices */}
+      {isMobile && isLandscape && (
+        <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 ${bgClass}`}>
+          <Smartphone className={`w-12 h-12 ${darkMode ? 'text-gray-500' : 'text-gray-400'} -rotate-90`} />
+          <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center px-8`}>
+            Please rotate your device to portrait mode
+          </p>
+        </div>
+      )}
       {isMobile ? (
         <>
           {/* Mobile Layout */}
