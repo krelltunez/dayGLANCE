@@ -24,26 +24,38 @@ const useVisibleDays = () => {
   return visibleDays;
 };
 
-// Hook to detect mobile viewport
-// Uses the smaller viewport dimension so phones stay in mobile mode
-// even when rotated to landscape (where width may exceed 768px)
-const useIsMobile = () => {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return Math.min(window.innerWidth, window.innerHeight) < 768;
-    }
-    return false;
-  });
+// Hook to detect device type using touch-primary detection + viewport width.
+// Touch-primary (pointer: coarse + hover: none) distinguishes tablets from
+// small desktop/laptop screens that happen to be under 1200px wide.
+const useDeviceType = () => {
+  const compute = () => {
+    if (typeof window === 'undefined') return { isPhone: false, isMobile: false, isTablet: false };
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const touchPrimary = window.matchMedia('(pointer: coarse) and (hover: none)').matches;
+    const isPhone = touchPrimary && Math.min(w, h) < 600;
+    const isMobile = isPhone || w < 768;
+    const isTablet = !isPhone && touchPrimary && w >= 768 && w < 1200;
+    return { isPhone, isMobile, isTablet };
+  };
+
+  const [device, setDevice] = useState(compute);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 768);
+    const update = () => setDevice(compute());
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    // Also listen for pointer/hover changes (e.g. tablet keyboard attached/detached)
+    const mq = window.matchMedia('(pointer: coarse) and (hover: none)');
+    mq.addEventListener('change', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+      mq.removeEventListener('change', update);
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  return isMobile;
+  return device;
 };
 
 // Hook to detect landscape orientation
@@ -896,7 +908,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
 
 const DayPlanner = () => {
   const visibleDays = useVisibleDays();
-  const isMobile = useIsMobile();
+  const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-darkmode');
@@ -1242,12 +1254,12 @@ const DayPlanner = () => {
   ];
   const durationOptions = [15, 30, 45, 60, 90, 120];
 
-  // Try to lock orientation to portrait on mobile (works for installed PWAs)
+  // Try to lock orientation to portrait on phones (works for installed PWAs)
   useEffect(() => {
-    if (isMobile && screen.orientation?.lock) {
+    if (isPhone && screen.orientation?.lock) {
       screen.orientation.lock('portrait').catch(() => {});
     }
-  }, [isMobile]);
+  }, [isPhone]);
 
   // Measure task widths using ResizeObserver
   useEffect(() => {
@@ -8240,8 +8252,8 @@ const DayPlanner = () => {
 
   return (
     <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      {/* Landscape blocker overlay for mobile devices */}
-      {isMobile && isLandscape && (
+      {/* Landscape blocker overlay for phones only (not tablets or narrow desktop windows) */}
+      {isPhone && isLandscape && (
         <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 ${bgClass}`}>
           <Smartphone className={`w-12 h-12 ${darkMode ? 'text-gray-500' : 'text-gray-400'} -rotate-90`} />
           <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center px-8`}>
