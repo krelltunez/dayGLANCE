@@ -9997,6 +9997,19 @@ const DayPlanner = () => {
                     </div>
                   )}
 
+                  {/* Stats */}
+                  <div className="space-y-2">
+                    <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Stats</h3>
+                    <button
+                      onClick={() => setMobileSettingsView('stats')}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <TrendingUp size={20} className={textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>All Time Summary</span>
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
+                  </div>
+
                   {/* Sub-menu buttons */}
                   <div className="space-y-2">
                     <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
@@ -10025,55 +10038,65 @@ const DayPlanner = () => {
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
                   </div>
+                </div>
 
-                  {/* All Time Summary */}
-                  <div className={`${cardBg} border ${borderClass} rounded-xl p-4`}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <TrendingUp size={16} className={textSecondary} />
-                      <h3 className={`text-sm font-semibold ${textPrimary}`}>All Time</h3>
-                    </div>
-                    <div className={`space-y-2 text-sm ${textSecondary}`}>
-                      <div className="flex justify-between">
-                        <span>Tasks scheduled</span>
-                        <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Tasks completed</span>
-                        <span className={`font-medium ${textPrimary}`}>
-                          {allTimeCompletedCount}
-                          {allTimeIncompleteTasks.length > 0 && (
-                            <button
-                              onClick={() => setShowIncompleteTasks('allTime')}
-                              className="ml-1 text-blue-500"
-                            >
-                              ({allTimeIncompleteTasks.length} incomplete)
-                            </button>
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Time spent</span>
-                        <span className={`font-medium ${textPrimary}`}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Time planned</span>
-                        <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
-                      </div>
-                      {allTimeFocusMinutes > 0 && (
+                {/* Stats sub-view */}
+                {mobileSettingsView === 'stats' && (
+                  <div className="px-4 py-4 space-y-4 mobile-tab-fade-in">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} active:opacity-70`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">Settings</span>
+                    </button>
+                    <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                      <TrendingUp size={20} /> All Time Summary
+                    </h2>
+                    <div className={`${cardBg} border ${borderClass} rounded-xl p-4`}>
+                      <div className={`space-y-3 text-sm ${textSecondary}`}>
                         <div className="flex justify-between">
-                          <span>Focus time</span>
-                          <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                          <span>Tasks scheduled</span>
+                          <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
                         </div>
-                      )}
-                      {allTimeScheduledCount > 0 && (
-                        <div className={`flex justify-between pt-1 border-t ${borderClass}`}>
-                          <span className="font-medium">Completion rate</span>
-                          <span className={`font-bold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
+                        <div className="flex justify-between">
+                          <span>Tasks completed</span>
+                          <span className={`font-medium ${textPrimary}`}>
+                            {allTimeCompletedCount}
+                            {allTimeIncompleteTasks.length > 0 && (
+                              <button
+                                onClick={() => setShowIncompleteTasks('allTime')}
+                                className="ml-1 text-blue-500 active:text-blue-600"
+                              >
+                                ({allTimeIncompleteTasks.length} incomplete)
+                              </button>
+                            )}
+                          </span>
                         </div>
-                      )}
+                        <div className="flex justify-between">
+                          <span>Time spent</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Time planned</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                        </div>
+                        {allTimeFocusMinutes > 0 && (
+                          <div className="flex justify-between">
+                            <span>Focus time</span>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                          </div>
+                        )}
+                        {allTimeScheduledCount > 0 && (
+                          <div className={`flex justify-between pt-2 border-t ${borderClass}`}>
+                            <span className="font-semibold">Completion rate</span>
+                            <span className={`font-bold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* App Settings sub-view */}
                 {mobileSettingsView === 'app' && (() => {
@@ -15798,18 +15821,35 @@ const DayPlanner = () => {
                         key={task.id}
                         className={`w-full flex items-center gap-3 p-2 rounded text-left cursor-pointer ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}
                         onClick={() => {
-                          if (task.date) {
-                            setSelectedDate(new Date(task.date + 'T12:00:00'));
-                          }
-                          if (task.startTime && calendarRef.current) {
+                          if (isMobile) {
+                            if (task.date) {
+                              setSelectedDate(new Date(task.date + 'T12:00:00'));
+                            }
+                            setShowIncompleteTasks(null);
+                            setShowMobileDailySummary(false);
+                            setMobileActiveTab('timeline');
                             setTimeout(() => {
-                              const minutes = timeToMinutes(task.startTime);
-                              const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
-                              const scrollPosition = Math.max(0, (minutes / 60 - 1) * hourHeight);
-                              calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
-                            }, 150);
+                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                el.classList.add('ring-2', 'ring-blue-400');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                              }
+                            }, 200);
+                          } else {
+                            if (task.date) {
+                              setSelectedDate(new Date(task.date + 'T12:00:00'));
+                            }
+                            if (task.startTime && calendarRef.current) {
+                              setTimeout(() => {
+                                const minutes = timeToMinutes(task.startTime);
+                                const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+                                const scrollPosition = Math.max(0, (minutes / 60 - 1) * hourHeight);
+                                calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+                              }, 150);
+                            }
+                            setShowIncompleteTasks(null);
                           }
-                          setShowIncompleteTasks(null);
                         }}
                       >
                         <span className={`w-3 h-3 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
@@ -15821,6 +15861,7 @@ const DayPlanner = () => {
                               : [task.date && new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), task.startTime && formatTime(task.startTime)].filter(Boolean).join(' · ') || 'No date'}
                           </div>
                         </div>
+                        <ChevronRight size={14} className={`${textSecondary} flex-shrink-0 opacity-40`} />
                       </button>
                     ))}
                   </div>
