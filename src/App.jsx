@@ -907,9 +907,11 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
 };
 
 const DayPlanner = () => {
-  const visibleDays = useVisibleDays();
+  const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
+  // Override visible days: tablet uses orientation, mobile always 1, desktop uses width-based hook
+  const visibleDays = isTablet ? (isLandscape ? 3 : 2) : isMobile ? 1 : _visibleDays;
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-darkmode');
     return saved ? JSON.parse(saved) : false;
@@ -1017,6 +1019,8 @@ const DayPlanner = () => {
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
+  // Tablet layout state
+  const [tabletSidePanel, setTabletSidePanel] = useState(null); // null | 'inbox' | 'routines' | 'settings' | 'search' | 'overdue'
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
@@ -10163,7 +10167,8 @@ const DayPlanner = () => {
         </>
       ) : (
       <>
-      {/* Desktop Layout */}
+      {/* Desktop & Tablet Layout */}
+      {!isTablet && (
       <div className={`${cardBg} border-b ${borderClass}`}>
         <div className="max-w-[2000px] mx-auto px-6 py-4">
           <div className="flex gap-4">
@@ -10419,10 +10424,156 @@ const DayPlanner = () => {
           </div>
         </div>
       </div>
+      )}
 
-      <div className="max-w-[2000px] mx-auto px-6 py-6">
+      {/* Tablet header strip */}
+      {isTablet && (
+        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '48px' }}>
+          <div className="flex items-center gap-2">
+            <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
+              <ChevronLeft size={20} className={textSecondary} />
+            </button>
+            <button
+              onClick={() => {
+                if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                setShowMonthView(!showMonthView);
+              }}
+              className={`${textPrimary} font-semibold text-base px-2 py-1 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+            >
+              {formatDateRange(visibleDates)}
+            </button>
+            <button onClick={() => changeDate(1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
+              <ChevronRight size={20} className={textSecondary} />
+            </button>
+            {dateToString(selectedDate) !== dateToString(new Date()) && (
+              <button
+                onClick={goToToday}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
+              >
+                Today
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {cloudSyncConfig?.provider && (
+              <div className={`w-2 h-2 rounded-full ${cloudSyncConfig?.provider ? 'bg-green-400' : 'bg-gray-400'}`} title="Cloud sync active" />
+            )}
+            <button
+              onClick={() => { setTabletSidePanel(tabletSidePanel === 'settings' ? null : 'settings'); }}
+              className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+            >
+              <Settings size={18} className={textSecondary} />
+            </button>
+          </div>
+        </div>
+      )}
 
-        <div className="flex gap-4">
+      {/* Content area: sidebar/rail + calendar */}
+      <div className={isTablet ? 'flex' : 'max-w-[2000px] mx-auto px-6 py-6'} style={isTablet ? { height: 'calc(100vh - 48px - env(safe-area-inset-top, 0px))' } : undefined}>
+
+        <div className={isTablet ? 'contents' : 'flex gap-4'}>
+
+          {/* Tablet sidebar rail */}
+          {isTablet && (
+            <div className={`${cardBg} border-r ${borderClass} flex flex-col items-center py-3 gap-1 flex-shrink-0`} style={{ width: '60px' }}>
+              <button
+                onClick={() => { setShowAddTask(true); setTabletSidePanel(null); }}
+                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700 mb-2"
+                title="Add task"
+              >
+                <Plus size={20} />
+              </button>
+              <button
+                onClick={() => setTabletSidePanel(tabletSidePanel === 'inbox' ? null : 'inbox')}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'inbox' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                title="Inbox"
+              >
+                <Inbox size={20} className={textSecondary} />
+                {unscheduledTasks.length > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" />
+                )}
+              </button>
+              <button
+                onClick={() => setTabletSidePanel(tabletSidePanel === 'routines' ? null : 'routines')}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 ${tabletSidePanel === 'routines' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                title="Routines"
+              >
+                <RefreshCw size={20} className={textSecondary} />
+              </button>
+              <button
+                onClick={() => setTabletSidePanel(tabletSidePanel === 'overdue' ? null : 'overdue')}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'overdue' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                title="Overdue"
+              >
+                <AlertCircle size={20} className={textSecondary} />
+                {(() => {
+                  const overdueCount = tasks.filter(t => !t.completed && t.date && t.date < dateToString(new Date())).length;
+                  return overdueCount > 0 ? <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" /> : null;
+                })()}
+              </button>
+              <button
+                onClick={() => setTabletSidePanel(tabletSidePanel === 'search' ? null : 'search')}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 ${tabletSidePanel === 'search' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                title="Search"
+              >
+                <Search size={20} className={textSecondary} />
+              </button>
+              <div className="flex-1" />
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
+                title={darkMode ? 'Light mode' : 'Dark mode'}
+              >
+                {darkMode ? <Sun size={20} className={textSecondary} /> : <Moon size={20} className={textSecondary} />}
+              </button>
+              <button
+                onClick={() => setTabletSidePanel(tabletSidePanel === 'settings' ? null : 'settings')}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 ${tabletSidePanel === 'settings' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                title="Settings"
+              >
+                <Settings size={20} className={textSecondary} />
+              </button>
+            </div>
+          )}
+
+          {/* Tablet slide-over panel */}
+          {isTablet && tabletSidePanel && (
+            <>
+              <div
+                className="fixed inset-0 bg-black/20 z-30"
+                style={{ left: '60px' }}
+                onClick={() => setTabletSidePanel(null)}
+              />
+              <div
+                className={`${cardBg} border-r ${borderClass} overflow-y-auto z-40 flex-shrink-0 ${darkMode ? 'dark-scrollbar' : ''}`}
+                style={{ width: '320px', height: '100%', position: 'relative' }}
+              >
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className={`font-semibold text-lg ${textPrimary}`}>
+                      {tabletSidePanel === 'inbox' && 'Inbox'}
+                      {tabletSidePanel === 'routines' && 'Routines'}
+                      {tabletSidePanel === 'overdue' && 'Overdue'}
+                      {tabletSidePanel === 'search' && 'Search'}
+                      {tabletSidePanel === 'settings' && 'Settings'}
+                    </h2>
+                    <button
+                      onClick={() => setTabletSidePanel(null)}
+                      className={`p-2 rounded-lg ${hoverBg} active:bg-black/10`}
+                    >
+                      <X size={18} className={textSecondary} />
+                    </button>
+                  </div>
+                  <p className={`text-sm ${textSecondary}`}>
+                    {tabletSidePanel} panel content — to be wired up
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Desktop sidebar */}
+          {!isTablet && (
           <div className={`${sidebarCollapsed ? 'w-[59px]' : 'w-72'} flex-shrink-0 transition-[width] duration-200 flex flex-col`} style={{ height: '1168px' }}>
             {sidebarCollapsed ? (
               /* Collapsed sidebar - icon-only buttons */
@@ -11611,12 +11762,14 @@ const DayPlanner = () => {
               </div>
             )}
           </div>
+          )}
 
+          {/* Calendar area — shared between desktop and tablet */}
           <div className="flex-1 min-w-0">
             <div
               ref={calendarRef}
-              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
-              style={{ height: '1168px' }}
+              className={`${cardBg} ${isTablet ? '' : 'rounded-lg shadow-sm'} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
+              style={{ height: isTablet ? '100%' : '1168px' }}
             >
               {/* Date headers row - sticky at top */}
               <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
