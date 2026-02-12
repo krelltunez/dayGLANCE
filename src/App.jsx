@@ -16698,7 +16698,7 @@ const DayPlanner = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div
             className={`${cardBg} rounded-xl shadow-xl ${borderClass} border max-w-lg w-full mx-4 flex flex-col`}
-            style={{ maxHeight: 'min(540px, 85vh)' }}
+            style={{ height: 'min(540px, 85vh)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Progress dots */}
@@ -16713,7 +16713,7 @@ const DayPlanner = () => {
             </div>
 
             {/* Carousel content */}
-            <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-y-auto">
+            <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-hidden">
               {desktopWelcomeStep === 0 && (
                 <div className="text-center">
                   <img
@@ -16737,7 +16737,7 @@ const DayPlanner = () => {
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                         <Calendar size={16} />
                       </span>
-                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time slot (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>N</kbd>)</span>
+                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>N</kbd>)</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
@@ -16746,7 +16746,7 @@ const DayPlanner = () => {
                       <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>I</kbd>)</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                         <Sparkles size={16} />
                       </span>
                       <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling</span>
