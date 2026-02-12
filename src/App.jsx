@@ -8119,6 +8119,11 @@ const DayPlanner = () => {
         break;
       }
     }
+    // Ensure the now-marker never appears above all-day or deadline tasks
+    const lastNonScheduledIdx = todayAgenda.reduce((acc, t, i) => t._agendaType !== 'scheduled' ? i : acc, -1);
+    if (insertAfterIndex < lastNonScheduledIdx) {
+      insertAfterIndex = lastNonScheduledIdx;
+    }
     // Calculate gap to next scheduled task
     let gapMinutes = 0;
     const nextScheduledIdx = todayAgenda.findIndex((t, i) => i > insertAfterIndex && t._agendaType === 'scheduled');
