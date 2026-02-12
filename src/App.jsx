@@ -9202,6 +9202,105 @@ const DayPlanner = () => {
                   <Search size={16} />
                   <span className="text-sm">Search tasks...</span>
                 </button>
+                {/* Overdue tasks from past days */}
+                {(() => {
+                  const todayStr = getTodayStr();
+                  const pastOverdue = getOverdueTasks().filter(t => {
+                    if (t._overdueType === 'scheduled') return t.date < todayStr;
+                    return true; // deadline overdue are always from past dates
+                  });
+                  if (pastOverdue.length === 0) return null;
+                  return (
+                    <div className={`mb-4 rounded-lg border ${darkMode ? 'border-orange-500/40 bg-orange-500/10' : 'border-orange-400/50 bg-orange-50'} overflow-hidden`}>
+                      <button
+                        onClick={() => toggleSection('overdue')}
+                        className="w-full flex items-center justify-between px-3 py-2.5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={15} className="text-orange-500" />
+                          <span className="text-sm font-semibold text-orange-500">Overdue</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-200 text-orange-700'}`}>
+                            {pastOverdue.length}
+                          </span>
+                        </div>
+                        {minimizedSections.overdue ? <ChevronDown size={16} className="text-orange-500" /> : <ChevronUp size={16} className="text-orange-500" />}
+                      </button>
+                      {!minimizedSections.overdue && (
+                        <div className="px-3 pb-2.5 space-y-1">
+                          {pastOverdue.map(task => (
+                            <div
+                              key={`mobile-overdue-${task.id}`}
+                              className={`flex items-center gap-2.5 py-2 px-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-white/80'}`}
+                            >
+                              <button
+                                onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
+                                className={`w-5 h-5 rounded flex-shrink-0 border-2 ${task.completed
+                                  ? 'border-orange-400 bg-orange-400'
+                                  : darkMode ? 'border-orange-400/60 bg-white/10' : 'border-orange-400/60 bg-white'
+                                } flex items-center justify-center`}
+                              >
+                                {task.completed && <Check size={12} strokeWidth={3} className="text-white" />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-medium truncate ${task.completed ? 'line-through opacity-50' : textPrimary}`}>
+                                  {renderTitle(task.title)}
+                                </div>
+                                <div className={`text-xs ${textSecondary} flex items-center gap-1 mt-0.5`}>
+                                  {task._overdueType === 'scheduled' ? (
+                                    <>
+                                      <Clock size={10} />
+                                      {formatDeadlineDate(task.date)} {!task.isAllDay && `• ${formatTime(task.startTime)}`}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <AlertCircle size={10} />
+                                      Due: {formatDeadlineDate(task.deadline)}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    pushUndo();
+                                    if (task._overdueType === 'scheduled') {
+                                      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, date: getTodayStr() } : t));
+                                    } else {
+                                      setUnscheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, deadline: getTodayStr() } : t));
+                                    }
+                                    setUndoToast({ message: 'Moved to today', actionable: true });
+                                  }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'} active:scale-95 transition-transform`}
+                                  title="Move to today"
+                                >
+                                  <CalendarDays size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (task._overdueType === 'scheduled') {
+                                      pushUndo();
+                                      setTasks(prev => prev.filter(t => t.id !== task.id));
+                                      const { startTime, date, duration, _overdueType, ...rest } = task;
+                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                    } else {
+                                      clearDeadline(task.id);
+                                      setUndoToast({ message: 'Deadline cleared', actionable: true });
+                                    }
+                                  }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  title="Move to inbox"
+                                >
+                                  <Inbox size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {todayAgenda.length === 0 ? (
                   <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
                 ) : (
