@@ -9132,7 +9132,13 @@ const DayPlanner = () => {
                   });
                   if (visibleRoutines.length === 0) return null;
                   return (
-                    <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                    <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer`} onClick={() => {
+                      setMobileActiveTab('routines');
+                      setMobileSettingsView('main');
+                      setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
+                      setRoutineAddingToBucket(null);
+                      setRoutineNewChipName('');
+                    }}>
                       <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
                       <div className="flex flex-wrap gap-1.5">
                         {[...visibleRoutines].sort((a, b) => {
