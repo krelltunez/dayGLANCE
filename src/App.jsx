@@ -8712,6 +8712,7 @@ const DayPlanner = () => {
                               const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
                               const isImported = task.imported;
                               const isCalendarEvent = task.imported && !task.isTaskCalendar;
+                              const isPastEvent = isCalendarEvent && isDateToday && (timeToMinutes(task.startTime) + task.duration) <= (new Date().getHours() * 60 + new Date().getMinutes());
                               const isConflicted = !task.isAllDay && dayTasks.some(other => {
                                 if (other.id === task.id || other.isAllDay || other.completed) return false;
                                 const s1 = timeToMinutes(task.startTime), e1 = s1 + task.duration;
@@ -8786,7 +8787,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -12081,7 +12082,9 @@ const DayPlanner = () => {
                           const isConflicted = conflicts.some(c => c.includes(task.id));
                           const conflictPos = calculateConflictPosition(task, dayTasks);
                           const isImported = task.imported;
+                          const isCalendarEvent = isImported && !task.isTaskCalendar;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                          const isPastEvent = isCalendarEvent && isDateToday && (timeToMinutes(task.startTime) + task.duration) <= (new Date().getHours() * 60 + new Date().getMinutes());
 
                           // Layout tiers for timeline tasks
                           const isMicroHeight = height <= 40;  // 15min tasks
@@ -12189,7 +12192,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
