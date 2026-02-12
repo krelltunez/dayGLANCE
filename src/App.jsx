@@ -12533,9 +12533,7 @@ const DayPlanner = () => {
 
                         {/* Timeline routine pills (today only) */}
                         {dateStr === dateToString(new Date()) && (() => {
-                          const now0 = new Date();
-                          const nowMin0 = now0.getHours() * 60 + now0.getMinutes();
-                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime && (timeToMinutes(r.startTime) + r.duration + 60) > nowMin0);
+                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
                           if (timelineRoutines.length === 0) return null;
 
                           // Compute side-by-side columns for overlapping routine chips
