@@ -9139,17 +9139,19 @@ const DayPlanner = () => {
                       const mobileItems = [];
                       // Insert "Now" marker at the right position
                       if (idx === agendaNowMarker.insertAfterIndex + 1 && todayAgenda.some(t => t._agendaType === 'scheduled')) {
-                        if (agendaNowMarker.showNudge) {
-                          const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                          const gapM = agendaNowMarker.gapMinutes % 60;
-                          const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                          mobileItems.push(
-                            <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
-                              <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
+                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                        const gapM = agendaNowMarker.gapMinutes % 60;
+                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                        mobileItems.push(
+                          <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
+                            <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
+                              {agendaNowMarker.inboxCount > 0 && (
                                 <div className="text-xs text-red-400 mt-0.5">Maybe tackle your inbox?</div>
-                              </div>
+                              )}
+                            </div>
+                            {agendaNowMarker.inboxCount > 0 && (
                               <button
                                 onClick={() => setMobileActiveTab('inbox')}
                                 className="flex-shrink-0 self-center p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
@@ -9157,16 +9159,9 @@ const DayPlanner = () => {
                               >
                                 <Inbox size={18} />
                               </button>
-                            </div>
-                          );
-                        } else {
-                          mobileItems.push(
-                            <div key="mobile-now-marker" className="flex items-center gap-2.5 py-1.5">
-                              <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
-                              <span className="text-xs font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
-                            </div>
-                          );
-                        }
+                            )}
+                          </div>
+                        );
                       }
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -9263,13 +9258,15 @@ const DayPlanner = () => {
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
                     {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (
-                      agendaNowMarker.showNudge ? (
-                        <div key="mobile-now-marker-end" className="flex gap-2.5 py-2.5">
-                          <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-red-500">All done!</div>
+                      <div key="mobile-now-marker-end" className="flex gap-2.5 py-2.5">
+                        <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                          {agendaNowMarker.inboxCount > 0 && (
                             <div className="text-xs text-red-400 mt-0.5">Maybe tackle your inbox?</div>
-                          </div>
+                          )}
+                        </div>
+                        {agendaNowMarker.inboxCount > 0 && (
                           <button
                             onClick={() => setMobileActiveTab('inbox')}
                             className="flex-shrink-0 self-center p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
@@ -9277,13 +9274,8 @@ const DayPlanner = () => {
                           >
                             <Inbox size={18} />
                           </button>
-                        </div>
-                      ) : (
-                        <div key="mobile-now-marker-end" className="flex items-center gap-2.5 py-1.5">
-                          <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
-                          <span className="text-xs font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
-                        </div>
-                      )
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -11211,27 +11203,20 @@ const DayPlanner = () => {
                       const items = [];
                       // Insert "Now" marker at the right position
                       if (idx === agendaNowMarker.insertAfterIndex + 1 && todayAgenda.some(t => t._agendaType === 'scheduled')) {
-                        if (agendaNowMarker.showNudge) {
-                          const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                          const gapM = agendaNowMarker.gapMinutes % 60;
-                          const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                          items.push(
-                            <div key="now-marker" className="flex gap-2 py-1.5">
-                              <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
+                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                        const gapM = agendaNowMarker.gapMinutes % 60;
+                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                        items.push(
+                          <div key="now-marker" className="flex gap-2 py-1.5">
+                            <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
+                              {agendaNowMarker.inboxCount > 0 && (
                                 <div className="text-[10px] text-red-400 mt-0.5">Maybe tackle your inbox?</div>
-                              </div>
+                              )}
                             </div>
-                          );
-                        } else {
-                          items.push(
-                            <div key="now-marker" className="flex items-center gap-2 py-1">
-                              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                              <span className="text-[10px] font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
-                            </div>
-                          );
-                        }
+                          </div>
+                        );
                       }
                       return [...items, (() => {
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
@@ -11343,20 +11328,15 @@ const DayPlanner = () => {
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
                     {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (
-                      agendaNowMarker.showNudge ? (
-                        <div key="now-marker-end" className="flex gap-2 py-1.5">
-                          <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-medium text-red-500">All done!</div>
+                      <div key="now-marker-end" className="flex gap-2 py-1.5">
+                        <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                          {agendaNowMarker.inboxCount > 0 && (
                             <div className="text-[10px] text-red-400 mt-0.5">Maybe tackle your inbox?</div>
-                          </div>
+                          )}
                         </div>
-                      ) : (
-                        <div key="now-marker-end" className="flex items-center gap-2 py-1">
-                          <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                          <span className="text-[10px] font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
-                        </div>
-                      )
+                      </div>
                     )}
                   </div>
                 )
