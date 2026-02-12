@@ -7095,6 +7095,8 @@ const DayPlanner = () => {
   const DeadlinePickerPopover = ({ taskId, currentDeadline, onClose }) => {
     const [showCalendar, setShowCalendar] = useState(false);
     const [calendarPos, setCalendarPos] = useState({ x: 0, y: 0 });
+    const [openAbove, setOpenAbove] = useState(false);
+    const popoverRef = useRef(null);
     const [viewDate, setViewDate] = useState(() => {
       if (currentDeadline) {
         const parts = currentDeadline.split('-');
@@ -7102,6 +7104,16 @@ const DayPlanner = () => {
       }
       return new Date();
     });
+
+    useEffect(() => {
+      if (popoverRef.current && !showCalendar) {
+        const rect = popoverRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        if (rect.bottom > viewportHeight - 80) {
+          setOpenAbove(true);
+        }
+      }
+    }, [showCalendar]);
 
     const today = new Date();
     today.setHours(12, 0, 0, 0);
@@ -7237,7 +7249,7 @@ const DayPlanner = () => {
     }
 
     return (
-      <div className="deadline-picker-container absolute top-full right-0 mt-1 z-30">
+      <div ref={popoverRef} className={`deadline-picker-container absolute ${openAbove ? 'bottom-full mb-1' : 'top-full mt-1'} right-0 z-30`}>
         <div
           className={`${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px]`}
           onClick={(e) => e.stopPropagation()}
