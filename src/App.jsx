@@ -9068,6 +9068,7 @@ const DayPlanner = () => {
                             toggleSubtask={toggleSubtask}
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
+                            noAutoFocus={hasOnlySubtasks(noteTask)}
                           />
                         </div>
                       </div>
@@ -9254,6 +9255,7 @@ const DayPlanner = () => {
                             toggleSubtask={toggleSubtask}
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
+                            noAutoFocus={hasOnlySubtasks(agendaTask)}
                           />
                         </div>
                       </div>
@@ -9439,6 +9441,7 @@ const DayPlanner = () => {
                             toggleSubtask={toggleSubtask}
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
+                            noAutoFocus={hasOnlySubtasks(noteTask)}
                           />
                         </div>
                       </div>
