@@ -3273,6 +3273,7 @@ const DayPlanner = () => {
   const toggleComplete = (id, fromInbox = false) => {
     pushUndo();
     playUISound('tick');
+    if (navigator.vibrate) navigator.vibrate(30);
     // Handle recurring task instances
     if (typeof id === 'string' && id.startsWith('recurring-')) {
       const { templateId, dateStr } = parseRecurringId(id);
@@ -4387,6 +4388,7 @@ const DayPlanner = () => {
         setTasks(tasks.filter(t => t.id !== id));
       }
       playUISound('swoosh');
+      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
       setUndoToast({ message: 'Task deleted', actionable: true });
 
       // Track for onboarding
@@ -5636,6 +5638,7 @@ const DayPlanner = () => {
 
     if (Math.abs(offset) > threshold && !isRightSwipeBlocked) {
       // Trigger action
+      if (navigator.vibrate) navigator.vibrate(40);
       const direction = offset > 0 ? 'right' : 'left';
       // Animate off-screen
       el.style.transform = `translateX(${direction === 'right' ? elWidth : -elWidth}px)`;
