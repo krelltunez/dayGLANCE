@@ -8766,7 +8766,7 @@ const DayPlanner = () => {
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
                                     className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${task.isTaskCalendar ? '' : 'border border-white/20'}`}
-                                    style={mobileCalendarStyle}
+                                    style={{ touchAction: 'none', ...mobileCalendarStyle }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
