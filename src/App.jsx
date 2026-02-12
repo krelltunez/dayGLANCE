@@ -4299,41 +4299,49 @@ const DayPlanner = () => {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview]);
 
-  // Mobile multi-finger tap gestures: 2-finger tap = undo, 3-finger tap = redo
+  // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
     if (!isMobile) return;
-    let gestureStartTime = 0;
-    let gestureFingerCount = 0;
-    let gestureStartPositions = [];
+    let holdTimer = null;
+    let startPositions = [];
+    let fired = false;
+
+    const cancel = () => {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    };
 
     const onTouchStart = (e) => {
-      if (e.touches.length >= 2) {
-        gestureStartTime = Date.now();
-        gestureFingerCount = Math.max(gestureFingerCount, e.touches.length);
-        gestureStartPositions = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
-      }
+      const count = e.touches.length;
+      if (count < 2) { cancel(); return; }
+      startPositions = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+      fired = false;
+      cancel();
+      holdTimer = setTimeout(() => {
+        fired = true;
+        if (count === 2) performUndo();
+        else if (count >= 3) performRedo();
+      }, 300);
     };
 
-    const onTouchEnd = (e) => {
-      if (gestureFingerCount < 2) return;
-      if (e.touches.length > 0) return;
-      const duration = Date.now() - gestureStartTime;
-      if (duration > 600) { gestureFingerCount = 0; return; }
-      const moved = Array.from(e.changedTouches).some((t, i) => {
-        const start = gestureStartPositions[i];
+    const onTouchMove = (e) => {
+      if (!holdTimer) return;
+      const moved = Array.from(e.touches).some((t, i) => {
+        const start = startPositions[i];
         if (!start) return false;
-        return Math.abs(t.clientX - start.x) > 30 || Math.abs(t.clientY - start.y) > 30;
+        return Math.abs(t.clientX - start.x) > 20 || Math.abs(t.clientY - start.y) > 20;
       });
-      if (moved) { gestureFingerCount = 0; return; }
-      if (gestureFingerCount === 2) performUndo();
-      else if (gestureFingerCount >= 3) performRedo();
-      gestureFingerCount = 0;
+      if (moved) cancel();
     };
+
+    const onTouchEnd = () => { cancel(); };
 
     document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
     document.addEventListener('touchend', onTouchEnd, { passive: true });
     return () => {
+      cancel();
       document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
       document.removeEventListener('touchend', onTouchEnd);
     };
   }, [isMobile]);
