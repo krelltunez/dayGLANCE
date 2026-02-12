@@ -25,17 +25,19 @@ const useVisibleDays = () => {
 };
 
 // Hook to detect mobile viewport
+// Uses the smaller viewport dimension so phones stay in mobile mode
+// even when rotated to landscape (where width may exceed 768px)
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth < 768;
+      return Math.min(window.innerWidth, window.innerHeight) < 768;
     }
     return false;
   });
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(Math.min(window.innerWidth, window.innerHeight) < 768);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
