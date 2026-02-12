@@ -5479,6 +5479,9 @@ const DayPlanner = () => {
       }
     }
 
+    // If touchstart was blocked (e.g. imported events), ignore swipe gestures
+    if (swipedTaskId.current == null) return;
+
     // Swipe direction lock
     if (!swipeLocked.current) {
       const absDx = Math.abs(dx);
@@ -5537,6 +5540,14 @@ const DayPlanner = () => {
         });
       }
     };
+
+    // If touchstart was blocked (e.g. imported events), stale refs can cause false swipe actions — bail out
+    if (swipedTaskId.current == null || swipedTaskId.current !== taskId) {
+      if (el) { el.style.transform = ''; el.style.transition = ''; hideSwipeStrips(el); }
+      swipeCurrentOffset.current = 0;
+      swipedTaskId.current = null;
+      return;
+    }
 
     if (!el || swipeIsVertical.current || !swipeLocked.current) {
       // Reset
@@ -8788,7 +8799,7 @@ const DayPlanner = () => {
                                   }}
                                 >
                                   {/* Swipe action strips - hidden until swipe direction determined */}
-                                  {!(task.imported && !task.isTaskCalendar) && (
+                                  {!task.imported && (
                                     <>
                                       <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                         {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
