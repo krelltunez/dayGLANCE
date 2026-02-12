@@ -324,7 +324,7 @@ const NotesSubtasksPanel = ({
                 )}
                 <button
                   onClick={() => deleteSubtask(task.id, subtask.id, isInbox)}
-                  className="opacity-0 group-hover:opacity-100 hover:bg-white/20 rounded p-0.5 transition-opacity"
+                  className="md:opacity-0 md:group-hover:opacity-100 opacity-60 hover:bg-white/20 rounded p-0.5 transition-opacity"
                   title="Delete subtask"
                 >
                   <X size={12} />
@@ -9715,7 +9715,7 @@ const DayPlanner = () => {
                                     {chip.name}
                                     <button
                                       onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
-                                      className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                      className="absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
                                     >
                                       <X size={10} />
                                     </button>
@@ -14445,7 +14445,7 @@ const DayPlanner = () => {
                               {chip.name}
                               <button
                                 onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
-                                className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                className="absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
                                 title="Delete"
                               >
                                 <X size={10} />
@@ -14503,7 +14503,7 @@ const DayPlanner = () => {
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
-                                className={`absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
+                                className={`absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
                                 title="Remove from today"
                               >
                                 <Undo2 size={10} />
