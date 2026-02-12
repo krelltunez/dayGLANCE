@@ -9182,6 +9182,7 @@ const DayPlanner = () => {
                 {todayRoutines.length > 0 && (() => {
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                   const visibleRoutines = todayRoutines.filter(r => {
+                    if (String(r.id).startsWith('example-')) return false;
                     if (!r.startTime || r.isAllDay) return true;
                     return (timeToMinutes(r.startTime) + r.duration + 120) > nowMin;
                   });
