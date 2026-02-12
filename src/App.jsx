@@ -5775,6 +5775,13 @@ const DayPlanner = () => {
             return t;
           }));
         }
+      } else if (task.isRoutineDrag) {
+        // Routine chip: update time/all-day on todayRoutines
+        if (droppingToAllDay) {
+          setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: null, isAllDay: true } : r));
+        } else {
+          setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: newTime, isAllDay: false } : r));
+        }
       } else {
         // Regular task: update time and isAllDay status
         pushUndo();
@@ -8567,7 +8574,11 @@ const DayPlanner = () => {
                                 {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-')).map((routine) => (
                                   <div
                                     key={`routine-${routine.id}`}
-                                    className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                                    className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    style={{ touchAction: 'none' }}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday')}
+                                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'allday')}
                                   >
                                     {routine.name}
                                   </div>
@@ -8958,13 +8969,17 @@ const DayPlanner = () => {
                                 return (
                                   <div
                                     key={`routine-tl-${routine.id}`}
-                                    className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                                    className={`absolute pointer-events-auto select-none flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{
+                                      touchAction: 'none',
                                       top: `${rTop}px`,
                                       height: `${Math.max(rHeight, 27)}px`,
                                       left: `calc(${leftPercent} + 4px)`,
                                       width: `calc(${widthPercent} - 8px)`,
                                     }}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true }, 'timeline')}
+                                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'timeline')}
                                   >
                                     <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                     <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
