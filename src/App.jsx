@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
@@ -7105,13 +7105,11 @@ const DayPlanner = () => {
       return new Date();
     });
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (popoverRef.current && !showCalendar) {
         const rect = popoverRef.current.getBoundingClientRect();
         const viewportHeight = window.innerHeight;
-        if (rect.bottom > viewportHeight - 80) {
-          setOpenAbove(true);
-        }
+        setOpenAbove(rect.bottom > viewportHeight - 80);
       }
     }, [showCalendar]);
 
