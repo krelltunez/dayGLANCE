@@ -1136,7 +1136,7 @@ const DayPlanner = () => {
   const recycleBinRef = useRef(recycleBin);
   const recurringTasksRef = useRef(recurringTasks);
 
-  // Undo/redo toast notification
+  // Undo/redo toast notification — { message: string, actionable: boolean }
   const [undoToast, setUndoToast] = useState(null);
 
   // Settings & Reminders modals
@@ -1819,10 +1819,11 @@ const DayPlanner = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [expandedNotesTaskId]);
 
-  // Auto-dismiss undo/redo toast after 2 seconds
+  // Auto-dismiss undo/redo toast — 4s for actionable (with Undo button), 2s for passive
   useEffect(() => {
     if (!undoToast) return;
-    const timer = setTimeout(() => setUndoToast(null), 2000);
+    const delay = undoToast.actionable ? 4000 : 2000;
+    const timer = setTimeout(() => setUndoToast(null), delay);
     return () => clearTimeout(timer);
   }, [undoToast]);
 
@@ -3288,6 +3289,10 @@ const DayPlanner = () => {
       if (!onboardingProgress.hasCompletedTask) {
         setOnboardingProgress(prev => ({ ...prev, hasCompletedTask: true }));
       }
+      const wasCompleted = recurringTasks.find(t => t.id === templateId)?.completedDates?.includes(dateStr);
+      if (!wasCompleted) {
+        setUndoToast({ message: 'Task completed', actionable: true });
+      }
       return;
     }
 
@@ -3321,6 +3326,9 @@ const DayPlanner = () => {
       setTasks(tasks.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
       ));
+    }
+    if (taskToToggle && !taskToToggle.completed) {
+      setUndoToast({ message: 'Task completed', actionable: true });
     }
   };
 
@@ -3382,6 +3390,7 @@ const DayPlanner = () => {
     setTasks(tasks.filter(t => t.id !== id));
     setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
     playUISound('slide');
+    setUndoToast({ message: 'Moved to inbox', actionable: true });
 
     // Track for onboarding
     if (!onboardingProgress.hasUsedActionButtons) {
@@ -4378,6 +4387,7 @@ const DayPlanner = () => {
         setTasks(tasks.filter(t => t.id !== id));
       }
       playUISound('swoosh');
+      setUndoToast({ message: 'Task deleted', actionable: true });
 
       // Track for onboarding
       if (!onboardingProgress.hasUsedActionButtons) {
@@ -5047,7 +5057,7 @@ const DayPlanner = () => {
     setRecycleBin(snapshot.recycleBin);
     setRecurringTasks(snapshot.recurringTasks);
     playUISound('undo');
-    setUndoToast('Undone');
+    setUndoToast({ message: 'Undone', actionable: false });
   };
 
   const performRedo = () => {
@@ -5068,7 +5078,7 @@ const DayPlanner = () => {
     setRecycleBin(snapshot.recycleBin);
     setRecurringTasks(snapshot.recurringTasks);
     playUISound('undo');
-    setUndoToast('Redone');
+    setUndoToast({ message: 'Redone', actionable: false });
   };
 
   // Reminder snooze: push task start time forward 15 minutes
@@ -13543,9 +13553,17 @@ const DayPlanner = () => {
 
       {/* Undo/Redo Toast */}
       {undoToast && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
-          <div className={`px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white'}`}>
-            {undoToast}
+        <div className={`fixed left-1/2 -translate-x-1/2 z-50 ${undoToast.actionable ? 'pointer-events-auto' : 'pointer-events-none'}`} style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
+          <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white'}`}>
+            <span>{undoToast.message}</span>
+            {undoToast.actionable && (
+              <button
+                onClick={() => { performUndo(); }}
+                className="font-semibold text-blue-400 hover:text-blue-300 ml-1"
+              >
+                Undo
+              </button>
+            )}
           </div>
         </div>
       )}
