@@ -935,6 +935,7 @@ const DayPlanner = () => {
   const [showMonthView, setShowMonthView] = useState(false);
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
+  const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
   const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
@@ -10393,6 +10394,102 @@ const DayPlanner = () => {
             >
               <Plus size={28} />
             </button>
+          )}
+
+          {/* Recycle Bin FAB - Glance tab only, when bin has items */}
+          {mobileActiveTab === 'dayglance' && recycleBin.filter(t => !t.isExample).length > 0 && (
+            <button
+              onClick={() => setShowMobileRecycleBin(true)}
+              className={`fixed left-4 z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+              style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <div className="relative">
+                <Trash2 size={18} />
+                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                  {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
+                </span>
+              </div>
+            </button>
+          )}
+
+          {/* Mobile Recycle Bin Bottom Sheet */}
+          {showMobileRecycleBin && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileRecycleBin(false)}>
+              <div className="bg-black/30 absolute inset-0" />
+              <div
+                className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] flex flex-col`}
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Trash2 size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>Recycle Bin</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                      {recycleBin.filter(t => !t.isExample).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {recycleBin.filter(t => !t.isExample).length > 0 && (
+                      <button
+                        onClick={emptyRecycleBin}
+                        className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg active:bg-red-500/10"
+                      >
+                        Empty All
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowMobileRecycleBin(false)}
+                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                    >
+                      <X size={16} className={textSecondary} />
+                    </button>
+                  </div>
+                </div>
+                {/* Task list */}
+                <div className="overflow-y-auto px-4 pb-2 space-y-2">
+                  {recycleBin.filter(t => !t.isExample).length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center py-8`}>Recycle bin is empty</p>
+                  ) : (
+                    recycleBin.filter(t => !t.isExample).map(task => (
+                      <div
+                        key={`mobile-bin-${task.id}`}
+                        className={`${task.color} rounded-lg p-3 opacity-60`}
+                      >
+                        <div className="flex items-start justify-between text-white">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
+                            <div className="text-xs opacity-75 mt-1">
+                              {task._deletedFrom === 'inbox' ? (
+                                <>Inbox • {task.duration}min</>
+                              ) : task.startTime ? (
+                                <>{formatTime(task.startTime)} • {task.duration}min</>
+                              ) : (
+                                <>{task.duration}min</>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }}
+                              className="bg-white/20 rounded-lg p-1.5 active:bg-white/30 transition-colors"
+                              title="Restore"
+                            >
+                              <Undo2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Bottom Tab Bar */}
