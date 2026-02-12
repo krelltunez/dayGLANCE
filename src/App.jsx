@@ -4462,33 +4462,43 @@ const DayPlanner = () => {
     setShowSpotlight(false);
     const { task, source } = result;
 
-    if (source === 'scheduled') {
-      goToDate(task.date);
-    } else if (source === 'inbox') {
-      setSidebarCollapsed(false);
-      setMinimizedSections(prev => ({ ...prev, inbox: false }));
+    const scrollAndHighlight = (selector, delay = 300) => {
       setTimeout(() => {
-        const el = document.querySelector(`[data-task-id="${task.id}"]`);
+        const el = document.querySelector(selector);
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-blue-400');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
         }
-      }, 300);
+      }, delay);
+    };
+
+    if (source === 'scheduled') {
+      if (isMobile) {
+        setMobileActiveTab('timeline');
+      }
+      goToDate(task.date);
+      scrollAndHighlight(`[data-task-id="${task.id}"]`);
+    } else if (source === 'inbox') {
+      if (isMobile) {
+        setMobileActiveTab('inbox');
+      } else {
+        setSidebarCollapsed(false);
+        setMinimizedSections(prev => ({ ...prev, inbox: false }));
+      }
+      scrollAndHighlight(`[data-task-id="${task.id}"]`);
     } else if (source === 'recurring') {
       const date = task.startDate || dateToString(new Date());
+      if (isMobile) {
+        setMobileActiveTab('timeline');
+      }
       goToDate(date);
     } else if (source === 'deleted') {
-      setSidebarCollapsed(false);
-      setMinimizedSections(prev => ({ ...prev, recycleBin: false }));
-      setTimeout(() => {
-        const el = document.querySelector(`[data-task-id="bin-${task.id}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
-        }
-      }, 300);
+      if (!isMobile) {
+        setSidebarCollapsed(false);
+        setMinimizedSections(prev => ({ ...prev, recycleBin: false }));
+        scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
+      }
     }
   };
 
@@ -9125,6 +9135,13 @@ const DayPlanner = () => {
 
             {mobileActiveTab === 'dayglance' && (
               <div className="px-4 py-4" style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
+                <button
+                  onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 mb-4 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors`}
+                >
+                  <Search size={16} />
+                  <span className="text-sm">Search tasks...</span>
+                </button>
                 {todayAgenda.length === 0 ? (
                   <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
                 ) : (
@@ -14676,7 +14693,7 @@ const DayPlanner = () => {
 
       {/* Spotlight Search */}
       {showSpotlight && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center" style={{ paddingTop: '15vh' }} onClick={() => setShowSpotlight(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center" style={{ paddingTop: isMobile ? '2rem' : '15vh' }} onClick={() => setShowSpotlight(false)}>
           <div
             className={`${cardBg} rounded-lg shadow-xl border ${borderClass} max-w-xl w-full mx-4 h-fit`}
             onClick={(e) => e.stopPropagation()}
@@ -14710,7 +14727,7 @@ const DayPlanner = () => {
                   <X size={16} />
                 </button>
               )}
-              <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>
+              {!isMobile && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
             </div>
 
             {/* Results */}
@@ -14776,10 +14793,12 @@ const DayPlanner = () => {
             {/* Footer */}
             {spotlightResults.length > 0 && (
               <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
-                <div className="flex items-center gap-3">
-                  <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
-                  <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
-                </div>
+                {!isMobile ? (
+                  <div className="flex items-center gap-3">
+                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
+                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
+                  </div>
+                ) : <div />}
                 <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}{spotlightResults.length > 20 ? ` (showing 20)` : ''}</span>
               </div>
             )}
