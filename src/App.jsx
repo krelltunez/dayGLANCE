@@ -15653,7 +15653,7 @@ const DayPlanner = () => {
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Glance</h2>
                 <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
                   <li>Your <strong className={textPrimary}>smart agenda</strong> for today at a glance</li>
-                  <li>See <strong className={textPrimary}>upcoming</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>overdue</strong> tasks in real time</li>
+                  <li>See <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong> and <strong className={textPrimary}>upcoming</strong> tasks, as well as your <strong className={textPrimary}>daily routine</strong>, in real time</li>
                   <li>Tap <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> on an in-progress task to start a distraction-free deep work session with a Pomodoro timer</li>
                 </ul>
               </div>
