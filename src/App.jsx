@@ -8501,6 +8501,17 @@ const DayPlanner = () => {
                                               }}
                                               onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                               onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                              onTouchStart={(e) => {
+                                                e.stopPropagation();
+                                                if (isLinkOnlyTask(task)) {
+                                                  longPressTriggeredRef.current = false;
+                                                  longPressTimerRef.current = setTimeout(() => {
+                                                    longPressTriggeredRef.current = true;
+                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                  }, 500);
+                                                }
+                                              }}
+                                              onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (isLinkOnlyTask(task)) {
@@ -8570,6 +8581,17 @@ const DayPlanner = () => {
                                         }}
                                         onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                         onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                        onTouchStart={(e) => {
+                                          e.stopPropagation();
+                                          if (isLinkOnlyTask(task)) {
+                                            longPressTriggeredRef.current = false;
+                                            longPressTimerRef.current = setTimeout(() => {
+                                              longPressTriggeredRef.current = true;
+                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            }, 500);
+                                          }
+                                        }}
+                                        onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           if (isLinkOnlyTask(task)) {
@@ -8742,6 +8764,17 @@ const DayPlanner = () => {
                                     }}
                                     onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                     onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onTouchStart={(e) => {
+                                      e.stopPropagation();
+                                      if (isLinkOnlyTask(task)) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
+                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        }, 500);
+                                      }
+                                    }}
+                                    onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (isLinkOnlyTask(task)) {
@@ -9123,10 +9156,35 @@ const DayPlanner = () => {
                               <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
                               {hasNotesOrSubtasks(task) && (
                                 <button
+                                  onMouseDown={() => {
+                                    if (isLinkOnlyTask(task)) {
+                                      longPressTriggeredRef.current = false;
+                                      longPressTimerRef.current = setTimeout(() => {
+                                        longPressTriggeredRef.current = true;
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }, 500);
+                                    }
+                                  }}
+                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onTouchStart={(e) => {
+                                    e.stopPropagation();
+                                    if (isLinkOnlyTask(task)) {
+                                      longPressTriggeredRef.current = false;
+                                      longPressTimerRef.current = setTimeout(() => {
+                                        longPressTriggeredRef.current = true;
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }, 500);
+                                    }
+                                  }}
+                                  onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (isLinkOnlyTask(task)) {
-                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                      if (!longPressTriggeredRef.current) {
+                                        window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                      }
+                                      longPressTriggeredRef.current = false;
                                     } else {
                                       setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
                                     }
