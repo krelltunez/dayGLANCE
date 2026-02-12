@@ -31,9 +31,12 @@ const useDeviceType = () => {
   const compute = () => {
     if (typeof window === 'undefined') return { isPhone: false, isMobile: false, isTablet: false };
     const w = window.innerWidth;
-    const h = window.innerHeight;
-    const touchPrimary = window.matchMedia('(pointer: coarse) and (hover: none)').matches;
-    const isPhone = touchPrimary && Math.min(w, h) < 600;
+    const touchPrimary = window.matchMedia('(pointer: coarse) and (hover: none)').matches
+      || (navigator.maxTouchPoints > 0 && !window.matchMedia('(pointer: fine)').matches);
+    // Use screen dimensions for phone detection — Math.min gives the
+    // physical short side regardless of current orientation.
+    const shortSide = Math.min(screen.width, screen.height);
+    const isPhone = touchPrimary && shortSide < 600;
     const isMobile = isPhone || w < 768;
     const isTablet = !isPhone && touchPrimary && w >= 768 && w < 1200;
     return { isPhone, isMobile, isTablet };
