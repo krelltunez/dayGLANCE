@@ -8092,6 +8092,49 @@ const DayPlanner = () => {
     ].filter(t => !t.isExample);
   }, [tasks, unscheduledTasks, currentTime, expandedRecurringTasks]);
 
+  // Compute "now" marker position and inbox gap nudge for DayGlance agenda
+  const agendaNowMarker = useMemo(() => {
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const nowH = String(currentTime.getHours()).padStart(2, '0');
+    const nowM = String(currentTime.getMinutes()).padStart(2, '0');
+    const nowTimeStr = `${nowH}:${nowM}`;
+    // Only consider scheduled (timed) tasks, sorted by start time
+    const scheduled = todayAgenda.filter(t => t._agendaType === 'scheduled');
+    if (scheduled.length === 0) return { insertAfterIndex: -1, nowTimeStr, showNudge: false, inboxCount: 0 };
+    // Find where "now" falls among scheduled tasks
+    // insertAfterIndex: index in todayAgenda after which to insert the marker (-1 = before all)
+    let insertAfterIndex = -1;
+    for (let i = 0; i < todayAgenda.length; i++) {
+      const t = todayAgenda[i];
+      if (t._agendaType !== 'scheduled') continue;
+      const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+      const endMin = h * 60 + m + (t.duration || 0);
+      if (nowMin >= endMin) {
+        insertAfterIndex = i;
+      } else if (nowMin >= h * 60 + m) {
+        // Currently within this task — place marker before it (it shows "In Progress")
+        insertAfterIndex = i - 1;
+        break;
+      } else {
+        break;
+      }
+    }
+    // Calculate gap to next scheduled task
+    let gapMinutes = 0;
+    const nextScheduledIdx = todayAgenda.findIndex((t, i) => i > insertAfterIndex && t._agendaType === 'scheduled');
+    if (nextScheduledIdx !== -1) {
+      const next = todayAgenda[nextScheduledIdx];
+      const [nh, nm] = (next.startTime || '0:0').split(':').map(Number);
+      gapMinutes = (nh * 60 + nm) - nowMin;
+    } else {
+      // No more scheduled tasks — gap is rest of day (cap at a large number)
+      gapMinutes = 24 * 60 - nowMin;
+    }
+    const incompleteInbox = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+    const showNudge = gapMinutes >= 60 && incompleteInbox.length > 0;
+    return { insertAfterIndex, nowTimeStr, showNudge, inboxCount: incompleteInbox.length, gapMinutes };
+  }, [todayAgenda, currentTime, unscheduledTasks]);
+
   // Helper to get tasks for a specific date (must be after filterByTags)
   const getTasksForDate = (date) => {
     const dateStr = dateToString(date);
@@ -9087,7 +9130,27 @@ const DayPlanner = () => {
                   <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
                 ) : (
                   <div className="space-y-1.5">
-                    {todayAgenda.map(task => {
+                    {todayAgenda.flatMap((task, idx) => {
+                      const mobileItems = [];
+                      // Insert "Now" marker at the right position
+                      if (idx === agendaNowMarker.insertAfterIndex + 1 && todayAgenda.some(t => t._agendaType === 'scheduled')) {
+                        mobileItems.push(
+                          <div key="mobile-now-marker" className="flex items-center gap-2.5 py-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+                            <div className="flex-1 h-px bg-red-500/40" />
+                            <span className="text-xs font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
+                          </div>
+                        );
+                        // Inbox nudge when gap ≥ 60min
+                        if (agendaNowMarker.showNudge) {
+                          mobileItems.push(
+                            <div key="mobile-inbox-nudge" className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs ${darkMode ? 'bg-amber-900/20 text-amber-400/80' : 'bg-amber-50 text-amber-600'}`}>
+                              <Inbox size={13} className="flex-shrink-0" />
+                              <span>{agendaNowMarker.inboxCount} inbox task{agendaNowMarker.inboxCount !== 1 ? 's' : ''} — got a free hour?</span>
+                            </div>
+                          );
+                        }
+                      }
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                       let timeLabel = '';
@@ -9114,7 +9177,7 @@ const DayPlanner = () => {
                           relativeLabel = 'Overdue';
                         }
                       }
-                      return (
+                      mobileItems.push(
                         <div
                           key={`mobile-glance-${task._agendaType}-${task.id}`}
                           className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''}`}
@@ -9179,7 +9242,24 @@ const DayPlanner = () => {
                           </div>
                         </div>
                       );
+                      return mobileItems;
                     })}
+                    {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (
+                      <>
+                        <div key="mobile-now-marker-end" className="flex items-center gap-2.5 py-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+                          <div className="flex-1 h-px bg-red-500/40" />
+                          <span className="text-xs font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
+                        </div>
+                        {agendaNowMarker.showNudge && (
+                          <div className={`flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs ${darkMode ? 'bg-amber-900/20 text-amber-400/80' : 'bg-amber-50 text-amber-600'}`}>
+                            <Inbox size={13} className="flex-shrink-0" />
+                            <span>{agendaNowMarker.inboxCount} inbox task{agendaNowMarker.inboxCount !== 1 ? 's' : ''} — got a free hour?</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
                 {/* Routines row */}
@@ -11102,7 +11182,28 @@ const DayPlanner = () => {
                   <p className={`text-sm ${textSecondary} text-center`}>No tasks scheduled for today</p>
                 ) : (
                   <div className="space-y-1">
-                    {todayAgenda.map(task => {
+                    {todayAgenda.flatMap((task, idx) => {
+                      const items = [];
+                      // Insert "Now" marker at the right position
+                      if (idx === agendaNowMarker.insertAfterIndex + 1 && todayAgenda.some(t => t._agendaType === 'scheduled')) {
+                        items.push(
+                          <div key="now-marker" className="flex items-center gap-2 py-1">
+                            <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                            <div className="flex-1 h-px bg-red-500/40" />
+                            <span className="text-[10px] font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
+                          </div>
+                        );
+                        // Inbox nudge when gap ≥ 60min
+                        if (agendaNowMarker.showNudge) {
+                          items.push(
+                            <div key="inbox-nudge" className={`flex items-center gap-1.5 py-1 px-2 rounded-md text-[11px] ${darkMode ? 'bg-amber-900/20 text-amber-400/80' : 'bg-amber-50 text-amber-600'}`}>
+                              <Inbox size={11} className="flex-shrink-0" />
+                              <span>{agendaNowMarker.inboxCount} inbox task{agendaNowMarker.inboxCount !== 1 ? 's' : ''} — got a free hour?</span>
+                            </div>
+                          );
+                        }
+                      }
+                      return [...items, (() => {
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                       let timeLabel = '';
@@ -11208,7 +11309,24 @@ const DayPlanner = () => {
                           </div>
                         </div>
                       );
+                      })()];
                     })}
+                    {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (
+                      <>
+                        <div key="now-marker-end" className="flex items-center gap-2 py-1">
+                          <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                          <div className="flex-1 h-px bg-red-500/40" />
+                          <span className="text-[10px] font-medium text-red-500 flex-shrink-0">{formatTime(agendaNowMarker.nowTimeStr)}</span>
+                        </div>
+                        {agendaNowMarker.showNudge && (
+                          <div className={`flex items-center gap-1.5 py-1 px-2 rounded-md text-[11px] ${darkMode ? 'bg-amber-900/20 text-amber-400/80' : 'bg-amber-50 text-amber-600'}`}>
+                            <Inbox size={11} className="flex-shrink-0" />
+                            <span>{agendaNowMarker.inboxCount} inbox task{agendaNowMarker.inboxCount !== 1 ? 's' : ''} — got a free hour?</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )
               )}
