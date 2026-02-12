@@ -16309,7 +16309,7 @@ const DayPlanner = () => {
                 {/* Card 1: Past 7 Days */}
                 <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
                   <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Past 7 Days</h3>
-                  <p className={`text-xs ${textSecondary} mb-3`}>{formatRange(pastStartStr, pastEndStr)}</p>
+                  <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(pastStartStr, pastEndStr)}</p>
 
                   {pastScheduled === 0 ? (
                     <p className={`text-sm ${textSecondary} italic`}>No tasks were scheduled in the past 7 days</p>
@@ -16366,7 +16366,7 @@ const DayPlanner = () => {
                 {/* Card 2: Next 7 Days */}
                 <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
                   <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Next 7 Days</h3>
-                  <p className={`text-xs ${textSecondary} mb-3`}>{formatRange(nextStartStr, nextEndStr)}</p>
+                  <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(nextStartStr, nextEndStr)}</p>
 
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
