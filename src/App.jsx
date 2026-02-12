@@ -10484,9 +10484,34 @@ const DayPlanner = () => {
             </button>
           )}
 
-          {/* Glance tab FABs - Weekly Review (always) + Recycle Bin (when non-empty) */}
+          {/* Glance tab FABs - stacked on right: Daily Stats (bottom), Weekly Review (middle), Recycle Bin (top) */}
           {mobileActiveTab === 'dayglance' && (
             <>
+              {/* Daily summary ring FAB */}
+              {actualTodayNonImportedTasks.length > 0 && (() => {
+                const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                return (
+                  <button
+                    onClick={() => setShowMobileDailySummary(true)}
+                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
+                    style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                  >
+                    <div className="relative w-11 h-11">
+                      <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
+                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                          strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
+                        />
+                      </svg>
+                      <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
+                        <ChevronUp size={16} />
+                      </span>
+                    </div>
+                  </button>
+                );
+              })()}
+              {/* Weekly review FAB */}
               <button
                 onClick={() => {
                   if (showWeeklyReviewReminder) {
@@ -10496,49 +10521,26 @@ const DayPlanner = () => {
                   }
                   setShowWeeklyReview(true);
                 }}
-                className={`fixed left-4 z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
               >
-                <BarChart3 size={18} />
+                <BarChart3 size={22} />
               </button>
+              {/* Recycle bin FAB */}
               {recycleBin.filter(t => !t.isExample).length > 0 && (
                 <button
                   onClick={() => setShowMobileRecycleBin(true)}
-                  className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-                  style={{ left: 'calc(1rem + 2.75rem + 0.5rem)', bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                  style={{ bottom: 'calc(12.5rem + env(safe-area-inset-bottom, 0px))' }}
                 >
                   <div className="relative">
-                    <Trash2 size={18} />
-                    <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                    <Trash2 size={22} />
+                    <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
                       {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
                     </span>
                   </div>
                 </button>
               )}
-              {/* Daily summary ring FAB */}
-              {actualTodayNonImportedTasks.length > 0 && (() => {
-                const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
-                const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
-                return (
-                  <button
-                    onClick={() => setShowMobileDailySummary(true)}
-                    className={`fixed right-4 z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
-                    style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
-                  >
-                    <div className="relative w-9 h-9">
-                      <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
-                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
-                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
-                          strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
-                        />
-                      </svg>
-                      <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-bold ${textPrimary}`}>
-                        <ChevronUp size={14} />
-                      </span>
-                    </div>
-                  </button>
-                );
-              })()}
             </>
           )}
 
