@@ -980,11 +980,6 @@ const DayPlanner = () => {
   });
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
-  const prevMobileTabRef = useRef('dayglance');
-  const mobileTabOrder = { dayglance: 0, timeline: 1, inbox: 2, routines: 3, settings: 4 };
-  const mobileTabAnimClass = mobileTabOrder[mobileActiveTab] >= mobileTabOrder[prevMobileTabRef.current]
-    ? 'mobile-tab-enter-right' : 'mobile-tab-enter-left';
-  useEffect(() => { prevMobileTabRef.current = mobileActiveTab; }, [mobileActiveTab]);
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
   const [mobileEditingTask, setMobileEditingTask] = useState(null);
   const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
@@ -8488,7 +8483,7 @@ const DayPlanner = () => {
 
             {/* Mobile Tab Content */}
             {mobileActiveTab === 'timeline' && (
-              <div className={`px-0 ${mobileTabAnimClass}`}>
+              <div className="px-0">
                 {/* Reuse existing calendar grid for single day */}
                 <div
                   ref={calendarRef}
@@ -9199,7 +9194,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'dayglance' && (
-              <div className={`px-4 py-4 ${mobileTabAnimClass}`} style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
+              <div className={`px-4 py-4 mobile-tab-fade-in`} style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
                 <button
                   onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 mb-4 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors`}
@@ -9551,7 +9546,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'inbox' && (
-              <div className={`px-4 py-4 ${mobileTabAnimClass}`}>
+              <div className={`px-4 py-4 mobile-tab-fade-in`}>
                 <div className="space-y-2">
                   {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 px-6">
@@ -9761,7 +9756,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'routines' && (
-              <div className={`px-4 py-4 ${mobileTabAnimClass}`}>
+              <div className={`px-4 py-4 mobile-tab-fade-in`}>
                 {(() => {
                   const today = new Date();
                   const todayDayName = getDayName(today);
@@ -9901,7 +9896,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'settings' && (
-              <div className={`relative overflow-hidden ${mobileTabAnimClass}`}>
+              <div className={`relative overflow-hidden mobile-tab-fade-in`}>
                 {/* Main settings view */}
                 <div
                   className={`px-4 py-4 space-y-4 transition-transform duration-200 ${mobileSettingsView !== 'main' ? '-translate-x-full' : 'translate-x-0'}`}

@@ -70,18 +70,11 @@ body {
   color-scheme: dark;
 }
 
-/* Mobile tab switch animations */
-@keyframes mobile-tab-enter-right {
-  from { transform: translateX(40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+/* Mobile tab switch animation */
+@keyframes mobile-tab-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-@keyframes mobile-tab-enter-left {
-  from { transform: translateX(-40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-.mobile-tab-enter-right {
-  animation: mobile-tab-enter-right 180ms ease-out both;
-}
-.mobile-tab-enter-left {
-  animation: mobile-tab-enter-left 180ms ease-out both;
+.mobile-tab-fade-in {
+  animation: mobile-tab-fade-in 120ms ease-out;
 }
