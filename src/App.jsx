@@ -5416,8 +5416,8 @@ const DayPlanner = () => {
 
   // --- Mobile swipe + long-press drag handlers ---
   const handleMobileTaskTouchStart = (e, task, taskType) => {
-    // Skip swipe for imported calendar events (non-task-calendar)
-    if (task.imported && !task.isTaskCalendar) return;
+    // Skip swipe for all imported items (calendar events and task-calendar tasks are immovable)
+    if (task.imported) return;
     const touch = e.touches[0];
     swipeTouchStartX.current = touch.clientX;
     swipeTouchStartY.current = touch.clientY;
