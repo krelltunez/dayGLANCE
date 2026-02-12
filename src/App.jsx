@@ -9151,18 +9151,9 @@ const DayPlanner = () => {
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
                               {agendaNowMarker.inboxCount > 0 && (
-                                <div className="text-xs text-red-400 mt-0.5">Maybe tackle your inbox?</div>
+                                <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
                               )}
                             </div>
-                            {agendaNowMarker.inboxCount > 0 && (
-                              <button
-                                onClick={() => setMobileActiveTab('inbox')}
-                                className="flex-shrink-0 self-center p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
-                                title="Go to Inbox"
-                              >
-                                <Inbox size={18} />
-                              </button>
-                            )}
                           </div>
                         );
                       }
@@ -9266,18 +9257,9 @@ const DayPlanner = () => {
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
                           {agendaNowMarker.inboxCount > 0 && (
-                            <div className="text-xs text-red-400 mt-0.5">Maybe tackle your inbox?</div>
+                            <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
                           )}
                         </div>
-                        {agendaNowMarker.inboxCount > 0 && (
-                          <button
-                            onClick={() => setMobileActiveTab('inbox')}
-                            className="flex-shrink-0 self-center p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
-                            title="Go to Inbox"
-                          >
-                            <Inbox size={18} />
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -11215,7 +11197,7 @@ const DayPlanner = () => {
                             <div className="min-w-0 flex-1">
                               <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} until your next task</div>
                               {agendaNowMarker.inboxCount > 0 && (
-                                <div className="text-[10px] text-red-400 mt-0.5">Maybe tackle your inbox?</div>
+                                <div className="text-[10px] italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
                               )}
                             </div>
                           </div>
@@ -11336,7 +11318,7 @@ const DayPlanner = () => {
                         <div className="min-w-0 flex-1">
                           <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
                           {agendaNowMarker.inboxCount > 0 && (
-                            <div className="text-[10px] text-red-400 mt-0.5">Maybe tackle your inbox?</div>
+                            <div className="text-[10px] italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
                           )}
                         </div>
                       </div>
