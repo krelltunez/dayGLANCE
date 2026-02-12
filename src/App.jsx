@@ -10372,15 +10372,28 @@ const DayPlanner = () => {
                   setMobileActiveTab('timeline');
                   setMobileSettingsView('main');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? (getOverdueTasks().length > 0 ? 'text-red-500' : 'text-blue-500') : textSecondary}`}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? (todayAgenda.some(t => {
+                  if (t.completed || t._agendaType !== 'scheduled') return false;
+                  const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                  const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+                  return (h * 60 + m + (t.duration || 0)) <= nowMin;
+                }) ? 'text-red-500' : 'text-blue-500') : textSecondary}`}
               >
                 <div className="relative">
                   <Calendar size={20} />
-                  {getOverdueTasks().length > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-red-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
-                      {getOverdueTasks().length > 9 ? '9+' : getOverdueTasks().length}
-                    </span>
-                  )}
+                  {(() => {
+                    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                    const overdueCount = todayAgenda.filter(t => {
+                      if (t.completed || t._agendaType !== 'scheduled') return false;
+                      const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+                      return (h * 60 + m + (t.duration || 0)) <= nowMin;
+                    }).length;
+                    return overdueCount > 0 ? (
+                      <span className="absolute -top-1.5 -right-2.5 bg-red-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                        {overdueCount > 9 ? '9+' : overdueCount}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <span className="text-[10px] font-medium">Timeline</span>
               </button>
