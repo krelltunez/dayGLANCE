@@ -8575,7 +8575,7 @@ const DayPlanner = () => {
                                   <div
                                     key={`routine-${routine.id}`}
                                     className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
-                                    style={{ touchAction: 'none' }}
+                                    style={{ touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'allday')}
@@ -8972,6 +8972,8 @@ const DayPlanner = () => {
                                     className={`absolute pointer-events-auto select-none flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{
                                       touchAction: 'none',
+                                      WebkitTouchCallout: 'none',
+                                      WebkitUserSelect: 'none',
                                       top: `${rTop}px`,
                                       height: `${Math.max(rHeight, 27)}px`,
                                       left: `calc(${leftPercent} + 4px)`,
