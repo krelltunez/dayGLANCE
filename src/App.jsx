@@ -9298,9 +9298,11 @@ const DayPlanner = () => {
                                       setTasks(prev => prev.filter(t => t.id !== task.id));
                                       const { startTime, date, duration, _overdueType, ...rest } = task;
                                       setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      playUISound('slide');
                                       setUndoToast({ message: 'Moved to inbox', actionable: true });
                                     } else {
                                       clearDeadline(task.id);
+                                      playUISound('slide');
                                       setUndoToast({ message: 'Deadline cleared', actionable: true });
                                     }
                                   }}
@@ -11415,6 +11417,7 @@ const DayPlanner = () => {
                                   setTasks(tasks.filter(t => t.id !== task.id));
                                   const { startTime, date, _overdueType, ...taskWithoutSchedule } = task;
                                   setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+                                  playUISound('slide');
                                   setUndoToast({ message: 'Moved to inbox', actionable: true });
                                 }}
                                 className="hover:bg-white/20 rounded p-1"
@@ -11424,7 +11427,7 @@ const DayPlanner = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => { clearDeadline(task.id); setUndoToast({ message: 'Deadline cleared', actionable: true }); }}
+                                onClick={() => { clearDeadline(task.id); playUISound('slide'); setUndoToast({ message: 'Deadline cleared', actionable: true }); }}
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox (clear deadline)"
                               >
