@@ -9512,31 +9512,33 @@ const DayPlanner = () => {
                 })()}
 
                 {/* Daily stats row */}
-                {actualTodayNonImportedTasks.length > 0 && (
-                  <button
-                    onClick={() => setShowMobileDailySummary(true)}
-                    className={`w-full mt-3 pt-3 border-t ${borderClass} flex items-center justify-between`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="relative w-10 h-10">
-                        <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
+                {actualTodayNonImportedTasks.length > 0 && (() => {
+                  const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                  const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                  return (
+                    <button
+                      onClick={() => setShowMobileDailySummary(true)}
+                      className={`w-full mt-3 pt-3 border-t ${borderClass} flex items-center gap-3`}
+                    >
+                      <div className="relative w-9 h-9 flex-shrink-0">
+                        <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
                           <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-700' : 'stroke-gray-200'} />
-                          <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-blue-500"
-                            strokeDasharray={`${(actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 97.4} 97.4`}
+                          <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                            strokeDasharray={`${(pct / 100) * 97.4} 97.4`}
                           />
                         </svg>
                         <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                          {Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}%
+                          {pct}%
                         </span>
                       </div>
-                      <div className="text-left">
+                      <div className="text-left flex-1 min-w-0">
                         <div className={`text-sm font-semibold ${textPrimary}`}>{actualTodayCompletedTasks.length}/{actualTodayNonImportedTasks.length} tasks</div>
                         <div className={`text-xs ${textSecondary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m spent</div>
                       </div>
-                    </div>
-                    <ChevronRight size={16} className={textSecondary} />
-                  </button>
-                )}
+                      <ChevronRight size={16} className={`${textSecondary} flex-shrink-0`} />
+                    </button>
+                  );
+                })()}
 
                 {/* Mobile notes panel overlay for dayglance tasks */}
                 {expandedNotesTaskId && (() => {
@@ -10619,19 +10621,22 @@ const DayPlanner = () => {
                 <div className="px-4 pb-4">
                   {actualTodayNonImportedTasks.length === 0 ? (
                     <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
-                  ) : (
+                  ) : (() => {
+                    const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                    const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                    return (
                     <>
                       {/* Progress ring + headline */}
                       <div className="flex items-center gap-4 mb-4">
                         <div className="relative w-16 h-16 flex-shrink-0">
                           <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
                             <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-700' : 'stroke-gray-200'} />
-                            <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className="stroke-blue-500"
-                              strokeDasharray={`${(actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 97.4} 97.4`}
+                            <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                              strokeDasharray={`${(pct / 100) * 97.4} 97.4`}
                             />
                           </svg>
                           <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${textPrimary}`}>
-                            {Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}%
+                            {pct}%
                           </span>
                         </div>
                         <div>
@@ -10664,7 +10669,8 @@ const DayPlanner = () => {
                         )}
                       </div>
                     </>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
             </div>
