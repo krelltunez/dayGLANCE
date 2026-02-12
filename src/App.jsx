@@ -9251,17 +9251,21 @@ const DayPlanner = () => {
                       return mobileItems;
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (
-                      <div key="mobile-now-marker-end" className="flex gap-2.5 py-2.5">
-                        <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
-                          {agendaNowMarker.inboxCount > 0 && (
-                            <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                          )}
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (() => {
+                      const hr = currentTime.getHours();
+                      const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
+                      const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
+                      const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
+                      return (
+                        <div key="mobile-now-marker-end" className="flex gap-2.5 py-2.5">
+                          <div className={`w-1.5 rounded-full flex-shrink-0 ${barColor}`} />
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-sm font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                            <div className={`text-xs italic ${textColor} mt-0.5`}>{subtitle}</div>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
                 {/* Routines row */}
@@ -11312,17 +11316,21 @@ const DayPlanner = () => {
                       })()];
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (
-                      <div key="now-marker-end" className="flex gap-2 py-1.5">
-                        <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
-                          {agendaNowMarker.inboxCount > 0 && (
-                            <div className="text-[10px] italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                          )}
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (() => {
+                      const hr = currentTime.getHours();
+                      const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
+                      const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
+                      const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
+                      return (
+                        <div key="now-marker-end" className="flex gap-2 py-1.5">
+                          <div className={`w-1 rounded-full flex-shrink-0 ${barColor}`} />
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-xs font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                            <div className={`text-[10px] italic ${textColor} mt-0.5`}>{subtitle}</div>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )
               )}
