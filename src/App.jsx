@@ -2270,7 +2270,7 @@ const DayPlanner = () => {
       } else {
         // Load normally
         setTasks(parsedTasks);
-        setUnscheduledTasks(parsedUnscheduled);
+        setUnscheduledTasks(parsedUnscheduled.filter(t => !t.imported));
         if (recycleBinData) {
           setRecycleBin(JSON.parse(recycleBinData));
         }
@@ -3368,7 +3368,7 @@ const DayPlanner = () => {
     // Don't allow moving recurring instances to inbox
     if (typeof id === 'string' && id.startsWith('recurring-')) return;
     const task = tasks.find(t => t.id === id);
-    if (!task) return;
+    if (!task || task.imported) return;
 
     // Remove scheduling info and move to inbox
     const unscheduledTask = {
