@@ -8465,6 +8465,7 @@ const DayPlanner = () => {
                                   return (
                                     <div
                                       key={task.id}
+                                      data-task-id={task.id}
                                       className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={{ touchAction: 'none', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
@@ -8554,6 +8555,7 @@ const DayPlanner = () => {
                                 {deadlineTasks.map((task) => (
                                   <div
                                     key={`deadline-${task.id}`}
+                                    data-task-id={task.id}
                                     className={`${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{ touchAction: 'none' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
@@ -9147,7 +9149,18 @@ const DayPlanner = () => {
                       return (
                         <div
                           key={`mobile-glance-${task._agendaType}-${task.id}`}
-                          className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''}`}
+                          className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
+                          onClick={() => {
+                            setMobileActiveTab('timeline');
+                            setTimeout(() => {
+                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                el.classList.add('ring-2', 'ring-blue-400');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                              }
+                            }, 150);
+                          }}
                         >
                           <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
                           <div className="min-w-0 flex-1">
