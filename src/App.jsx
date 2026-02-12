@@ -9511,35 +9511,6 @@ const DayPlanner = () => {
                   );
                 })()}
 
-                {/* Daily stats row */}
-                {actualTodayNonImportedTasks.length > 0 && (() => {
-                  const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
-                  const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
-                  return (
-                    <button
-                      onClick={() => setShowMobileDailySummary(true)}
-                      className={`w-full mt-3 pt-3 border-t ${borderClass} flex items-center gap-3`}
-                    >
-                      <div className="relative w-9 h-9 flex-shrink-0">
-                        <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
-                          <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-700' : 'stroke-gray-200'} />
-                          <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
-                            strokeDasharray={`${(pct / 100) * 97.4} 97.4`}
-                          />
-                        </svg>
-                        <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                          {pct}%
-                        </span>
-                      </div>
-                      <div className="text-left flex-1 min-w-0">
-                        <div className={`text-sm font-semibold ${textPrimary}`}>{actualTodayCompletedTasks.length}/{actualTodayNonImportedTasks.length} tasks</div>
-                        <div className={`text-xs ${textSecondary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m spent</div>
-                      </div>
-                      <ChevronRight size={16} className={`${textSecondary} flex-shrink-0`} />
-                    </button>
-                  );
-                })()}
-
                 {/* Mobile notes panel overlay for dayglance tasks */}
                 {expandedNotesTaskId && (() => {
                   const agendaTask = todayAgenda.find(t => t.id === expandedNotesTaskId);
@@ -10531,6 +10502,30 @@ const DayPlanner = () => {
                   </div>
                 </button>
               )}
+              {/* Daily summary ring FAB */}
+              {actualTodayNonImportedTasks.length > 0 && (() => {
+                const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                return (
+                  <button
+                    onClick={() => setShowMobileDailySummary(true)}
+                    className={`fixed right-4 z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
+                    style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                  >
+                    <div className="relative w-9 h-9">
+                      <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
+                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
+                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                          strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
+                        />
+                      </svg>
+                      <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-bold ${textPrimary}`}>
+                        <ChevronUp size={14} />
+                      </span>
+                    </div>
+                  </button>
+                );
+              })()}
             </>
           )}
 
