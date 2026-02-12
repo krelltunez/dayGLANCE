@@ -10397,20 +10397,38 @@ const DayPlanner = () => {
             </button>
           )}
 
-          {/* Recycle Bin FAB - Glance tab only, when bin has items */}
-          {mobileActiveTab === 'dayglance' && recycleBin.filter(t => !t.isExample).length > 0 && (
-            <button
-              onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed left-4 z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-              style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
-            >
-              <div className="relative">
-                <Trash2 size={18} />
-                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
-                  {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
-                </span>
-              </div>
-            </button>
+          {/* Glance tab FABs - Weekly Review (always) + Recycle Bin (when non-empty) */}
+          {mobileActiveTab === 'dayglance' && (
+            <>
+              <button
+                onClick={() => {
+                  if (showWeeklyReviewReminder) {
+                    weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
+                    localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
+                    setShowWeeklyReviewReminder(false);
+                  }
+                  setShowWeeklyReview(true);
+                }}
+                className={`fixed left-4 z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+              >
+                <BarChart3 size={18} />
+              </button>
+              {recycleBin.filter(t => !t.isExample).length > 0 && (
+                <button
+                  onClick={() => setShowMobileRecycleBin(true)}
+                  className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                  style={{ left: 'calc(1rem + 2.75rem + 0.5rem)', bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                  <div className="relative">
+                    <Trash2 size={18} />
+                    <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                      {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
+                    </span>
+                  </div>
+                </button>
+              )}
+            </>
           )}
 
           {/* Mobile Recycle Bin Bottom Sheet */}
