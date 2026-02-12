@@ -10428,7 +10428,7 @@ const DayPlanner = () => {
 
       {/* Tablet header strip */}
       {isTablet && (
-        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '48px' }}>
+        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '48px' }}>
           <div className="flex items-center gap-2">
             <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
               <ChevronLeft size={20} className={textSecondary} />
@@ -10465,6 +10465,47 @@ const DayPlanner = () => {
               <Settings size={18} className={textSecondary} />
             </button>
           </div>
+          {/* Tablet month view popup */}
+          {showMonthView && (
+            <div className={`month-view-container absolute left-4 top-full mt-1 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+              <div className="flex items-center justify-between mb-3">
+                <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
+                  <ChevronLeft size={18} className={textSecondary} />
+                </button>
+                <div className={`font-bold ${textPrimary}`}>
+                  {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </div>
+                <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
+                  <ChevronRight size={18} className={textSecondary} />
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                  <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {getMonthDays().map((day, index) => {
+                  const isDayToday = day && day.toDateString() === new Date().toDateString();
+                  const isSelected = day && day.toDateString() === selectedDate.toDateString();
+                  const hasTasks = hasTasksOnDate(day);
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => day && goToDate(day)}
+                      disabled={!day}
+                      className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} active:bg-gray-100 dark:active:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
+                    >
+                      {day && day.getDate()}
+                      {hasTasks && (
+                        <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -11769,7 +11810,7 @@ const DayPlanner = () => {
             <div
               ref={calendarRef}
               className={`${cardBg} ${isTablet ? '' : 'rounded-lg shadow-sm'} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
-              style={{ height: isTablet ? '100%' : '1168px' }}
+              style={{ height: isTablet ? '100%' : '1168px', ...(isTablet ? { touchAction: 'manipulation' } : {}) }}
             >
               {/* Date headers row - sticky at top */}
               <div ref={stickyHeaderRef} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
@@ -13992,14 +14033,18 @@ const DayPlanner = () => {
 
       {/* New Task Modal */}
       {showAddTask && !isMobile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); }}>
           <form
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => {
               e.preventDefault();
-              const addToInbox = e.nativeEvent.submitter?.dataset.inbox === 'true' || newTask.openInInbox;
-              addTask(addToInbox);
+              if (mobileEditingTask) {
+                saveMobileEditTask();
+              } else {
+                const addToInbox = e.nativeEvent.submitter?.dataset.inbox === 'true' || newTask.openInInbox;
+                addTask(addToInbox);
+              }
               setShowNewTaskDeadlinePicker(false);
             }}
             onKeyDown={(e) => {
