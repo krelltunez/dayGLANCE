@@ -986,6 +986,7 @@ const DayPlanner = () => {
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
+  const [desktopWelcomeStep, setDesktopWelcomeStep] = useState(0);
   const [mobileEditingTask, setMobileEditingTask] = useState(null);
   const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
   const [mobileSettingsView, setMobileSettingsView] = useState('main');
@@ -16694,165 +16695,242 @@ const DayPlanner = () => {
         </div>
       )}
       {showWelcome && !isMobile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWelcome(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div
-            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-xl w-full mx-4`}
+            className={`${cardBg} rounded-xl shadow-xl ${borderClass} border max-w-lg w-full mx-4 flex flex-col`}
+            style={{ maxHeight: 'min(540px, 85vh)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex flex-col items-start mb-4">
-              <img
-                src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
-                alt="dayGLANCE"
-                className="h-20 mb-3"
-              />
-              <p className={`font-semibold ${textPrimary}`}>Welcome, let's get you started!</p>
+            {/* Progress dots */}
+            <div className="flex justify-center gap-2 pt-5 pb-3">
+              {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+                <button
+                  key={i}
+                  onClick={() => setDesktopWelcomeStep(i)}
+                  className={`w-2 h-2 rounded-full transition-colors ${i === desktopWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                />
+              ))}
             </div>
 
-            <div className={`space-y-4 ${textPrimary}`}>
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
-                  Adding Tasks
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <Calendar size={16} />
-                    </span>
-                    <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time slot (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>N</kbd>)</span>
+            {/* Carousel content */}
+            <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-y-auto">
+              {desktopWelcomeStep === 0 && (
+                <div className="text-center">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-24 mx-auto mb-6"
+                  />
+                  <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>Welcome to dayGLANCE</h1>
+                  <p className={`${textSecondary}`}>Your minimalist day planner</p>
+                  <p className={`${textSecondary} text-sm mt-4`}>Let's take a quick tour of the key features.</p>
+                </div>
+              )}
+              {desktopWelcomeStep === 1 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Plus size={32} className="text-blue-500" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <Inbox size={16} />
-                    </span>
-                    <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>I</kbd>)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <Sparkles size={16} />
-                    </span>
-                    <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling (click in sidebar)</span>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Adding Tasks</h2>
+                  <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Calendar size={16} />
+                      </span>
+                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time slot (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>N</kbd>)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Inbox size={16} />
+                      </span>
+                      <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>I</kbd>)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Sparkles size={16} />
+                      </span>
+                      <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
-                  Interacting with Tasks
-                </h3>
-                <ul className={`text-sm ${textSecondary} ml-12 space-y-1 list-disc`}>
-                  <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
-                  <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
-                  <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
-                  <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
-                  <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
-                  <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
-                  <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
-                  <li>Click on <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> in the dayGLANCE section (when available) to start a distraction-free deep work session featuring a Pomodoro timer</li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
-                  Spotlight Search
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
-                  <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Search size={16} />
-                  </span>
-                  <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
+              )}
+              {desktopWelcomeStep === 2 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <GripVertical size={32} className="text-blue-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Interacting with Tasks</h2>
+                  <ul className={`text-sm ${textSecondary} space-y-2 text-left list-none`}>
+                    <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
+                    <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
+                    <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
+                    <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
+                    <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
+                    <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
+                    <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
+                    <li>Use <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
+                  </ul>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
-                  Keyboard Shortcuts
-                </h3>
-                <p className={`text-sm ${textSecondary} ml-8`}>
-                  Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>?</kbd> at any time to see all available keyboard shortcuts.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
-                  Weekly Review
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
-                  <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <BarChart3 size={16} />
-                  </span>
-                  <span>Click <BarChart3 size={14} className="inline mx-0.5" /> in the sidebar to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+              )}
+              {desktopWelcomeStep === 3 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Search size={32} className="text-blue-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Spotlight Search & Weekly Review</h2>
+                  <div className={`text-sm ${textSecondary} space-y-4 text-left`}>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Search size={16} />
+                      </span>
+                      <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <BarChart3 size={16} />
+                      </span>
+                      <span>Click <BarChart3 size={14} className="inline mx-0.5" /> in the sidebar to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">6</span>
-                  Sync Your Calendars
-                </h3>
-                <p className={`text-sm ${textSecondary} ml-8`}>
-                  Click <Settings size={14} className="inline mx-1" /> in the top bar to open Settings, where you can configure calendar sync URLs for CalDAV calendars and reminders and import iCal files.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">7</span>
-                  App Settings
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Settings size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
+              )}
+              {desktopWelcomeStep === 4 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Zap size={32} className="text-amber-500" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
-                    </span>
-                    <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Keyboard Shortcuts</h2>
+                  <div className={`text-sm ${textSecondary} space-y-2`}>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>New scheduled task</span>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>N</kbd>
+                    </div>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>New inbox task</span>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>I</kbd>
+                    </div>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>Jump to today</span>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
+                    </div>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>Undo / Redo</span>
+                      <span className="flex gap-1">
+                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
+                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Shift+Z</kbd>
+                      </span>
+                    </div>
+                    <p className={`text-xs ${textSecondary} mt-3`}>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono`}>?</kbd> at any time to see all available shortcuts.</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Cloud size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Bell size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Save size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Backup & Restore</strong> — export or import your data as a JSON file</span>
-                  </div>
-                  <p className="text-xs opacity-75 mt-1">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
                 </div>
-              </div>
+              )}
+              {desktopWelcomeStep === 5 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <CalendarDays size={32} className="text-blue-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Sync Your Calendars</h2>
+                  <ul className={`text-sm ${textSecondary} text-left space-y-2 list-none`}>
+                    <li>Click <Settings size={14} className="inline mx-0.5" /> in the top bar to open <strong className={textPrimary}>Settings</strong></li>
+                    <li>Add <strong className={textPrimary}>CalDAV</strong> calendar URLs to sync events and reminders</li>
+                    <li>Import <strong className={textPrimary}>iCal (.ics)</strong> files to bring in existing events</li>
+                    <li>Calendar sync is <strong className={textPrimary}>one-way</strong> — events are imported into dayGLANCE for viewing but changes are not pushed back to the source calendar</li>
+                  </ul>
+                </div>
+              )}
+              {desktopWelcomeStep === 6 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Settings size={32} className={textSecondary} />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>App Settings</h2>
+                  <div className={`text-sm ${textSecondary} space-y-2 text-left`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Settings size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
+                      </span>
+                      <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Cloud size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Bell size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Save size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Backup & Restore</strong> — export or import as JSON</span>
+                    </div>
+                    <p className="text-xs opacity-75 mt-2">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
+                  </div>
+                </div>
+              )}
+              {desktopWelcomeStep === 7 && (
+                <div className="text-center">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-20 mx-auto mb-6"
+                  />
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>You're All Set!</h2>
+                  <div className="space-y-3 w-full max-w-xs mx-auto">
+                    <button
+                      onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); }}
+                      className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors"
+                    >
+                      Just Get Started
+                    </button>
+                    <button
+                      onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); setShowSettings(true); }}
+                      className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                    >
+                      <Cloud size={18} /> Set Up Cloud Sync
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="mt-6 flex justify-center gap-3">
+            {/* Navigation */}
+            <div className="flex items-center justify-between px-6 py-4">
               <button
-                onClick={() => setShowWelcome(false)}
-                className={`px-6 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg font-medium transition-colors`}
+                onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); }}
+                className={`text-sm ${textSecondary} px-3 py-2 hover:${textPrimary} transition-colors`}
               >
-                Just Get Started
+                Skip
               </button>
-              <button
-                onClick={() => { setShowWelcome(false); setShowSettings(true); }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 transition-colors"
-              >
-                <Cloud size={18} /> Set Up Cloud Sync
-              </button>
+              <div className="flex gap-3">
+                {desktopWelcomeStep > 0 && (
+                  <button
+                    onClick={() => setDesktopWelcomeStep(s => s - 1)}
+                    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+                  >
+                    <ChevronLeft size={20} className={textSecondary} />
+                  </button>
+                )}
+                {desktopWelcomeStep < 7 && (
+                  <button
+                    onClick={() => setDesktopWelcomeStep(s => s + 1)}
+                    className="p-2 rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
+                  >
+                    <ChevronRight size={20} className="text-white" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
