@@ -11411,9 +11411,11 @@ const DayPlanner = () => {
                             {task._overdueType === 'scheduled' ? (
                               <button
                                 onClick={() => {
+                                  pushUndo();
                                   setTasks(tasks.filter(t => t.id !== task.id));
                                   const { startTime, date, _overdueType, ...taskWithoutSchedule } = task;
                                   setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+                                  setUndoToast({ message: 'Moved to inbox', actionable: true });
                                 }}
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox"
@@ -11422,7 +11424,7 @@ const DayPlanner = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => clearDeadline(task.id)}
+                                onClick={() => { clearDeadline(task.id); setUndoToast({ message: 'Deadline cleared', actionable: true }); }}
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox (clear deadline)"
                               >
