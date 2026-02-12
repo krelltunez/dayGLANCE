@@ -4453,6 +4453,7 @@ const DayPlanner = () => {
     pushUndo();
     setRecycleBin([]);
     setShowEmptyBinConfirm(false);
+    setShowMobileRecycleBin(false);
     playUISound('crumple');
   };
 
@@ -13147,7 +13148,7 @@ const DayPlanner = () => {
       )}
 
       {showEmptyBinConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmptyBinConfirm(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}>
           <div
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
@@ -13163,7 +13164,7 @@ const DayPlanner = () => {
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setShowEmptyBinConfirm(false)}
+                onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}
                 className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
               >
                 Cancel
