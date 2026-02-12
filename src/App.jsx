@@ -5734,6 +5734,23 @@ const DayPlanner = () => {
       const newTime = droppingToAllDay ? '00:00' : mobileDragPreviewTime;
       const fromAllDay = mobileDragSourceType.current === 'allday';
 
+      // Check for conflicts with imported calendar events and routines (same as desktop)
+      let finalTime = newTime;
+      let conflicted = false;
+      let conflictingEvent = null;
+      if (!droppingToAllDay && !task.isRoutineDrag) {
+        const dropDateStr = dateToString(selectedDate);
+        const result = getAdjustedTimeForImportedConflicts(
+          task.id,
+          newTime,
+          task.duration || 30,
+          dropDateStr
+        );
+        finalTime = result.adjustedStartTime;
+        conflicted = result.conflicted;
+        conflictingEvent = result.conflictingEvent;
+      }
+
       // If dragging from all-day back to all-day, no change needed
       if (fromAllDay && droppingToAllDay) {
         // no-op
@@ -5744,7 +5761,7 @@ const DayPlanner = () => {
         setTasks(prev => [...prev, {
           id: task.id,
           title: task.title,
-          startTime: droppingToAllDay ? '00:00' : newTime,
+          startTime: droppingToAllDay ? '00:00' : finalTime,
           duration: task.duration || 30,
           date: dateToString(selectedDate),
           isAllDay: droppingToAllDay,
@@ -5765,7 +5782,7 @@ const DayPlanner = () => {
                   ...t.exceptions,
                   [parsed.dateStr]: {
                     ...(t.exceptions?.[parsed.dateStr] || {}),
-                    startTime: newTime,
+                    startTime: finalTime,
                     isAllDay: droppingToAllDay,
                     duration: task.duration,
                   }
@@ -5787,9 +5804,18 @@ const DayPlanner = () => {
         pushUndo();
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
-          startTime: newTime,
+          startTime: finalTime,
           isAllDay: droppingToAllDay,
         } : t));
+      }
+      // Show notification if task was rescheduled to avoid calendar conflict
+      if (conflicted && conflictingEvent) {
+        playUISound('error');
+        setSyncNotification({
+          type: 'info',
+          title: 'Task Rescheduled',
+          message: `Task moved to ${finalTime} to avoid conflict with "${conflictingEvent.title}"`
+        });
       }
       if (!(fromAllDay && droppingToAllDay)) {
         playUISound(droppingToAllDay ? 'drop' : 'slide');
