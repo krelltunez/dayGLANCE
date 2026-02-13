@@ -15868,7 +15868,7 @@ const DayPlanner = () => {
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
                   onKeyDown={handleNewTaskInputKeyDown}
-                  autoFocus
+                  autoFocus={!(isTablet && mobileEditingTask)}
                   className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                 />
                 {showSuggestions && suggestionContext === 'newTask' && (
