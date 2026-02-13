@@ -9559,19 +9559,9 @@ const DayPlanner = () => {
                               )}
                               {relativeLabel === 'Overdue' && !task.completed && (
                                 <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleComplete(task.id, false);
-                                    }}
-                                    className={`flex-shrink-0 rounded p-1.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                    title="Mark complete"
-                                  >
-                                    <CheckCircle size={14} />
-                                  </button>
                                   {task.isRecurring ? (
                                     <span
-                                      className="flex-shrink-0 p-1.5 text-orange-500"
+                                      className="flex-shrink-0 p-0.5 text-orange-500"
                                       title="Recurring tasks can't be moved to Inbox"
                                     >
                                       <Ban size={14} />
@@ -9584,12 +9574,22 @@ const DayPlanner = () => {
                                         const { startTime, date, _agendaType, ...rest } = task;
                                         setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
                                       }}
-                                      className={`flex-shrink-0 rounded p-1.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                      className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
                                       title="Move to Inbox"
                                     >
                                       <Inbox size={14} />
                                     </button>
                                   )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleComplete(task.id, false);
+                                    }}
+                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    title="Mark complete"
+                                  >
+                                    <CheckCircle size={14} />
+                                  </button>
                                 </>
                               )}
                             </div>
@@ -12072,16 +12072,6 @@ const DayPlanner = () => {
                               )}
                               {relativeLabel === 'Overdue' && !task.completed && (
                                 <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleComplete(task.id, false);
-                                    }}
-                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                    title="Mark complete"
-                                  >
-                                    <CheckCircle size={12} />
-                                  </button>
                                   {task.isRecurring ? (
                                     <span
                                       className="flex-shrink-0 p-0.5 text-orange-500"
@@ -12103,6 +12093,16 @@ const DayPlanner = () => {
                                       <Inbox size={12} />
                                     </button>
                                   )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleComplete(task.id, false);
+                                    }}
+                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    title="Mark complete"
+                                  >
+                                    <CheckCircle size={12} />
+                                  </button>
                                 </>
                               )}
                             </div>
