@@ -11342,7 +11342,7 @@ const DayPlanner = () => {
                 }
               }}
               disabled={isSyncing}
-              className={`relative p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10 ${isSyncing ? 'opacity-70' : ''}`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg active:bg-black/10 dark:active:bg-white/10 ${isSyncing ? 'opacity-70' : ''}`}
               title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
             >
               <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
@@ -11363,7 +11363,7 @@ const DayPlanner = () => {
                   setShowSettings(true);
                 }
               }}
-              className={`relative p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg active:bg-black/10 dark:active:bg-white/10`}
               title={cloudSyncConfig?.enabled
                 ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
                 : 'Set up cloud sync'}
@@ -11379,14 +11379,14 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={() => setShowSettings(true)}
-              className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg active:bg-black/10 dark:active:bg-white/10`}
               title="Settings"
             >
               <Settings size={18} className={textSecondary} />
             </button>
             <button
               onClick={() => setShowRemindersSettings(true)}
-              className={`relative p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg active:bg-black/10 dark:active:bg-white/10`}
               title="Reminders"
             >
               <Bell size={18} className={textSecondary} />
@@ -11396,14 +11396,14 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg active:bg-black/10 dark:active:bg-white/10`}
               title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
               {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
             </button>
             <button
               onClick={() => setShowBackupMenu(true)}
-              className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg active:bg-black/10 dark:active:bg-white/10`}
               title="Backup or restore data"
             >
               <Save size={18} className={textSecondary} />
