@@ -15241,6 +15241,24 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Tablet: Refocus timeline toast */}
+      {isTablet && tabletTimelineScrolledAway && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: '1.5rem' }}>
+          <button
+            onClick={() => {
+              const currentHour = new Date().getHours();
+              const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+              const scrollPosition = Math.max(0, (currentHour - 2) * hourHeight);
+              if (calendarRef.current) calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium ${darkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'} active:bg-blue-700 transition-opacity`}
+          >
+            <Clock size={14} />
+            <span>Refocus timeline</span>
+          </button>
+        </div>
+      )}
+
       {/* Weekly Review Reminder Toast */}
       {showWeeklyReviewReminder && !showWeeklyReview && (
         <div className="fixed bottom-6 right-6 z-50 w-64">
