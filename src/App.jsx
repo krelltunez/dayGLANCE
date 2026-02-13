@@ -11759,32 +11759,6 @@ const DayPlanner = () => {
                                   <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
                                     {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                                     <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
-                                    {relativeLabel === 'Overdue' && !task.completed && !task.isRecurring && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          pushUndo();
-                                          setTasks(prev => prev.filter(t => t.id !== task.id));
-                                          const { startTime, date, _agendaType, ...rest } = task;
-                                          setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                          playUISound('slide');
-                                          setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                        }}
-                                        className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 active:bg-white/20`}
-                                        title="Move to Inbox"
-                                      >
-                                        <Inbox size={14} />
-                                      </button>
-                                    )}
-                                    {relativeLabel === 'Overdue' && !task.completed && (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                        className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 active:bg-white/20`}
-                                        title="Mark complete"
-                                      >
-                                        <CheckCircle size={14} />
-                                      </button>
-                                    )}
                                   </div>
                                   <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                                     {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
@@ -11799,6 +11773,34 @@ const DayPlanner = () => {
                                     )}
                                   </div>
                                 </div>
+                                {relativeLabel === 'Overdue' && !task.completed && (
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    {!task.isRecurring && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          pushUndo();
+                                          setTasks(prev => prev.filter(t => t.id !== task.id));
+                                          const { startTime, date, _agendaType, ...rest } = task;
+                                          setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                          playUISound('slide');
+                                          setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                        }}
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                        title="Move to Inbox"
+                                      >
+                                        <Inbox size={14} />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                      title="Mark complete"
+                                    >
+                                      <CheckCircle size={14} />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             );
                             return items;
