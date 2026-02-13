@@ -16497,7 +16497,7 @@ const DayPlanner = () => {
                   <X size={16} />
                 </button>
               )}
-              {!isMobile && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
+              {!isMobile && !isTablet && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
             </div>
 
             {/* Results */}
