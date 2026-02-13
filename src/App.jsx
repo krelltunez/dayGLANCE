@@ -11416,7 +11416,7 @@ const DayPlanner = () => {
           </div>
           {/* Tablet month view popup */}
           {showMonthView && (
-            <div className={`month-view-container absolute left-4 top-full mt-1 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+            <div className={`month-view-container absolute left-1/2 -translate-x-1/2 top-full mt-1 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
               <div className="flex items-center justify-between mb-3">
                 <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
                   <ChevronLeft size={18} className={textSecondary} />
