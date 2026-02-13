@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -9435,34 +9435,48 @@ const DayPlanner = () => {
                     </div>
                   );
                 })()}
-                {(() => { const filteredAgenda = filterByTags(todayAgenda); return filteredAgenda.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-6">
-                    <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-blue-500/15' : 'bg-blue-50'} flex items-center justify-center mb-4`}>
-                      <Calendar size={28} className={`${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
-                      <Sparkles size={14} className={`absolute -top-1 -right-1 ${darkMode ? 'text-yellow-400' : 'text-yellow-500'}`} />
-                    </div>
-                    <p className={`text-base font-semibold ${textPrimary} mb-1`}>Your day is clear</p>
-                    <p className={`text-sm ${textSecondary} text-center mb-5`}>No tasks scheduled for today</p>
-                    <div className="flex gap-2.5">
-                      <button
-                        onClick={openNewTaskForm}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500 text-white active:bg-blue-600' : 'bg-blue-500 text-white active:bg-blue-600'} transition-colors`}
-                      >
-                        <Plus size={16} />
-                        Add task
-                      </button>
-                      <button
-                        onClick={() => setMobileActiveTab('inbox')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-white/10 text-gray-300 active:bg-white/15' : 'bg-gray-100 text-gray-600 active:bg-gray-200'} transition-colors`}
-                      >
-                        <Inbox size={16} />
-                        Inbox
-                      </button>
-                    </div>
-                  </div>
-                ) : (
+                {(() => { const filteredAgenda = filterByTags(todayAgenda); return (
                   <div className="space-y-1.5">
-                    {filteredAgenda.map(task => {
+                    {filteredAgenda.flatMap((task, idx) => {
+                      const mobileItems = [];
+                      // Insert "Now" marker at the right position
+                      if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
+                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                        const gapM = agendaNowMarker.gapMinutes % 60;
+                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                        mobileItems.push(
+                          <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
+                            <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                              {agendaNowMarker.inboxCount > 0 && (
+                                <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      } else if (idx > 0) {
+                        // Check if we should insert marker before this task (by comparing with todayAgenda positions)
+                        const prevTask = filteredAgenda[idx - 1];
+                        const prevIdxInFull = todayAgenda.indexOf(prevTask);
+                        const curIdxInFull = todayAgenda.indexOf(task);
+                        if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                          const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                          const gapM = agendaNowMarker.gapMinutes % 60;
+                          const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                          mobileItems.push(
+                            <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
+                              <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                {agendaNowMarker.inboxCount > 0 && (
+                                  <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                      }
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                       let timeLabel = '';
@@ -9592,6 +9606,22 @@ const DayPlanner = () => {
                       );
                       return mobileItems;
                     })}
+                    {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
+                      const hr = currentTime.getHours();
+                      const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
+                      const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
+                      const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
+                      return (
+                        <div key="mobile-now-marker-end" className="flex gap-2.5 py-2.5">
+                          <div className={`w-1.5 rounded-full flex-shrink-0 ${barColor}`} />
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-sm font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                            <div className={`text-xs italic ${textColor} mt-0.5`}>{subtitle}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ); })()}
                 {/* Routines row */}
