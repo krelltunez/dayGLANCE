@@ -8103,29 +8103,34 @@ const DayPlanner = () => {
     const nowTimeStr = `${nowH}:${nowM}`;
     // Only consider scheduled (timed) tasks, sorted by start time
     const scheduled = todayAgenda.filter(t => t._agendaType === 'scheduled');
-    if (scheduled.length === 0) return { insertAfterIndex: -1, nowTimeStr, showNudge: false, inboxCount: 0 };
     // Find where "now" falls among scheduled tasks
     // insertAfterIndex: index in todayAgenda after which to insert the marker (-1 = before all)
     let insertAfterIndex = -1;
-    for (let i = 0; i < todayAgenda.length; i++) {
-      const t = todayAgenda[i];
-      if (t._agendaType !== 'scheduled') continue;
-      const [h, m] = (t.startTime || '0:0').split(':').map(Number);
-      const endMin = h * 60 + m + (t.duration || 0);
-      if (nowMin >= endMin) {
-        insertAfterIndex = i;
-      } else if (nowMin >= h * 60 + m) {
-        // Currently within this task — place marker before it (it shows "In Progress")
-        insertAfterIndex = i - 1;
-        break;
-      } else {
-        break;
+    if (scheduled.length > 0) {
+      for (let i = 0; i < todayAgenda.length; i++) {
+        const t = todayAgenda[i];
+        if (t._agendaType !== 'scheduled') continue;
+        const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+        const endMin = h * 60 + m + (t.duration || 0);
+        if (nowMin >= endMin) {
+          insertAfterIndex = i;
+        } else if (nowMin >= h * 60 + m) {
+          // Currently within this task — place marker before it (it shows "In Progress")
+          insertAfterIndex = i - 1;
+          break;
+        } else {
+          break;
+        }
       }
     }
     // Ensure the now-marker never appears above all-day or deadline tasks
     const lastNonScheduledIdx = todayAgenda.reduce((acc, t, i) => t._agendaType !== 'scheduled' ? i : acc, -1);
     if (insertAfterIndex < lastNonScheduledIdx) {
       insertAfterIndex = lastNonScheduledIdx;
+    }
+    // If no scheduled tasks, place marker after all items
+    if (scheduled.length === 0) {
+      insertAfterIndex = todayAgenda.length - 1;
     }
     // Calculate gap to next scheduled task
     let gapMinutes = 0;
@@ -9134,14 +9139,11 @@ const DayPlanner = () => {
 
             {mobileActiveTab === 'dayglance' && (
               <div className="px-4 py-4" style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
-                {todayAgenda.length === 0 ? (
-                  <p className={`text-sm ${textSecondary} text-center py-8`}>No tasks scheduled for today</p>
-                ) : (
-                  <div className="space-y-1.5">
+                <div className="space-y-1.5">
                     {todayAgenda.flatMap((task, idx) => {
                       const mobileItems = [];
                       // Insert "Now" marker at the right position
-                      if (idx === agendaNowMarker.insertAfterIndex + 1 && todayAgenda.some(t => t._agendaType === 'scheduled')) {
+                      if (idx === agendaNowMarker.insertAfterIndex + 1) {
                         const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                         const gapM = agendaNowMarker.gapMinutes % 60;
                         const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -9251,7 +9253,7 @@ const DayPlanner = () => {
                       return mobileItems;
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (() => {
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
                       const hr = currentTime.getHours();
                       const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
                       const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
@@ -9266,8 +9268,7 @@ const DayPlanner = () => {
                         </div>
                       );
                     })()}
-                  </div>
-                )}
+                </div>
                 {/* Routines row */}
                 {todayRoutines.length > 0 && (() => {
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
@@ -11184,14 +11185,11 @@ const DayPlanner = () => {
               )}
 
               {!minimizedSections.dayglance && (
-                todayAgenda.length === 0 ? (
-                  <p className={`text-sm ${textSecondary} text-center`}>No tasks scheduled for today</p>
-                ) : (
                   <div className="space-y-1">
                     {todayAgenda.flatMap((task, idx) => {
                       const items = [];
                       // Insert "Now" marker at the right position
-                      if (idx === agendaNowMarker.insertAfterIndex + 1 && todayAgenda.some(t => t._agendaType === 'scheduled')) {
+                      if (idx === agendaNowMarker.insertAfterIndex + 1) {
                         const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                         const gapM = agendaNowMarker.gapMinutes % 60;
                         const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -11316,7 +11314,7 @@ const DayPlanner = () => {
                       })()];
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && todayAgenda.some(t => t._agendaType === 'scheduled') && (() => {
+                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
                       const hr = currentTime.getHours();
                       const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
                       const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
@@ -11332,7 +11330,6 @@ const DayPlanner = () => {
                       );
                     })()}
                   </div>
-                )
               )}
               {/* Routines row */}
               {!minimizedSections.dayglance && todayRoutines.length > 0 && (() => {
