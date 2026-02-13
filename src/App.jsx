@@ -14979,7 +14979,7 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {/* Glance panel FABs: daily summary, weekly review, recycle bin — stacked bottom-right of the side panel */}
+          {/* Glance panel FABs: daily summary, weekly review, recycle bin — stacked bottom-right of the side panel, aligned with filter button (320px panel - 16px padding - 44px FAB width = 260px) */}
           {/* Daily summary ring FAB */}
           {actualTodayNonImportedTasks.length > 0 && (() => {
             const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
@@ -14988,17 +14988,17 @@ const DayPlanner = () => {
               <button
                 onClick={() => setShowMobileDailySummary(true)}
                 className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
-                style={{ left: '272px', bottom: recycleBin.filter(t => !t.isExample).length > 0 ? '8.5rem' : '5rem' }}
+                style={{ left: '260px', bottom: recycleBin.filter(t => !t.isExample).length > 0 ? '8.5rem' : '5rem' }}
               >
-                <div className="relative w-8 h-8">
-                  <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
+                <div className="relative w-9 h-9">
+                  <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
                     <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
                     <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
                       strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
                     />
                   </svg>
                   <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                    {pct}%
+                    <ChevronUp size={14} />
                   </span>
                 </div>
               </button>
@@ -15015,7 +15015,7 @@ const DayPlanner = () => {
               setShowWeeklyReview(true);
             }}
             className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-            style={{ left: '272px', bottom: '1.5rem' }}
+            style={{ left: '260px', bottom: '1.5rem' }}
           >
             <BarChart3 size={18} />
           </button>
@@ -15024,7 +15024,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowMobileRecycleBin(true)}
               className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-              style={{ left: '272px', bottom: '5rem' }}
+              style={{ left: '260px', bottom: '5rem' }}
             >
               <div className="relative">
                 <Trash2 size={18} />
