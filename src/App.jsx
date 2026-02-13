@@ -16438,7 +16438,7 @@ const DayPlanner = () => {
                   <X size={16} />
                 </button>
               )}
-              {!isMobile && !isTablet && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
+              {!isMobile && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
             </div>
 
             {/* Results */}
@@ -16504,7 +16504,7 @@ const DayPlanner = () => {
             {/* Footer */}
             {spotlightResults.length > 0 && (
               <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
-                {!isMobile && !isTablet ? (
+                {!isMobile ? (
                   <div className="flex items-center gap-3">
                     <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
                     <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
