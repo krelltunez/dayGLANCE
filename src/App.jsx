@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -9557,28 +9557,40 @@ const DayPlanner = () => {
                                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 </button>
                               )}
-                              {relativeLabel === 'Overdue' && (
-                                task.isRecurring ? (
-                                  <span
-                                    className="flex-shrink-0 p-1.5 text-orange-500"
-                                    title="Recurring tasks can't be moved to Inbox"
-                                  >
-                                    <Ban size={14} />
-                                  </span>
-                                ) : (
+                              {relativeLabel === 'Overdue' && !task.completed && (
+                                <>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setTasks(prev => prev.filter(t => t.id !== task.id));
-                                      const { startTime, date, _agendaType, ...rest } = task;
-                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      toggleComplete(task.id, false);
                                     }}
-                                    className={`flex-shrink-0 rounded p-1.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                    title="Move to Inbox"
+                                    className={`flex-shrink-0 rounded p-1.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    title="Mark complete"
                                   >
-                                    <Inbox size={14} />
+                                    <CheckCircle size={14} />
                                   </button>
-                                )
+                                  {task.isRecurring ? (
+                                    <span
+                                      className="flex-shrink-0 p-1.5 text-orange-500"
+                                      title="Recurring tasks can't be moved to Inbox"
+                                    >
+                                      <Ban size={14} />
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTasks(prev => prev.filter(t => t.id !== task.id));
+                                        const { startTime, date, _agendaType, ...rest } = task;
+                                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      }}
+                                      className={`flex-shrink-0 rounded p-1.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                      title="Move to Inbox"
+                                    >
+                                      <Inbox size={14} />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
@@ -12058,28 +12070,40 @@ const DayPlanner = () => {
                                   {isLinkOnlyTask(task) ? <ExternalLink size={12} /> : hasOnlySubtasks(task) ? <CheckSquare size={12} /> : <FileText size={12} />}
                                 </button>
                               )}
-                              {relativeLabel === 'Overdue' && (
-                                task.isRecurring ? (
-                                  <span
-                                    className="flex-shrink-0 p-0.5 text-orange-500"
-                                    title="Recurring tasks can't be moved to Inbox"
-                                  >
-                                    <Ban size={12} />
-                                  </span>
-                                ) : (
+                              {relativeLabel === 'Overdue' && !task.completed && (
+                                <>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setTasks(prev => prev.filter(t => t.id !== task.id));
-                                      const { startTime, date, _agendaType, ...rest } = task;
-                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      toggleComplete(task.id, false);
                                     }}
-                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                    title="Move to Inbox"
+                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                    title="Mark complete"
                                   >
-                                    <Inbox size={12} />
+                                    <CheckCircle size={12} />
                                   </button>
-                                )
+                                  {task.isRecurring ? (
+                                    <span
+                                      className="flex-shrink-0 p-0.5 text-orange-500"
+                                      title="Recurring tasks can't be moved to Inbox"
+                                    >
+                                      <Ban size={12} />
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTasks(prev => prev.filter(t => t.id !== task.id));
+                                        const { startTime, date, _agendaType, ...rest } = task;
+                                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      }}
+                                      className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
+                                      title="Move to Inbox"
+                                    >
+                                      <Inbox size={12} />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                             <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
