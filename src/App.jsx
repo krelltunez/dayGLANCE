@@ -913,6 +913,8 @@ const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
+  const [tabletSidePanel, setTabletSidePanel] = useState(null); // null | 'inbox' | 'glance' | 'overdue'
+  const [tabletPanelPinned, setTabletPanelPinned] = useState(false);
   // Override visible days: tablet uses orientation, mobile always 1, desktop uses width-based hook
   const visibleDays = isTablet ? (tabletSidePanel ? 2 : isLandscape ? 3 : 2) : isMobile ? 1 : _visibleDays;
   const [darkMode, setDarkMode] = useState(() => {
@@ -1028,8 +1030,6 @@ const DayPlanner = () => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
   // Tablet layout state
-  const [tabletSidePanel, setTabletSidePanel] = useState(null); // null | 'inbox' | 'glance' | 'overdue'
-  const [tabletPanelPinned, setTabletPanelPinned] = useState(false);
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
