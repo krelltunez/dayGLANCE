@@ -15480,13 +15480,10 @@ const DayPlanner = () => {
                   </div>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
-                    <label className="flex items-center h-10 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={newTask.isAllDay}
-                        onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
-                        className="w-4 h-4 accent-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                      />
+                    <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-gray-300'}`}>
+                        {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
+                      </div>
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                     </label>
                   </div>
@@ -15994,15 +15991,12 @@ const DayPlanner = () => {
                     </div>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
-                      <label className="flex items-center h-10 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newTask.isAllDay}
-                          onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
-                          className="w-4 h-4 accent-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        />
+                      <div className="flex items-center h-10 cursor-pointer" onClick={() => setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay }))}>
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-gray-300'}`}>
+                          {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
+                        </div>
                         <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
-                      </label>
+                      </div>
                     </div>
                   </>
                 )}
