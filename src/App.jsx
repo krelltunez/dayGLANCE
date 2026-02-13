@@ -9394,21 +9394,6 @@ const DayPlanner = () => {
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <button
                                   onClick={() => {
-                                    pushUndo();
-                                    if (task._overdueType === 'scheduled') {
-                                      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, date: getTodayStr() } : t));
-                                    } else {
-                                      setUnscheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, deadline: getTodayStr() } : t));
-                                    }
-                                    setUndoToast({ message: 'Moved to today', actionable: true });
-                                  }}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'} active:scale-95 transition-transform`}
-                                  title="Move to today"
-                                >
-                                  <CalendarDays size={14} />
-                                </button>
-                                <button
-                                  onClick={() => {
                                     if (task._overdueType === 'scheduled') {
                                       pushUndo();
                                       setTasks(prev => prev.filter(t => t.id !== task.id));
@@ -9426,6 +9411,13 @@ const DayPlanner = () => {
                                   title="Move to inbox"
                                 >
                                   <Inbox size={14} />
+                                </button>
+                                <button
+                                  onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  title="Move to Recycle Bin"
+                                >
+                                  <Trash2 size={14} />
                                 </button>
                               </div>
                             </div>
