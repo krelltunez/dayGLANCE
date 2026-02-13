@@ -11477,28 +11477,14 @@ const DayPlanner = () => {
                   {/* Glance panel content */}
                   {tabletSidePanel === 'glance' && (
                     <div className="space-y-4">
-                      {/* Search bar + tag filter */}
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                          className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors active:opacity-70`}
-                        >
-                          <Search size={16} />
-                          <span className="text-sm">Search tasks...</span>
-                        </button>
-                        {allTags.length > 0 && (
-                          <button
-                            onClick={() => setShowMobileTagFilter(true)}
-                            className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors active:opacity-70 ${
-                              !allTags.every(tag => selectedTags.includes(tag))
-                                ? 'bg-blue-500 text-white'
-                                : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
-                            }`}
-                          >
-                            <Filter size={16} />
-                          </button>
-                        )}
-                      </div>
+                      {/* Search bar */}
+                      <button
+                        onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors active:opacity-70`}
+                      >
+                        <Search size={16} />
+                        <span className="text-sm">Search tasks...</span>
+                      </button>
 
                       {/* Overdue tasks from past days */}
                       {(() => {
@@ -16485,7 +16471,7 @@ const DayPlanner = () => {
             {/* Footer */}
             {spotlightResults.length > 0 && (
               <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
-                {!isMobile ? (
+                {!isMobile && !isTablet ? (
                   <div className="flex items-center gap-3">
                     <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
                     <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
