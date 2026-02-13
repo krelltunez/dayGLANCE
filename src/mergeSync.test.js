@@ -1,0 +1,320 @@
+import { describe, it, expect } from 'vitest';
+import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
+
+// Helpers to create task fixtures with timestamps
+const T = (id, title, lastModified, extra = {}) => ({
+  id, title, duration: 30, color: 'bg-blue-500', completed: false, lastModified, ...extra
+});
+const ts = (minutesAgo) => new Date(Date.now() - minutesAgo * 60000).toISOString();
+
+// ─── mergeTaskArrays ────────────────────────────────────────────────
+
+describe('mergeTaskArrays', () => {
+  it('returns empty result for two empty arrays', () => {
+    const { merged, localChanged, remoteChanged } = mergeTaskArrays([], [], {});
+    expect(merged).toEqual([]);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('keeps local-only tasks and flags remoteChanged', () => {
+    const local = [T(1, 'Local task', ts(5))];
+    const { merged, localChanged, remoteChanged } = mergeTaskArrays(local, [], {});
+    expect(merged).toHaveLength(1);
+    expect(merged[0].title).toBe('Local task');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('keeps remote-only tasks and flags localChanged', () => {
+    const remote = [T(2, 'Remote task', ts(5))];
+    const { merged, localChanged, remoteChanged } = mergeTaskArrays([], remote, {});
+    expect(merged).toHaveLength(1);
+    expect(merged[0].title).toBe('Remote task');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('picks the newer version when both sides have the same task', () => {
+    const local  = [T(1, 'Old title', ts(10))];
+    const remote = [T(1, 'New title', ts(2))];
+    const { merged } = mergeTaskArrays(local, remote, {});
+    expect(merged).toHaveLength(1);
+    expect(merged[0].title).toBe('New title');
+  });
+
+  it('picks local when local is newer', () => {
+    const local  = [T(1, 'Local edit', ts(1))];
+    const remote = [T(1, 'Remote edit', ts(10))];
+    const { merged, remoteChanged } = mergeTaskArrays(local, remote, {});
+    expect(merged[0].title).toBe('Local edit');
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('prefers local on equal timestamps', () => {
+    const time = ts(5);
+    const local  = [T(1, 'Local ver', time)];
+    const remote = [T(1, 'Remote ver', time)];
+    const { merged, localChanged, remoteChanged } = mergeTaskArrays(local, remote, {});
+    expect(merged[0].title).toBe('Local ver');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  // ── The core user scenario ──────────────────────────────────────
+  it('CORE: adding tasks on two devices preserves both', () => {
+    // Desktop adds Task A and Task B
+    const desktop = [
+      T(1, 'Existing', ts(60)),
+      T(2, 'Desktop Task A', ts(5)),
+      T(3, 'Desktop Task B', ts(3)),
+    ];
+    // Tablet still has only the original task
+    const tablet = [T(1, 'Existing', ts(60))];
+
+    // Tablet syncs — merge should keep all 3
+    const { merged, localChanged } = mergeTaskArrays(tablet, desktop, {});
+    expect(merged).toHaveLength(3);
+    const ids = merged.map(t => t.id);
+    expect(ids).toContain(1);
+    expect(ids).toContain(2);
+    expect(ids).toContain(3);
+    expect(localChanged).toBe(true); // tablet needs updating
+  });
+
+  it('preserves local ordering and appends remote-only at end', () => {
+    const local  = [T(1, 'First', ts(10)), T(2, 'Second', ts(8))];
+    const remote = [T(3, 'New from remote', ts(5)), T(1, 'First', ts(10))];
+    const { merged } = mergeTaskArrays(local, remote, {});
+    expect(merged.map(t => t.id)).toEqual([1, 2, 3]);
+  });
+
+  // ── Tombstones ──────────────────────────────────────────────────
+  it('excludes local tasks that have a newer tombstone', () => {
+    const local = [T(1, 'Should be gone', ts(10))];
+    const deleted = { '1': ts(2) }; // deleted more recently
+    const { merged, localChanged } = mergeTaskArrays(local, [], deleted);
+    expect(merged).toHaveLength(0);
+    expect(localChanged).toBe(true);
+  });
+
+  it('keeps local tasks when tombstone is older than lastModified', () => {
+    const local = [T(1, 'Recreated', ts(2))];
+    const deleted = { '1': ts(10) }; // deleted long ago, task is newer
+    const { merged } = mergeTaskArrays(local, [], deleted);
+    expect(merged).toHaveLength(1);
+  });
+
+  it('excludes remote tasks that have a newer tombstone', () => {
+    const remote = [T(5, 'Deleted on other device', ts(10))];
+    const deleted = { '5': ts(2) };
+    const { merged, remoteChanged } = mergeTaskArrays([], remote, deleted);
+    expect(merged).toHaveLength(0);
+    expect(remoteChanged).toBe(true);
+  });
+
+  // ── Tasks without lastModified (backward compat) ───────────────
+  it('handles tasks without lastModified (treated as epoch)', () => {
+    const local  = [{ id: 1, title: 'No timestamp' }];
+    const remote = [T(1, 'Has timestamp', ts(5))];
+    const { merged } = mergeTaskArrays(local, remote, {});
+    expect(merged[0].title).toBe('Has timestamp');
+  });
+});
+
+// ─── mergeSyncData (full sync merge) ────────────────────────────────
+
+describe('mergeSyncData', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {},
+    syncUrl: null, taskCalendarUrl: null,
+    routineDefinitions: {}, todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false
+  });
+
+  it('merges two empty datasets with no changes', () => {
+    const { data, localChanged, remoteChanged } = mergeSyncData(emptyData(), emptyData());
+    expect(data.tasks).toEqual([]);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  // ── The user's reported scenario ───────────────────────────────
+  it('SCENARIO: tasks added on desktop survive when tablet syncs', () => {
+    const desktop = {
+      ...emptyData(),
+      tasks: [
+        T(1, 'Morning standup', ts(30)),
+        T(2, 'New from desktop', ts(5)),
+      ],
+      unscheduledTasks: [T(10, 'Inbox from desktop', ts(4))],
+    };
+    const tablet = {
+      ...emptyData(),
+      tasks: [T(1, 'Morning standup', ts(30))],
+      unscheduledTasks: [],
+    };
+
+    // Tablet merges with desktop data
+    const { data, localChanged, remoteChanged } = mergeSyncData(tablet, desktop);
+    expect(data.tasks).toHaveLength(2);
+    expect(data.tasks.map(t => t.id)).toContain(2);
+    expect(data.unscheduledTasks).toHaveLength(1);
+    expect(data.unscheduledTasks[0].id).toBe(10);
+    expect(localChanged).toBe(true);   // tablet gets new tasks from desktop
+    expect(remoteChanged).toBe(false); // tablet has nothing new for the server
+  });
+
+  // ── Cross-list: active vs recycle bin ──────────────────────────
+  it('deletion wins over older active task', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Active task', ts(10))],
+    };
+    const deviceB = {
+      ...emptyData(),
+      recycleBin: [{ ...T(1, 'Deleted', ts(10)), deletedAt: ts(3), _deletedFrom: 'calendar' }],
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.tasks).toHaveLength(0);        // removed from active
+    expect(data.recycleBin).toHaveLength(1);   // stays in bin
+  });
+
+  it('active task wins when modified after deletion', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Re-edited', ts(1))],  // modified very recently
+    };
+    const deviceB = {
+      ...emptyData(),
+      recycleBin: [{ ...T(1, 'Deleted', ts(10)), deletedAt: ts(5), _deletedFrom: 'calendar' }],
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.tasks).toHaveLength(1);
+    expect(data.tasks[0].title).toBe('Re-edited');
+    expect(data.recycleBin).toHaveLength(0);
+  });
+
+  // ── Cross-list: scheduled ↔ inbox move ─────────────────────────
+  it('handles task moved from inbox to scheduled on one device', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Now scheduled', ts(2), { startTime: '09:00', date: '2026-02-13' })],
+    };
+    const deviceB = {
+      ...emptyData(),
+      unscheduledTasks: [T(1, 'Still in inbox', ts(10))],
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    // Scheduled version is newer — should end up in tasks only
+    expect(data.tasks).toHaveLength(1);
+    expect(data.unscheduledTasks).toHaveLength(0);
+    expect(data.tasks[0].title).toBe('Now scheduled');
+  });
+
+  // ── Tombstones from both sides ─────────────────────────────────
+  it('combines tombstones from both devices', () => {
+    const local = {
+      ...emptyData(),
+      deletedTaskIds: { '100': ts(5) },
+    };
+    const remote = {
+      ...emptyData(),
+      deletedTaskIds: { '200': ts(3) },
+    };
+
+    const { data } = mergeSyncData(local, remote);
+    expect(data.deletedTaskIds).toHaveProperty('100');
+    expect(data.deletedTaskIds).toHaveProperty('200');
+  });
+
+  it('keeps the later tombstone when both devices deleted the same task', () => {
+    const local = {
+      ...emptyData(),
+      deletedTaskIds: { '1': ts(10) },
+    };
+    const remote = {
+      ...emptyData(),
+      deletedTaskIds: { '1': ts(2) }, // deleted more recently
+    };
+
+    const { data } = mergeSyncData(local, remote);
+    expect(new Date(data.deletedTaskIds['1']).getTime())
+      .toBe(new Date(ts(2)).getTime());
+  });
+
+  // ── Completed UIDs union ───────────────────────────────────────
+  it('unions completedTaskUids from both sides', () => {
+    const local  = { ...emptyData(), completedTaskUids: ['a', 'b'] };
+    const remote = { ...emptyData(), completedTaskUids: ['b', 'c'] };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.completedTaskUids.sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  // ── Settings preferences ───────────────────────────────────────
+  it('keeps local device-specific settings', () => {
+    const local  = { ...emptyData(), use24HourClock: true, minimizedSections: { inbox: true } };
+    const remote = { ...emptyData(), use24HourClock: false, minimizedSections: {} };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.use24HourClock).toBe(true);
+    expect(data.minimizedSections).toEqual({ inbox: true });
+  });
+
+  it('prefers remote for shared settings', () => {
+    const local  = { ...emptyData(), syncUrl: 'http://old' };
+    const remote = { ...emptyData(), syncUrl: 'http://new' };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.syncUrl).toBe('http://new');
+  });
+
+  // ── Bidirectional sync scenario ────────────────────────────────
+  it('both devices adding different tasks: all tasks survive', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Shared', ts(60)), T(2, 'From A', ts(5))],
+      unscheduledTasks: [T(10, 'Inbox A', ts(4))],
+    };
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Shared', ts(60)), T(3, 'From B', ts(3))],
+      unscheduledTasks: [T(11, 'Inbox B', ts(2))],
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.tasks.map(t => t.id).sort()).toEqual([1, 2, 3]);
+    expect(data.unscheduledTasks.map(t => t.id).sort()).toEqual([10, 11]);
+  });
+
+  it('conflicting edits on same task: newer edit wins', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Edit from A', ts(5))],
+    };
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Edit from B', ts(2))], // more recent
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.tasks).toHaveLength(1);
+    expect(data.tasks[0].title).toBe('Edit from B');
+  });
+
+  // ── Recurring tasks merge ──────────────────────────────────────
+  it('merges recurring tasks by ID', () => {
+    const local = {
+      ...emptyData(),
+      recurringTasks: [T(100, 'Daily standup', ts(60))],
+    };
+    const remote = {
+      ...emptyData(),
+      recurringTasks: [T(100, 'Daily standup', ts(60)), T(101, 'Weekly review', ts(5))],
+    };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.recurringTasks).toHaveLength(2);
+  });
+});
