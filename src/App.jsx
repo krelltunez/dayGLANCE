@@ -11804,200 +11804,6 @@ const DayPlanner = () => {
                         </div>
                       ); })()}
 
-                      {/* Routines row */}
-                      {(() => {
-                        const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                        const visibleRoutines = todayRoutines.filter(r => {
-                          if (String(r.id).startsWith('example-')) return false;
-                          if (!r.startTime || r.isAllDay) return true;
-                          return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
-                        });
-                        return (
-                          <div className={`pt-3 border-t ${borderClass} cursor-pointer`} onClick={() => {
-                            openRoutinesDashboard();
-                          }}>
-                            <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
-                            {visibleRoutines.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {[...visibleRoutines].sort((a, b) => {
-                                  if (a.isAllDay && !b.isAllDay) return -1;
-                                  if (!a.isAllDay && b.isAllDay) return 1;
-                                  if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-                                  return 0;
-                                }).map(r => {
-                                  let rTimeLabel = '';
-                                  if (!r.isAllDay && r.startTime) {
-                                    if (use24HourClock) {
-                                      rTimeLabel = r.startTime;
-                                    } else {
-                                      const [h, m] = r.startTime.split(':').map(Number);
-                                      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                                      const ampm = h < 12 ? 'a' : 'p';
-                                      rTimeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
-                                    }
-                                  }
-                                  return (
-                                    <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
-                                      {rTimeLabel && <span className="opacity-70 mr-1">{rTimeLabel}</span>}{r.name}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <p className={`text-sm ${textSecondary}`}>Tap here to manage your routines</p>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Daily Summary */}
-                      <div className={`pt-3 border-t ${borderClass}`}>
-                        <div className={`flex items-center justify-between mb-2`}>
-                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
-                            <BarChart3 size={16} />
-                            Daily Summary
-                          </h3>
-                          <button
-                            onClick={() => toggleSection('dailySummary')}
-                            className={`${textSecondary} active:opacity-70 p-2 -m-2`}
-                          >
-                            {minimizedSections.dailySummary ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                          </button>
-                        </div>
-                        {!minimizedSections.dailySummary && (
-                          <div className={`text-sm ${textSecondary} space-y-1`}>
-                            <div>{actualTodayNonImportedTasks.length} tasks scheduled</div>
-                            <div>
-                              {actualTodayCompletedTasks.length} tasks completed
-                              {todayIncompleteTasks.length > 0 && (
-                                <button
-                                  onClick={() => setShowIncompleteTasks('today')}
-                                  className="ml-1 text-blue-500 active:text-blue-400"
-                                >
-                                  ({todayIncompleteTasks.length} incomplete)
-                                </button>
-                              )}
-                            </div>
-                            <div>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m time spent</div>
-                            <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
-                            {actualTodayFocusMinutes > 0 && (
-                              <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m focus time</div>
-                            )}
-                            {actualTodayNonImportedTasks.length > 0 && (
-                              <div className="pt-1">
-                                <div className="font-semibold">{Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* All Time Summary */}
-                      <div className={`pt-3 border-t ${borderClass}`}>
-                        <div className={`flex items-center justify-between mb-2`}>
-                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
-                            <BarChart3 size={16} />
-                            All Time Summary
-                          </h3>
-                          <button
-                            onClick={() => toggleSection('allTimeSummary')}
-                            className={`${textSecondary} active:opacity-70 p-2 -m-2`}
-                          >
-                            {minimizedSections.allTimeSummary ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                          </button>
-                        </div>
-                        {!minimizedSections.allTimeSummary && (
-                          <div className={`text-sm ${textSecondary} space-y-1`}>
-                            <div>{allTimeScheduledCount} tasks scheduled</div>
-                            <div>
-                              {allTimeCompletedCount} tasks completed
-                              {allTimeIncompleteTasks.length > 0 && (
-                                <button
-                                  onClick={() => setShowIncompleteTasks('allTime')}
-                                  className="ml-1 text-blue-500 active:text-blue-400"
-                                >
-                                  ({allTimeIncompleteTasks.length} incomplete)
-                                </button>
-                              )}
-                            </div>
-                            <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
-                            <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
-                            {allTimeFocusMinutes > 0 && (
-                              <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m focus time</div>
-                            )}
-                            {allTimeScheduledCount > 0 && (
-                              <div className="pt-1">
-                                <div className="font-semibold">{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Recycle Bin */}
-                      {recycleBin.filter(t => !t.isExample).length > 0 && (
-                      <div className={`pt-3 border-t ${borderClass}`}>
-                        <div className={`flex items-center justify-between mb-2`}>
-                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
-                            <Trash2 size={16} />
-                            Recycle Bin
-                          </h3>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm ${textSecondary}`}>{recycleBin.filter(t => !t.isExample).length}</span>
-                            <button
-                              onClick={() => toggleSection('recycleBin')}
-                              className={`${textSecondary} active:opacity-70 p-2 -m-2`}
-                            >
-                              {minimizedSections.recycleBin ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                            </button>
-                          </div>
-                        </div>
-                        {!minimizedSections.recycleBin && (
-                          <>
-                            <div className="space-y-2">
-                              {recycleBin.filter(t => !t.isExample).map(task => (
-                                <div
-                                  key={task.id}
-                                  className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative`}
-                                >
-                                  <div className="flex items-start justify-between text-white">
-                                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
-                                        <div className="text-xs opacity-75 mt-1">
-                                          {task._deletedFrom === 'inbox' ? (
-                                            <>Inbox • {task.duration}min</>
-                                          ) : task.startTime ? (
-                                            <>{formatTime(task.startTime)} • {task.duration}min</>
-                                          ) : (
-                                            <>{task.duration}min</>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={() => undeleteTask(task.id)}
-                                      className="active:bg-white/20 rounded p-1 transition-colors"
-                                      title="Restore Task"
-                                    >
-                                      <Undo2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            {recycleBin.filter(t => !t.isExample).length > 0 && (
-                              <button
-                                onClick={emptyRecycleBin}
-                                className="w-full mt-2 px-3 py-2 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors text-sm font-medium"
-                              >
-                                Empty Recycle Bin
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -15158,7 +14964,7 @@ const DayPlanner = () => {
           {/* Routines FAB */}
           <button
             onClick={openRoutinesDashboard}
-            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-teal-700 text-teal-100 active:bg-teal-600' : 'bg-teal-600 text-white active:bg-teal-700'}`}
             style={{ right: '1rem', bottom: '5.5rem' }}
             title="Routines"
           >
@@ -15173,7 +14979,7 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {/* Glance panel FABs: recycle bin, daily summary, weekly review */}
+          {/* Glance panel FABs: daily summary, weekly review, recycle bin — stacked bottom-right of the side panel */}
           {/* Daily summary ring FAB */}
           {actualTodayNonImportedTasks.length > 0 && (() => {
             const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
@@ -15181,18 +14987,18 @@ const DayPlanner = () => {
             return (
               <button
                 onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
-                style={{ left: '332px', bottom: '9.5rem' }}
+                className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
+                style={{ left: '272px', bottom: recycleBin.filter(t => !t.isExample).length > 0 ? '8.5rem' : '5rem' }}
               >
-                <div className="relative w-9 h-9">
-                  <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
+                <div className="relative w-8 h-8">
+                  <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
                     <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
                     <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
                       strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
                     />
                   </svg>
                   <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                    <ChevronUp size={14} />
+                    {pct}%
                   </span>
                 </div>
               </button>
@@ -15208,20 +15014,20 @@ const DayPlanner = () => {
               }
               setShowWeeklyReview(true);
             }}
-            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-            style={{ left: '332px', bottom: '5.5rem' }}
+            className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+            style={{ left: '272px', bottom: '1.5rem' }}
           >
-            <BarChart3 size={20} />
+            <BarChart3 size={18} />
           </button>
           {/* Recycle bin FAB — only when non-empty */}
           {recycleBin.filter(t => !t.isExample).length > 0 && (
             <button
               onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-              style={{ left: '332px', bottom: '13.5rem' }}
+              className={`fixed z-40 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+              style={{ left: '272px', bottom: '5rem' }}
             >
               <div className="relative">
-                <Trash2 size={20} />
+                <Trash2 size={18} />
                 <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] flex items-center justify-center rounded-full px-0.5">
                   {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
                 </span>
