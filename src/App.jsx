@@ -11307,29 +11307,35 @@ const DayPlanner = () => {
       {isTablet && (
         <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '48px' }}>
           <div className="flex items-center gap-2">
-            <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
-              <ChevronLeft size={20} className={textSecondary} />
-            </button>
-            <button
-              onClick={() => {
-                if (!showMonthView) setViewedMonth(new Date(selectedDate));
-                setShowMonthView(!showMonthView);
-              }}
-              className={`${textPrimary} font-semibold text-base px-2 py-1 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
-            >
-              {formatDateRange(visibleDates)}
-            </button>
-            <button onClick={() => changeDate(1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
-              <ChevronRight size={20} className={textSecondary} />
-            </button>
-            {dateToString(selectedDate) !== dateToString(new Date()) && (
-              <button
-                onClick={goToToday}
-                className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
-              >
-                Today
+            <Calendar size={20} className="text-blue-500" />
+            <span className={`font-bold ${textPrimary} text-sm`}>Day Planner</span>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-1 pointer-events-auto">
+              <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
+                <ChevronLeft size={20} className={textSecondary} />
               </button>
-            )}
+              <button
+                onClick={() => {
+                  if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                  setShowMonthView(!showMonthView);
+                }}
+                className={`${textPrimary} font-semibold text-base px-2 py-1 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              >
+                {formatDateRange(visibleDates)}
+              </button>
+              <button onClick={() => changeDate(1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
+                <ChevronRight size={20} className={textSecondary} />
+              </button>
+              {dateToString(selectedDate) !== dateToString(new Date()) && (
+                <button
+                  onClick={goToToday}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
+                >
+                  Today
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <button
