@@ -17298,13 +17298,13 @@ const DayPlanner = () => {
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                         <Calendar size={16} />
                       </span>
-                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>N</kbd>)</span>
+                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                         <Inbox size={16} />
                       </span>
-                      <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>I</kbd>)</span>
+                      <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
