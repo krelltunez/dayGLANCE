@@ -11326,14 +11326,81 @@ const DayPlanner = () => {
             )}
           </div>
           <div className="flex items-center gap-1">
-            {cloudSyncConfig?.provider && (
-              <div className={`w-2 h-2 rounded-full ${cloudSyncConfig?.provider ? 'bg-green-400' : 'bg-gray-400'}`} title="Cloud sync active" />
-            )}
+            <button
+              onClick={() => {
+                if (isSyncing) return;
+                if (syncUrl || taskCalendarUrl) {
+                  syncAll();
+                } else {
+                  setShowSettings(true);
+                }
+              }}
+              disabled={isSyncing}
+              className={`relative p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10 ${isSyncing ? 'opacity-70' : ''}`}
+              title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
+            >
+              <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+              {(syncUrl || taskCalendarUrl) && (
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                  isSyncing ? 'bg-blue-500 animate-pulse' :
+                  calSyncStatus === 'success' ? 'bg-green-500' :
+                  calSyncStatus === 'error' ? 'bg-red-500' :
+                  'bg-green-500'
+                }`} />
+              )}
+            </button>
+            <button
+              onClick={() => {
+                if (cloudSyncConfig?.enabled) {
+                  cloudSyncUpload();
+                } else {
+                  setShowSettings(true);
+                }
+              }}
+              className={`relative p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              title={cloudSyncConfig?.enabled
+                ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
+                : 'Set up cloud sync'}
+            >
+              <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+              {cloudSyncConfig?.enabled && (
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                  (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
+                  cloudSyncStatus === 'error' ? 'bg-red-500' :
+                  'bg-green-500'
+                }`} />
+              )}
+            </button>
             <button
               onClick={() => setShowSettings(true)}
               className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              title="Settings"
             >
               <Settings size={18} className={textSecondary} />
+            </button>
+            <button
+              onClick={() => setShowRemindersSettings(true)}
+              className={`relative p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              title="Reminders"
+            >
+              <Bell size={18} className={textSecondary} />
+              {activeReminders.length > 0 && (
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
+              )}
+            </button>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
+            </button>
+            <button
+              onClick={() => setShowBackupMenu(true)}
+              className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+              title="Backup or restore data"
+            >
+              <Save size={18} className={textSecondary} />
             </button>
           </div>
           {/* Tablet month view popup */}
