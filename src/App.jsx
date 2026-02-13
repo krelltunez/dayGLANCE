@@ -9570,9 +9570,12 @@ const DayPlanner = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        pushUndo();
                                         setTasks(prev => prev.filter(t => t.id !== task.id));
                                         const { startTime, date, _agendaType, ...rest } = task;
                                         setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                        playUISound('slide');
+                                        setUndoToast({ message: 'Moved to inbox', actionable: true });
                                       }}
                                       className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
                                       title="Move to Inbox"
@@ -12083,9 +12086,12 @@ const DayPlanner = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        pushUndo();
                                         setTasks(prev => prev.filter(t => t.id !== task.id));
                                         const { startTime, date, _agendaType, ...rest } = task;
                                         setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                        playUISound('slide');
+                                        setUndoToast({ message: 'Moved to inbox', actionable: true });
                                       }}
                                       className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
                                       title="Move to Inbox"
