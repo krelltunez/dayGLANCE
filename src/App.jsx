@@ -11412,13 +11412,6 @@ const DayPlanner = () => {
                 )}
               </button>
               <button
-                onClick={() => { setTabletSidePanel(null); openRoutinesDashboard(); }}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
-                title="Routines"
-              >
-                <RefreshCw size={20} className={textSecondary} />
-              </button>
-              <button
                 onClick={() => setTabletSidePanel(tabletSidePanel === 'overdue' ? null : 'overdue')}
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'overdue' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
                 title="Overdue"
@@ -11751,45 +11744,48 @@ const DayPlanner = () => {
                       ); })()}
 
                       {/* Routines row */}
-                      {todayRoutines.length > 0 && (() => {
+                      {(() => {
                         const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                         const visibleRoutines = todayRoutines.filter(r => {
                           if (String(r.id).startsWith('example-')) return false;
                           if (!r.startTime || r.isAllDay) return true;
                           return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
                         });
-                        if (visibleRoutines.length === 0) return null;
                         return (
                           <div className={`pt-3 border-t ${borderClass} cursor-pointer`} onClick={() => {
                             setTabletSidePanel(null);
                             openRoutinesDashboard();
                           }}>
                             <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {[...visibleRoutines].sort((a, b) => {
-                                if (a.isAllDay && !b.isAllDay) return -1;
-                                if (!a.isAllDay && b.isAllDay) return 1;
-                                if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-                                return 0;
-                              }).map(r => {
-                                let rTimeLabel = '';
-                                if (!r.isAllDay && r.startTime) {
-                                  if (use24HourClock) {
-                                    rTimeLabel = r.startTime;
-                                  } else {
-                                    const [h, m] = r.startTime.split(':').map(Number);
-                                    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                                    const ampm = h < 12 ? 'a' : 'p';
-                                    rTimeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                            {visibleRoutines.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {[...visibleRoutines].sort((a, b) => {
+                                  if (a.isAllDay && !b.isAllDay) return -1;
+                                  if (!a.isAllDay && b.isAllDay) return 1;
+                                  if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+                                  return 0;
+                                }).map(r => {
+                                  let rTimeLabel = '';
+                                  if (!r.isAllDay && r.startTime) {
+                                    if (use24HourClock) {
+                                      rTimeLabel = r.startTime;
+                                    } else {
+                                      const [h, m] = r.startTime.split(':').map(Number);
+                                      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                                      const ampm = h < 12 ? 'a' : 'p';
+                                      rTimeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                                    }
                                   }
-                                }
-                                return (
-                                  <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
-                                    {rTimeLabel && <span className="opacity-70 mr-1">{rTimeLabel}</span>}{r.name}
-                                  </span>
-                                );
-                              })}
-                            </div>
+                                  return (
+                                    <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                                      {rTimeLabel && <span className="opacity-70 mr-1">{rTimeLabel}</span>}{r.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className={`text-sm ${textSecondary}`}>Tap here to manage your routines</p>
+                            )}
                           </div>
                         );
                       })()}
