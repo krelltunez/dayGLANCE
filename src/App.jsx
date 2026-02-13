@@ -17139,9 +17139,11 @@ const DayPlanner = () => {
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Glance</h2>
                 <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-                  <li>Your <strong className={textPrimary}>smart agenda</strong> for today at a glance</li>
-                  <li>See <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong> and <strong className={textPrimary}>upcoming</strong> tasks, as well as your <strong className={textPrimary}>daily routine</strong>, in real time</li>
-                  <li>Tap <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> on an in-progress task to start a distraction-free deep work session with a Pomodoro timer</li>
+                  <li>Your <strong className={textPrimary}>smart agenda</strong> — see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, <strong className={textPrimary}>upcoming</strong> tasks and your <strong className={textPrimary}>daily routine</strong> in real time</li>
+                  <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
+                  <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and filter by <strong className={textPrimary}>#tags</strong> <Hash size={14} className="inline mx-0.5" /></li>
+                  <li>Deleted something by mistake? Restore it from the <strong className={textPrimary}>Recycle Bin</strong> <Trash2 size={14} className="inline mx-0.5" /></li>
+                  <li>Tap <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session with a Pomodoro timer</li>
                 </ul>
               </div>
             )}
