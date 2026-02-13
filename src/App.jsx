@@ -11319,7 +11319,7 @@ const DayPlanner = () => {
                   if (!showMonthView) setViewedMonth(new Date(selectedDate));
                   setShowMonthView(!showMonthView);
                 }}
-                className={`${textPrimary} font-semibold text-base px-2 py-1 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+                className={`month-view-toggle ${textPrimary} font-semibold text-base px-2 py-1 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
               >
                 {formatDateRange(visibleDates)}
               </button>
