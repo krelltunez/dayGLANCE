@@ -11525,21 +11525,6 @@ const DayPlanner = () => {
               >
                 <Search size={20} className={textSecondary} />
               </button>
-              <div className="flex-1" />
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
-                title={darkMode ? 'Light mode' : 'Dark mode'}
-              >
-                {darkMode ? <Sun size={20} className={textSecondary} /> : <Moon size={20} className={textSecondary} />}
-              </button>
-              <button
-                onClick={() => { setTabletSidePanel(null); setShowSettings(true); }}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
-                title="Settings"
-              >
-                <Settings size={20} className={textSecondary} />
-              </button>
             </div>
           )}
 
