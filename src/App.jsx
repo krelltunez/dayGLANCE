@@ -9634,7 +9634,7 @@ const DayPlanner = () => {
                   const visibleRoutines = todayRoutines.filter(r => {
                     if (String(r.id).startsWith('example-')) return false;
                     if (!r.startTime || r.isAllDay) return true;
-                    return (timeToMinutes(r.startTime) + r.duration + 120) > nowMin;
+                    return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
                   });
                   if (visibleRoutines.length === 0) return null;
                   return (
@@ -12146,7 +12146,7 @@ const DayPlanner = () => {
                 const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                 const visibleRoutines = todayRoutines.filter(r => {
                   if (!r.startTime || r.isAllDay) return true;
-                  return (timeToMinutes(r.startTime) + r.duration + 120) > nowMin;
+                  return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
                 });
                 if (visibleRoutines.length === 0) return null;
                 return (
