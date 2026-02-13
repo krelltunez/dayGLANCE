@@ -11515,8 +11515,10 @@ const DayPlanner = () => {
                 title="Inbox"
               >
                 <Inbox size={20} className={textSecondary} />
-                {unscheduledTasks.length > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" />
+                {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                    {filteredUnscheduledTasks.filter(t => !t.isExample).length}
+                  </span>
                 )}
               </button>
             </div>
