@@ -8283,6 +8283,7 @@ const DayPlanner = () => {
     // Find where "now" falls among scheduled tasks
     // insertAfterIndex: index in todayAgenda after which to insert the marker (-1 = before all)
     let insertAfterIndex = -1;
+    let insideTask = false;
     if (scheduled.length > 0) {
       for (let i = 0; i < todayAgenda.length; i++) {
         const t = todayAgenda[i];
@@ -8294,6 +8295,7 @@ const DayPlanner = () => {
         } else if (nowMin >= h * 60 + m) {
           // Currently within this task — place marker before it (it shows "In Progress")
           insertAfterIndex = i - 1;
+          insideTask = true;
           break;
         } else {
           break;
@@ -8322,7 +8324,7 @@ const DayPlanner = () => {
     }
     const incompleteInbox = unscheduledTasks.filter(t => !t.completed && !t.isExample);
     const showNudge = gapMinutes >= 60 && incompleteInbox.length > 0;
-    return { insertAfterIndex, nowTimeStr, showNudge, inboxCount: incompleteInbox.length, gapMinutes };
+    return { insertAfterIndex, nowTimeStr, showNudge, inboxCount: incompleteInbox.length, gapMinutes, insideTask };
   }, [todayAgenda, currentTime, unscheduledTasks]);
 
   // Helper to get tasks for a specific date (must be after filterByTags)
@@ -9481,28 +9483,9 @@ const DayPlanner = () => {
                   <div className="space-y-1.5">
                     {filteredAgenda.flatMap((task, idx) => {
                       const mobileItems = [];
-                      // Insert "Now" marker at the right position
-                      if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
-                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                        const gapM = agendaNowMarker.gapMinutes % 60;
-                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                        mobileItems.push(
-                          <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
-                            <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                              {agendaNowMarker.inboxCount > 0 && (
-                                <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      } else if (idx > 0) {
-                        // Check if we should insert marker before this task (by comparing with todayAgenda positions)
-                        const prevTask = filteredAgenda[idx - 1];
-                        const prevIdxInFull = todayAgenda.indexOf(prevTask);
-                        const curIdxInFull = todayAgenda.indexOf(task);
-                        if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                      // Insert "Now" marker at the right position (skip when inside a task/event)
+                      if (!agendaNowMarker.insideTask) {
+                        if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
                           const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                           const gapM = agendaNowMarker.gapMinutes % 60;
                           const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -9517,6 +9500,27 @@ const DayPlanner = () => {
                               </div>
                             </div>
                           );
+                        } else if (idx > 0) {
+                          // Check if we should insert marker before this task (by comparing with todayAgenda positions)
+                          const prevTask = filteredAgenda[idx - 1];
+                          const prevIdxInFull = todayAgenda.indexOf(prevTask);
+                          const curIdxInFull = todayAgenda.indexOf(task);
+                          if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                            const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                            const gapM = agendaNowMarker.gapMinutes % 60;
+                            const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                            mobileItems.push(
+                              <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
+                                <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                  {agendaNowMarker.inboxCount > 0 && (
+                                    <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
                         }
                       }
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
@@ -11658,27 +11662,9 @@ const DayPlanner = () => {
                           )}
                           {filteredAgenda.flatMap((task, idx) => {
                             const items = [];
-                            // Insert "Now" marker
-                            if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
-                              const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                              const gapM = agendaNowMarker.gapMinutes % 60;
-                              const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                              items.push(
-                                <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
-                                  <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                                  <div className="min-w-0 flex-1">
-                                    <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                    {agendaNowMarker.inboxCount > 0 && (
-                                      <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            } else if (idx > 0) {
-                              const prevTask = filteredAgenda[idx - 1];
-                              const prevIdxInFull = todayAgenda.indexOf(prevTask);
-                              const curIdxInFull = todayAgenda.indexOf(task);
-                              if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                            // Insert "Now" marker (skip when inside a task/event)
+                            if (!agendaNowMarker.insideTask) {
+                              if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
                                 const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                                 const gapM = agendaNowMarker.gapMinutes % 60;
                                 const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -11693,6 +11679,26 @@ const DayPlanner = () => {
                                     </div>
                                   </div>
                                 );
+                              } else if (idx > 0) {
+                                const prevTask = filteredAgenda[idx - 1];
+                                const prevIdxInFull = todayAgenda.indexOf(prevTask);
+                                const curIdxInFull = todayAgenda.indexOf(task);
+                                if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                                  const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                                  const gapM = agendaNowMarker.gapMinutes % 60;
+                                  const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                                  items.push(
+                                    <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
+                                      <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                        {agendaNowMarker.inboxCount > 0 && (
+                                          <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
                               }
                             }
                             const colorClass = task.color === 'task-calendar' ? '' : task.color;
@@ -12424,8 +12430,8 @@ const DayPlanner = () => {
                   <div className="space-y-1">
                     {todayAgenda.flatMap((task, idx) => {
                       const items = [];
-                      // Insert "Now" marker at the right position
-                      if (idx === agendaNowMarker.insertAfterIndex + 1) {
+                      // Insert "Now" marker at the right position (skip when inside a task/event)
+                      if (!agendaNowMarker.insideTask && idx === agendaNowMarker.insertAfterIndex + 1) {
                         const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                         const gapM = agendaNowMarker.gapMinutes % 60;
                         const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
