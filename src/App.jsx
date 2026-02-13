@@ -11885,7 +11885,7 @@ const DayPlanner = () => {
                             )}
                             <button
                               onClick={() => toggleSection('tags')}
-                              className={`${textSecondary} active:opacity-70`}
+                              className={`${textSecondary} active:opacity-70 p-2 -m-2`}
                             >
                               {minimizedSections.tags ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                             </button>
@@ -11930,7 +11930,7 @@ const DayPlanner = () => {
                           </h3>
                           <button
                             onClick={() => toggleSection('dailySummary')}
-                            className={`${textSecondary} active:opacity-70`}
+                            className={`${textSecondary} active:opacity-70 p-2 -m-2`}
                           >
                             {minimizedSections.dailySummary ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                           </button>
@@ -11972,7 +11972,7 @@ const DayPlanner = () => {
                           </h3>
                           <button
                             onClick={() => toggleSection('allTimeSummary')}
-                            className={`${textSecondary} active:opacity-70`}
+                            className={`${textSecondary} active:opacity-70 p-2 -m-2`}
                           >
                             {minimizedSections.allTimeSummary ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                           </button>
@@ -12018,7 +12018,7 @@ const DayPlanner = () => {
                             )}
                             <button
                               onClick={() => toggleSection('recycleBin')}
-                              className={`${textSecondary} active:opacity-70`}
+                              className={`${textSecondary} active:opacity-70 p-2 -m-2`}
                             >
                               {minimizedSections.recycleBin ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                             </button>
