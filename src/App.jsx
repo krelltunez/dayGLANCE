@@ -11531,12 +11531,14 @@ const DayPlanner = () => {
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'inbox' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
                 title="Inbox"
               >
-                <Inbox size={20} className={textSecondary} />
-                {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
-                    {filteredUnscheduledTasks.filter(t => !t.isExample).length}
-                  </span>
-                )}
+                <div className="relative">
+                  <Inbox size={20} className={textSecondary} />
+                  {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                      {filteredUnscheduledTasks.filter(t => !t.isExample).length}
+                    </span>
+                  )}
+                </div>
               </button>
             </div>
           )}
