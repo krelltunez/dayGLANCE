@@ -11467,11 +11467,11 @@ const DayPlanner = () => {
           {isTablet && (
             <div className={`${cardBg} border-r ${borderClass} flex flex-col items-center py-3 gap-1 flex-shrink-0`} style={{ width: '60px' }}>
               <button
-                onClick={() => { setShowAddTask(true); setTabletSidePanel(null); }}
+                onClick={() => { openNewTaskForm(); setTabletSidePanel(null); }}
                 className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700 mb-2"
-                title="Add task"
+                title="New Scheduled Task"
               >
-                <Plus size={20} />
+                <Calendar size={20} />
               </button>
               <button
                 onClick={() => { setTabletSidePanel(tabletSidePanel === 'glance' ? null : 'glance'); if (tabletSidePanel === 'glance') setTabletPanelPinned(false); }}
