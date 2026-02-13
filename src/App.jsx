@@ -7094,11 +7094,14 @@ const DayPlanner = () => {
     if (!provider) return;
 
     cloudSyncInProgressRef.current = true;
+    const syncStart = Date.now();
     setCloudSyncStatus('uploading');
     setCloudSyncError(null);
     try {
       const payload = buildSyncPayload();
       await provider.upload(cloudSyncConfig, payload);
+      const elapsed = Date.now() - syncStart;
+      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
       setCloudSyncLastSynced(now);
       localStorage.setItem('day-planner-cloud-sync-last-synced', now);
@@ -7157,6 +7160,7 @@ const DayPlanner = () => {
 
     if (cloudSyncInProgressRef.current) return;
     cloudSyncInProgressRef.current = true;
+    const syncStart = Date.now();
     setCloudSyncStatus('downloading');
     setCloudSyncError(null);
     try {
@@ -7191,6 +7195,8 @@ const DayPlanner = () => {
       }
       // If equal, do nothing
 
+      const elapsed = Date.now() - syncStart;
+      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
       setCloudSyncLastSynced(now);
       localStorage.setItem('day-planner-cloud-sync-last-synced', now);
