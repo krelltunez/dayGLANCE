@@ -11453,7 +11453,7 @@ const DayPlanner = () => {
             <>
               {!tabletPanelPinned && (
                 <div
-                  className="fixed inset-0 bg-black/20 z-30"
+                  className="fixed inset-0 z-30"
                   style={{ left: '60px' }}
                   onClick={() => setTabletSidePanel(null)}
                 />
