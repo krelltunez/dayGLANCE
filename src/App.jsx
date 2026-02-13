@@ -11822,25 +11822,44 @@ const DayPlanner = () => {
                             </span>
                           )}
                         </h2>
-                      ) : <div />}
-                      <button
-                        onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                        className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
-                        title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
-                      >
-                        {[0, 1, 2].map(i => (
-                          <span
-                            key={i}
-                            className={`w-2.5 h-1 rounded-full ${
-                              inboxPriorityFilter === 0
-                                ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
-                                : i < inboxPriorityFilter
-                                  ? 'bg-blue-500'
-                                  : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
-                            }`}
-                          />
-                        ))}
-                      </button>
+                      ) : (
+                        <button
+                          onClick={openNewInboxTask}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
+                        >
+                          <Plus size={14} />
+                          New Inbox Task
+                        </button>
+                      )}
+                      <div className="flex items-center gap-2">
+                        {!isLandscape && (
+                          <button
+                            onClick={openNewInboxTask}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium active:bg-blue-700 transition-colors"
+                          >
+                            <Plus size={12} />
+                            New
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
+                          className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                          title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
+                        >
+                          {[0, 1, 2].map(i => (
+                            <span
+                              key={i}
+                              className={`w-2.5 h-1 rounded-full ${
+                                inboxPriorityFilter === 0
+                                  ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                                  : i < inboxPriorityFilter
+                                    ? 'bg-blue-500'
+                                    : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                              }`}
+                            />
+                          ))}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
@@ -15094,12 +15113,12 @@ const DayPlanner = () => {
           >
             <Sparkles size={22} />
           </button>
-          {/* + New task FAB — switches between scheduled and inbox depending on active tab */}
+          {/* + New task FAB */}
           <button
-            onClick={isLandscape && tabletActiveTab === 'inbox' ? openNewInboxTask : openNewTaskForm}
+            onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg active:bg-blue-700 flex items-center justify-center transition-colors"
             style={{ right: '1rem', bottom: '1.5rem' }}
-            title={isLandscape && tabletActiveTab === 'inbox' ? 'New Inbox Task' : 'New Scheduled Task'}
+            title="New Scheduled Task"
           >
             <Plus size={28} />
           </button>
