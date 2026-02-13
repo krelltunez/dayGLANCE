@@ -915,6 +915,7 @@ const DayPlanner = () => {
   const isLandscape = useIsLandscape();
   const [tabletSidePanel, setTabletSidePanel] = useState(null); // null | 'inbox' | 'glance' | 'overdue'
   const [tabletPanelPinned, setTabletPanelPinned] = useState(false);
+  const [tabletTimelineScrolledAway, setTabletTimelineScrolledAway] = useState(false);
   // Override visible days: tablet uses orientation, mobile always 1, desktop uses width-based hook
   const visibleDays = isTablet ? (tabletSidePanel ? 2 : isLandscape ? 3 : 2) : isMobile ? 1 : _visibleDays;
   const [darkMode, setDarkMode] = useState(() => {
@@ -2070,6 +2071,34 @@ const DayPlanner = () => {
       }, 100);
     }
   }, [selectedDate, isMobile, mobileActiveTab]);
+
+  // Tablet: detect when user scrolls away from current time
+  useEffect(() => {
+    if (!isTablet) return;
+    const isToday = dateToString(selectedDate) === dateToString(new Date());
+    if (!isToday) { setTabletTimelineScrolledAway(false); return; }
+    const el = calendarRef.current;
+    if (!el) return;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        const now = new Date();
+        const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+        const nowPos = (now.getHours() + now.getMinutes() / 60) * hourHeight;
+        const viewTop = el.scrollTop;
+        const viewBottom = viewTop + el.clientHeight;
+        // Consider "scrolled away" when the current time line is not in the visible area (with some margin)
+        const margin = hourHeight * 0.5;
+        setTabletTimelineScrolledAway(nowPos < viewTop + margin || nowPos > viewBottom - margin);
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    onScroll(); // check initial state
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [isTablet, selectedDate]);
 
   useEffect(() => {
     saveData();
@@ -11331,24 +11360,12 @@ const DayPlanner = () => {
               <button onClick={() => changeDate(1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
                 <ChevronRight size={20} className={textSecondary} />
               </button>
-              {dateToString(selectedDate) !== dateToString(new Date()) ? (
+              {dateToString(selectedDate) !== dateToString(new Date()) && (
                 <button
                   onClick={goToToday}
                   className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
                 >
                   Today
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    const currentHour = new Date().getHours();
-                    const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
-                    const scrollPosition = Math.max(0, (currentHour - 2) * hourHeight);
-                    if (calendarRef.current) calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
-                  }}
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
-                >
-                  Now
                 </button>
               )}
             </div>
