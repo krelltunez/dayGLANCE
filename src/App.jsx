@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -914,7 +914,7 @@ const DayPlanner = () => {
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
   // Override visible days: tablet uses orientation, mobile always 1, desktop uses width-based hook
-  const visibleDays = isTablet ? (isLandscape ? 3 : 2) : isMobile ? 1 : _visibleDays;
+  const visibleDays = isTablet ? (tabletSidePanel ? 2 : isLandscape ? 3 : 2) : isMobile ? 1 : _visibleDays;
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-darkmode');
     return saved ? JSON.parse(saved) : false;
@@ -1028,7 +1028,8 @@ const DayPlanner = () => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
   // Tablet layout state
-  const [tabletSidePanel, setTabletSidePanel] = useState(null); // null | 'inbox' | 'routines' | 'settings' | 'search' | 'overdue'
+  const [tabletSidePanel, setTabletSidePanel] = useState(null); // null | 'inbox' | 'glance' | 'overdue'
+  const [tabletPanelPinned, setTabletPanelPinned] = useState(false);
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
@@ -11395,14 +11396,14 @@ const DayPlanner = () => {
                 <Plus size={20} />
               </button>
               <button
-                onClick={() => setTabletSidePanel(tabletSidePanel === 'glance' ? null : 'glance')}
+                onClick={() => { setTabletSidePanel(tabletSidePanel === 'glance' ? null : 'glance'); if (tabletSidePanel === 'glance') setTabletPanelPinned(false); }}
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'glance' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
                 title="Glance"
               >
                 <Eye size={20} className={textSecondary} />
               </button>
               <button
-                onClick={() => setTabletSidePanel(tabletSidePanel === 'inbox' ? null : 'inbox')}
+                onClick={() => { setTabletSidePanel(tabletSidePanel === 'inbox' ? null : 'inbox'); if (tabletSidePanel === 'inbox') setTabletPanelPinned(false); }}
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'inbox' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
                 title="Inbox"
               >
@@ -11412,7 +11413,7 @@ const DayPlanner = () => {
                 )}
               </button>
               <button
-                onClick={() => setTabletSidePanel(tabletSidePanel === 'overdue' ? null : 'overdue')}
+                onClick={() => { setTabletSidePanel(tabletSidePanel === 'overdue' ? null : 'overdue'); setTabletPanelPinned(false); }}
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'overdue' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
                 title="Overdue"
               >
@@ -11450,13 +11451,15 @@ const DayPlanner = () => {
           {/* Tablet slide-over panel */}
           {isTablet && tabletSidePanel && (
             <>
+              {!tabletPanelPinned && (
+                <div
+                  className="fixed inset-0 bg-black/20 z-30"
+                  style={{ left: '60px' }}
+                  onClick={() => setTabletSidePanel(null)}
+                />
+              )}
               <div
-                className="fixed inset-0 bg-black/20 z-30"
-                style={{ left: '60px' }}
-                onClick={() => setTabletSidePanel(null)}
-              />
-              <div
-                className={`${cardBg} border-r ${borderClass} overflow-y-auto z-40 flex-shrink-0 ${darkMode ? 'dark-scrollbar' : ''}`}
+                className={`${cardBg} border-r ${borderClass} overflow-y-auto ${tabletPanelPinned ? 'z-10' : 'z-40'} flex-shrink-0 ${darkMode ? 'dark-scrollbar' : ''}`}
                 style={{ width: '320px', height: '100%', position: 'relative' }}
               >
                 <div className="p-4">
@@ -11466,12 +11469,23 @@ const DayPlanner = () => {
                       {tabletSidePanel === 'inbox' && `Inbox (${unscheduledTasks.length})`}
                       {tabletSidePanel === 'overdue' && `Overdue (${getOverdueTasks().length})`}
                     </h2>
-                    <button
-                      onClick={() => setTabletSidePanel(null)}
-                      className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
-                    >
-                      <X size={18} className={textSecondary} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {(tabletSidePanel === 'glance' || tabletSidePanel === 'inbox') && (
+                        <button
+                          onClick={() => setTabletPanelPinned(!tabletPanelPinned)}
+                          className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+                          title={tabletPanelPinned ? 'Unpin panel' : 'Pin panel'}
+                        >
+                          {tabletPanelPinned ? <PinOff size={16} className={textSecondary} /> : <Pin size={16} className={textSecondary} />}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setTabletSidePanel(null); setTabletPanelPinned(false); }}
+                        className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}
+                      >
+                        <X size={18} className={textSecondary} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Glance panel content */}
