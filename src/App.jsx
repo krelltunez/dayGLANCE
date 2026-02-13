@@ -11543,7 +11543,7 @@ const DayPlanner = () => {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2`}>
-                      {tabletSidePanel === 'glance' && <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-7" />}
+                      {tabletSidePanel === 'glance' && <><Eye size={20} className="text-blue-500" /> Glance</>}
                       {tabletSidePanel === 'inbox' && `Inbox (${unscheduledTasks.length})`}
                       {tabletSidePanel === 'overdue' && `Overdue (${getOverdueTasks().length})`}
                     </h2>
