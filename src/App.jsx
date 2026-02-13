@@ -3425,7 +3425,7 @@ const DayPlanner = () => {
 
     if (fromInbox) {
       setUnscheduledTasks(unscheduledTasks.map(task =>
-        task.id === id ? { ...task, completed: !task.completed } : task
+        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date().toISOString() : null } : task
       ));
     } else {
       // Find the task to check if it's a task calendar item
@@ -8497,6 +8497,15 @@ const DayPlanner = () => {
   const actualTodayFocusMinutes = actualTodayNonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
   const allTimeFocusMinutes = nonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
 
+  // Inbox completion stats (tasks completed today from inbox, for "extra credit")
+  const todayStr_ = getTodayStr();
+  const inboxCompletedToday = unscheduledTasks.filter(t => t.completed && t.completedAt && t.completedAt.startsWith(todayStr_));
+  const inboxCompletedTodayCount = inboxCompletedToday.length;
+  const inboxCompletedTodayMinutes = inboxCompletedToday.reduce((sum, t) => sum + (t.duration || 0), 0);
+  const allTimeInboxCompleted = unscheduledTasks.filter(t => t.completed);
+  const allTimeInboxCompletedCount = allTimeInboxCompleted.length;
+  const allTimeInboxCompletedMinutes = allTimeInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0);
+
   // Incomplete task lists for modal
   const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => !t.completed).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   const allTimeIncompleteTasks = useMemo(() => {
@@ -10323,9 +10332,15 @@ const DayPlanner = () => {
                             )}
                           </span>
                         </div>
+                        {allTimeInboxCompletedCount > 0 && (
+                          <div className="flex justify-between">
+                            <span>Inbox tasks done</span>
+                            <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span>Time spent</span>
-                          <span className={`font-medium ${textPrimary}`}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Time planned</span>
@@ -10340,7 +10355,7 @@ const DayPlanner = () => {
                         {allTimeScheduledCount > 0 && (
                           <div className={`flex justify-between pt-2 border-t ${borderClass}`}>
                             <span className="font-semibold">Completion rate</span>
-                            <span className={`font-bold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
+                            <span className={`font-bold ${textPrimary}`}>{Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}%</span>
                           </div>
                         )}
                       </div>
@@ -10755,7 +10770,7 @@ const DayPlanner = () => {
             <>
               {/* Daily summary ring FAB */}
               {actualTodayNonImportedTasks.length > 0 && (() => {
-                const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
                 const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
                 return (
                   <button
@@ -11000,7 +11015,7 @@ const DayPlanner = () => {
                   {actualTodayNonImportedTasks.length === 0 ? (
                     <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
                   ) : (() => {
-                    const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                    const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
                     const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
                     return (
                     <>
@@ -11027,13 +11042,16 @@ const DayPlanner = () => {
                               {todayIncompleteTasks.length} incomplete
                             </button>
                           )}
+                          {inboxCompletedTodayCount > 0 && (
+                            <div className={`text-sm ${textSecondary}`}>+ {inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                          )}
                         </div>
                       </div>
                       {/* Stat rows */}
                       <div className={`space-y-3 ${textSecondary}`}>
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                          <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60)}h {(actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60}m</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
@@ -13163,14 +13181,17 @@ const DayPlanner = () => {
                       </button>
                     )}
                   </div>
-                  <div>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m time spent</div>
+                  {inboxCompletedTodayCount > 0 && (
+                    <div>{inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                  )}
+                  <div>{Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60)}h {(actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60}m time spent</div>
                   <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
                   {actualTodayFocusMinutes > 0 && (
                     <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m focus time</div>
                   )}
                   {actualTodayNonImportedTasks.length > 0 && (
                     <div className="pt-1">
-                      <div className="font-semibold">{Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
+                      <div className="font-semibold">{Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
                     </div>
                   )}
                 </div>
@@ -13205,14 +13226,17 @@ const DayPlanner = () => {
                       </button>
                     )}
                   </div>
-                  <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
+                  {allTimeInboxCompletedCount > 0 && (
+                    <div>{allTimeInboxCompletedCount} inbox {allTimeInboxCompletedCount === 1 ? 'task' : 'tasks'} done</div>
+                  )}
+                  <div>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m time spent</div>
                   <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
                   {allTimeFocusMinutes > 0 && (
                     <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m focus time</div>
                   )}
                   {allTimeScheduledCount > 0 && (
                     <div className="pt-1">
-                      <div className="font-semibold">{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate</div>
+                      <div className="font-semibold">{Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}% completion rate</div>
                     </div>
                   )}
                 </div>
@@ -15224,7 +15248,7 @@ const DayPlanner = () => {
           {(!isLandscape || tabletActiveTab === 'glance') && (<>
           {/* Daily summary ring FAB */}
           {actualTodayNonImportedTasks.length > 0 && (() => {
-            const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+            const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
             const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
             return (
               <button
@@ -15420,7 +15444,7 @@ const DayPlanner = () => {
               {actualTodayNonImportedTasks.length === 0 ? (
                 <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
               ) : (() => {
-                const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
                 const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
                 return (
                   <>
@@ -15441,12 +15465,15 @@ const DayPlanner = () => {
                             {todayIncompleteTasks.length} incomplete
                           </button>
                         )}
+                        {inboxCompletedTodayCount > 0 && (
+                          <div className={`text-sm ${textSecondary}`}>+ {inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                        )}
                       </div>
                     </div>
                     <div className={`space-y-3 ${textSecondary}`}>
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                        <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m</span>
+                        <span className={`font-medium ${textPrimary}`}>{Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60)}h {(actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60}m</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
