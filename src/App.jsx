@@ -10631,7 +10631,7 @@ const DayPlanner = () => {
             </button>
           )}
 
-          {/* Glance tab FABs - stacked on right: Daily Stats (bottom), Weekly Review (middle), Recycle Bin (top) */}
+          {/* Glance tab FABs - stacked on right: Weekly Review (bottom), Daily Stats (above weekly), Recycle Bin (top) */}
           {mobileActiveTab === 'dayglance' && (
             <>
               {/* Daily summary ring FAB */}
@@ -10642,7 +10642,7 @@ const DayPlanner = () => {
                   <button
                     onClick={() => setShowMobileDailySummary(true)}
                     className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
-                    style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                    style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
                   >
                     <div className="relative w-11 h-11">
                       <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -10669,7 +10669,7 @@ const DayPlanner = () => {
                   setShowWeeklyReview(true);
                 }}
                 className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-                style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
+                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
               >
                 <BarChart3 size={22} />
               </button>
