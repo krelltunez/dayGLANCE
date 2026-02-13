@@ -11496,11 +11496,12 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => { setShowSpotlight(true); playUISound('spotlight'); setTabletSidePanel(null); }}
-                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700 mb-2"
+                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700"
                 title="Search"
               >
                 <Search size={20} />
               </button>
+              <div className="flex-grow" />
               <button
                 onClick={() => { setTabletSidePanel(tabletSidePanel === 'glance' ? null : 'glance'); if (tabletSidePanel === 'glance') setTabletPanelPinned(false); }}
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'glance' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
@@ -11517,13 +11518,6 @@ const DayPlanner = () => {
                 {unscheduledTasks.length > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full" />
                 )}
-              </button>
-              <button
-                onClick={() => { setTabletSidePanel(null); setShowSpotlight(true); playUISound('spotlight'); }}
-                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10`}
-                title="Search"
-              >
-                <Search size={20} className={textSecondary} />
               </button>
             </div>
           )}
