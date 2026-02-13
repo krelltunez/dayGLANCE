@@ -10817,7 +10817,7 @@ const DayPlanner = () => {
                 {/* Tag list */}
                 <div className="px-4 pb-4 space-y-1 max-h-[50vh] overflow-y-auto">
                   {allTags.map(tag => {
-                    const regularCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
+                    const regularCount = tasks.filter(t => !t.imported && extractTags(t.title).includes(tag)).length;
                     const recurringCount = recurringTasks.filter(t => extractTags(t.title).includes(tag)).length;
                     const tagCount = regularCount + recurringCount;
                     if (tagCount === 0) return null;
@@ -12577,7 +12577,7 @@ const DayPlanner = () => {
                   ) : (
                     <div className="space-y-1">
                       {allTags.map(tag => {
-                        const regularCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
+                        const regularCount = tasks.filter(t => !t.imported && extractTags(t.title).includes(tag)).length;
                         const recurringCount = recurringTasks.filter(t => extractTags(t.title).includes(tag)).length;
                         const tagCount = regularCount + recurringCount;
                         if (tagCount === 0) return null;
