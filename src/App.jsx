@@ -7448,6 +7448,13 @@ const DayPlanner = () => {
     const [isAM, setIsAM] = useState(parseInt(value.split(':')[0]) < 12);
     const [mode, setMode] = useState('hour');
 
+    // Tablet-scaled sizes
+    const clockSize = isTablet ? 320 : 240;
+    const clockRadius = isTablet ? 130 : 100;
+    const clockCenter = isTablet ? 160 : 120;
+    const btnSize = isTablet ? 52 : 40;
+    const btnHalf = btnSize / 2;
+
     const handleConfirm = () => {
       const timeStr = `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')}`;
       onChange(timeStr);
@@ -7478,9 +7485,9 @@ const DayPlanner = () => {
       const numbers = mode === 'hour'
         ? (use24HourClock ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: 12 }, (_, i) => i + 1))
         : [0, 15, 30, 45];
-      const radius = 100;
-      const centerX = 120;
-      const centerY = 120;
+      const radius = clockRadius;
+      const centerX = clockCenter;
+      const centerY = clockCenter;
 
       // For 12h mode: map display hour (1-12) to angle
       const getHourAngle = (num) => {
@@ -7495,8 +7502,8 @@ const DayPlanner = () => {
         : selectedMinute * 6;
 
       return (
-        <div className="relative" style={{ width: '240px', height: '240px' }}>
-          <svg width="240" height="240" className="absolute top-0 left-0">
+        <div className="relative" style={{ width: `${clockSize}px`, height: `${clockSize}px` }}>
+          <svg width={clockSize} height={clockSize} className="absolute top-0 left-0">
             <circle cx={centerX} cy={centerY} r={radius} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
 
             {/* Selected time indicator */}
@@ -7542,7 +7549,9 @@ const DayPlanner = () => {
                     setSelectedMinute(num);
                   }
                 }}
-                className={`absolute w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                className={`absolute rounded-full flex items-center justify-center transition-colors ${
+                  isTablet ? 'text-base' : 'text-sm'
+                } ${
                   isSelected
                     ? 'bg-blue-600 text-white'
                     : darkMode
@@ -7550,8 +7559,10 @@ const DayPlanner = () => {
                       : 'hover:bg-gray-200 text-gray-700'
                 }`}
                 style={{
-                  left: `${x - 20}px`,
-                  top: `${y - 20}px`,
+                  width: `${btnSize}px`,
+                  height: `${btnSize}px`,
+                  left: `${x - btnHalf}px`,
+                  top: `${y - btnHalf}px`,
                 }}
               >
                 {mode === 'hour' ? num : num.toString().padStart(2, '0')}
@@ -7565,13 +7576,13 @@ const DayPlanner = () => {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
         <div
-          className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border`}
+          className={`${cardBg} rounded-lg shadow-xl ${isTablet ? 'p-8' : 'p-6'} ${borderClass} border`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className={`text-lg font-semibold ${textPrimary}`}>Select Time</h3>
-            <button onClick={onClose} className={`p-1 rounded ${hoverBg}`}>
-              <X size={20} className={textSecondary} />
+            <h3 className={`${isTablet ? 'text-xl' : 'text-lg'} font-semibold ${textPrimary}`}>Select Time</h3>
+            <button onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded ${hoverBg}`}>
+              <X size={isTablet ? 24 : 20} className={textSecondary} />
             </button>
           </div>
 
@@ -7579,16 +7590,16 @@ const DayPlanner = () => {
             <div className="flex gap-2 items-center">
               <button
                 onClick={() => setMode('hour')}
-                className={`text-3xl font-bold px-3 py-1 rounded ${
+                className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${
                   mode === 'hour' ? 'bg-blue-600 text-white' : textSecondary
                 }`}
               >
                 {displayHour}
               </button>
-              <span className={`text-3xl ${textPrimary}`}>:</span>
+              <span className={`${isTablet ? 'text-4xl' : 'text-3xl'} ${textPrimary}`}>:</span>
               <button
                 onClick={() => setMode('minute')}
-                className={`text-3xl font-bold px-3 py-1 rounded ${
+                className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${
                   mode === 'minute' ? 'bg-blue-600 text-white' : textSecondary
                 }`}
               >
@@ -7597,7 +7608,7 @@ const DayPlanner = () => {
               {!use24HourClock && (
                 <button
                   onClick={toggleAMPM}
-                  className={`text-lg font-bold px-2 py-1 rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   {isAM ? 'AM' : 'PM'}
                 </button>
@@ -7609,16 +7620,16 @@ const DayPlanner = () => {
             {renderClock()}
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className={`flex justify-end ${isTablet ? 'gap-3' : 'gap-2'}`}>
             <button
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} bg-blue-600 text-white rounded-lg hover:bg-blue-700`}
             >
               Confirm
             </button>
