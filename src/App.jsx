@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Smartphone } from 'lucide-react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter } from 'lucide-react';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -188,7 +188,7 @@ const NotesSubtasksPanel = ({
   const [editingSubtaskText, setEditingSubtaskText] = useState('');
   const [localNotes, setLocalNotes] = useState(task.notes || '');
   const [localSubtaskText, setLocalSubtaskText] = useState('');
-  const [isEditingNotes, setIsEditingNotes] = useState(!task.notes); // Edit mode only if no content
+  const [isEditingNotes, setIsEditingNotes] = useState(!task.notes); // Edit mode when no content
   const localNotesRef = useRef(localNotes);
   const taskNotesRef = useRef(task.notes || '');
   const taskIdRef = useRef(task.id);
@@ -216,7 +216,7 @@ const NotesSubtasksPanel = ({
   // Sync local notes with task notes when task changes (e.g., switching between tasks)
   useEffect(() => {
     setLocalNotes(task.notes || '');
-    setIsEditingNotes(!task.notes); // Edit mode only if no content
+    setIsEditingNotes(!task.notes); // Edit mode when no content
   }, [task.id]);
 
   // Save notes on unmount only (e.g., when ESC is pressed or panel closes)
@@ -365,7 +365,7 @@ const NotesSubtasksPanel = ({
                 )}
                 <button
                   onClick={() => deleteSubtask(task.id, subtask.id, isInbox)}
-                  className="opacity-0 group-hover:opacity-100 hover:bg-white/20 rounded p-0.5 transition-opacity"
+                  className="md:opacity-0 md:group-hover:opacity-100 opacity-60 hover:bg-white/20 rounded p-0.5 transition-opacity"
                   title="Delete subtask"
                 >
                   <X size={12} />
@@ -979,6 +979,11 @@ const DayPlanner = () => {
   const [showMonthView, setShowMonthView] = useState(false);
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
+  const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
+  const [mobileReviewPage, setMobileReviewPage] = useState(0);
+  const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
+  const [showMobileTagFilter, setShowMobileTagFilter] = useState(false);
+  const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
   const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
@@ -1027,6 +1032,7 @@ const DayPlanner = () => {
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
   const [mobileWelcomeStep, setMobileWelcomeStep] = useState(0);
+  const [desktopWelcomeStep, setDesktopWelcomeStep] = useState(0);
   const [mobileEditingTask, setMobileEditingTask] = useState(null);
   const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
   const [mobileSettingsView, setMobileSettingsView] = useState('main');
@@ -1182,7 +1188,7 @@ const DayPlanner = () => {
   const recycleBinRef = useRef(recycleBin);
   const recurringTasksRef = useRef(recurringTasks);
 
-  // Undo/redo toast notification
+  // Undo/redo toast notification — { message: string, actionable: boolean }
   const [undoToast, setUndoToast] = useState(null);
 
   // Settings & Reminders modals
@@ -1872,10 +1878,11 @@ const DayPlanner = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [expandedNotesTaskId]);
 
-  // Auto-dismiss undo/redo toast after 2 seconds
+  // Auto-dismiss undo/redo toast — 4s for actionable (with Undo button), 2s for passive
   useEffect(() => {
     if (!undoToast) return;
-    const timer = setTimeout(() => setUndoToast(null), 2000);
+    const delay = undoToast.actionable ? 4000 : 2000;
+    const timer = setTimeout(() => setUndoToast(null), delay);
     return () => clearTimeout(timer);
   }, [undoToast]);
 
@@ -2323,7 +2330,7 @@ const DayPlanner = () => {
       } else {
         // Load normally
         setTasks(parsedTasks);
-        setUnscheduledTasks(parsedUnscheduled);
+        setUnscheduledTasks(parsedUnscheduled.filter(t => !t.imported));
         if (recycleBinData) {
           setRecycleBin(JSON.parse(recycleBinData));
         }
@@ -2888,12 +2895,10 @@ const DayPlanner = () => {
 
   const clearTagFilter = () => {
     setSelectedTags([]);
-    setShowUntagged(false);
   };
 
   const selectAllTags = () => {
     setSelectedTags([...allTags]);
-    setShowUntagged(true);
   };
 
   // Get today's date string for overdue comparisons
@@ -3325,6 +3330,7 @@ const DayPlanner = () => {
   const toggleComplete = (id, fromInbox = false) => {
     pushUndo();
     playUISound('tick');
+    if (navigator.vibrate) navigator.vibrate(30);
     // Handle recurring task instances
     if (typeof id === 'string' && id.startsWith('recurring-')) {
       const { templateId, dateStr } = parseRecurringId(id);
@@ -3340,6 +3346,10 @@ const DayPlanner = () => {
       }));
       if (!onboardingProgress.hasCompletedTask) {
         setOnboardingProgress(prev => ({ ...prev, hasCompletedTask: true }));
+      }
+      const wasCompleted = recurringTasks.find(t => t.id === templateId)?.completedDates?.includes(dateStr);
+      if (!wasCompleted) {
+        setUndoToast({ message: 'Task completed', actionable: true });
       }
       return;
     }
@@ -3374,6 +3384,9 @@ const DayPlanner = () => {
       setTasks(tasks.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
       ));
+    }
+    if (taskToToggle && !taskToToggle.completed) {
+      setUndoToast({ message: 'Task completed', actionable: true });
     }
   };
 
@@ -3421,7 +3434,7 @@ const DayPlanner = () => {
     // Don't allow moving recurring instances to inbox
     if (typeof id === 'string' && id.startsWith('recurring-')) return;
     const task = tasks.find(t => t.id === id);
-    if (!task) return;
+    if (!task || task.imported) return;
 
     // Remove scheduling info and move to inbox
     const unscheduledTask = {
@@ -3435,6 +3448,7 @@ const DayPlanner = () => {
     setTasks(tasks.filter(t => t.id !== id));
     setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
     playUISound('slide');
+    setUndoToast({ message: 'Moved to inbox', actionable: true });
 
     // Track for onboarding
     if (!onboardingProgress.hasUsedActionButtons) {
@@ -4352,6 +4366,53 @@ const DayPlanner = () => {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview]);
 
+  // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
+  useEffect(() => {
+    if (!isMobile) return;
+    let holdTimer = null;
+    let startPositions = [];
+    let fired = false;
+
+    const cancel = () => {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    };
+
+    const onTouchStart = (e) => {
+      const count = e.touches.length;
+      if (count < 2) { cancel(); return; }
+      startPositions = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+      fired = false;
+      cancel();
+      holdTimer = setTimeout(() => {
+        fired = true;
+        if (count === 2) performUndo();
+        else if (count >= 3) performRedo();
+      }, 300);
+    };
+
+    const onTouchMove = (e) => {
+      if (!holdTimer) return;
+      const moved = Array.from(e.touches).some((t, i) => {
+        const start = startPositions[i];
+        if (!start) return false;
+        return Math.abs(t.clientX - start.x) > 20 || Math.abs(t.clientY - start.y) > 20;
+      });
+      if (moved) cancel();
+    };
+
+    const onTouchEnd = () => { cancel(); };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      cancel();
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile]);
+
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
     if (typeof id === 'string' && id.startsWith('recurring-')) {
@@ -4384,6 +4445,8 @@ const DayPlanner = () => {
         setTasks(tasks.filter(t => t.id !== id));
       }
       playUISound('swoosh');
+      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+      setUndoToast({ message: 'Task deleted', actionable: true });
 
       // Track for onboarding
       if (!onboardingProgress.hasUsedActionButtons) {
@@ -4446,6 +4509,7 @@ const DayPlanner = () => {
     pushUndo();
     setRecycleBin([]);
     setShowEmptyBinConfirm(false);
+    setShowMobileRecycleBin(false);
     playUISound('crumple');
   };
 
@@ -4515,33 +4579,43 @@ const DayPlanner = () => {
     setShowSpotlight(false);
     const { task, source } = result;
 
-    if (source === 'scheduled') {
-      goToDate(task.date);
-    } else if (source === 'inbox') {
-      setSidebarCollapsed(false);
-      setMinimizedSections(prev => ({ ...prev, inbox: false }));
+    const scrollAndHighlight = (selector, delay = 300) => {
       setTimeout(() => {
-        const el = document.querySelector(`[data-task-id="${task.id}"]`);
+        const el = document.querySelector(selector);
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-blue-400');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
         }
-      }, 300);
+      }, delay);
+    };
+
+    if (source === 'scheduled') {
+      if (isMobile) {
+        setMobileActiveTab('timeline');
+      }
+      goToDate(task.date);
+      scrollAndHighlight(`[data-task-id="${task.id}"]`);
+    } else if (source === 'inbox') {
+      if (isMobile) {
+        setMobileActiveTab('inbox');
+      } else {
+        setSidebarCollapsed(false);
+        setMinimizedSections(prev => ({ ...prev, inbox: false }));
+      }
+      scrollAndHighlight(`[data-task-id="${task.id}"]`);
     } else if (source === 'recurring') {
       const date = task.startDate || dateToString(new Date());
+      if (isMobile) {
+        setMobileActiveTab('timeline');
+      }
       goToDate(date);
     } else if (source === 'deleted') {
-      setSidebarCollapsed(false);
-      setMinimizedSections(prev => ({ ...prev, recycleBin: false }));
-      setTimeout(() => {
-        const el = document.querySelector(`[data-task-id="bin-${task.id}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
-        }
-      }, 300);
+      if (!isMobile) {
+        setSidebarCollapsed(false);
+        setMinimizedSections(prev => ({ ...prev, recycleBin: false }));
+        scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
+      }
     }
   };
 
@@ -5043,7 +5117,7 @@ const DayPlanner = () => {
     setRecycleBin(snapshot.recycleBin);
     setRecurringTasks(snapshot.recurringTasks);
     playUISound('undo');
-    setUndoToast('Undone');
+    setUndoToast({ message: 'Undone', actionable: false });
   };
 
   const performRedo = () => {
@@ -5064,7 +5138,7 @@ const DayPlanner = () => {
     setRecycleBin(snapshot.recycleBin);
     setRecurringTasks(snapshot.recurringTasks);
     playUISound('undo');
-    setUndoToast('Redone');
+    setUndoToast({ message: 'Redone', actionable: false });
   };
 
   // Reminder snooze: push task start time forward 15 minutes
@@ -5469,8 +5543,8 @@ const DayPlanner = () => {
 
   // --- Mobile swipe + long-press drag handlers ---
   const handleMobileTaskTouchStart = (e, task, taskType) => {
-    // Skip swipe for imported calendar events (non-task-calendar)
-    if (task.imported && !task.isTaskCalendar) return;
+    // Skip swipe for all imported items (calendar events and task-calendar tasks are immovable)
+    if (task.imported) return;
     const touch = e.touches[0];
     swipeTouchStartX.current = touch.clientX;
     swipeTouchStartY.current = touch.clientY;
@@ -5532,6 +5606,9 @@ const DayPlanner = () => {
       }
     }
 
+    // If touchstart was blocked (e.g. imported events), ignore swipe gestures
+    if (swipedTaskId.current == null) return;
+
     // Swipe direction lock
     if (!swipeLocked.current) {
       const absDx = Math.abs(dx);
@@ -5591,6 +5668,14 @@ const DayPlanner = () => {
       }
     };
 
+    // If touchstart was blocked (e.g. imported events), stale refs can cause false swipe actions — bail out
+    if (swipedTaskId.current == null || swipedTaskId.current !== taskId) {
+      if (el) { el.style.transform = ''; el.style.transition = ''; hideSwipeStrips(el); }
+      swipeCurrentOffset.current = 0;
+      swipedTaskId.current = null;
+      return;
+    }
+
     if (!el || swipeIsVertical.current || !swipeLocked.current) {
       // Reset
       if (el) {
@@ -5611,6 +5696,7 @@ const DayPlanner = () => {
 
     if (Math.abs(offset) > threshold && !isRightSwipeBlocked) {
       // Trigger action
+      if (navigator.vibrate) navigator.vibrate(40);
       const direction = offset > 0 ? 'right' : 'left';
       // Animate off-screen
       el.style.transform = `translateX(${direction === 'right' ? elWidth : -elWidth}px)`;
@@ -5787,6 +5873,23 @@ const DayPlanner = () => {
       const newTime = droppingToAllDay ? '00:00' : mobileDragPreviewTime;
       const fromAllDay = mobileDragSourceType.current === 'allday';
 
+      // Check for conflicts with imported calendar events and routines (same as desktop)
+      let finalTime = newTime;
+      let conflicted = false;
+      let conflictingEvent = null;
+      if (!droppingToAllDay && !task.isRoutineDrag) {
+        const dropDateStr = dateToString(selectedDate);
+        const result = getAdjustedTimeForImportedConflicts(
+          task.id,
+          newTime,
+          task.duration || 30,
+          dropDateStr
+        );
+        finalTime = result.adjustedStartTime;
+        conflicted = result.conflicted;
+        conflictingEvent = result.conflictingEvent;
+      }
+
       // If dragging from all-day back to all-day, no change needed
       if (fromAllDay && droppingToAllDay) {
         // no-op
@@ -5797,7 +5900,7 @@ const DayPlanner = () => {
         setTasks(prev => [...prev, {
           id: task.id,
           title: task.title,
-          startTime: droppingToAllDay ? '00:00' : newTime,
+          startTime: droppingToAllDay ? '00:00' : finalTime,
           duration: task.duration || 30,
           date: dateToString(selectedDate),
           isAllDay: droppingToAllDay,
@@ -5818,7 +5921,7 @@ const DayPlanner = () => {
                   ...t.exceptions,
                   [parsed.dateStr]: {
                     ...(t.exceptions?.[parsed.dateStr] || {}),
-                    startTime: newTime,
+                    startTime: finalTime,
                     isAllDay: droppingToAllDay,
                     duration: task.duration,
                   }
@@ -5828,14 +5931,30 @@ const DayPlanner = () => {
             return t;
           }));
         }
+      } else if (task.isRoutineDrag) {
+        // Routine chip: update time/all-day on todayRoutines
+        if (droppingToAllDay) {
+          setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: null, isAllDay: true } : r));
+        } else {
+          setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: newTime, isAllDay: false } : r));
+        }
       } else {
         // Regular task: update time and isAllDay status
         pushUndo();
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
-          startTime: newTime,
+          startTime: finalTime,
           isAllDay: droppingToAllDay,
         } : t));
+      }
+      // Show notification if task was rescheduled to avoid calendar conflict
+      if (conflicted && conflictingEvent) {
+        playUISound('error');
+        setSyncNotification({
+          type: 'info',
+          title: 'Task Rescheduled',
+          message: `Task moved to ${finalTime} to avoid conflict with "${conflictingEvent.title}"`
+        });
       }
       if (!(fromAllDay && droppingToAllDay)) {
         playUISound(droppingToAllDay ? 'drop' : 'slide');
@@ -7104,6 +7223,8 @@ const DayPlanner = () => {
   const DeadlinePickerPopover = ({ taskId, currentDeadline, onClose }) => {
     const [showCalendar, setShowCalendar] = useState(false);
     const [calendarPos, setCalendarPos] = useState({ x: 0, y: 0 });
+    const [openAbove, setOpenAbove] = useState(false);
+    const popoverRef = useRef(null);
     const [viewDate, setViewDate] = useState(() => {
       if (currentDeadline) {
         const parts = currentDeadline.split('-');
@@ -7111,6 +7232,14 @@ const DayPlanner = () => {
       }
       return new Date();
     });
+
+    useLayoutEffect(() => {
+      if (popoverRef.current && !showCalendar) {
+        const rect = popoverRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        setOpenAbove(rect.bottom > viewportHeight - 80);
+      }
+    }, [showCalendar]);
 
     const today = new Date();
     today.setHours(12, 0, 0, 0);
@@ -7246,7 +7375,7 @@ const DayPlanner = () => {
     }
 
     return (
-      <div className="deadline-picker-container absolute top-full right-0 mt-1 z-30">
+      <div ref={popoverRef} className={`deadline-picker-container absolute ${openAbove ? 'bottom-full mb-1' : 'top-full mt-1'} right-0 z-30`}>
         <div
           className={`${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px]`}
           onClick={(e) => e.stopPropagation()}
@@ -7738,14 +7867,12 @@ const DayPlanner = () => {
   }, [allTags]);
 
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
-  // Tasks with no tags are always shown (they can't be filtered by tags)
+  // Untagged tasks are always shown — the filter only scopes tagged tasks
   const filterByTags = (taskList) => {
     return taskList.filter(task => {
       const taskTags = extractTags(task.title);
-      // Imported events always shown
-      if (task.imported) return true;
-      // Untagged tasks: respect showUntagged toggle
-      if (taskTags.length === 0) return showUntagged;
+      // Imported events and untagged tasks always shown
+      if (task.imported || taskTags.length === 0) return true;
       // If no tags are selected, hide tagged tasks
       if (selectedTags.length === 0) return false;
       // Show tagged tasks only if they match a selected tag
@@ -8536,6 +8663,7 @@ const DayPlanner = () => {
                                   return (
                                     <div
                                       key={task.id}
+                                      data-task-id={task.id}
                                       className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={{ touchAction: 'none', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
@@ -8572,6 +8700,17 @@ const DayPlanner = () => {
                                               }}
                                               onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                               onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                              onTouchStart={(e) => {
+                                                e.stopPropagation();
+                                                if (isLinkOnlyTask(task)) {
+                                                  longPressTriggeredRef.current = false;
+                                                  longPressTimerRef.current = setTimeout(() => {
+                                                    longPressTriggeredRef.current = true;
+                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                  }, 500);
+                                                }
+                                              }}
+                                              onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (isLinkOnlyTask(task)) {
@@ -8614,6 +8753,7 @@ const DayPlanner = () => {
                                 {deadlineTasks.map((task) => (
                                   <div
                                     key={`deadline-${task.id}`}
+                                    data-task-id={task.id}
                                     className={`${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{ touchAction: 'none' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
@@ -8641,6 +8781,17 @@ const DayPlanner = () => {
                                         }}
                                         onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                         onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                        onTouchStart={(e) => {
+                                          e.stopPropagation();
+                                          if (isLinkOnlyTask(task)) {
+                                            longPressTriggeredRef.current = false;
+                                            longPressTimerRef.current = setTimeout(() => {
+                                              longPressTriggeredRef.current = true;
+                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            }, 500);
+                                          }
+                                        }}
+                                        onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           if (isLinkOnlyTask(task)) {
@@ -8682,7 +8833,11 @@ const DayPlanner = () => {
                                 {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-')).map((routine) => (
                                   <div
                                     key={`routine-${routine.id}`}
-                                    className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                                    className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    style={{ touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday')}
+                                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'allday')}
                                   >
                                     {routine.name}
                                   </div>
@@ -8779,6 +8934,7 @@ const DayPlanner = () => {
                               const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
                               const isImported = task.imported;
                               const isCalendarEvent = task.imported && !task.isTaskCalendar;
+                              const isPastEvent = isCalendarEvent && isDateToday && (timeToMinutes(task.startTime) + task.duration) <= (new Date().getHours() * 60 + new Date().getMinutes());
                               const isConflicted = !task.isAllDay && dayTasks.some(other => {
                                 if (other.id === task.id || other.isAllDay || other.completed) return false;
                                 const s1 = timeToMinutes(task.startTime), e1 = s1 + task.duration;
@@ -8808,6 +8964,17 @@ const DayPlanner = () => {
                                     }}
                                     onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                     onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onTouchStart={(e) => {
+                                      e.stopPropagation();
+                                      if (isLinkOnlyTask(task)) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
+                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        }, 500);
+                                      }
+                                    }}
+                                    onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (isLinkOnlyTask(task)) {
@@ -8853,7 +9020,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -8866,7 +9033,7 @@ const DayPlanner = () => {
                                   }}
                                 >
                                   {/* Swipe action strips - hidden until swipe direction determined */}
-                                  {!(task.imported && !task.isTaskCalendar) && (
+                                  {!task.imported && (
                                     <>
                                       <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                         {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
@@ -8881,7 +9048,7 @@ const DayPlanner = () => {
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
                                     className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${task.isTaskCalendar ? '' : 'border border-white/20'}`}
-                                    style={mobileCalendarStyle}
+                                    style={{ touchAction: 'none', ...mobileCalendarStyle }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
@@ -9073,13 +9240,19 @@ const DayPlanner = () => {
                                 return (
                                   <div
                                     key={`routine-tl-${routine.id}`}
-                                    className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                                    className={`absolute pointer-events-auto select-none flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{
+                                      touchAction: 'none',
+                                      WebkitTouchCallout: 'none',
+                                      WebkitUserSelect: 'none',
                                       top: `${rTop}px`,
                                       height: `${Math.max(rHeight, 27)}px`,
                                       left: `calc(${leftPercent} + 4px)`,
                                       width: `calc(${widthPercent} - 8px)`,
                                     }}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true }, 'timeline')}
+                                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'timeline')}
                                   >
                                     <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                     <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
@@ -9128,6 +9301,7 @@ const DayPlanner = () => {
                             toggleSubtask={toggleSubtask}
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
+                            noAutoFocus
                           />
                         </div>
                       </div>
@@ -9138,27 +9312,157 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'dayglance' && (
-              <div className="px-4 py-4" style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
-                <div className="space-y-1.5">
-                    {todayAgenda.flatMap((task, idx) => {
-                      const mobileItems = [];
-                      // Insert "Now" marker at the right position
-                      if (idx === agendaNowMarker.insertAfterIndex + 1) {
-                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                        const gapM = agendaNowMarker.gapMinutes % 60;
-                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                        mobileItems.push(
-                          <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
-                            <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                              {agendaNowMarker.inboxCount > 0 && (
-                                <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                              )}
+              <div className={`px-4 py-4 mobile-tab-fade-in`} style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <button
+                    onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                    className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors`}
+                  >
+                    <Search size={16} />
+                    <span className="text-sm">Search tasks...</span>
+                  </button>
+                  {allTags.length > 0 && (
+                    <button
+                      onClick={() => setShowMobileTagFilter(true)}
+                      className={`relative flex-shrink-0 p-2.5 rounded-lg transition-colors ${
+                        !allTags.every(tag => selectedTags.includes(tag))
+                          ? 'bg-blue-500 text-white'
+                          : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                      }`}
+                    >
+                      <Filter size={16} />
+                    </button>
+                  )}
+                </div>
+                {/* Overdue tasks from past days */}
+                {(() => {
+                  const todayStr = getTodayStr();
+                  const pastOverdue = getOverdueTasks().filter(t => {
+                    if (t._overdueType === 'scheduled') return t.date < todayStr;
+                    return true; // deadline overdue are always from past dates
+                  });
+                  if (pastOverdue.length === 0) return null;
+                  return (
+                    <div className={`mb-4 rounded-lg border ${darkMode ? 'border-orange-500/40 bg-orange-500/10' : 'border-orange-400/50 bg-orange-50'} overflow-hidden`}>
+                      <button
+                        onClick={() => toggleSection('overdue')}
+                        className="w-full flex items-center justify-between px-3 py-2.5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={15} className="text-orange-500" />
+                          <span className="text-sm font-semibold text-orange-500">Overdue</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-200 text-orange-700'}`}>
+                            {pastOverdue.length}
+                          </span>
+                        </div>
+                        {minimizedSections.overdue ? <ChevronDown size={16} className="text-orange-500" /> : <ChevronUp size={16} className="text-orange-500" />}
+                      </button>
+                      {!minimizedSections.overdue && (
+                        <div className="px-3 pb-2.5 space-y-1">
+                          {pastOverdue.map(task => (
+                            <div
+                              key={`mobile-overdue-${task.id}`}
+                              className={`flex items-center gap-2.5 py-2 px-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-white/80'}`}
+                            >
+                              <button
+                                onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
+                                className={`w-5 h-5 rounded flex-shrink-0 border-2 ${task.completed
+                                  ? 'border-orange-400 bg-orange-400'
+                                  : darkMode ? 'border-orange-400/60 bg-white/10' : 'border-orange-400/60 bg-white'
+                                } flex items-center justify-center`}
+                              >
+                                {task.completed && <Check size={12} strokeWidth={3} className="text-white" />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-medium truncate ${task.completed ? 'line-through opacity-50' : textPrimary}`}>
+                                  {renderTitle(task.title)}
+                                </div>
+                                <div className={`text-xs ${textSecondary} flex items-center gap-1 mt-0.5`}>
+                                  {task._overdueType === 'scheduled' ? (
+                                    <>
+                                      <Clock size={10} />
+                                      {formatDeadlineDate(task.date)} {!task.isAllDay && `• ${formatTime(task.startTime)}`}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <AlertCircle size={10} />
+                                      Due: {formatDeadlineDate(task.deadline)}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    pushUndo();
+                                    if (task._overdueType === 'scheduled') {
+                                      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, date: getTodayStr() } : t));
+                                    } else {
+                                      setUnscheduledTasks(prev => prev.map(t => t.id === task.id ? { ...t, deadline: getTodayStr() } : t));
+                                    }
+                                    setUndoToast({ message: 'Moved to today', actionable: true });
+                                  }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-600'} active:scale-95 transition-transform`}
+                                  title="Move to today"
+                                >
+                                  <CalendarDays size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (task._overdueType === 'scheduled') {
+                                      pushUndo();
+                                      setTasks(prev => prev.filter(t => t.id !== task.id));
+                                      const { startTime, date, duration, _overdueType, ...rest } = task;
+                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      playUISound('slide');
+                                      setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                    } else {
+                                      clearDeadline(task.id);
+                                      playUISound('slide');
+                                      setUndoToast({ message: 'Deadline cleared', actionable: true });
+                                    }
+                                  }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  title="Move to inbox"
+                                >
+                                  <Inbox size={14} />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      }
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {(() => { const filteredAgenda = filterByTags(todayAgenda); return filteredAgenda.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-6">
+                    <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-blue-500/15' : 'bg-blue-50'} flex items-center justify-center mb-4`}>
+                      <Calendar size={28} className={`${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
+                      <Sparkles size={14} className={`absolute -top-1 -right-1 ${darkMode ? 'text-yellow-400' : 'text-yellow-500'}`} />
+                    </div>
+                    <p className={`text-base font-semibold ${textPrimary} mb-1`}>Your day is clear</p>
+                    <p className={`text-sm ${textSecondary} text-center mb-5`}>No tasks scheduled for today</p>
+                    <div className="flex gap-2.5">
+                      <button
+                        onClick={openNewTaskForm}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-blue-500 text-white active:bg-blue-600' : 'bg-blue-500 text-white active:bg-blue-600'} transition-colors`}
+                      >
+                        <Plus size={16} />
+                        Add task
+                      </button>
+                      <button
+                        onClick={() => setMobileActiveTab('inbox')}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-white/10 text-gray-300 active:bg-white/15' : 'bg-gray-100 text-gray-600 active:bg-gray-200'} transition-colors`}
+                      >
+                        <Inbox size={16} />
+                        Inbox
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {filteredAgenda.map(task => {
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                       let timeLabel = '';
@@ -9188,7 +9492,18 @@ const DayPlanner = () => {
                       mobileItems.push(
                         <div
                           key={`mobile-glance-${task._agendaType}-${task.id}`}
-                          className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''}`}
+                          className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
+                          onClick={() => {
+                            setMobileActiveTab('timeline');
+                            setTimeout(() => {
+                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                el.classList.add('ring-2', 'ring-blue-400');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                              }
+                            }, 150);
+                          }}
                         >
                           <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
                           <div className="min-w-0 flex-1">
@@ -9197,10 +9512,35 @@ const DayPlanner = () => {
                               <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
                               {hasNotesOrSubtasks(task) && (
                                 <button
+                                  onMouseDown={() => {
+                                    if (isLinkOnlyTask(task)) {
+                                      longPressTriggeredRef.current = false;
+                                      longPressTimerRef.current = setTimeout(() => {
+                                        longPressTriggeredRef.current = true;
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }, 500);
+                                    }
+                                  }}
+                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onTouchStart={(e) => {
+                                    e.stopPropagation();
+                                    if (isLinkOnlyTask(task)) {
+                                      longPressTriggeredRef.current = false;
+                                      longPressTimerRef.current = setTimeout(() => {
+                                        longPressTriggeredRef.current = true;
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }, 500);
+                                    }
+                                  }}
+                                  onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (isLinkOnlyTask(task)) {
-                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                      if (!longPressTriggeredRef.current) {
+                                        window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                      }
+                                      longPressTriggeredRef.current = false;
                                     } else {
                                       setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
                                     }
@@ -9252,33 +9592,25 @@ const DayPlanner = () => {
                       );
                       return mobileItems;
                     })}
-                    {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
-                      const hr = currentTime.getHours();
-                      const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
-                      const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
-                      const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
-                      return (
-                        <div key="mobile-now-marker-end" className="flex gap-2.5 py-2.5">
-                          <div className={`w-1.5 rounded-full flex-shrink-0 ${barColor}`} />
-                          <div className="min-w-0 flex-1">
-                            <div className={`text-sm font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
-                            <div className={`text-xs italic ${textColor} mt-0.5`}>{subtitle}</div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                </div>
+                  </div>
+                ); })()}
                 {/* Routines row */}
                 {todayRoutines.length > 0 && (() => {
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                   const visibleRoutines = todayRoutines.filter(r => {
+                    if (String(r.id).startsWith('example-')) return false;
                     if (!r.startTime || r.isAllDay) return true;
                     return (timeToMinutes(r.startTime) + r.duration + 120) > nowMin;
                   });
                   if (visibleRoutines.length === 0) return null;
                   return (
-                    <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                    <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer`} onClick={() => {
+                      setMobileActiveTab('routines');
+                      setMobileSettingsView('main');
+                      setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
+                      setRoutineAddingToBucket(null);
+                      setRoutineNewChipName('');
+                    }}>
                       <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
                       <div className="flex flex-wrap gap-1.5">
                         {[...visibleRoutines].sort((a, b) => {
@@ -9338,6 +9670,7 @@ const DayPlanner = () => {
                             toggleSubtask={toggleSubtask}
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
+                            noAutoFocus
                           />
                         </div>
                       </div>
@@ -9348,16 +9681,40 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'inbox' && (
-              <div className="px-4 py-4">
+              <div className={`px-4 py-4 mobile-tab-fade-in`}>
                 <div className="space-y-2">
                   {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
-                    <p className={`text-sm ${textSecondary} text-center py-8`}>
-                      {unscheduledTasks.filter(t => !t.isExample).length === 0
-                        ? "No tasks in inbox yet"
-                        : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
-                          ? "All tasks have overdue deadlines"
-                          : "No tasks match current filter"}
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-12 px-6">
+                      <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-emerald-500/15' : 'bg-emerald-50'} flex items-center justify-center mb-4`}>
+                        <Inbox size={28} className={`${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
+                        {unscheduledTasks.filter(t => !t.isExample).length === 0 && (
+                          <Check size={14} className={`absolute -top-1 -right-1 ${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
+                        )}
+                      </div>
+                      <p className={`text-base font-semibold ${textPrimary} mb-1`}>
+                        {unscheduledTasks.filter(t => !t.isExample).length === 0
+                          ? "Inbox zero"
+                          : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
+                            ? "All overdue"
+                            : "No matches"}
+                      </p>
+                      <p className={`text-sm ${textSecondary} text-center mb-5`}>
+                        {unscheduledTasks.filter(t => !t.isExample).length === 0
+                          ? "Add tasks here to schedule later"
+                          : nonOverdueInboxTasks.filter(t => !t.isExample).length === 0
+                            ? "All inbox tasks have overdue deadlines"
+                            : "No tasks match the current filter"}
+                      </p>
+                      {unscheduledTasks.filter(t => !t.isExample).length === 0 && (
+                        <button
+                          onClick={openNewInboxTask}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-emerald-500 text-white active:bg-emerald-600' : 'bg-emerald-500 text-white active:bg-emerald-600'} transition-colors`}
+                        >
+                          <Plus size={16} />
+                          Add task
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
                       <div key={task.id} className="notes-panel-container">
@@ -9523,6 +9880,7 @@ const DayPlanner = () => {
                             toggleSubtask={toggleSubtask}
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
+                            noAutoFocus
                           />
                         </div>
                       </div>
@@ -9533,7 +9891,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'routines' && (
-              <div className="px-4 py-4">
+              <div className={`px-4 py-4 mobile-tab-fade-in`}>
                 {(() => {
                   const today = new Date();
                   const todayDayName = getDayName(today);
@@ -9651,7 +10009,7 @@ const DayPlanner = () => {
                                     {chip.name}
                                     <button
                                       onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
-                                      className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                      className="absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
                                     >
                                       <X size={10} />
                                     </button>
@@ -9673,7 +10031,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'settings' && (
-              <div className="relative overflow-hidden">
+              <div className={`relative overflow-hidden mobile-tab-fade-in`}>
                 {/* Main settings view */}
                 <div
                   className={`px-4 py-4 space-y-4 transition-transform duration-200 ${mobileSettingsView !== 'main' ? '-translate-x-full' : 'translate-x-0'}`}
@@ -9740,6 +10098,19 @@ const DayPlanner = () => {
                     </div>
                   )}
 
+                  {/* Stats */}
+                  <div className="space-y-2">
+                    <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Stats</h3>
+                    <button
+                      onClick={() => setMobileSettingsView('stats')}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <TrendingUp size={20} className={textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>All Time Summary</span>
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
+                  </div>
+
                   {/* Sub-menu buttons */}
                   <div className="space-y-2">
                     <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
@@ -9769,6 +10140,64 @@ const DayPlanner = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Stats sub-view */}
+                {mobileSettingsView === 'stats' && (
+                  <div className="px-4 py-4 space-y-4 mobile-tab-fade-in">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} active:opacity-70`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">Settings</span>
+                    </button>
+                    <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                      <TrendingUp size={20} /> All Time Summary
+                    </h2>
+                    <div className={`${cardBg} border ${borderClass} rounded-xl p-4`}>
+                      <div className={`space-y-3 text-sm ${textSecondary}`}>
+                        <div className="flex justify-between">
+                          <span>Tasks scheduled</span>
+                          <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Tasks completed</span>
+                          <span className={`font-medium ${textPrimary}`}>
+                            {allTimeCompletedCount}
+                            {allTimeIncompleteTasks.length > 0 && (
+                              <button
+                                onClick={() => setShowIncompleteTasks('allTime')}
+                                className="ml-1 text-blue-500 active:text-blue-600"
+                              >
+                                ({allTimeIncompleteTasks.length} incomplete)
+                              </button>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Time spent</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Time planned</span>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                        </div>
+                        {allTimeFocusMinutes > 0 && (
+                          <div className="flex justify-between">
+                            <span>Focus time</span>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                          </div>
+                        )}
+                        {allTimeScheduledCount > 0 && (
+                          <div className={`flex justify-between pt-2 border-t ${borderClass}`}>
+                            <span className="font-semibold">Completion rate</span>
+                            <span className={`font-bold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* App Settings sub-view */}
                 {mobileSettingsView === 'app' && (() => {
@@ -10172,6 +10601,309 @@ const DayPlanner = () => {
             </button>
           )}
 
+          {/* Glance tab FABs - stacked on right: Daily Stats (bottom), Weekly Review (middle), Recycle Bin (top) */}
+          {mobileActiveTab === 'dayglance' && (
+            <>
+              {/* Daily summary ring FAB */}
+              {actualTodayNonImportedTasks.length > 0 && (() => {
+                const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                return (
+                  <button
+                    onClick={() => setShowMobileDailySummary(true)}
+                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
+                    style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                  >
+                    <div className="relative w-11 h-11">
+                      <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
+                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                          strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
+                        />
+                      </svg>
+                      <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
+                        <ChevronUp size={16} />
+                      </span>
+                    </div>
+                  </button>
+                );
+              })()}
+              {/* Weekly review FAB */}
+              <button
+                onClick={() => {
+                  if (showWeeklyReviewReminder) {
+                    weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
+                    localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
+                    setShowWeeklyReviewReminder(false);
+                  }
+                  setShowWeeklyReview(true);
+                }}
+                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
+              >
+                <BarChart3 size={22} />
+              </button>
+              {/* Recycle bin FAB */}
+              {recycleBin.filter(t => !t.isExample).length > 0 && (
+                <button
+                  onClick={() => setShowMobileRecycleBin(true)}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                  style={{ bottom: 'calc(12.5rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                  <div className="relative">
+                    <Trash2 size={22} />
+                    <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                      {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
+                    </span>
+                  </div>
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Mobile Recycle Bin Bottom Sheet */}
+          {showMobileRecycleBin && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileRecycleBin(false)}>
+              <div className="bg-black/30 absolute inset-0" />
+              <div
+                className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] flex flex-col`}
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Trash2 size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>Recycle Bin</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                      {recycleBin.filter(t => !t.isExample).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {recycleBin.filter(t => !t.isExample).length > 0 && (
+                      <button
+                        onClick={emptyRecycleBin}
+                        className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg active:bg-red-500/10"
+                      >
+                        Empty All
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowMobileRecycleBin(false)}
+                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                    >
+                      <X size={16} className={textSecondary} />
+                    </button>
+                  </div>
+                </div>
+                {/* Task list */}
+                <div className="overflow-y-auto px-4 pb-2 space-y-2">
+                  {recycleBin.filter(t => !t.isExample).length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center py-8`}>Recycle bin is empty</p>
+                  ) : (
+                    recycleBin.filter(t => !t.isExample).map(task => (
+                      <div
+                        key={`mobile-bin-${task.id}`}
+                        className={`${task.color} rounded-lg p-3 opacity-60`}
+                      >
+                        <div className="flex items-start justify-between text-white">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
+                            <div className="text-xs opacity-75 mt-1">
+                              {task._deletedFrom === 'inbox' ? (
+                                <>Inbox • {task.duration}min</>
+                              ) : task.startTime ? (
+                                <>{formatTime(task.startTime)} • {task.duration}min</>
+                              ) : (
+                                <>{task.duration}min</>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }}
+                              className="bg-white/20 rounded-lg p-1.5 active:bg-white/30 transition-colors"
+                              title="Restore"
+                            >
+                              <Undo2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Tag Filter Bottom Sheet */}
+          {showMobileTagFilter && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileTagFilter(false)}>
+              <div className="bg-black/30 absolute inset-0" />
+              <div
+                className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Filter size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>Filter by Tag</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {allTags.every(tag => selectedTags.includes(tag)) ? (
+                      <button
+                        onClick={clearTagFilter}
+                        className="text-sm text-blue-500 active:text-blue-600 font-medium"
+                      >
+                        Clear
+                      </button>
+                    ) : (
+                      <button
+                        onClick={selectAllTags}
+                        className="text-sm text-blue-500 active:text-blue-600 font-medium"
+                      >
+                        Select All
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowMobileTagFilter(false)}
+                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                    >
+                      <X size={16} className={textSecondary} />
+                    </button>
+                  </div>
+                </div>
+                {/* Tag list */}
+                <div className="px-4 pb-4 space-y-1 max-h-[50vh] overflow-y-auto">
+                  {allTags.map(tag => {
+                    const regularCount = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).includes(tag)).length;
+                    const recurringCount = recurringTasks.filter(t => extractTags(t.title).includes(tag)).length;
+                    const tagCount = regularCount + recurringCount;
+                    if (tagCount === 0) return null;
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
+                          selectedTags.includes(tag)
+                            ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                            : darkMode ? 'active:bg-white/5' : 'active:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                          selectedTags.includes(tag)
+                            ? 'bg-blue-500 border-blue-500'
+                            : darkMode ? 'border-gray-600' : 'border-gray-300'
+                        }`}>
+                          {selectedTags.includes(tag) && <Check size={14} className="text-white" />}
+                        </div>
+                        <Hash size={14} className={textSecondary} />
+                        <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
+                        <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Daily Summary Bottom Sheet */}
+          {showMobileDailySummary && (
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileDailySummary(false)}>
+              <div className="bg-black/30 absolute inset-0" />
+              <div
+                className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                </div>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
+                  </div>
+                  <button
+                    onClick={() => setShowMobileDailySummary(false)}
+                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                  >
+                    <X size={16} className={textSecondary} />
+                  </button>
+                </div>
+                {/* Stats */}
+                <div className="px-4 pb-4">
+                  {actualTodayNonImportedTasks.length === 0 ? (
+                    <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
+                  ) : (() => {
+                    const pct = Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100);
+                    const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                    return (
+                    <>
+                      {/* Progress ring + headline */}
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="relative w-16 h-16 flex-shrink-0">
+                          <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                            <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-700' : 'stroke-gray-200'} />
+                            <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                              strokeDasharray={`${(pct / 100) * 97.4} 97.4`}
+                            />
+                          </svg>
+                          <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${textPrimary}`}>
+                            {pct}%
+                          </span>
+                        </div>
+                        <div>
+                          <div className={`text-lg font-bold ${textPrimary}`}>{actualTodayCompletedTasks.length} of {actualTodayNonImportedTasks.length} done</div>
+                          {todayIncompleteTasks.length > 0 && (
+                            <button
+                              onClick={() => { setShowIncompleteTasks('today'); setShowMobileDailySummary(false); }}
+                              className="text-sm text-blue-500 active:text-blue-600"
+                            >
+                              {todayIncompleteTasks.length} incomplete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {/* Stat rows */}
+                      <div className={`space-y-3 ${textSecondary}`}>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
+                          <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m</span>
+                        </div>
+                        {actualTodayFocusMinutes > 0 && (
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m</span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bottom Tab Bar */}
           <div
             className={`fixed bottom-0 left-0 right-0 z-40 ${cardBg} border-t ${borderClass}`}
@@ -10196,15 +10928,28 @@ const DayPlanner = () => {
                   setMobileActiveTab('timeline');
                   setMobileSettingsView('main');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? (getOverdueTasks().length > 0 ? 'text-red-500' : 'text-blue-500') : textSecondary}`}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? (todayAgenda.some(t => {
+                  if (t.completed || t._agendaType !== 'scheduled') return false;
+                  const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                  const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+                  return (h * 60 + m + (t.duration || 0)) <= nowMin;
+                }) ? 'text-red-500' : 'text-blue-500') : textSecondary}`}
               >
                 <div className="relative">
                   <Calendar size={20} />
-                  {getOverdueTasks().length > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-red-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
-                      {getOverdueTasks().length > 9 ? '9+' : getOverdueTasks().length}
-                    </span>
-                  )}
+                  {(() => {
+                    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                    const overdueCount = todayAgenda.filter(t => {
+                      if (t.completed || t._agendaType !== 'scheduled') return false;
+                      const [h, m] = (t.startTime || '0:0').split(':').map(Number);
+                      return (h * 60 + m + (t.duration || 0)) <= nowMin;
+                    }).length;
+                    return overdueCount > 0 ? (
+                      <span className="absolute -top-1.5 -right-2.5 bg-red-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                        {overdueCount > 9 ? '9+' : overdueCount}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <span className="text-[10px] font-medium">Timeline</span>
               </button>
@@ -10872,7 +11617,13 @@ const DayPlanner = () => {
 
                 {/* Section icons - clicking expands sidebar */}
                 <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} w-[51px] py-2 flex flex-col items-center gap-2`}>
-                  {getOverdueTasks().length > 0 && (
+                  {(() => {
+                    const todayStr = getTodayStr();
+                    const pastOverdue = getOverdueTasks().filter(t => {
+                      if (t._overdueType === 'scheduled') return t.date < todayStr;
+                      return true;
+                    });
+                    return pastOverdue.length > 0 ? (
                     <button
                       onClick={() => setSidebarCollapsed(false)}
                       className={`p-2 rounded ${hoverBg} relative`}
@@ -10880,10 +11631,11 @@ const DayPlanner = () => {
                     >
                       <AlertTriangle size={20} className="text-orange-500" />
                       <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {getOverdueTasks().length > 9 ? '9+' : getOverdueTasks().length}
+                        {pastOverdue.length > 9 ? '9+' : pastOverdue.length}
                       </span>
                     </button>
-                  )}
+                    ) : null;
+                  })()}
                   <button
                     onClick={() => setSidebarCollapsed(false)}
                     className={`p-2 rounded ${hoverBg} relative`}
@@ -11032,8 +11784,15 @@ const DayPlanner = () => {
               </div>
             )}
 
-            {/* Overdue Tasks Section */}
-            {getOverdueTasks().length > 0 && (
+            {/* Overdue Tasks Section - only past days (today's overdue shown in dayGLANCE) */}
+            {(() => {
+              const todayStr = getTodayStr();
+              const pastOverdue = getOverdueTasks().filter(t => {
+                if (t._overdueType === 'scheduled') return t.date < todayStr;
+                return true; // deadline overdue are always from past dates
+              });
+              if (pastOverdue.length === 0) return null;
+              return (
               <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} border-orange-500/50 p-4 mb-4`}>
                 <div className={`flex items-center justify-between ${minimizedSections.overdue ? '' : 'mb-4'}`}>
                   <h3 className={`font-semibold text-orange-500 flex items-center gap-2`}>
@@ -11041,7 +11800,7 @@ const DayPlanner = () => {
                     Overdue
                   </h3>
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm text-orange-500`}>{getOverdueTasks().length}</span>
+                    <span className={`text-sm text-orange-500`}>{pastOverdue.length}</span>
                     <button
                       onClick={() => toggleSection('overdue')}
                       className={`text-orange-500 hover:text-orange-400 transition-colors`}
@@ -11054,7 +11813,7 @@ const DayPlanner = () => {
 
                 {!minimizedSections.overdue && (
                   <div className="space-y-2">
-                    {getOverdueTasks().map(task => (
+                    {pastOverdue.map(task => (
                       <div
                         key={task.id}
                         draggable
@@ -11093,9 +11852,12 @@ const DayPlanner = () => {
                             {task._overdueType === 'scheduled' ? (
                               <button
                                 onClick={() => {
+                                  pushUndo();
                                   setTasks(tasks.filter(t => t.id !== task.id));
                                   const { startTime, date, _overdueType, ...taskWithoutSchedule } = task;
                                   setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+                                  playUISound('slide');
+                                  setUndoToast({ message: 'Moved to inbox', actionable: true });
                                 }}
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox"
@@ -11104,7 +11866,7 @@ const DayPlanner = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => clearDeadline(task.id)}
+                                onClick={() => { clearDeadline(task.id); playUISound('slide'); setUndoToast({ message: 'Deadline cleared', actionable: true }); }}
                                 className="hover:bg-white/20 rounded p-1"
                                 title="Move to Inbox (clear deadline)"
                               >
@@ -11125,7 +11887,8 @@ const DayPlanner = () => {
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* dayGLANCE Agenda Section */}
             <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
@@ -11714,7 +12477,7 @@ const DayPlanner = () => {
                 </h3>
                 <div className="flex items-center gap-2">
                   {!minimizedSections.tags && allTags.length > 0 && (
-                    allTags.every(tag => selectedTags.includes(tag)) && showUntagged ? (
+                    allTags.every(tag => selectedTags.includes(tag)) ? (
                       <button
                         onClick={clearTagFilter}
                         className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
@@ -11803,23 +12566,6 @@ const DayPlanner = () => {
                           </label>
                         );
                       })}
-                      {(() => {
-                        const untaggedRegular = tasks.filter(t => !t.completed && !t.imported && extractTags(t.title).length === 0).length;
-                        const untaggedRecurring = recurringTasks.filter(t => extractTags(t.title).length === 0).length;
-                        const untaggedCount = untaggedRegular + untaggedRecurring;
-                        if (untaggedCount === 0) return null;
-                        return (
-                          <label className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}>
-                            <input
-                              type="checkbox"
-                              checked={showUntagged}
-                              onChange={() => setShowUntagged(!showUntagged)}
-                              className="rounded"
-                            />
-                            <span>untagged <span className={`text-xs ${textSecondary}`}>({untaggedCount})</span></span>
-                          </label>
-                        );
-                      })()}
                     </div>
                   )}
                 </div>
@@ -12512,7 +13258,9 @@ const DayPlanner = () => {
                           const isConflicted = conflicts.some(c => c.includes(task.id));
                           const conflictPos = calculateConflictPosition(task, dayTasks);
                           const isImported = task.imported;
+                          const isCalendarEvent = isImported && !task.isTaskCalendar;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
+                          const isPastEvent = isCalendarEvent && isDateToday && (timeToMinutes(task.startTime) + task.duration) <= (new Date().getHours() * 60 + new Date().getMinutes());
 
                           // Layout tiers for timeline tasks
                           const isMicroHeight = height <= 40;  // 15min tasks
@@ -12620,12 +13368,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              {...(isTablet && (!isImported || task.isTaskCalendar) ? {
-                                onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'timeline'),
-                                onTouchMove: (e) => handleMobileTaskTouchMove(e),
-                                onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
-                              } : {})}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -12970,9 +13713,7 @@ const DayPlanner = () => {
 
                         {/* Timeline routine pills (today only) */}
                         {dateStr === dateToString(new Date()) && (() => {
-                          const now0 = new Date();
-                          const nowMin0 = now0.getHours() * 60 + now0.getMinutes();
-                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime && (timeToMinutes(r.startTime) + r.duration + 60) > nowMin0);
+                          const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
                           if (timelineRoutines.length === 0) return null;
 
                           // Compute side-by-side columns for overlapping routine chips
@@ -13191,7 +13932,7 @@ const DayPlanner = () => {
       )}
 
       {showEmptyBinConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmptyBinConfirm(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}>
           <div
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
@@ -13207,7 +13948,7 @@ const DayPlanner = () => {
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setShowEmptyBinConfirm(false)}
+                onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}
                 className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
               >
                 Cancel
@@ -13856,9 +14597,17 @@ const DayPlanner = () => {
 
       {/* Undo/Redo Toast */}
       {undoToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-          <div className={`px-4 py-2 rounded-lg shadow-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white'}`}>
-            {undoToast}
+        <div className={`fixed left-1/2 -translate-x-1/2 z-50 ${undoToast.actionable ? 'pointer-events-auto' : 'pointer-events-none'}`} style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
+          <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-white'}`}>
+            <span>{undoToast.message}</span>
+            {undoToast.actionable && (
+              <button
+                onClick={() => { performUndo(); }}
+                className="font-semibold text-blue-400 hover:text-blue-300 ml-1"
+              >
+                Undo
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -14762,7 +15511,7 @@ const DayPlanner = () => {
                               {chip.name}
                               <button
                                 onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
-                                className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                className="absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
                                 title="Delete"
                               >
                                 <X size={10} />
@@ -14820,7 +15569,7 @@ const DayPlanner = () => {
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
-                                className={`absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
+                                className={`absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
                                 title="Remove from today"
                               >
                                 <Undo2 size={10} />
@@ -15057,7 +15806,7 @@ const DayPlanner = () => {
 
       {/* Spotlight Search */}
       {showSpotlight && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center" style={{ paddingTop: '15vh' }} onClick={() => setShowSpotlight(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-center" style={{ paddingTop: isMobile ? '2rem' : '15vh' }} onClick={() => setShowSpotlight(false)}>
           <div
             className={`${cardBg} rounded-lg shadow-xl border ${borderClass} max-w-xl w-full mx-4 h-fit`}
             onClick={(e) => e.stopPropagation()}
@@ -15091,7 +15840,7 @@ const DayPlanner = () => {
                   <X size={16} />
                 </button>
               )}
-              <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>
+              {!isMobile && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
             </div>
 
             {/* Results */}
@@ -15157,10 +15906,12 @@ const DayPlanner = () => {
             {/* Footer */}
             {spotlightResults.length > 0 && (
               <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
-                <div className="flex items-center gap-3">
-                  <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
-                  <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
-                </div>
+                {!isMobile ? (
+                  <div className="flex items-center gap-3">
+                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
+                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
+                  </div>
+                ) : <div />}
                 <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}{spotlightResults.length > 20 ? ` (showing 20)` : ''}</span>
               </div>
             )}
@@ -15652,18 +16403,35 @@ const DayPlanner = () => {
                         key={task.id}
                         className={`w-full flex items-center gap-3 p-2 rounded text-left cursor-pointer ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}
                         onClick={() => {
-                          if (task.date) {
-                            setSelectedDate(new Date(task.date + 'T12:00:00'));
-                          }
-                          if (task.startTime && calendarRef.current) {
+                          if (isMobile) {
+                            if (task.date) {
+                              setSelectedDate(new Date(task.date + 'T12:00:00'));
+                            }
+                            setShowIncompleteTasks(null);
+                            setShowMobileDailySummary(false);
+                            setMobileActiveTab('timeline');
                             setTimeout(() => {
-                              const minutes = timeToMinutes(task.startTime);
-                              const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
-                              const scrollPosition = Math.max(0, (minutes / 60 - 1) * hourHeight);
-                              calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
-                            }, 150);
+                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                el.classList.add('ring-2', 'ring-blue-400');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                              }
+                            }, 200);
+                          } else {
+                            if (task.date) {
+                              setSelectedDate(new Date(task.date + 'T12:00:00'));
+                            }
+                            if (task.startTime && calendarRef.current) {
+                              setTimeout(() => {
+                                const minutes = timeToMinutes(task.startTime);
+                                const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+                                const scrollPosition = Math.max(0, (minutes / 60 - 1) * hourHeight);
+                                calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+                              }, 150);
+                            }
+                            setShowIncompleteTasks(null);
                           }
-                          setShowIncompleteTasks(null);
                         }}
                       >
                         <span className={`w-3 h-3 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
@@ -15675,6 +16443,7 @@ const DayPlanner = () => {
                               : [task.date && new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), task.startTime && formatTime(task.startTime)].filter(Boolean).join(' · ') || 'No date'}
                           </div>
                         </div>
+                        <ChevronRight size={14} className={`${textSecondary} flex-shrink-0 opacity-40`} />
                       </button>
                     ))}
                   </div>
@@ -16009,7 +16778,144 @@ const DayPlanner = () => {
           </div>
         );
 
-        return (
+        return isMobile ? (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}>
+            <div className="bg-black/30 absolute inset-0" />
+            <div
+              className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] flex flex-col`}
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+              </div>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <BarChart3 size={18} className={textSecondary} />
+                  <span className={`font-semibold ${textPrimary}`}>Weekly Review</span>
+                </div>
+                <button
+                  onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}
+                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                >
+                  <X size={16} className={textSecondary} />
+                </button>
+              </div>
+
+              {/* Swipeable cards */}
+              <div
+                ref={reviewScrollRef}
+                className="flex-1 flex overflow-x-auto overflow-y-hidden review-carousel"
+                style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                onScroll={(e) => {
+                  const page = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                  if (page !== mobileReviewPage) setMobileReviewPage(page);
+                }}
+              >
+                {/* Card 1: Past 7 Days */}
+                <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
+                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Past 7 Days</h3>
+                  <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(pastStartStr, pastEndStr)}</p>
+
+                  {pastScheduled === 0 ? (
+                    <p className={`text-sm ${textSecondary} italic`}>No tasks were scheduled in the past 7 days</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <StatCard value={`${pastCompleted}/${pastScheduled}`} label="Tasks done" icon={<CheckSquare size={16} className="text-green-400" />} />
+                        <StatCard value={`${pastCompletionRate}%`} label="Completion" icon={<Target size={16} className="text-blue-400" />} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
+                        <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<BrainCircuit size={16} className="text-purple-400" />} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                        {bestDayName && (
+                          <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Incomplete list */}
+                  {pastIncomplete.length > 0 && (
+                    <div className={`rounded-lg border ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'} p-3`}>
+                      <div className={`flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'} font-bold text-sm mb-2`}>
+                        <AlertCircle size={16} />
+                        {pastIncomplete.length} incomplete
+                      </div>
+                      <div className="max-h-40 overflow-y-auto -mx-1">
+                        {pastIncomplete.map((task) => (
+                          <button
+                            key={task.id}
+                            className={`w-full flex items-center gap-3 px-2 py-1.5 rounded text-left ${darkMode ? 'active:bg-red-900/40' : 'active:bg-red-100/60'} transition-colors`}
+                            onClick={() => {
+                              const d = new Date(task.date + 'T12:00:00');
+                              setSelectedDate(d);
+                              setShowWeeklyReview(false);
+                              setMobileReviewPage(0);
+                            }}
+                          >
+                            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
+                            <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{task.title}</span>
+                            <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
+                              {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 2: Next 7 Days */}
+                <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
+                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Next 7 Days</h3>
+                  <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(nextStartStr, nextEndStr)}</p>
+
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
+                    <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {busiestDayName && busiestMinutes > 0 && (
+                      <StatCard value={busiestDayName} label="Busiest" icon={<Zap size={16} className="text-amber-400" />} />
+                    )}
+                    {nextRecurringCount > 0 && (
+                      <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                    )}
+                  </div>
+
+                  {/* Open days nudge */}
+                  {openDays.length > 0 && (
+                    <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3`}>
+                      <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm`}>
+                        <Sparkles size={16} />
+                        {openDayNames.join(', ')} {openDays.length === 1 ? 'is' : 'are'} open for deep work.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dot indicators */}
+              <div className="flex justify-center gap-2 py-3">
+                {[0, 1].map(i => (
+                  <button
+                    key={i}
+                    className={`w-2.5 h-2.5 rounded-full transition-colors ${mobileReviewPage === i ? 'bg-blue-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                    onClick={() => {
+                      reviewScrollRef.current?.scrollTo({ left: i * reviewScrollRef.current.clientWidth, behavior: 'smooth' });
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWeeklyReview(false)}>
             <div
               className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border max-w-2xl w-full mx-4 flex flex-col`}
@@ -16180,7 +17086,7 @@ const DayPlanner = () => {
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Glance</h2>
                 <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
                   <li>Your <strong className={textPrimary}>smart agenda</strong> for today at a glance</li>
-                  <li>See <strong className={textPrimary}>upcoming</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>overdue</strong> tasks in real time</li>
+                  <li>See <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong> and <strong className={textPrimary}>upcoming</strong> tasks, as well as your <strong className={textPrimary}>daily routine</strong>, in real time</li>
                   <li>Tap <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> on an in-progress task to start a distraction-free deep work session with a Pomodoro timer</li>
                 </ul>
               </div>
@@ -16296,165 +17202,242 @@ const DayPlanner = () => {
         </div>
       )}
       {showWelcome && !isMobile && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWelcome(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div
-            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-xl w-full mx-4`}
+            className={`${cardBg} rounded-xl shadow-xl ${borderClass} border max-w-lg w-full mx-4 flex flex-col`}
+            style={{ height: 'min(540px, 85vh)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex flex-col items-start mb-4">
-              <img
-                src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
-                alt="dayGLANCE"
-                className="h-20 mb-3"
-              />
-              <p className={`font-semibold ${textPrimary}`}>Welcome, let's get you started!</p>
+            {/* Progress dots */}
+            <div className="flex justify-center gap-2 pt-5 pb-3">
+              {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+                <button
+                  key={i}
+                  onClick={() => setDesktopWelcomeStep(i)}
+                  className={`w-2 h-2 rounded-full transition-colors ${i === desktopWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                />
+              ))}
             </div>
 
-            <div className={`space-y-4 ${textPrimary}`}>
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
-                  Adding Tasks
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <Calendar size={16} />
-                    </span>
-                    <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time slot (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>N</kbd>)</span>
+            {/* Carousel content */}
+            <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-hidden">
+              {desktopWelcomeStep === 0 && (
+                <div className="text-center">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-24 mx-auto mb-6"
+                  />
+                  <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>Welcome to dayGLANCE</h1>
+                  <p className={`${textSecondary}`}>Your minimalist day planner</p>
+                  <p className={`${textSecondary} text-sm mt-4`}>Let's take a quick tour of the key features.</p>
+                </div>
+              )}
+              {desktopWelcomeStep === 1 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Plus size={32} className="text-blue-500" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <Inbox size={16} />
-                    </span>
-                    <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>I</kbd>)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0">
-                      <Sparkles size={16} />
-                    </span>
-                    <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling (click in sidebar)</span>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Adding Tasks</h2>
+                  <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Calendar size={16} />
+                      </span>
+                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>N</kbd>)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Inbox size={16} />
+                      </span>
+                      <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later (or press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>I</kbd>)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Sparkles size={16} />
+                      </span>
+                      <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
-                  Interacting with Tasks
-                </h3>
-                <ul className={`text-sm ${textSecondary} ml-12 space-y-1 list-disc`}>
-                  <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
-                  <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
-                  <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
-                  <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
-                  <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
-                  <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
-                  <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
-                  <li>Click on <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> in the dayGLANCE section (when available) to start a distraction-free deep work session featuring a Pomodoro timer</li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
-                  Spotlight Search
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
-                  <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Search size={16} />
-                  </span>
-                  <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
+              )}
+              {desktopWelcomeStep === 2 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <GripVertical size={32} className="text-blue-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Interacting with Tasks</h2>
+                  <ul className={`text-sm ${textSecondary} space-y-2 text-left list-none`}>
+                    <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
+                    <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
+                    <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
+                    <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
+                    <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
+                    <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
+                    <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
+                    <li>Use <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
+                  </ul>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">4</span>
-                  Keyboard Shortcuts
-                </h3>
-                <p className={`text-sm ${textSecondary} ml-8`}>
-                  Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs`}>?</kbd> at any time to see all available keyboard shortcuts.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">5</span>
-                  Weekly Review
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 flex items-start gap-2`}>
-                  <span className="w-7 h-7 bg-blue-600 text-white rounded flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <BarChart3 size={16} />
-                  </span>
-                  <span>Click <BarChart3 size={14} className="inline mx-0.5" /> in the sidebar to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+              )}
+              {desktopWelcomeStep === 3 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Search size={32} className="text-blue-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Spotlight Search & Weekly Review</h2>
+                  <div className={`text-sm ${textSecondary} space-y-4 text-left`}>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Search size={16} />
+                      </span>
+                      <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <BarChart3 size={16} />
+                      </span>
+                      <span>Click <BarChart3 size={14} className="inline mx-0.5" /> in the sidebar to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">6</span>
-                  Sync Your Calendars
-                </h3>
-                <p className={`text-sm ${textSecondary} ml-8`}>
-                  Click <Settings size={14} className="inline mx-1" /> in the top bar to open Settings, where you can configure calendar sync URLs for CalDAV calendars and reminders and import iCal files.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">7</span>
-                  App Settings
-                </h3>
-                <div className={`text-sm ${textSecondary} ml-8 space-y-2`}>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Settings size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
+              )}
+              {desktopWelcomeStep === 4 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Zap size={32} className="text-amber-500" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
-                    </span>
-                    <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Keyboard Shortcuts</h2>
+                  <div className={`text-sm ${textSecondary} space-y-2`}>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>New scheduled task</span>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>N</kbd>
+                    </div>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>New inbox task</span>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>I</kbd>
+                    </div>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>Jump to today</span>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
+                    </div>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <span>Undo / Redo</span>
+                      <span className="flex gap-1">
+                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
+                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Shift+Z</kbd>
+                      </span>
+                    </div>
+                    <p className={`text-xs ${textSecondary} mt-3`}>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono`}>?</kbd> at any time to see all available shortcuts.</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Cloud size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Bell size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded flex items-center justify-center flex-shrink-0`}>
-                      <Save size={16} className={textPrimary} />
-                    </span>
-                    <span><strong className={textPrimary}>Backup & Restore</strong> — export or import your data as a JSON file</span>
-                  </div>
-                  <p className="text-xs opacity-75 mt-1">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
                 </div>
-              </div>
+              )}
+              {desktopWelcomeStep === 5 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <CalendarDays size={32} className="text-blue-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Sync Your Calendars</h2>
+                  <ul className={`text-sm ${textSecondary} text-left space-y-2 list-none`}>
+                    <li>Click <Settings size={14} className="inline mx-0.5" /> in the top bar to open <strong className={textPrimary}>Settings</strong></li>
+                    <li>Add <strong className={textPrimary}>CalDAV</strong> calendar URLs to sync events and reminders</li>
+                    <li>Import <strong className={textPrimary}>iCal (.ics)</strong> files to bring in existing events</li>
+                    <li>Calendar sync is <strong className={textPrimary}>one-way</strong> — events are imported into dayGLANCE for viewing but changes are not pushed back to the source calendar</li>
+                  </ul>
+                </div>
+              )}
+              {desktopWelcomeStep === 6 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Settings size={32} className={textSecondary} />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>App Settings</h2>
+                  <div className={`text-sm ${textSecondary} space-y-2 text-left`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Settings size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
+                      </span>
+                      <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Cloud size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Bell size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <Save size={16} className={textPrimary} />
+                      </span>
+                      <span><strong className={textPrimary}>Backup & Restore</strong> — export or import as JSON</span>
+                    </div>
+                    <p className="text-xs opacity-75 mt-2">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
+                  </div>
+                </div>
+              )}
+              {desktopWelcomeStep === 7 && (
+                <div className="text-center">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-20 mx-auto mb-6"
+                  />
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>You're All Set!</h2>
+                  <div className="space-y-3 w-full max-w-xs mx-auto">
+                    <button
+                      onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); }}
+                      className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors"
+                    >
+                      Just Get Started
+                    </button>
+                    <button
+                      onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); setShowSettings(true); }}
+                      className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                    >
+                      <Cloud size={18} /> Set Up Cloud Sync
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="mt-6 flex justify-center gap-3">
+            {/* Navigation */}
+            <div className="flex items-center justify-between px-6 py-4">
               <button
-                onClick={() => setShowWelcome(false)}
-                className={`px-6 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg font-medium transition-colors`}
+                onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); }}
+                className={`text-sm ${textSecondary} px-3 py-2 hover:${textPrimary} transition-colors`}
               >
-                Just Get Started
+                Skip
               </button>
-              <button
-                onClick={() => { setShowWelcome(false); setShowSettings(true); }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 transition-colors"
-              >
-                <Cloud size={18} /> Set Up Cloud Sync
-              </button>
+              <div className="flex gap-3">
+                {desktopWelcomeStep > 0 && (
+                  <button
+                    onClick={() => setDesktopWelcomeStep(s => s - 1)}
+                    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+                  >
+                    <ChevronLeft size={20} className={textSecondary} />
+                  </button>
+                )}
+                {desktopWelcomeStep < 7 && (
+                  <button
+                    onClick={() => setDesktopWelcomeStep(s => s + 1)}
+                    className="p-2 rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
+                  >
+                    <ChevronRight size={20} className="text-white" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

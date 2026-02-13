@@ -69,3 +69,15 @@ body {
 .dark-spinner {
   color-scheme: dark;
 }
+
+/* Hide scrollbar on review carousel */
+.review-carousel::-webkit-scrollbar { display: none; }
+
+/* Mobile tab switch animation */
+@keyframes mobile-tab-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mobile-tab-fade-in {
+  animation: mobile-tab-fade-in 120ms ease-out;
+}
