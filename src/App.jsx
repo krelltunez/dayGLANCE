@@ -9324,7 +9324,7 @@ const DayPlanner = () => {
                   {allTags.length > 0 && (
                     <button
                       onClick={() => setShowMobileTagFilter(true)}
-                      className={`relative flex-shrink-0 p-2.5 rounded-lg transition-colors ${
+                      className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
                         !allTags.every(tag => selectedTags.includes(tag))
                           ? 'bg-blue-500 text-white'
                           : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
