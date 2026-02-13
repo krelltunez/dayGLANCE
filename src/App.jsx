@@ -4299,12 +4299,14 @@ const DayPlanner = () => {
         e.preventDefault();
         setNewTask({
           title: '',
-          startTime: getNextQuarterHour(),
+          startTime: hoverPreviewTime || getNextQuarterHour(),
           duration: 30,
-          date: dateToString(selectedDate),
+          date: hoverPreviewDate ? dateToString(hoverPreviewDate) : dateToString(selectedDate),
           isAllDay: false,
           openInInbox: false
         });
+        setHoverPreviewTime(null);
+        setHoverPreviewDate(null);
         setShowAddTask(true);
       }
 
@@ -4695,12 +4697,14 @@ const DayPlanner = () => {
   const openNewTaskForm = () => {
     setNewTask({
       title: '',
-      startTime: getNextQuarterHour(),
+      startTime: hoverPreviewTime || getNextQuarterHour(),
       duration: 30,
-      date: dateToString(selectedDate),
+      date: hoverPreviewDate ? dateToString(hoverPreviewDate) : dateToString(selectedDate),
       isAllDay: false,
       recurrence: null
     });
+    setHoverPreviewTime(null);
+    setHoverPreviewDate(null);
     setShowRecurrencePicker(false);
     setShowAddTask(true);
   };
@@ -8919,6 +8923,13 @@ const DayPlanner = () => {
                               key={dateToString(date)}
                               className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''}`}
                               data-date={dateToString(date)}
+                              onClick={(e) => {
+                                if (e.target.classList.contains('calendar-slot')) {
+                                  const time = getTimeFromCursorPosition(e);
+                                  setHoverPreviewTime(time);
+                                  setHoverPreviewDate(date);
+                                }
+                              }}
                             ></div>
                           ))}
                         </div>
@@ -8977,6 +8988,21 @@ const DayPlanner = () => {
                                 </div>
                               );
                             })()}
+
+                            {/* Hover preview line - shows selected time for new task via FAB */}
+                            {hoverPreviewTime && !draggedTask && hoverPreviewDate && dateToString(hoverPreviewDate) === dateStr && (
+                              <div
+                                className="absolute left-0 right-0 pointer-events-none z-30"
+                                style={{
+                                  top: `${minutesToPosition(timeToMinutes(hoverPreviewTime))}px`
+                                }}
+                              >
+                                <div className="absolute left-0 right-12 h-0.5 bg-blue-400/60"></div>
+                                <div className="absolute right-1 bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded -translate-y-1/2">
+                                  {formatTime(hoverPreviewTime)}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Task blocks */}
                             {dayTasks.map(task => {
