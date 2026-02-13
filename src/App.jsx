@@ -11462,7 +11462,7 @@ const DayPlanner = () => {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2`}>
-                      {tabletSidePanel === 'glance' && <><Eye size={20} /> Glance</>}
+                      {tabletSidePanel === 'glance' && <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-7" />}
                       {tabletSidePanel === 'inbox' && `Inbox (${unscheduledTasks.length})`}
                       {tabletSidePanel === 'overdue' && `Overdue (${getOverdueTasks().length})`}
                     </h2>
@@ -11792,47 +11792,55 @@ const DayPlanner = () => {
 
                       {/* Tags section */}
                       <div className={`pt-3 border-t ${borderClass}`}>
-                        <div className={`flex items-center justify-between mb-2`}>
+                        <div className={`flex items-center justify-between ${minimizedSections.tags ? '' : 'mb-2'}`}>
                           <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
                             <Hash size={16} />
                             Tags
                           </h3>
                           <div className="flex items-center gap-2">
-                            {allTags.length > 0 && (
+                            {!minimizedSections.tags && allTags.length > 0 && (
                               allTags.every(tag => selectedTags.includes(tag)) ? (
                                 <button onClick={clearTagFilter} className={`text-xs ${textSecondary} active:opacity-70`}>Clear</button>
                               ) : (
                                 <button onClick={selectAllTags} className={`text-xs ${textSecondary} active:opacity-70`}>Select All</button>
                               )
                             )}
+                            <button
+                              onClick={() => toggleSection('tags')}
+                              className={`${textSecondary} active:opacity-70`}
+                            >
+                              {minimizedSections.tags ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                            </button>
                           </div>
                         </div>
-                        <div className={`text-sm ${textSecondary}`}>
-                          {allTags.length === 0 ? (
-                            <p className="text-center py-2">Add #tags to task titles</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {allTags.map(tag => {
-                                const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
-                                const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                                const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                                const tagCount = regularCount + recurringCount;
-                                if (tagCount === 0) return null;
-                                return (
-                                  <label key={tag} className={`flex items-center gap-2 cursor-pointer py-0.5`}>
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedTags.includes(tag)}
-                                      onChange={() => toggleTag(tag)}
-                                      className="rounded"
-                                    />
-                                    <span>{tag} <span className={`text-xs ${textSecondary}`}>({tagCount})</span></span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+                        {!minimizedSections.tags && (
+                          <div className={`text-sm ${textSecondary}`}>
+                            {allTags.length === 0 ? (
+                              <p className="text-center py-2">Add #tags to task titles</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {allTags.map(tag => {
+                                  const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
+                                  const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                  const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                  const tagCount = regularCount + recurringCount;
+                                  if (tagCount === 0) return null;
+                                  return (
+                                    <label key={tag} className={`flex items-center gap-2 cursor-pointer py-0.5`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedTags.includes(tag)}
+                                        onChange={() => toggleTag(tag)}
+                                        className="rounded"
+                                      />
+                                      <span>{tag} <span className={`text-xs ${textSecondary}`}>({tagCount})</span></span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Daily Summary */}
