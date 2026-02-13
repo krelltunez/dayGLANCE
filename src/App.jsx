@@ -11395,6 +11395,13 @@ const DayPlanner = () => {
                 <Plus size={20} />
               </button>
               <button
+                onClick={() => setTabletSidePanel(tabletSidePanel === 'glance' ? null : 'glance')}
+                className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'glance' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
+                title="Glance"
+              >
+                <Eye size={20} className={textSecondary} />
+              </button>
+              <button
                 onClick={() => setTabletSidePanel(tabletSidePanel === 'inbox' ? null : 'inbox')}
                 className={`p-3 rounded-xl active:bg-black/10 dark:active:bg-white/10 relative ${tabletSidePanel === 'inbox' ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') : ''}`}
                 title="Inbox"
@@ -11461,7 +11468,8 @@ const DayPlanner = () => {
               >
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className={`font-semibold text-lg ${textPrimary}`}>
+                    <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2`}>
+                      {tabletSidePanel === 'glance' && <><Eye size={20} /> Glance</>}
                       {tabletSidePanel === 'inbox' && `Inbox (${unscheduledTasks.length})`}
                       {tabletSidePanel === 'overdue' && `Overdue (${getOverdueTasks().length})`}
                     </h2>
@@ -11472,6 +11480,519 @@ const DayPlanner = () => {
                       <X size={18} className={textSecondary} />
                     </button>
                   </div>
+
+                  {/* Glance panel content */}
+                  {tabletSidePanel === 'glance' && (
+                    <div className="space-y-4">
+                      {/* Search bar + tag filter */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                          className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors active:opacity-70`}
+                        >
+                          <Search size={16} />
+                          <span className="text-sm">Search tasks...</span>
+                        </button>
+                        {allTags.length > 0 && (
+                          <button
+                            onClick={() => setShowMobileTagFilter(true)}
+                            className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors active:opacity-70 ${
+                              !allTags.every(tag => selectedTags.includes(tag))
+                                ? 'bg-blue-500 text-white'
+                                : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                            }`}
+                          >
+                            <Filter size={16} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Overdue tasks from past days */}
+                      {(() => {
+                        const todayStr = getTodayStr();
+                        const pastOverdue = getOverdueTasks().filter(t => {
+                          if (t._overdueType === 'scheduled') return t.date < todayStr;
+                          return true;
+                        });
+                        if (pastOverdue.length === 0) return null;
+                        return (
+                          <div className={`rounded-lg border ${darkMode ? 'border-orange-500/40 bg-orange-500/10' : 'border-orange-400/50 bg-orange-50'} overflow-hidden`}>
+                            <button
+                              onClick={() => toggleSection('overdue')}
+                              className="w-full flex items-center justify-between px-3 py-2.5"
+                            >
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle size={15} className="text-orange-500" />
+                                <span className="text-sm font-semibold text-orange-500">Overdue</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-200 text-orange-700'}`}>
+                                  {pastOverdue.length}
+                                </span>
+                              </div>
+                              {minimizedSections.overdue ? <ChevronDown size={16} className="text-orange-500" /> : <ChevronUp size={16} className="text-orange-500" />}
+                            </button>
+                            {!minimizedSections.overdue && (
+                              <div className="px-3 pb-2.5 space-y-1">
+                                {pastOverdue.map(task => (
+                                  <div
+                                    key={`tablet-overdue-${task.id}`}
+                                    className={`flex items-center gap-2.5 py-2 px-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-white/80'}`}
+                                  >
+                                    <button
+                                      onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
+                                      className={`w-5 h-5 rounded flex-shrink-0 border-2 ${task.completed
+                                        ? 'border-orange-400 bg-orange-400'
+                                        : darkMode ? 'border-orange-400/60 bg-white/10' : 'border-orange-400/60 bg-white'
+                                      } flex items-center justify-center`}
+                                    >
+                                      {task.completed && <Check size={12} strokeWidth={3} className="text-white" />}
+                                    </button>
+                                    <div className="flex-1 min-w-0">
+                                      <div className={`text-sm font-medium truncate ${task.completed ? 'line-through opacity-50' : textPrimary}`}>
+                                        {renderTitle(task.title)}
+                                      </div>
+                                      <div className={`text-xs ${textSecondary} flex items-center gap-1 mt-0.5`}>
+                                        {task._overdueType === 'scheduled' ? (
+                                          <><Clock size={10} /> {formatDeadlineDate(task.date)} {!task.isAllDay && `• ${formatTime(task.startTime)}`}</>
+                                        ) : (
+                                          <><AlertCircle size={10} /> Due: {formatDeadlineDate(task.deadline)}</>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          if (task._overdueType === 'scheduled') {
+                                            pushUndo();
+                                            setTasks(prev => prev.filter(t => t.id !== task.id));
+                                            const { startTime, date, duration, _overdueType, ...rest } = task;
+                                            setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                            playUISound('slide');
+                                            setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                          } else {
+                                            clearDeadline(task.id);
+                                            playUISound('slide');
+                                            setUndoToast({ message: 'Deadline cleared', actionable: true });
+                                          }
+                                        }}
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                        title="Move to inbox"
+                                      >
+                                        <Inbox size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                        title="Move to Recycle Bin"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Today's agenda */}
+                      {(() => { const filteredAgenda = filterByTags(todayAgenda); return (
+                        <div className="space-y-1.5">
+                          {filteredAgenda.length === 0 && (
+                            <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
+                          )}
+                          {filteredAgenda.flatMap((task, idx) => {
+                            const items = [];
+                            // Insert "Now" marker
+                            if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
+                              const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                              const gapM = agendaNowMarker.gapMinutes % 60;
+                              const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                              items.push(
+                                <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
+                                  <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                    {agendaNowMarker.inboxCount > 0 && (
+                                      <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            } else if (idx > 0) {
+                              const prevTask = filteredAgenda[idx - 1];
+                              const prevIdxInFull = todayAgenda.indexOf(prevTask);
+                              const curIdxInFull = todayAgenda.indexOf(task);
+                              if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                                const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                                const gapM = agendaNowMarker.gapMinutes % 60;
+                                const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                                items.push(
+                                  <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
+                                    <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                      {agendaNowMarker.inboxCount > 0 && (
+                                        <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            }
+                            const colorClass = task.color === 'task-calendar' ? '' : task.color;
+                            const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                            let timeLabel = '';
+                            let relativeLabel = '';
+                            if (task._agendaType === 'allday') {
+                              timeLabel = 'ALL DAY';
+                            } else if (task._agendaType === 'deadline') {
+                              timeLabel = 'DUE TODAY';
+                            } else {
+                              const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                              const startMin = h * 60 + m;
+                              const endMin = startMin + (task.duration || 0);
+                              const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                              const endM = String(endMin % 60).padStart(2, '0');
+                              timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                              const diff = startMin - nowMin;
+                              if (diff > 0) {
+                                relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                              } else if (diff === 0) {
+                                relativeLabel = 'now';
+                              } else if (nowMin < endMin && !task.completed) {
+                                relativeLabel = 'In Progress';
+                              } else if (nowMin >= endMin && !task.completed) {
+                                relativeLabel = 'Overdue';
+                              }
+                            }
+                            items.push(
+                              <div
+                                key={`tablet-glance-${task._agendaType}-${task.id}`}
+                                className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
+                                onClick={() => {
+                                  setTabletSidePanel(null);
+                                  setTimeout(() => {
+                                    const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                                    if (el) {
+                                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      el.classList.add('ring-2', 'ring-blue-400');
+                                      setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                                    }
+                                  }, 150);
+                                }}
+                              >
+                                <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                                <div className="min-w-0 flex-1">
+                                  <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
+                                    {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
+                                    <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                                    {relativeLabel === 'Overdue' && !task.completed && !task.isRecurring && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          pushUndo();
+                                          setTasks(prev => prev.filter(t => t.id !== task.id));
+                                          const { startTime, date, _agendaType, ...rest } = task;
+                                          setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                          playUISound('slide');
+                                          setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                        }}
+                                        className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 active:bg-white/20`}
+                                        title="Move to Inbox"
+                                      >
+                                        <Inbox size={14} />
+                                      </button>
+                                    )}
+                                    {relativeLabel === 'Overdue' && !task.completed && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                                        className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 active:bg-white/20`}
+                                        title="Mark complete"
+                                      >
+                                        <CheckCircle size={14} />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                                    {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                                    {relativeLabel === 'In Progress' && focusModeAvailable && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                        className="ml-1 p-1.5 rounded text-purple-500 active:text-purple-400 active:bg-purple-500/20 transition-colors"
+                                        title="Enter Focus Mode"
+                                      >
+                                        <BrainCircuit size={16} className="animate-pulse" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                            return items;
+                          })}
+                          {/* Now marker after all tasks */}
+                          {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
+                            const hr = currentTime.getHours();
+                            const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
+                            const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
+                            const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
+                            return (
+                              <div key="tablet-now-marker-end" className="flex gap-2.5 py-2.5">
+                                <div className={`w-1.5 rounded-full flex-shrink-0 ${barColor}`} />
+                                <div className="min-w-0 flex-1">
+                                  <div className={`text-sm font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                                  <div className={`text-xs italic ${textColor} mt-0.5`}>{subtitle}</div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ); })()}
+
+                      {/* Routines row */}
+                      {todayRoutines.length > 0 && (() => {
+                        const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                        const visibleRoutines = todayRoutines.filter(r => {
+                          if (String(r.id).startsWith('example-')) return false;
+                          if (!r.startTime || r.isAllDay) return true;
+                          return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
+                        });
+                        if (visibleRoutines.length === 0) return null;
+                        return (
+                          <div className={`pt-3 border-t ${borderClass} cursor-pointer`} onClick={() => {
+                            setTabletSidePanel(null);
+                            openRoutinesDashboard();
+                          }}>
+                            <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[...visibleRoutines].sort((a, b) => {
+                                if (a.isAllDay && !b.isAllDay) return -1;
+                                if (!a.isAllDay && b.isAllDay) return 1;
+                                if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+                                return 0;
+                              }).map(r => {
+                                let rTimeLabel = '';
+                                if (!r.isAllDay && r.startTime) {
+                                  if (use24HourClock) {
+                                    rTimeLabel = r.startTime;
+                                  } else {
+                                    const [h, m] = r.startTime.split(':').map(Number);
+                                    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                                    const ampm = h < 12 ? 'a' : 'p';
+                                    rTimeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                                  }
+                                }
+                                return (
+                                  <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                                    {rTimeLabel && <span className="opacity-70 mr-1">{rTimeLabel}</span>}{r.name}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Tags section */}
+                      <div className={`pt-3 border-t ${borderClass}`}>
+                        <div className={`flex items-center justify-between mb-2`}>
+                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
+                            <Hash size={16} />
+                            Tags
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            {allTags.length > 0 && (
+                              allTags.every(tag => selectedTags.includes(tag)) ? (
+                                <button onClick={clearTagFilter} className={`text-xs ${textSecondary} active:opacity-70`}>Clear</button>
+                              ) : (
+                                <button onClick={selectAllTags} className={`text-xs ${textSecondary} active:opacity-70`}>Select All</button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                        <div className={`text-sm ${textSecondary}`}>
+                          {allTags.length === 0 ? (
+                            <p className="text-center py-2">Add #tags to task titles</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {allTags.map(tag => {
+                                const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
+                                const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                const tagCount = regularCount + recurringCount;
+                                if (tagCount === 0) return null;
+                                return (
+                                  <label key={tag} className={`flex items-center gap-2 cursor-pointer py-0.5`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedTags.includes(tag)}
+                                      onChange={() => toggleTag(tag)}
+                                      className="rounded"
+                                    />
+                                    <span>{tag} <span className={`text-xs ${textSecondary}`}>({tagCount})</span></span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Daily Summary */}
+                      <div className={`pt-3 border-t ${borderClass}`}>
+                        <div className={`flex items-center justify-between mb-2`}>
+                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
+                            <BarChart3 size={16} />
+                            Daily Summary
+                          </h3>
+                          <button
+                            onClick={() => toggleSection('dailySummary')}
+                            className={`${textSecondary} active:opacity-70`}
+                          >
+                            {minimizedSections.dailySummary ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                          </button>
+                        </div>
+                        {!minimizedSections.dailySummary && (
+                          <div className={`text-sm ${textSecondary} space-y-1`}>
+                            <div>{actualTodayNonImportedTasks.length} tasks scheduled</div>
+                            <div>
+                              {actualTodayCompletedTasks.length} tasks completed
+                              {todayIncompleteTasks.length > 0 && (
+                                <button
+                                  onClick={() => setShowIncompleteTasks('today')}
+                                  className="ml-1 text-blue-500 active:text-blue-400"
+                                >
+                                  ({todayIncompleteTasks.length} incomplete)
+                                </button>
+                              )}
+                            </div>
+                            <div>{Math.floor(actualTodayCompletedMinutes / 60)}h {actualTodayCompletedMinutes % 60}m time spent</div>
+                            <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
+                            {actualTodayFocusMinutes > 0 && (
+                              <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m focus time</div>
+                            )}
+                            {actualTodayNonImportedTasks.length > 0 && (
+                              <div className="pt-1">
+                                <div className="font-semibold">{Math.round((actualTodayCompletedTasks.length / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* All Time Summary */}
+                      <div className={`pt-3 border-t ${borderClass}`}>
+                        <div className={`flex items-center justify-between mb-2`}>
+                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
+                            <BarChart3 size={16} />
+                            All Time Summary
+                          </h3>
+                          <button
+                            onClick={() => toggleSection('allTimeSummary')}
+                            className={`${textSecondary} active:opacity-70`}
+                          >
+                            {minimizedSections.allTimeSummary ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                          </button>
+                        </div>
+                        {!minimizedSections.allTimeSummary && (
+                          <div className={`text-sm ${textSecondary} space-y-1`}>
+                            <div>{allTimeScheduledCount} tasks scheduled</div>
+                            <div>
+                              {allTimeCompletedCount} tasks completed
+                              {allTimeIncompleteTasks.length > 0 && (
+                                <button
+                                  onClick={() => setShowIncompleteTasks('allTime')}
+                                  className="ml-1 text-blue-500 active:text-blue-400"
+                                >
+                                  ({allTimeIncompleteTasks.length} incomplete)
+                                </button>
+                              )}
+                            </div>
+                            <div>{Math.floor(totalCompletedMinutes / 60)}h {totalCompletedMinutes % 60}m time spent</div>
+                            <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
+                            {allTimeFocusMinutes > 0 && (
+                              <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m focus time</div>
+                            )}
+                            {allTimeScheduledCount > 0 && (
+                              <div className="pt-1">
+                                <div className="font-semibold">{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recycle Bin */}
+                      <div className={`pt-3 border-t ${borderClass}`}>
+                        <div className={`flex items-center justify-between mb-2`}>
+                          <h3 className={`font-semibold text-sm ${textPrimary} flex items-center gap-2`}>
+                            <Trash2 size={16} />
+                            Recycle Bin
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            {recycleBin.length > 0 && (
+                              <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
+                            )}
+                            <button
+                              onClick={() => toggleSection('recycleBin')}
+                              className={`${textSecondary} active:opacity-70`}
+                            >
+                              {minimizedSections.recycleBin ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                            </button>
+                          </div>
+                        </div>
+                        {!minimizedSections.recycleBin && (
+                          <>
+                            <div className="space-y-2">
+                              {recycleBin.length === 0 ? (
+                                <p className={`text-sm ${textSecondary} text-center py-2`}>No deleted tasks</p>
+                              ) : (
+                                recycleBin.map(task => (
+                                  <div
+                                    key={task.id}
+                                    className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative`}
+                                  >
+                                    <div className="flex items-start justify-between text-white">
+                                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
+                                          <div className="text-xs opacity-75 mt-1">
+                                            {task._deletedFrom === 'inbox' ? (
+                                              <>Inbox • {task.duration}min</>
+                                            ) : task.startTime ? (
+                                              <>{formatTime(task.startTime)} • {task.duration}min</>
+                                            ) : (
+                                              <>{task.duration}min</>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => undeleteTask(task.id)}
+                                        className="active:bg-white/20 rounded p-1 transition-colors"
+                                        title="Restore Task"
+                                      >
+                                        <Undo2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            {recycleBin.length > 0 && (
+                              <button
+                                onClick={emptyRecycleBin}
+                                className="w-full mt-2 px-3 py-2 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors text-sm font-medium"
+                              >
+                                Empty Recycle Bin
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Overdue panel content */}
                   {tabletSidePanel === 'overdue' && (
