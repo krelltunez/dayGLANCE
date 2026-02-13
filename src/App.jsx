@@ -11336,7 +11336,7 @@ const DayPlanner = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 if (isSyncing) return;
