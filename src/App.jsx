@@ -15473,7 +15473,7 @@ const DayPlanner = () => {
                         type="checkbox"
                         checked={newTask.isAllDay}
                         onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        className="w-4 h-4 accent-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                       />
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                     </label>
@@ -15987,7 +15987,7 @@ const DayPlanner = () => {
                           type="checkbox"
                           checked={newTask.isAllDay}
                           onChange={(e) => setNewTask({ ...newTask, isAllDay: e.target.checked })}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          className="w-4 h-4 accent-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                         />
                         <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                       </label>
