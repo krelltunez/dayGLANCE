@@ -11475,10 +11475,31 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => { openNewInboxTask(); setTabletSidePanel(null); }}
-                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700 mb-2"
+                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700"
                 title="New Inbox Task"
               >
                 <Inbox size={20} />
+              </button>
+              <button
+                onClick={() => { openRoutinesDashboard(); setTabletSidePanel(null); }}
+                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700"
+                title="Routines"
+              >
+                <Sparkles size={20} />
+              </button>
+              <button
+                onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); setTabletSidePanel(null); }}
+                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700"
+                title="Weekly Review"
+              >
+                <BarChart3 size={20} />
+              </button>
+              <button
+                onClick={() => { setShowSpotlight(true); playUISound('spotlight'); setTabletSidePanel(null); }}
+                className="p-3 rounded-xl bg-blue-600 text-white active:bg-blue-700 mb-2"
+                title="Search"
+              >
+                <Search size={20} />
               </button>
               <button
                 onClick={() => { setTabletSidePanel(tabletSidePanel === 'glance' ? null : 'glance'); if (tabletSidePanel === 'glance') setTabletPanelPinned(false); }}
