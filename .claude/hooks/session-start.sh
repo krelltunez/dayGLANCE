@@ -8,5 +8,9 @@ fi
 
 cd "$CLAUDE_PROJECT_DIR"
 
+# Pull latest main to ensure no commits are missing
+git fetch origin main
+git merge origin/main --no-edit
+
 # Install npm dependencies
 npm install
