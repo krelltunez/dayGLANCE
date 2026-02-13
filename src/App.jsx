@@ -11331,12 +11331,24 @@ const DayPlanner = () => {
               <button onClick={() => changeDate(1)} className={`p-2 rounded-lg active:bg-black/10 dark:active:bg-white/10`}>
                 <ChevronRight size={20} className={textSecondary} />
               </button>
-              {dateToString(selectedDate) !== dateToString(new Date()) && (
+              {dateToString(selectedDate) !== dateToString(new Date()) ? (
                 <button
                   onClick={goToToday}
                   className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
                 >
                   Today
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const currentHour = new Date().getHours();
+                    const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+                    const scrollPosition = Math.max(0, (currentHour - 2) * hourHeight);
+                    if (calendarRef.current) calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+                  }}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full active:bg-blue-700"
+                >
+                  Now
                 </button>
               )}
             </div>
