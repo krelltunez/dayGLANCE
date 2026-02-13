@@ -1154,6 +1154,7 @@ const DayPlanner = () => {
   );
   const cloudSyncDebounceRef = useRef(null);
   const suppressCloudUploadRef = useRef(false);
+  const suppressTimestampRef = useRef(false);
   const cloudSyncInProgressRef = useRef(false);
   const cloudSyncInitialDoneRef = useRef(false);
   const cloudSyncDownloadRef = useRef(null);
@@ -2409,16 +2410,42 @@ const DayPlanner = () => {
     setDataLoaded(true);
   };
 
+  // Stamp lastModified on tasks that changed since last save
+  const stampTaskTimestamps = (currentTasks, storageKey) => {
+    if (suppressTimestampRef.current) return currentTasks;
+    const now = new Date().toISOString();
+    let prev;
+    try { prev = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { prev = []; }
+    const prevMap = new Map(prev.map(t => [String(t.id), t]));
+    return currentTasks.map(t => {
+      const id = String(t.id);
+      const prevTask = prevMap.get(id);
+      if (prevTask && prevTask.lastModified) {
+        const { lastModified: _a, ...prevRest } = prevTask;
+        const { lastModified: _b, ...currRest } = t;
+        if (JSON.stringify(prevRest) === JSON.stringify(currRest)) {
+          return { ...t, lastModified: prevTask.lastModified };
+        }
+      }
+      // Task is new, changed, or had no timestamp — stamp it
+      return { ...t, lastModified: t.lastModified || now };
+    });
+  };
+
   const saveData = () => {
     try {
-      localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
-      localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduledTasks));
-      localStorage.setItem('day-planner-recycle-bin', JSON.stringify(recycleBin));
+      const stampedTasks = stampTaskTimestamps(tasks, 'day-planner-tasks');
+      const stampedUnscheduled = stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled');
+      const stampedRecycleBin = stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin');
+      const stampedRecurring = stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks');
+      localStorage.setItem('day-planner-tasks', JSON.stringify(stampedTasks));
+      localStorage.setItem('day-planner-unscheduled', JSON.stringify(stampedUnscheduled));
+      localStorage.setItem('day-planner-recycle-bin', JSON.stringify(stampedRecycleBin));
       localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
       localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
       localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(taskCalendarUrl));
       localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
-      localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(recurringTasks));
+      localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(stampedRecurring));
       localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
       localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
       localStorage.setItem('day-planner-routines-date', routinesDate);
@@ -4542,6 +4569,11 @@ const DayPlanner = () => {
 
   const confirmEmptyBin = () => {
     pushUndo();
+    // Record tombstones for permanently deleted tasks (prevents resurrection during merge sync)
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
+    const now = new Date().toISOString();
+    recycleBin.forEach(t => { tombstones[String(t.id)] = now; });
+    localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
     setRecycleBin([]);
     setShowEmptyBinConfirm(false);
     setShowMobileRecycleBin(false);
@@ -7106,7 +7138,7 @@ const DayPlanner = () => {
 
   // Cloud sync functions
   const buildSyncPayload = () => ({
-    version: 1,
+    version: 2,
     lastModified: new Date().toISOString(),
     data: {
       tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
@@ -7120,7 +7152,8 @@ const DayPlanner = () => {
       todayRoutines: JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]'),
       routinesDate: localStorage.getItem('day-planner-routines-date') || '',
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
-      use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false')
+      use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
+      deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}')
     }
   });
 
@@ -7154,8 +7187,159 @@ const DayPlanner = () => {
     }
   };
 
+  // --- Task-level merge sync ---
+  // Merges two task arrays by ID, preserving local ordering and appending remote-only tasks.
+  // Returns { merged, localChanged, remoteChanged } flags.
+  const mergeTaskArrays = (localTasks, remoteTasks, deletedIds) => {
+    const remoteMap = new Map(remoteTasks.map(t => [String(t.id), t]));
+    const localIds = new Set(localTasks.map(t => String(t.id)));
+    let localChanged = false;
+    let remoteChanged = false;
+    const merged = [];
+
+    // First pass: iterate local tasks in order
+    for (const localTask of localTasks) {
+      const id = String(localTask.id);
+      if (deletedIds[id] && new Date(deletedIds[id]) > new Date(localTask.lastModified || 0)) {
+        localChanged = true; // Removed a local task
+        continue;
+      }
+      const remoteTask = remoteMap.get(id);
+      if (remoteTask) {
+        const localTime = new Date(localTask.lastModified || 0);
+        const remoteTime = new Date(remoteTask.lastModified || 0);
+        if (remoteTime > localTime) {
+          merged.push(remoteTask);
+          localChanged = true;
+        } else if (localTime > remoteTime) {
+          merged.push(localTask);
+          remoteChanged = true;
+        } else {
+          merged.push(localTask); // Equal timestamps — keep local
+        }
+      } else {
+        // Only in local — keep it (new local task)
+        merged.push(localTask);
+        remoteChanged = true;
+      }
+    }
+
+    // Second pass: append remote-only tasks
+    for (const remoteTask of remoteTasks) {
+      const id = String(remoteTask.id);
+      if (localIds.has(id)) continue;
+      if (deletedIds[id] && new Date(deletedIds[id]) > new Date(remoteTask.lastModified || 0)) {
+        remoteChanged = true; // Tell remote this was deleted
+        continue;
+      }
+      merged.push(remoteTask);
+      localChanged = true;
+    }
+
+    return { merged, localChanged, remoteChanged };
+  };
+
+  // Full data-level merge: combines local and remote snapshots with per-task granularity.
+  const mergeSyncData = (localData, remoteData) => {
+    // Combine tombstones (permanently deleted task IDs) from both sides
+    const localDeleted = localData.deletedTaskIds || {};
+    const remoteDeleted = remoteData.deletedTaskIds || {};
+    const allDeletedIds = { ...localDeleted };
+    for (const [id, ts] of Object.entries(remoteDeleted)) {
+      if (!allDeletedIds[id] || new Date(ts) > new Date(allDeletedIds[id])) {
+        allDeletedIds[id] = ts;
+      }
+    }
+
+    // Merge each task list
+    const tasksMerge = mergeTaskArrays(localData.tasks || [], remoteData.tasks || [], allDeletedIds);
+    const unschedMerge = mergeTaskArrays(localData.unscheduledTasks || [], remoteData.unscheduledTasks || [], allDeletedIds);
+    const binMerge = mergeTaskArrays(localData.recycleBin || [], remoteData.recycleBin || [], allDeletedIds);
+    const recurMerge = mergeTaskArrays(localData.recurringTasks || [], remoteData.recurringTasks || [], allDeletedIds);
+
+    let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged;
+    let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged;
+
+    // Reconcile cross-list conflicts: task active on one device, in recycle bin on other
+    const recycledMap = new Map(binMerge.merged.map(t => [String(t.id), t]));
+    const reconciledTasks = tasksMerge.merged.filter(t => {
+      const recycled = recycledMap.get(String(t.id));
+      if (!recycled) return true;
+      return new Date(t.lastModified || 0) > new Date(recycled.deletedAt || recycled.lastModified || 0);
+    });
+    const reconciledUnsched = unschedMerge.merged.filter(t => {
+      const recycled = recycledMap.get(String(t.id));
+      if (!recycled) return true;
+      return new Date(t.lastModified || 0) > new Date(recycled.deletedAt || recycled.lastModified || 0);
+    });
+    const keptActiveIds = new Set([
+      ...reconciledTasks.map(t => String(t.id)),
+      ...reconciledUnsched.map(t => String(t.id))
+    ]);
+    const reconciledBin = binMerge.merged.filter(t => !keptActiveIds.has(String(t.id)));
+
+    // Also reconcile tasks that moved between scheduled ↔ inbox across devices
+    const inScheduled = new Map(reconciledTasks.map(t => [String(t.id), t]));
+    const inInbox = new Map(reconciledUnsched.map(t => [String(t.id), t]));
+    const crossListIds = new Set();
+    for (const [id] of inScheduled) {
+      if (inInbox.has(id)) crossListIds.add(id);
+    }
+    let finalTasks = reconciledTasks;
+    let finalUnsched = reconciledUnsched;
+    if (crossListIds.size > 0) {
+      const keepInScheduled = new Set();
+      const keepInInbox = new Set();
+      for (const id of crossListIds) {
+        const sTask = inScheduled.get(id);
+        const iTask = inInbox.get(id);
+        if (new Date(sTask.lastModified || 0) >= new Date(iTask.lastModified || 0)) {
+          keepInScheduled.add(id);
+        } else {
+          keepInInbox.add(id);
+        }
+      }
+      finalTasks = reconciledTasks.filter(t => !crossListIds.has(String(t.id)) || keepInScheduled.has(String(t.id)));
+      finalUnsched = reconciledUnsched.filter(t => !crossListIds.has(String(t.id)) || keepInInbox.has(String(t.id)));
+    }
+
+    // Union of completed task UIDs
+    const mergedCompletedUids = [...new Set([
+      ...(localData.completedTaskUids || []),
+      ...(remoteData.completedTaskUids || [])
+    ])];
+    if (mergedCompletedUids.length !== (localData.completedTaskUids || []).length) localChanged = true;
+    if (mergedCompletedUids.length !== (remoteData.completedTaskUids || []).length) remoteChanged = true;
+
+    // Check if tombstones changed
+    if (Object.keys(allDeletedIds).length !== Object.keys(localDeleted).length) localChanged = true;
+    if (Object.keys(allDeletedIds).length !== Object.keys(remoteDeleted).length) remoteChanged = true;
+
+    return {
+      data: {
+        tasks: finalTasks,
+        unscheduledTasks: finalUnsched,
+        recycleBin: reconciledBin,
+        recurringTasks: recurMerge.merged,
+        completedTaskUids: mergedCompletedUids,
+        deletedTaskIds: allDeletedIds,
+        // Settings: prefer remote for shared settings, local values are kept per-device
+        syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,
+        taskCalendarUrl: remoteData.taskCalendarUrl !== undefined ? remoteData.taskCalendarUrl : localData.taskCalendarUrl,
+        routineDefinitions: remoteData.routineDefinitions || localData.routineDefinitions,
+        todayRoutines: localData.todayRoutines, // daily state — keep local
+        routinesDate: localData.routinesDate,
+        minimizedSections: localData.minimizedSections, // UI pref — keep local
+        use24HourClock: localData.use24HourClock // device pref — keep local
+      },
+      localChanged,
+      remoteChanged
+    };
+  };
+
   const applyRemoteData = (data) => {
     suppressCloudUploadRef.current = true;
+    suppressTimestampRef.current = true;
 
     // Update localStorage
     if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
@@ -7171,6 +7355,7 @@ const DayPlanner = () => {
     // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
     if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
+    if (data.deletedTaskIds) localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(data.deletedTaskIds));
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload)
@@ -7186,7 +7371,7 @@ const DayPlanner = () => {
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
 
-    setTimeout(() => { suppressCloudUploadRef.current = false; }, 500);
+    setTimeout(() => { suppressCloudUploadRef.current = false; suppressTimestampRef.current = false; }, 500);
   };
 
   const cloudSyncDownload = async () => {
@@ -7208,7 +7393,6 @@ const DayPlanner = () => {
         return;
       }
 
-      const localModified = localStorage.getItem('day-planner-cloud-sync-local-modified');
       const remoteModified = remote.lastModified;
       const hasNeverSynced = !localStorage.getItem('day-planner-cloud-sync-last-synced');
 
@@ -7219,17 +7403,24 @@ const DayPlanner = () => {
         setCloudSyncStatus('idle');
         // Don't release lock — conflict dialog handlers will release it
         return;
-      } else if (remoteModified && localModified && new Date(remoteModified) > new Date(localModified)) {
-        // Remote is newer — apply it
-        applyRemoteData(remote.data);
-        localStorage.setItem('day-planner-cloud-sync-local-modified', remoteModified);
-      } else if (localModified && remoteModified && new Date(localModified) > new Date(remoteModified)) {
-        // Local is newer — upload
+      }
+
+      // Build local snapshot and merge with remote at the task level
+      const localData = buildSyncPayload().data;
+      const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data);
+
+      if (localChanged) {
+        applyRemoteData(mergedData);
+        localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+      }
+
+      if (remoteChanged) {
+        // Upload merged result so both sides converge
         cloudSyncInProgressRef.current = false;
         await cloudSyncUpload();
+        // cloudSyncUpload sets its own success status
         return;
       }
-      // If equal, do nothing
 
       const elapsed = Date.now() - syncStart;
       if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
@@ -14760,6 +14951,30 @@ const DayPlanner = () => {
               Last modified: {new Date(cloudSyncConflict.remoteModified).toLocaleString()}
             </p>
             <div className="space-y-2">
+              <button
+                onClick={async () => {
+                  const localData = buildSyncPayload().data;
+                  const { data: mergedData, remoteChanged } = mergeSyncData(localData, cloudSyncConflict.remoteData);
+                  applyRemoteData(mergedData);
+                  const now = new Date().toISOString();
+                  localStorage.setItem('day-planner-cloud-sync-local-modified', now);
+                  setCloudSyncLastSynced(now);
+                  localStorage.setItem('day-planner-cloud-sync-last-synced', now);
+                  setCloudSyncConflict(null);
+                  cloudSyncInProgressRef.current = false;
+                  cloudSyncInitialDoneRef.current = true;
+                  if (remoteChanged) {
+                    await cloudSyncUpload();
+                  } else {
+                    setCloudSyncStatus('success');
+                    setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
+                  }
+                }}
+                className={`w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-left transition-colors`}
+              >
+                <div className="font-medium">Merge both</div>
+                <div className="text-sm text-blue-100">Combine local and server data, keeping all tasks</div>
+              </button>
               <button
                 onClick={() => {
                   applyRemoteData(cloudSyncConflict.remoteData);
