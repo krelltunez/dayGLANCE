@@ -9568,44 +9568,6 @@ const DayPlanner = () => {
                                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 </button>
                               )}
-                              {relativeLabel === 'Overdue' && !task.completed && (
-                                <>
-                                  {task.isRecurring ? (
-                                    <span
-                                      className="flex-shrink-0 p-0.5 text-orange-500"
-                                      title="Recurring tasks can't be moved to Inbox"
-                                    >
-                                      <Ban size={14} />
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        pushUndo();
-                                        setTasks(prev => prev.filter(t => t.id !== task.id));
-                                        const { startTime, date, _agendaType, ...rest } = task;
-                                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                        playUISound('slide');
-                                        setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                      }}
-                                      className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                      title="Move to Inbox"
-                                    >
-                                      <Inbox size={14} />
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleComplete(task.id, false);
-                                    }}
-                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                    title="Mark complete"
-                                  >
-                                    <CheckCircle size={14} />
-                                  </button>
-                                </>
-                              )}
                             </div>
                             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
@@ -9620,6 +9582,34 @@ const DayPlanner = () => {
                               )}
                             </div>
                           </div>
+                          {relativeLabel === 'Overdue' && !task.completed && (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!task.isRecurring && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    pushUndo();
+                                    setTasks(prev => prev.filter(t => t.id !== task.id));
+                                    const { startTime, date, _agendaType, ...rest } = task;
+                                    setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                    playUISound('slide');
+                                    setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                  }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  title="Move to Inbox"
+                                >
+                                  <Inbox size={14} />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                                className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                title="Mark complete"
+                              >
+                                <CheckCircle size={14} />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                       return mobileItems;
