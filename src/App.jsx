@@ -11307,7 +11307,7 @@ const DayPlanner = () => {
       {isTablet && (
         <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '48px' }}>
           <div className="flex items-center">
-            <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-6" />
+            <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-8" />
           </div>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="flex items-center gap-1 pointer-events-auto">
