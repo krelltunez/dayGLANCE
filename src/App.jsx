@@ -666,7 +666,8 @@ const autoBackupProviders = {
     async uploadBackup(config, data) {
       const dirUrl = this._getBackupDirUrl(config);
       const authHeaders = this._getAuthHeaders(config);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
       const filename = `dayglance-backup-${timestamp}.json`;
       const fileUrl = dirUrl + filename;
       const body = JSON.stringify(data);
@@ -6840,7 +6841,7 @@ const DayPlanner = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dayglance-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `dayglance-backup-${dateToString(new Date())}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
