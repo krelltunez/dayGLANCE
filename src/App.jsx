@@ -4859,6 +4859,17 @@ const DayPlanner = () => {
         isAllDay: false,
       });
     } else {
+      // Load recurrence from recurring template if editing a recurring task
+      let recurrence = null;
+      if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
+        const parsed = parseRecurringId(task.id);
+        if (parsed) {
+          const template = recurringTasks.find(t => t.id === parsed.templateId);
+          if (template?.recurrence) {
+            recurrence = { ...template.recurrence };
+          }
+        }
+      }
       setNewTask({
         title: task.title,
         startTime: task.startTime || getNextQuarterHour(),
@@ -4866,7 +4877,7 @@ const DayPlanner = () => {
         date: task.date || dateToString(selectedDate),
         isAllDay: task.isAllDay || false,
         color: task.color || colors[0].class,
-        recurrence: null,
+        recurrence,
       });
     }
     setShowAddTask(true);
@@ -4890,7 +4901,7 @@ const DayPlanner = () => {
       if (parsed) {
         setRecurringTasks(prev => prev.map(t => {
           if (t.id === parsed.templateId) {
-            return {
+            const updated = {
               ...t,
               exceptions: {
                 ...t.exceptions,
@@ -4904,6 +4915,11 @@ const DayPlanner = () => {
                 }
               }
             };
+            // Update recurrence pattern on template if changed
+            if (newTask.recurrence) {
+              updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
+            }
+            return updated;
           }
           return t;
         }));
@@ -16108,7 +16124,7 @@ const DayPlanner = () => {
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                     </label>
                   </div>
-                  {!mobileEditingTask && (<>
+                  {(<>
                     <div className="col-span-2 relative">
                       <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
                       <button
@@ -16281,7 +16297,7 @@ const DayPlanner = () => {
             }}
           >
             <h3 className={`font-semibold ${textPrimary} mb-4 text-lg`}>
-              {newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
+              {mobileEditingTask ? 'Edit Task' : newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
             </h3>
             <div className="space-y-4">
               <div className="relative tag-autocomplete-container">
@@ -16627,20 +16643,36 @@ const DayPlanner = () => {
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  {newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
+                  {mobileEditingTask ? 'Save Changes' : newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
                 </button>
+                {mobileEditingTask && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      moveToRecycleBin(mobileEditingTask.id, mobileEditIsInbox);
+                      setShowAddTask(false);
+                      setMobileEditingTask(null);
+                      setMobileEditIsInbox(false);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Delete
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); }}
+                  onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); }}
                   className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
                 >
                   Cancel
                 </button>
               </div>
+              {!mobileEditingTask && (
               <div className={`text-xs ${textSecondary} text-center`}>
                 <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Enter</kbd> add to {newTask.openInInbox ? 'inbox' : 'schedule'}
                 {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Esc</kbd> cancel
               </div>
+              )}
             </div>
           </form>
         </div>
