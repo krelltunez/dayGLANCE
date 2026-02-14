@@ -576,6 +576,35 @@ describe('mergeRoutineDefinitions', () => {
     expect(merged.custom).toHaveLength(1);
     expect(localChanged).toBe(true);
   });
+
+  it('tombstone removes local chip and flags localChanged', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Workout' }, { id: 2, name: 'Journal' }] };
+    const remote = { ...emptyDefs(), monday: [{ id: 1, name: 'Workout' }] };
+    const tombstones = { '2': new Date().toISOString() };
+    const { merged, localChanged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(1);
+    expect(merged.monday[0].id).toBe(1);
+    expect(localChanged).toBe(true);
+  });
+
+  it('tombstone prevents remote-only chip from being added', () => {
+    const local = emptyDefs();
+    const remote = { ...emptyDefs(), monday: [{ id: 1, name: 'Deleted' }] };
+    const tombstones = { '1': new Date().toISOString() };
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(0);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('tombstone does not affect non-tombstoned chips', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Keep' }, { id: 2, name: 'Remove' }] };
+    const remote = { ...emptyDefs(), monday: [{ id: 1, name: 'Keep' }, { id: 3, name: 'New' }] };
+    const tombstones = { '2': new Date().toISOString() };
+    const { merged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(2);
+    expect(merged.monday.map(c => c.id)).toEqual([1, 3]);
+  });
 });
 
 // ─── mergeSyncData: routine definition scenarios ─────────────────────
@@ -583,7 +612,7 @@ describe('mergeRoutineDefinitions', () => {
 describe('mergeSyncData — routine definitions', () => {
   const emptyData = () => ({
     tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
-    completedTaskUids: [], deletedTaskIds: {},
+    completedTaskUids: [], deletedTaskIds: {}, deletedRoutineChipIds: {},
     syncUrl: null, taskCalendarUrl: null,
     routineDefinitions: { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] },
     todayRoutines: [], routinesDate: '',
@@ -664,5 +693,39 @@ describe('mergeSyncData — routine definitions', () => {
     expect(data.routineDefinitions.everyday).toHaveLength(1);
     expect(localChanged).toBe(false);
     expect(remoteChanged).toBe(false);
+  });
+
+  it('SCENARIO: routine deleted on one device is removed on the other via tombstone', () => {
+    const deviceA = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout' }]
+      }
+    };
+    const deviceB = {
+      ...emptyData(),
+      deletedRoutineChipIds: { '1': new Date().toISOString() }
+    };
+
+    const { data, localChanged, remoteChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.routineDefinitions.monday).toHaveLength(0);
+    expect(localChanged).toBe(true); // chip was removed locally
+    expect(data.deletedRoutineChipIds['1']).toBeDefined();
+  });
+
+  it('SCENARIO: routine tombstones from both devices are combined', () => {
+    const deviceA = {
+      ...emptyData(),
+      deletedRoutineChipIds: { '1': '2025-01-01T00:00:00Z' }
+    };
+    const deviceB = {
+      ...emptyData(),
+      deletedRoutineChipIds: { '2': '2025-01-02T00:00:00Z' }
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.deletedRoutineChipIds['1']).toBeDefined();
+    expect(data.deletedRoutineChipIds['2']).toBeDefined();
   });
 });

@@ -66,17 +66,20 @@ export const mergeTaskArrays = (localTasks, remoteTasks, deletedIds) => {
 };
 
 /**
- * Merges routine definitions by bucket (day of week), unioning chips by ID.
+ * Merges routine definitions by bucket (day of week), unioning chips by ID
+ * and respecting tombstones for deleted chips.
  *
  * Each side's bucket is an array of { id, name } chips.  The merge preserves
  * local ordering and appends any remote-only chips at the end — mirroring the
- * task merge strategy.
+ * task merge strategy.  Chips present in the deletedChipIds tombstone map are
+ * excluded from the merged result.
  *
  * @param {Object} localDefs  - Local routine definitions (bucket → chip[])
  * @param {Object} remoteDefs - Remote routine definitions (bucket → chip[])
+ * @param {Object} [deletedChipIds] - Map of chip ID → deletion timestamp (tombstones)
  * @returns {{ merged: Object, localChanged: boolean, remoteChanged: boolean }}
  */
-export const mergeRoutineDefinitions = (localDefs, remoteDefs) => {
+export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = {}) => {
   const allBuckets = new Set([...Object.keys(localDefs), ...Object.keys(remoteDefs)]);
   const merged = {};
   let localChanged = false;
@@ -88,20 +91,33 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs) => {
     const localIds = new Set(localChips.map(c => String(c.id)));
     const remoteMap = new Map(remoteChips.map(c => [String(c.id), c]));
 
-    // Start with local chips in order (preserves local ordering)
-    const bucketMerged = [...localChips];
-
-    // Append remote-only chips
-    for (const remoteChip of remoteChips) {
-      if (!localIds.has(String(remoteChip.id))) {
-        bucketMerged.push(remoteChip);
-        localChanged = true;
+    // Start with local chips in order, filtering out tombstoned chips
+    const bucketMerged = [];
+    for (const chip of localChips) {
+      if (deletedChipIds[String(chip.id)]) {
+        localChanged = true; // chip removed locally
+        continue;
       }
+      bucketMerged.push(chip);
+    }
+
+    // Append remote-only chips (skip tombstoned)
+    for (const remoteChip of remoteChips) {
+      const id = String(remoteChip.id);
+      if (localIds.has(id)) continue;
+      if (deletedChipIds[id]) {
+        remoteChanged = true; // tell remote this was deleted
+        continue;
+      }
+      bucketMerged.push(remoteChip);
+      localChanged = true;
     }
 
     // Check for local-only chips (remote needs them)
     for (const localChip of localChips) {
-      if (!remoteMap.has(String(localChip.id))) {
+      const id = String(localChip.id);
+      if (deletedChipIds[id]) continue; // don't flag deleted chips as needing push
+      if (!remoteMap.has(id)) {
         remoteChanged = true;
       }
     }
@@ -112,13 +128,18 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs) => {
   // Bucket only on remote → local needs it
   for (const bucket of Object.keys(remoteDefs)) {
     if (!localDefs[bucket] && remoteDefs[bucket]?.length > 0) {
-      localChanged = true;
+      // Only flag if there are non-tombstoned chips
+      if (remoteDefs[bucket].some(c => !deletedChipIds[String(c.id)])) {
+        localChanged = true;
+      }
     }
   }
   // Bucket only on local → remote needs it
   for (const bucket of Object.keys(localDefs)) {
     if (!remoteDefs[bucket] && localDefs[bucket]?.length > 0) {
-      remoteChanged = true;
+      if (localDefs[bucket].some(c => !deletedChipIds[String(c.id)])) {
+        remoteChanged = true;
+      }
     }
   }
 
@@ -153,8 +174,18 @@ export const mergeSyncData = (localData, remoteData) => {
   const binMerge = mergeTaskArrays(localData.recycleBin || [], remoteData.recycleBin || [], allDeletedIds);
   const recurMerge = mergeTaskArrays(localData.recurringTasks || [], remoteData.recurringTasks || [], allDeletedIds);
 
-  // Merge routine definitions by bucket
-  const routineMerge = mergeRoutineDefinitions(localData.routineDefinitions || {}, remoteData.routineDefinitions || {});
+  // Combine routine chip tombstones from both sides
+  const localDeletedChips = localData.deletedRoutineChipIds || {};
+  const remoteDeletedChips = remoteData.deletedRoutineChipIds || {};
+  const allDeletedChipIds = { ...localDeletedChips };
+  for (const [id, ts] of Object.entries(remoteDeletedChips)) {
+    if (!allDeletedChipIds[id] || new Date(ts) > new Date(allDeletedChipIds[id])) {
+      allDeletedChipIds[id] = ts;
+    }
+  }
+
+  // Merge routine definitions by bucket (with tombstone support)
+  const routineMerge = mergeRoutineDefinitions(localData.routineDefinitions || {}, remoteData.routineDefinitions || {}, allDeletedChipIds);
 
   let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged;
   let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged;
@@ -213,6 +244,8 @@ export const mergeSyncData = (localData, remoteData) => {
   // Check if tombstones changed
   if (Object.keys(allDeletedIds).length !== Object.keys(localDeleted).length) localChanged = true;
   if (Object.keys(allDeletedIds).length !== Object.keys(remoteDeleted).length) remoteChanged = true;
+  if (Object.keys(allDeletedChipIds).length !== Object.keys(localDeletedChips).length) localChanged = true;
+  if (Object.keys(allDeletedChipIds).length !== Object.keys(remoteDeletedChips).length) remoteChanged = true;
 
   return {
     data: {
@@ -222,6 +255,7 @@ export const mergeSyncData = (localData, remoteData) => {
       recurringTasks: recurMerge.merged,
       completedTaskUids: mergedCompletedUids,
       deletedTaskIds: allDeletedIds,
+      deletedRoutineChipIds: allDeletedChipIds,
       // Settings: prefer remote for shared settings, local values are kept per-device
       syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,
       taskCalendarUrl: remoteData.taskCalendarUrl !== undefined ? remoteData.taskCalendarUrl : localData.taskCalendarUrl,

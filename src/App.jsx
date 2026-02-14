@@ -4888,6 +4888,10 @@ const DayPlanner = () => {
     // Also remove from dashboard selected and today's routines if present
     setDashboardSelectedChips(prev => prev.filter(c => c.id !== chipId));
     setTodayRoutines(prev => prev.filter(r => r.id !== chipId));
+    // Record tombstone so deletion syncs across devices
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}');
+    tombstones[String(chipId)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(tombstones));
   };
 
   const toggleRoutineChipSelection = (chip, bucket) => {
@@ -7174,7 +7178,8 @@ const DayPlanner = () => {
       routinesDate: localStorage.getItem('day-planner-routines-date') || '',
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
       use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
-      deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}')
+      deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
+      deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}')
     }
   });
 
@@ -7235,6 +7240,7 @@ const DayPlanner = () => {
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
     if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
     if (data.deletedTaskIds) localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(data.deletedTaskIds));
+    if (data.deletedRoutineChipIds) localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(data.deletedRoutineChipIds));
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload)
@@ -10139,7 +10145,7 @@ const DayPlanner = () => {
                                 </span>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
-                                  className={`absolute -top-1.5 -right-1.5 ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center`}
+                                  className={`absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center`}
                                 >
                                   <Undo2 size={10} />
                                 </button>
@@ -10209,8 +10215,8 @@ const DayPlanner = () => {
                                   >
                                     {chip.name}
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
-                                      className="absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                      onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); }}
+                                      className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
                                     >
                                       <X size={10} />
                                     </button>
