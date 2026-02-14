@@ -11976,7 +11976,7 @@ const DayPlanner = () => {
                                   }
                                 }
                                 return (
-                                  <span key={r.id} className={`rounded-full px-3 py-1.5 text-sm font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                                  <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
                                     {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
                                   </span>
                                 );
