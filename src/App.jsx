@@ -10378,6 +10378,9 @@ const DayPlanner = () => {
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
                   </div>
+                  <div className={`text-center text-[10px] ${textSecondary} opacity-50 pt-2`}>
+                    Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
+                  </div>
                 </div>
 
                 {/* Stats sub-view */}
@@ -17217,9 +17220,12 @@ const DayPlanner = () => {
                   </div>
                 </div>
 
+                <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-4`}>
+                  Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
+                </div>
                 <button
                   onClick={() => setShowSettings(false)}
-                  className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
+                  className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} rounded-lg ${hoverBg} text-sm`}
                 >
                   Close
                 </button>
