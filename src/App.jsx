@@ -14923,7 +14923,7 @@ const DayPlanner = () => {
       )}
 
       {recurringDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRecurringDeleteConfirm(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRecurringDeleteConfirm(null)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setRecurringDeleteConfirm(null); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
           <div
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
