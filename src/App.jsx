@@ -8649,11 +8649,11 @@ const DayPlanner = () => {
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
   const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => {
     if (t.completed) return false;
-    if (t.startTime) {
-      const [h, m] = t.startTime.split(':').map(Number);
-      const taskEndMinutes = h * 60 + m + (t.duration || 0);
-      if (taskEndMinutes > nowMinutes) return false; // still in progress or hasn't started
-    }
+    // All-day tasks (no startTime) aren't incomplete until the day is over
+    if (!t.startTime) return false;
+    const [h, m] = t.startTime.split(':').map(Number);
+    const taskEndMinutes = h * 60 + m + (t.duration || 0);
+    if (taskEndMinutes > nowMinutes) return false; // still in progress or hasn't started
     return true;
   }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   const allTimeIncompleteTasks = useMemo(() => {
@@ -8661,7 +8661,8 @@ const DayPlanner = () => {
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
     const isTodayAndFuture = (t) => {
       if ((t.date || t.deadline) !== todayStr) return false;
-      if (!t.startTime) return false;
+      // All-day tasks (no startTime) aren't incomplete until the day is over
+      if (!t.startTime) return true;
       const [h, m] = t.startTime.split(':').map(Number);
       return h * 60 + m + (t.duration || 0) > nowMins;
     };
