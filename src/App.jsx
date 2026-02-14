@@ -8944,7 +8944,7 @@ const DayPlanner = () => {
                                       key={task.id}
                                       data-task-id={task.id}
                                       className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
-                                      style={{ touchAction: 'none', ...(taskCalendarStyle || {}) }}
+                                      style={{ touchAction: 'pan-y', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -9034,7 +9034,7 @@ const DayPlanner = () => {
                                     key={`deadline-${task.id}`}
                                     data-task-id={task.id}
                                     className={`${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
-                                    style={{ touchAction: 'none' }}
+                                    style={{ touchAction: 'pan-y' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -9113,7 +9113,7 @@ const DayPlanner = () => {
                                   <div
                                     key={`routine-${routine.id}`}
                                     className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
-                                    style={{ touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+                                    style={{ touchAction: 'pan-y', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'allday')}
@@ -9349,7 +9349,7 @@ const DayPlanner = () => {
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
                                     className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${task.isTaskCalendar ? '' : 'border border-white/20'}`}
-                                    style={{ touchAction: 'none', ...mobileCalendarStyle }}
+                                    style={{ touchAction: 'pan-y', ...mobileCalendarStyle }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
@@ -9543,7 +9543,7 @@ const DayPlanner = () => {
                                     key={`routine-tl-${routine.id}`}
                                     className={`absolute pointer-events-auto select-none flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{
-                                      touchAction: 'none',
+                                      touchAction: 'pan-y',
                                       WebkitTouchCallout: 'none',
                                       WebkitUserSelect: 'none',
                                       top: `${rTop}px`,
@@ -13873,7 +13873,7 @@ const DayPlanner = () => {
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
                               } : {})}
                               className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
-                              style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'none' } : {}) }}
+                              style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'pan-y' } : {}) }}
                             >
                               {task.isExample && (
                                 <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
@@ -14269,7 +14269,7 @@ const DayPlanner = () => {
                                 right: conflictPos.right,
                                 width: conflictPos.width,
                                 visibility: isMeasured ? 'visible' : 'hidden',
-                                ...(isTablet ? { touchAction: 'none' } : {}),
+                                ...(isTablet ? { touchAction: 'pan-y' } : {}),
                                 ...taskCalendarStyle
                               }}
                             >
