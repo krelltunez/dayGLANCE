@@ -2437,8 +2437,8 @@ const DayPlanner = () => {
           return { ...t, lastModified: prevTask.lastModified };
         }
       }
-      // Task is new, changed, or had no timestamp — stamp it
-      return { ...t, lastModified: t.lastModified || now };
+      // Task is new or changed — stamp it now so other devices see the update
+      return { ...t, lastModified: now };
     });
   };
 
@@ -4506,10 +4506,11 @@ const DayPlanner = () => {
       if (expandedNotesTaskId === id) {
         setExpandedNotesTaskId(null);
       }
-      // Store original location with the task
+      // Store original location and deletion time with the task
       const taskWithMeta = {
         ...task,
-        _deletedFrom: fromInbox ? 'inbox' : 'calendar'
+        _deletedFrom: fromInbox ? 'inbox' : 'calendar',
+        deletedAt: new Date().toISOString()
       };
       // Use functional updates to avoid stale closure overwriting concurrent state changes
       setRecycleBin(prev => [...prev, taskWithMeta]);
@@ -6367,7 +6368,8 @@ const DayPlanner = () => {
     // Add to recycle bin with metadata about where it came from
     const taskWithMeta = {
       ...cleanTask,
-      _deletedFrom: deletedFrom
+      _deletedFrom: deletedFrom,
+      deletedAt: new Date().toISOString()
     };
     setRecycleBin([...recycleBin, taskWithMeta]);
 

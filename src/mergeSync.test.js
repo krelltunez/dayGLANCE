@@ -317,4 +317,128 @@ describe('mergeSyncData', () => {
     const { data } = mergeSyncData(local, remote);
     expect(data.recurringTasks).toHaveLength(2);
   });
+
+  // ── Completion sync scenarios ─────────────────────────────────
+  it('SCENARIO: completion on device A survives when stale device B syncs', () => {
+    // Device A completed the task (lastModified bumped to ts(1))
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Buy groceries', ts(1), { completed: true })],
+    };
+    // Device B still has the old uncompleted version (lastModified ts(10))
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Buy groceries', ts(10), { completed: false })],
+    };
+
+    // When device B downloads and merges with device A's data
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.tasks).toHaveLength(1);
+    expect(data.tasks[0].completed).toBe(true);
+  });
+
+  it('SCENARIO: inbox task completion survives sync', () => {
+    const deviceA = {
+      ...emptyData(),
+      unscheduledTasks: [T(5, 'Read book', ts(1), { completed: true, completedAt: '2026-02-14' })],
+    };
+    const deviceB = {
+      ...emptyData(),
+      unscheduledTasks: [T(5, 'Read book', ts(10), { completed: false })],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.unscheduledTasks[0].completed).toBe(true);
+    expect(data.unscheduledTasks[0].completedAt).toBe('2026-02-14');
+  });
+
+  // ── Task move sync scenarios ──────────────────────────────────
+  it('SCENARIO: task moved to inbox on device A survives when device B syncs', () => {
+    // Device A moved the task to inbox (lastModified bumped)
+    const deviceA = {
+      ...emptyData(),
+      unscheduledTasks: [T(1, 'Flexible task', ts(1), { startTime: null, date: null })],
+    };
+    // Device B still has it on the calendar
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Flexible task', ts(10), { startTime: '09:00', date: '2026-02-14' })],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    // The moved version (inbox, ts(1) = newer) should win
+    expect(data.unscheduledTasks).toHaveLength(1);
+    expect(data.unscheduledTasks[0].id).toBe(1);
+    // Should not also appear in scheduled tasks
+    expect(data.tasks).toHaveLength(0);
+  });
+
+  it('SCENARIO: task moved to calendar on device A survives when device B syncs', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Now scheduled', ts(1), { startTime: '14:00', date: '2026-02-14' })],
+    };
+    const deviceB = {
+      ...emptyData(),
+      unscheduledTasks: [T(1, 'Now scheduled', ts(10))],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.tasks).toHaveLength(1);
+    expect(data.tasks[0].startTime).toBe('14:00');
+    expect(data.unscheduledTasks).toHaveLength(0);
+  });
+
+  // ── Recycle bin sync scenarios ────────────────────────────────
+  it('SCENARIO: task deleted on device A stays deleted when device B syncs', () => {
+    // Device A deleted the task (in recycle bin with deletedAt)
+    const deviceA = {
+      ...emptyData(),
+      recycleBin: [{ ...T(1, 'Deleted task', ts(10)), deletedAt: ts(1), _deletedFrom: 'calendar' }],
+    };
+    // Device B still has it active
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Deleted task', ts(10))],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    // deletedAt (ts(1)) is newer than lastModified (ts(10)), so deletion wins
+    expect(data.tasks).toHaveLength(0);
+    expect(data.recycleBin).toHaveLength(1);
+    expect(data.recycleBin[0].id).toBe(1);
+  });
+
+  it('SCENARIO: task deleted from inbox stays deleted when other device syncs', () => {
+    const deviceA = {
+      ...emptyData(),
+      recycleBin: [{ ...T(5, 'Old todo', ts(10)), deletedAt: ts(1), _deletedFrom: 'inbox' }],
+    };
+    const deviceB = {
+      ...emptyData(),
+      unscheduledTasks: [T(5, 'Old todo', ts(10))],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.unscheduledTasks).toHaveLength(0);
+    expect(data.recycleBin).toHaveLength(1);
+  });
+
+  it('SCENARIO: task restored from recycle bin stays active when other device syncs', () => {
+    // Device A restored the task (bumped lastModified)
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Restored task', ts(1), { startTime: '10:00', date: '2026-02-14' })],
+    };
+    // Device B still has it in recycle bin
+    const deviceB = {
+      ...emptyData(),
+      recycleBin: [{ ...T(1, 'Restored task', ts(10)), deletedAt: ts(5), _deletedFrom: 'calendar' }],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    // Active version (ts(1)) is newer than deletedAt (ts(5)), so active wins
+    expect(data.tasks).toHaveLength(1);
+    expect(data.recycleBin).toHaveLength(0);
+  });
 });
