@@ -866,4 +866,68 @@ describe('mergeSyncData — todayRoutines sync', () => {
     expect(localChanged).toBe(false);
     expect(remoteChanged).toBe(false);
   });
+
+  it('removedTodayRoutineIds prevents removed routine from reappearing via sync', () => {
+    // Device A removed "shower" from today's routines (but kept the definition)
+    const deviceA = {
+      ...emptyData(),
+      todayRoutines: [],
+      routinesDate: '2026-02-14',
+      removedTodayRoutineIds: { 'shower': new Date().toISOString() },
+    };
+    // Device B still has "shower" in today's routines
+    const deviceB = {
+      ...emptyData(),
+      todayRoutines: [R('shower', 'Shower')],
+      routinesDate: '2026-02-14',
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.todayRoutines).toHaveLength(0);
+    // Tombstone should be preserved in merged data
+    expect(data.removedTodayRoutineIds).toHaveProperty('shower');
+  });
+
+  it('removedTodayRoutineIds merges from both devices', () => {
+    const deviceA = {
+      ...emptyData(),
+      todayRoutines: [],
+      routinesDate: '2026-02-14',
+      removedTodayRoutineIds: { 'shower': '2026-02-14T10:00:00.000Z' },
+    };
+    const deviceB = {
+      ...emptyData(),
+      todayRoutines: [],
+      routinesDate: '2026-02-14',
+      removedTodayRoutineIds: { 'workout': '2026-02-14T11:00:00.000Z' },
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.removedTodayRoutineIds).toHaveProperty('shower');
+    expect(data.removedTodayRoutineIds).toHaveProperty('workout');
+  });
+
+  it('removal tombstone does not affect routine definitions', () => {
+    // Device A removed "shower" from today but the definition should survive
+    const deviceA = {
+      ...emptyData(),
+      routineDefinitions: { everyday: [{ id: 'shower', name: 'Shower' }] },
+      todayRoutines: [],
+      routinesDate: '2026-02-14',
+      removedTodayRoutineIds: { 'shower': new Date().toISOString() },
+    };
+    const deviceB = {
+      ...emptyData(),
+      routineDefinitions: { everyday: [{ id: 'shower', name: 'Shower' }] },
+      todayRoutines: [R('shower', 'Shower')],
+      routinesDate: '2026-02-14',
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    // Routine should be removed from today...
+    expect(data.todayRoutines).toHaveLength(0);
+    // ...but definition should still exist
+    expect(data.routineDefinitions.everyday).toHaveLength(1);
+    expect(data.routineDefinitions.everyday[0].id).toBe('shower');
+  });
 });

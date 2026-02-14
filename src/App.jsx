@@ -1119,6 +1119,7 @@ const DayPlanner = () => {
   const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
   const [todayRoutines, setTodayRoutines] = useState([]);
   const [routinesDate, setRoutinesDate] = useState('');
+  const [removedTodayRoutineIds, setRemovedTodayRoutineIds] = useState({});
   const [showRoutinesDashboard, setShowRoutinesDashboard] = useState(false);
   const [dashboardSelectedChips, setDashboardSelectedChips] = useState([]);
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
@@ -2115,7 +2116,7 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
@@ -2125,7 +2126,7 @@ const DayPlanner = () => {
       cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, use24HourClock, cloudSyncConfig?.enabled]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, cloudSyncConfig?.enabled]);
 
   // Cloud sync: download on app load or when sync is first enabled
   useEffect(() => {
@@ -2202,6 +2203,8 @@ const DayPlanner = () => {
     if (routinesDate && routinesDate !== todayStr) {
       setTodayRoutines([]);
       setRoutinesDate(todayStr);
+      setRemovedTodayRoutineIds({});
+      localStorage.removeItem('day-planner-removed-today-routine-ids');
     }
   }, [currentTime]);
 
@@ -2415,10 +2418,14 @@ const DayPlanner = () => {
         if (routinesDateData && routinesDateData === todayStr && todayRoutinesData) {
           setTodayRoutines(JSON.parse(todayRoutinesData));
           setRoutinesDate(todayStr);
+          const removedData = localStorage.getItem('day-planner-removed-today-routine-ids');
+          if (removedData) setRemovedTodayRoutineIds(JSON.parse(removedData));
         } else {
           // Auto-clear if different day
           setTodayRoutines([]);
           setRoutinesDate(todayStr);
+          setRemovedTodayRoutineIds({});
+          localStorage.removeItem('day-planner-removed-today-routine-ids');
         }
       }
     } catch (error) {
@@ -2466,6 +2473,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
       localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
       localStorage.setItem('day-planner-routines-date', routinesDate);
+      localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(removedTodayRoutineIds));
       // Only update local-modified after initial cloud sync has run,
       // otherwise the initial loadData() sets it to "now" and overwrites remote
       if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
@@ -4918,6 +4926,29 @@ const DayPlanner = () => {
       return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || null, duration: 15, isAllDay: !chip.startTime };
     });
 
+    // Record tombstones for routines that were removed from today's list
+    // so the removal syncs across devices instead of being re-added by merge.
+    const newIds = new Set(newTodayRoutines.map(r => String(r.id)));
+    const removedIds = todayRoutines.filter(r => !newIds.has(String(r.id)));
+    if (removedIds.length > 0) {
+      const now = new Date().toISOString();
+      setRemovedTodayRoutineIds(prev => {
+        const updated = { ...prev };
+        removedIds.forEach(r => { updated[String(r.id)] = now; });
+        return updated;
+      });
+    }
+    // Clear tombstones for routines that were re-added
+    const prevIds = new Set(todayRoutines.map(r => String(r.id)));
+    const readdedIds = newTodayRoutines.filter(r => !prevIds.has(String(r.id)));
+    if (readdedIds.length > 0) {
+      setRemovedTodayRoutineIds(prev => {
+        const updated = { ...prev };
+        readdedIds.forEach(r => { delete updated[String(r.id)]; });
+        return updated;
+      });
+    }
+
     setTodayRoutines(newTodayRoutines);
     setRoutinesDate(todayStr);
     setShowRoutinesDashboard(false);
@@ -7181,7 +7212,8 @@ const DayPlanner = () => {
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
       use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
       deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
-      deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}')
+      deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
+      removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}')
     }
   });
 
@@ -7243,6 +7275,10 @@ const DayPlanner = () => {
     if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
     if (data.deletedTaskIds) localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(data.deletedTaskIds));
     if (data.deletedRoutineChipIds) localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(data.deletedRoutineChipIds));
+    if (data.removedTodayRoutineIds) {
+      localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(data.removedTodayRoutineIds));
+      setRemovedTodayRoutineIds(data.removedTodayRoutineIds);
+    }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload)

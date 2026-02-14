@@ -187,6 +187,23 @@ export const mergeSyncData = (localData, remoteData) => {
   // Merge routine definitions by bucket (with tombstone support)
   const routineMerge = mergeRoutineDefinitions(localData.routineDefinitions || {}, remoteData.routineDefinitions || {}, allDeletedChipIds);
 
+  // Combine "removed from today" tombstones from both sides.
+  // These are separate from deletedRoutineChipIds (which are for permanent
+  // definition deletes) — removedTodayRoutineIds tracks routines the user
+  // un-checked from Today's Routine without deleting the definition.
+  const localRemovedToday = localData.removedTodayRoutineIds || {};
+  const remoteRemovedToday = remoteData.removedTodayRoutineIds || {};
+  const allRemovedTodayIds = { ...localRemovedToday };
+  for (const [id, ts] of Object.entries(remoteRemovedToday)) {
+    if (!allRemovedTodayIds[id] || new Date(ts) > new Date(allRemovedTodayIds[id])) {
+      allRemovedTodayIds[id] = ts;
+    }
+  }
+
+  // Build combined tombstone set for todayRoutines merge: permanent chip
+  // deletes + today-specific removals both suppress a routine from reappearing.
+  const todayRoutineTombstones = { ...allDeletedChipIds, ...allRemovedTodayIds };
+
   // Merge today's selected routines across devices.
   // Only union by ID when both sides are on the same date — if dates differ,
   // keep the newer date's routines (avoids mixing yesterday's with today's).
@@ -195,7 +212,7 @@ export const mergeSyncData = (localData, remoteData) => {
   let todayRoutinesMerge;
   let mergedRoutinesDate;
   if (localRoutinesDate === remoteRoutinesDate) {
-    todayRoutinesMerge = mergeTaskArrays(localData.todayRoutines || [], remoteData.todayRoutines || [], allDeletedChipIds);
+    todayRoutinesMerge = mergeTaskArrays(localData.todayRoutines || [], remoteData.todayRoutines || [], todayRoutineTombstones);
     mergedRoutinesDate = localRoutinesDate;
   } else if (localRoutinesDate > remoteRoutinesDate) {
     todayRoutinesMerge = { merged: localData.todayRoutines || [], localChanged: false, remoteChanged: true };
@@ -264,6 +281,8 @@ export const mergeSyncData = (localData, remoteData) => {
   if (Object.keys(allDeletedIds).length !== Object.keys(remoteDeleted).length) remoteChanged = true;
   if (Object.keys(allDeletedChipIds).length !== Object.keys(localDeletedChips).length) localChanged = true;
   if (Object.keys(allDeletedChipIds).length !== Object.keys(remoteDeletedChips).length) remoteChanged = true;
+  if (Object.keys(allRemovedTodayIds).length !== Object.keys(localRemovedToday).length) localChanged = true;
+  if (Object.keys(allRemovedTodayIds).length !== Object.keys(remoteRemovedToday).length) remoteChanged = true;
 
   return {
     data: {
@@ -274,6 +293,7 @@ export const mergeSyncData = (localData, remoteData) => {
       completedTaskUids: mergedCompletedUids,
       deletedTaskIds: allDeletedIds,
       deletedRoutineChipIds: allDeletedChipIds,
+      removedTodayRoutineIds: allRemovedTodayIds,
       // Settings: prefer remote for shared settings, local values are kept per-device
       syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,
       taskCalendarUrl: remoteData.taskCalendarUrl !== undefined ? remoteData.taskCalendarUrl : localData.taskCalendarUrl,
