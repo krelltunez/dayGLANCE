@@ -3432,7 +3432,8 @@ const DayPlanner = () => {
     }
 
     if (fromInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(task =>
+      // Use functional update to avoid stale closure overwriting concurrent state changes (e.g. moveToRecycleBin)
+      setUnscheduledTasks(prev => prev.map(task =>
         task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date().toISOString() : null } : task
       ));
     } else {
@@ -3450,7 +3451,7 @@ const DayPlanner = () => {
           return newSet;
         });
       }
-      setTasks(tasks.map(task =>
+      setTasks(prev => prev.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
       ));
     }
@@ -4509,11 +4510,12 @@ const DayPlanner = () => {
         ...task,
         _deletedFrom: fromInbox ? 'inbox' : 'calendar'
       };
-      setRecycleBin([...recycleBin, taskWithMeta]);
+      // Use functional updates to avoid stale closure overwriting concurrent state changes
+      setRecycleBin(prev => [...prev, taskWithMeta]);
       if (fromInbox) {
-        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== id));
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
       } else {
-        setTasks(tasks.filter(t => t.id !== id));
+        setTasks(prev => prev.filter(t => t.id !== id));
       }
       playUISound('swoosh');
       if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
@@ -4560,14 +4562,14 @@ const DayPlanner = () => {
     const task = recycleBin.find(t => t.id === id);
     if (task) {
       const { _deletedFrom, ...cleanTask } = task; // Remove metadata
-      
+
       if (_deletedFrom === 'inbox') {
-        setUnscheduledTasks([...unscheduledTasks, cleanTask]);
+        setUnscheduledTasks(prev => [...prev, cleanTask]);
       } else {
-        setTasks([...tasks, cleanTask]);
+        setTasks(prev => [...prev, cleanTask]);
       }
-      
-      setRecycleBin(recycleBin.filter(t => t.id !== id));
+
+      setRecycleBin(prev => prev.filter(t => t.id !== id));
       playUISound('restore');
     }
   };
