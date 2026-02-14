@@ -8677,7 +8677,7 @@ const DayPlanner = () => {
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                       title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                     >
-                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')} />
+                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                     </button>
                     <button
                       onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -11963,7 +11963,7 @@ const DayPlanner = () => {
                           className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                           title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                         >
-                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')} />
+                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                         </button>
                         <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -12769,7 +12769,7 @@ const DayPlanner = () => {
                         className={`${hoverBg} rounded px-1 py-0.5 transition-colors ml-1`}
                         title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                       >
-                        <CheckCircle size={12} className={hideCompletedInbox ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')} />
+                        <CheckCircle size={12} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                       </button>
                       <button
                         onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
