@@ -17934,12 +17934,12 @@ const DayPlanner = () => {
           </div>
         );
 
-        return isMobile ? (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}>
+        return (isMobile || isTablet) ? (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end" style={isTablet ? { width: '320px' } : undefined} onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}>
             <div className="bg-black/30 absolute inset-0" />
             <div
               className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] flex flex-col`}
-              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+              style={{ paddingBottom: isTablet ? '1rem' : 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Handle */}
