@@ -8540,16 +8540,13 @@ const DayPlanner = () => {
 
   // Calculate all-time stats (excluding imported events, including recurring)
   // Inbox tasks with deadlines are treated as "scheduled" since they appear on the timeline
-  const nonImportedTasks = tasks.filter(t => !t.imported);
+  // Only count tasks up through today — future tasks aren't "incomplete" yet
+  const nonImportedTasks = tasks.filter(t => !t.imported && t.date <= todayStr);
   const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
-  const deadlineInboxTasks = unscheduledTasks.filter(t => t.deadline);
+  const deadlineInboxTasks = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr);
   const deadlineInboxCompleted = deadlineInboxTasks.filter(t => t.completed);
-  // Count all recurring occurrences from start through the end of visible dates,
-  // so future recurring tasks shown in the current view are included in the tally.
-  const lastVisibleDateStr = visibleDates.length > 0 ? dateToString(visibleDates[visibleDates.length - 1]) : todayStr;
-  const allTimeEndDate = lastVisibleDateStr > todayStr ? lastVisibleDateStr : todayStr;
   const recurringAllTimeStats = recurringTasks.reduce((acc, t) => {
-    const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, allTimeEndDate);
+    const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
     const completedSet = new Set(t.completedDates || []);
     const completed = occs.filter(d => completedSet.has(d)).length;
     return {
@@ -8602,12 +8599,22 @@ const DayPlanner = () => {
   const allTimeInboxCompletedMinutes = allTimeInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0);
 
   // Incomplete task lists for modal
-  const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => !t.completed).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  // Don't flag tasks as incomplete if they haven't ended yet (still in progress or upcoming)
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const todayIncompleteTasks = actualTodayNonImportedTasks.filter(t => {
+    if (t.completed) return false;
+    if (t.startTime) {
+      const [h, m] = t.startTime.split(':').map(Number);
+      const taskEndMinutes = h * 60 + m + (t.duration || 0);
+      if (taskEndMinutes > nowMinutes) return false; // still in progress or hasn't started
+    }
+    return true;
+  }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   const allTimeIncompleteTasks = useMemo(() => {
     const regularIncomplete = nonImportedTasks.filter(t => !t.completed);
     const recurringIncomplete = [];
     recurringTasks.forEach(t => {
-      const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, allTimeEndDate);
+      const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
       const completedSet = new Set(t.completedDates || []);
       occs.forEach(dateStr => {
         if (!completedSet.has(dateStr) && !t.exceptions?.[dateStr]?.deleted) {
@@ -8623,9 +8630,9 @@ const DayPlanner = () => {
         }
       });
     });
-    const deadlineInboxIncomplete = unscheduledTasks.filter(t => t.deadline && !t.completed);
+    const deadlineInboxIncomplete = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr && !t.completed);
     return [...regularIncomplete, ...recurringIncomplete, ...deadlineInboxIncomplete].sort((a, b) => ((a.date || a.deadline || '').localeCompare(b.date || b.deadline || '')) || (a.startTime || '').localeCompare(b.startTime || ''));
-  }, [nonImportedTasks, recurringTasks, todayStr, allTimeEndDate, unscheduledTasks]);
+  }, [nonImportedTasks, recurringTasks, todayStr, unscheduledTasks]);
 
   const isToday = dateToString(selectedDate) === dateToString(new Date());
   const currentTimeMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
