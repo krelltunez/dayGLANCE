@@ -1080,6 +1080,7 @@ const DayPlanner = () => {
   const [suggestionContext, setSuggestionContext] = useState(null); // 'newTask' | 'editing'
   const [showDeadlinePicker, setShowDeadlinePicker] = useState(null); // task id or null
   const calendarRef = useRef(null);
+  const suppressScrollAwayRef = useRef(false); // suppress scroll-away detection during programmatic scrolls
   const newTaskInputRef = useRef(null);
   const editingInputRef = useRef(null);
   const timeGridRef = useRef(null);
@@ -2086,7 +2087,11 @@ const DayPlanner = () => {
     const scrollPosition = Math.max(0, currentHour * hourHeight);
     if (calendarRef.current) {
       if (smooth) {
+        // Suppress scroll-away detection during the smooth scroll animation
+        suppressScrollAwayRef.current = true;
         calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+        // Re-enable after animation completes (smooth scroll typically takes ~300-500ms)
+        setTimeout(() => { suppressScrollAwayRef.current = false; }, 600);
       } else {
         calendarRef.current.scrollTop = scrollPosition;
       }
@@ -2110,10 +2115,11 @@ const DayPlanner = () => {
     if (!el) return;
     let ticking = false;
     const onScroll = () => {
-      if (ticking) return;
+      if (ticking || suppressScrollAwayRef.current) return;
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
+        if (suppressScrollAwayRef.current) return;
         const now = new Date();
         const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
         const nowPos = (now.getHours() + now.getMinutes() / 60) * hourHeight;
