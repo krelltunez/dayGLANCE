@@ -1124,6 +1124,7 @@ const DayPlanner = () => {
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
   const [routineNewChipName, setRoutineNewChipName] = useState('');
   const [routineTimePickerChipId, setRoutineTimePickerChipId] = useState(null);
+  const [routineDeleteConfirm, setRoutineDeleteConfirm] = useState(null); // { bucket, chipId, chipName }
 
   // Keyboard shortcut cheat sheet
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
@@ -16447,14 +16448,14 @@ const DayPlanner = () => {
                           <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-1">
+                      <div className={`flex flex-wrap ${isTablet ? 'gap-1.5' : 'gap-1'}`}>
                         {chips.map(chip => {
                           const isSelected = dashboardSelectedChips.some(c => c.id === chip.id);
                           return (
                             <div
                               key={chip.id}
                               onClick={() => toggleRoutineChipSelection(chip, bucket)}
-                              className={`group relative rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
+                              className={`group relative rounded-full ${isTablet ? 'px-3.5 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'} font-medium cursor-pointer transition-colors ${
                                 isSelected
                                   ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
                                   : (darkMode ? 'bg-teal-700/80 text-teal-100 hover:bg-teal-600/80' : 'bg-teal-600/80 text-white hover:bg-teal-500/80')
@@ -16462,11 +16463,11 @@ const DayPlanner = () => {
                             >
                               {chip.name}
                               <button
-                                onClick={(e) => { e.stopPropagation(); deleteRoutineChip(bucket, chip.id); }}
-                                className="absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); }}
+                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center`}
                                 title="Delete"
                               >
-                                <X size={10} />
+                                <X size={isTablet ? 12 : 10} />
                               </button>
                             </div>
                           );
@@ -16492,11 +16493,11 @@ const DayPlanner = () => {
                     <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-gray-300'} p-4 flex flex-col items-center justify-start min-h-[300px]`}>
                       <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary}`}>Today's Routine</div>
                       {dashboardSelectedChips.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 justify-center">
+                        <div className={`flex flex-wrap ${isTablet ? 'gap-2' : 'gap-1.5'} justify-center`}>
                           {dashboardSelectedChips.map(chip => (
                             <div
                               key={chip.id}
-                              className={`group relative rounded-full px-3 py-1.5 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                              className={`group relative rounded-full ${isTablet ? 'px-4 py-2 text-sm' : 'px-3 py-1.5 text-xs'} font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
                               onClick={() => setRoutineTimePickerChipId(chip.id)}
                               title="Click to set time"
                             >
@@ -16504,7 +16505,7 @@ const DayPlanner = () => {
                                 {chip.name}
                                 {chip.startTime && (
                                   <>
-                                    <Clock size={10} className="ml-0.5" />
+                                    <Clock size={isTablet ? 12 : 10} className="ml-0.5" />
                                     <span className="opacity-90">{formatTime(chip.startTime)}</span>
                                     <button
                                       onClick={(e) => {
@@ -16514,17 +16515,17 @@ const DayPlanner = () => {
                                       className="hover:opacity-100 opacity-60 transition-opacity"
                                       title="Clear time"
                                     >
-                                      <X size={10} />
+                                      <X size={isTablet ? 12 : 10} />
                                     </button>
                                   </>
                                 )}
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
-                                className={`absolute -top-1.5 -right-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity rounded-full w-4 h-4 flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
+                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} opacity-0 group-hover:opacity-100 transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
                                 title="Remove from today"
                               >
-                                <Undo2 size={10} />
+                                <Undo2 size={isTablet ? 12 : 10} />
                               </button>
                             </div>
                           ))}
@@ -16573,6 +16574,40 @@ const DayPlanner = () => {
           />
         )}
       </>)}
+
+      {/* Routine Delete Confirmation */}
+      {routineDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setRoutineDeleteConfirm(null)}>
+          <div
+            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                <Trash2 size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Routine</h3>
+            </div>
+            <p className={`${textSecondary} mb-6`}>
+              Are you sure you want to delete <strong className={textPrimary}>"{routineDeleteConfirm.chipName}"</strong>? This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRoutineDeleteConfirm(null)}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { deleteRoutineChip(routineDeleteConfirm.bucket, routineDeleteConfirm.chipId); setRoutineDeleteConfirm(null); }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Focus Mode Overlay */}
       {showFocusMode && (
