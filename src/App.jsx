@@ -1125,6 +1125,7 @@ const DayPlanner = () => {
   const [routineNewChipName, setRoutineNewChipName] = useState('');
   const [routineTimePickerChipId, setRoutineTimePickerChipId] = useState(null);
   const [routineDeleteConfirm, setRoutineDeleteConfirm] = useState(null); // { bucket, chipId, chipName }
+  const [routineFocusedChipId, setRoutineFocusedChipId] = useState(null); // touch: first tap shows buttons, second executes
 
   // Keyboard shortcut cheat sheet
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
@@ -4921,6 +4922,7 @@ const DayPlanner = () => {
     setRoutinesDate(todayStr);
     setShowRoutinesDashboard(false);
     setRoutineTimePickerChipId(null);
+    setRoutineFocusedChipId(null);
     if (!onboardingProgress.hasSetupRoutines) {
       setOnboardingProgress(prev => ({ ...prev, hasSetupRoutines: true }));
     }
@@ -10118,11 +10120,24 @@ const DayPlanner = () => {
                         <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary} text-center`}>Today's Routine</div>
                         {dashboardSelectedChips.filter(c => !String(c.id).startsWith('example-')).length > 0 ? (
                           <div className="flex flex-wrap gap-1.5 justify-center">
-                            {dashboardSelectedChips.filter(c => !String(c.id).startsWith('example-')).map(chip => (
+                            {dashboardSelectedChips.filter(c => !String(c.id).startsWith('example-')).map(chip => {
+                              const isFocused = routineFocusedChipId === chip.id;
+                              return (
                               <div
                                 key={chip.id}
                                 className={`group relative rounded-full px-3 py-1.5 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
-                                onClick={() => setRoutineTimePickerChipId(chip.id)}
+                                onClick={() => {
+                                  if (isPhone || isTablet) {
+                                    if (isFocused) {
+                                      setRoutineTimePickerChipId(chip.id);
+                                      setRoutineFocusedChipId(null);
+                                    } else {
+                                      setRoutineFocusedChipId(chip.id);
+                                    }
+                                  } else {
+                                    setRoutineTimePickerChipId(chip.id);
+                                  }
+                                }}
                               >
                                 <span className="flex items-center gap-1">
                                   {chip.name}
@@ -10144,13 +10159,16 @@ const DayPlanner = () => {
                                   )}
                                 </span>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
-                                  className={`absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center`}
+                                  onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
+                                  className={`absolute -top-1.5 -right-1.5 transition-opacity ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center ${
+                                    (isPhone || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
+                                  }`}
                                 >
                                   <Undo2 size={10} />
                                 </button>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="text-center py-4">
@@ -10203,10 +10221,22 @@ const DayPlanner = () => {
                             <div className="flex flex-wrap gap-1">
                               {chips.map(chip => {
                                 const isSelected = dashboardSelectedChips.some(c => c.id === chip.id);
+                                const isFocused = routineFocusedChipId === chip.id;
                                 return (
                                   <div
                                     key={chip.id}
-                                    onClick={() => toggleRoutineChipSelection(chip, bucket)}
+                                    onClick={() => {
+                                      if (isPhone || isTablet) {
+                                        if (isFocused) {
+                                          toggleRoutineChipSelection(chip, bucket);
+                                          setRoutineFocusedChipId(null);
+                                        } else {
+                                          setRoutineFocusedChipId(chip.id);
+                                        }
+                                      } else {
+                                        toggleRoutineChipSelection(chip, bucket);
+                                      }
+                                    }}
                                     className={`group relative rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
                                       isSelected
                                         ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
@@ -10215,8 +10245,10 @@ const DayPlanner = () => {
                                   >
                                     {chip.name}
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); }}
-                                      className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                      onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); setRoutineFocusedChipId(null); }}
+                                      className={`absolute -top-1.5 -right-1.5 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center ${
+                                        (isPhone || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
+                                      }`}
                                     >
                                       <X size={10} />
                                     </button>
@@ -16498,10 +16530,22 @@ const DayPlanner = () => {
                       <div className={`flex flex-wrap ${isTablet ? 'gap-1.5' : 'gap-1'}`}>
                         {chips.map(chip => {
                           const isSelected = dashboardSelectedChips.some(c => c.id === chip.id);
+                          const isFocused = routineFocusedChipId === chip.id;
                           return (
                             <div
                               key={chip.id}
-                              onClick={() => toggleRoutineChipSelection(chip, bucket)}
+                              onClick={() => {
+                                if (isTablet) {
+                                  if (isFocused) {
+                                    toggleRoutineChipSelection(chip, bucket);
+                                    setRoutineFocusedChipId(null);
+                                  } else {
+                                    setRoutineFocusedChipId(chip.id);
+                                  }
+                                } else {
+                                  toggleRoutineChipSelection(chip, bucket);
+                                }
+                              }}
                               className={`group relative rounded-full ${isTablet ? 'px-3.5 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'} font-medium cursor-pointer transition-colors ${
                                 isSelected
                                   ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
@@ -16510,8 +16554,10 @@ const DayPlanner = () => {
                             >
                               {chip.name}
                               <button
-                                onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); }}
-                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center`}
+                                onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); setRoutineFocusedChipId(null); }}
+                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity bg-red-500 text-white rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${
+                                  isTablet ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
+                                }`}
                                 title="Delete"
                               >
                                 <X size={isTablet ? 12 : 10} />
@@ -16541,12 +16587,25 @@ const DayPlanner = () => {
                       <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary}`}>Today's Routine</div>
                       {dashboardSelectedChips.length > 0 ? (
                         <div className={`flex flex-wrap ${isTablet ? 'gap-2' : 'gap-1.5'} justify-center`}>
-                          {dashboardSelectedChips.map(chip => (
+                          {dashboardSelectedChips.map(chip => {
+                            const isFocused = routineFocusedChipId === chip.id;
+                            return (
                             <div
                               key={chip.id}
                               className={`group relative rounded-full ${isTablet ? 'px-4 py-2 text-sm' : 'px-3 py-1.5 text-xs'} font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
-                              onClick={() => setRoutineTimePickerChipId(chip.id)}
-                              title="Click to set time"
+                              onClick={() => {
+                                if (isTablet) {
+                                  if (isFocused) {
+                                    setRoutineTimePickerChipId(chip.id);
+                                    setRoutineFocusedChipId(null);
+                                  } else {
+                                    setRoutineFocusedChipId(chip.id);
+                                  }
+                                } else {
+                                  setRoutineTimePickerChipId(chip.id);
+                                }
+                              }}
+                              title={isTablet ? 'Tap to show options' : 'Click to set time'}
                             >
                               <span className="flex items-center gap-1">
                                 {chip.name}
@@ -16568,14 +16627,17 @@ const DayPlanner = () => {
                                 )}
                               </span>
                               <button
-                                onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); }}
-                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} opacity-0 group-hover:opacity-100 transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'}`}
+                                onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
+                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} ${
+                                  isTablet ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
+                                }`}
                                 title="Remove from today"
                               >
                                 <Undo2 size={isTablet ? 12 : 10} />
                               </button>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
