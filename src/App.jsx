@@ -7907,7 +7907,7 @@ const DayPlanner = () => {
     const today = dateToString(new Date());
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
         <div
           className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
           onClick={(e) => e.stopPropagation()}
@@ -16282,9 +16282,17 @@ const DayPlanner = () => {
                 e.preventDefault();
                 if (showRecurrencePicker) {
                   setShowRecurrencePicker(false);
+                } else if (showNewTaskDeadlinePicker) {
+                  setShowNewTaskDeadlinePicker(false);
+                } else if (deadlinePickerTaskId) {
+                  setDeadlinePickerTaskId(null);
+                } else if (showDatePicker) {
+                  setShowDatePicker(false);
+                } else if (showRecurrenceEndDatePicker) {
+                  setShowRecurrenceEndDatePicker(null);
                 } else {
                   setShowAddTask(false);
-                  setShowNewTaskDeadlinePicker(false);
+                  setMobileEditingTask(null);
                 }
               } else if (e.key === '^' && !newTask.openInInbox) {
                 // '^' toggles Full Day for scheduled tasks
