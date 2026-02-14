@@ -5740,8 +5740,8 @@ const DayPlanner = () => {
     swipeIsVertical.current = false;
     swipeTaskElement.current = e.currentTarget;
 
-    // Start long-press timer for timeline and all-day tasks
-    if ((taskType === 'timeline' || taskType === 'allday') && !task.imported) {
+    // Start long-press timer for timeline, all-day, and deadline tasks
+    if ((taskType === 'timeline' || taskType === 'allday' || taskType === 'deadline') && !task.imported) {
       mobileDragTouchStartPos.current = { x: touch.clientX, y: touch.clientY };
       mobileDragTaskId.current = task.id;
       mobileDragOriginalTask.current = task;
@@ -5755,7 +5755,7 @@ const DayPlanner = () => {
           calendarRef.current.style.overflowY = 'hidden';
         }
         // Set initial preview based on source
-        setMobileDragPreviewTime(taskType === 'allday' ? 'all-day' : task.startTime);
+        setMobileDragPreviewTime((taskType === 'allday' || taskType === 'deadline') ? 'all-day' : task.startTime);
         // Add native non-passive touchmove listener to prevent browser scroll
         // (React 18 registers touchmove as passive, so e.preventDefault() in onTouchMove is a no-op)
         const preventScroll = (e) => e.preventDefault();
@@ -5806,14 +5806,11 @@ const DayPlanner = () => {
       }
       swipeLocked.current = true;
       swipeDirection.current = dx > 0 ? 'right' : 'left';
-      // Show only the relevant swipe strip (skip right strip for recurring tasks — no inbox action)
-      const isRecurringSwipe = typeof swipedTaskId.current === 'string' && swipedTaskId.current.startsWith('recurring-');
-      if (!(isRecurringSwipe && swipeDirection.current === 'right')) {
-        const parent = swipeTaskElement.current?.parentElement;
-        if (parent) {
-          const strip = parent.querySelector(`[data-swipe-strip="${swipeDirection.current}"]`);
-          if (strip) strip.style.display = 'flex';
-        }
+      // Show only the relevant swipe strip
+      const parent = swipeTaskElement.current?.parentElement;
+      if (parent) {
+        const strip = parent.querySelector(`[data-swipe-strip="${swipeDirection.current}"]`);
+        if (strip) strip.style.display = 'flex';
       }
     }
 
@@ -5875,9 +5872,8 @@ const DayPlanner = () => {
 
     const elWidth = el.offsetWidth;
     const threshold = elWidth * 0.4;
-    // Recurring tasks can't be moved to inbox — block right swipe
     const isRecurring = typeof taskId === 'string' && taskId.startsWith('recurring-');
-    const isRightSwipeBlocked = isRecurring && taskType === 'timeline' && offset > 0;
+    const isRightSwipeBlocked = false;
 
     if (Math.abs(offset) > threshold && !isRightSwipeBlocked) {
       // Trigger action
@@ -5889,10 +5885,22 @@ const DayPlanner = () => {
       setTimeout(() => {
         if (direction === 'right') {
           if (taskType === 'timeline') {
-            // Move to inbox (skip for recurring)
-            if (!(typeof taskId === 'string' && taskId.startsWith('recurring-'))) {
+            if (isRecurring) {
+              // Recurring: trigger delete popup
+              moveToRecycleBin(taskId);
+            } else {
               moveToInbox(taskId);
             }
+          } else if (taskType === 'allday') {
+            if (isRecurring) {
+              // Recurring: trigger delete popup
+              moveToRecycleBin(taskId);
+            } else {
+              moveToInbox(taskId);
+            }
+          } else if (taskType === 'deadline') {
+            // Clear deadline — moves back to regular inbox
+            clearDeadline(taskId);
           } else if (taskType === 'inbox') {
             // Schedule: open edit modal as scheduled task
             const task = unscheduledTasks.find(t => t.id === taskId);
@@ -5914,7 +5922,7 @@ const DayPlanner = () => {
           }
         } else {
           // Left swipe = edit
-          const isInbox = taskType === 'inbox';
+          const isInbox = taskType === 'inbox' || taskType === 'deadline';
           const task = isInbox
             ? unscheduledTasks.find(t => t.id === taskId)
             : tasks.find(t => t.id === taskId) || (
@@ -8952,10 +8960,25 @@ const DayPlanner = () => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                                   const isImported = task.imported;
                                   return (
+                                    <div key={task.id} className="relative rounded-lg overflow-hidden">
+                                      {/* Swipe action strips */}
+                                      {!isImported && (
+                                        <>
+                                          <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                            {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
+                                              <><Trash2 size={14} className="mr-1" />Delete</>
+                                            ) : (
+                                              <><Inbox size={14} className="mr-1" />Inbox</>
+                                            )}
+                                          </div>
+                                          <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                            Edit<Settings size={14} className="ml-1" />
+                                          </div>
+                                        </>
+                                      )}
                                     <div
-                                      key={task.id}
                                       data-task-id={task.id}
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                      className={`relative ${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={{ touchAction: 'pan-y', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -9023,33 +9046,29 @@ const DayPlanner = () => {
                                             >
                                               <SkipForward size={14} />
                                             </button>
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
-                                              className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                            >
-                                              <Pencil size={14} />
-                                            </button>
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
-                                              className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                            >
-                                              <Trash2 size={14} />
-                                            </button>
                                           </>
                                         )}
                                       </div>
                                     </div>
+                                    </div>
                                   );
                                 })}
                                 {deadlineTasks.map((task) => (
+                                  <div key={`deadline-${task.id}`} className="relative rounded-lg overflow-hidden">
+                                    {/* Swipe action strips */}
+                                    <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                      <Inbox size={14} className="mr-1" />Inbox
+                                    </div>
+                                    <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                      Edit<Settings size={14} className="ml-1" />
+                                    </div>
                                   <div
-                                    key={`deadline-${task.id}`}
                                     data-task-id={task.id}
-                                    className={`${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    className={`relative ${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{ touchAction: 'pan-y' }}
-                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'allday')}
+                                    onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
-                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
+                                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                   >
                                     <div className="flex items-center gap-2">
                                       <button
@@ -9098,26 +9117,8 @@ const DayPlanner = () => {
                                       >
                                         {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                       </button>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
-                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                      >
-                                        <Pencil size={14} />
-                                      </button>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); clearDeadline(task.id); }}
-                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                        title="Move to Inbox"
-                                      >
-                                        <Inbox size={14} />
-                                      </button>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
-                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
                                     </div>
+                                  </div>
                                   </div>
                                 ))}
                                 {/* Routine pills in all-day (today only) */}
@@ -9304,27 +9305,23 @@ const DayPlanner = () => {
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                     {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                                   </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
-                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                  >
-                                    <SkipForward size={14} />
-                                    {inMenu && <span className="text-xs">Postpone</span>}
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
-                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                  >
-                                    <Pencil size={14} />
-                                    {inMenu && <span className="text-xs">Edit</span>}
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
-                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                  >
-                                    <Trash2 size={14} />
-                                    {inMenu && <span className="text-xs">Delete</span>}
-                                  </button>
+                                  {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
+                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                    >
+                                      <Pencil size={14} />
+                                      {inMenu && <span className="text-xs">Edit</span>}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
+                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                    >
+                                      <SkipForward size={14} />
+                                      {inMenu && <span className="text-xs">Postpone</span>}
+                                    </button>
+                                  )}
                                 </>
                               );
 
@@ -9348,8 +9345,10 @@ const DayPlanner = () => {
                                   {/* Swipe action strips - hidden until swipe direction determined */}
                                   {!task.imported && (
                                     <>
-                                      <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                                        {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
+                                      <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                        {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
+                                          <><Trash2 size={14} className="mr-1" />Delete</>
+                                        ) : (
                                           <><Inbox size={14} className="mr-1" />Inbox</>
                                         )}
                                       </div>
@@ -10190,18 +10189,6 @@ const DayPlanner = () => {
                                     />
                                   )}
                                 </div>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
-                                  className="hover:bg-white/20 rounded p-1 transition-colors"
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
-                                  className="hover:bg-white/20 rounded p-1 transition-colors"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
                               </div>
                             </div>
                             <div className="flex justify-end mt-1.5">
@@ -12393,18 +12380,6 @@ const DayPlanner = () => {
                                         />
                                       )}
                                     </div>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, true); }}
-                                      className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    >
-                                      <Pencil size={14} />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id, true); }}
-                                      className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
                                   </div>
                                 </div>
                                 <div className="flex justify-end mt-1.5">
@@ -13775,7 +13750,48 @@ const DayPlanner = () => {
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
 
                           // Action buttons for all-day tasks (same as regular scheduled tasks)
-                          const AllDayActionButtons = ({ inMenu = false }) => (
+                          const isRecurringAllDay = typeof task.id === 'string' && task.id.startsWith('recurring-');
+                          const AllDayActionButtons = ({ inMenu = false }) => isTablet && isRecurringAllDay ? (
+                            <>
+                              <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    }
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  }
+                                }}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
+                              >
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
+                              </button>
+                              <button
+                                onClick={() => openMobileEditTask(task, false)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                                {inMenu && <span className="text-xs">Edit</span>}
+                              </button>
+                            </>
+                          ) : (
                             <>
                               <button
                                 onMouseDown={() => {
@@ -13814,6 +13830,7 @@ const DayPlanner = () => {
                                 <SkipForward size={14} />
                                 {inMenu && <span className="text-xs">Postpone</span>}
                               </button>
+                              {!isTablet && (
                               <button
                                 onClick={() => moveToInbox(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -13822,6 +13839,8 @@ const DayPlanner = () => {
                                 <Inbox size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
+                              )}
+                              {!isTablet && (
                               <div className="color-picker-container relative">
                                 <button
                                   onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
@@ -13849,6 +13868,8 @@ const DayPlanner = () => {
                                   </div>
                                 )}
                               </div>
+                              )}
+                              {!isTablet && (
                               <button
                                 onClick={() => moveToRecycleBin(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -13857,6 +13878,7 @@ const DayPlanner = () => {
                                 <Trash2 size={14} />
                                 {inMenu && <span className="text-xs">Delete</span>}
                               </button>
+                              )}
                             </>
                           );
 
@@ -13879,12 +13901,26 @@ const DayPlanner = () => {
                                 setDragPreviewTime(null);
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
+                              className={`notes-panel-container relative ${isTablet ? 'rounded-lg overflow-hidden' : ''}`}
+                            >
+                              {/* Tablet swipe strips */}
+                              {isTablet && !isImported && (
+                                <>
+                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                    <Inbox size={14} className="mr-1" />Inbox
+                                  </div>
+                                  <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                    Edit<Settings size={14} className="ml-1" />
+                                  </div>
+                                </>
+                              )}
+                              <div
                               {...(isTablet && (!isImported || task.isTaskCalendar) ? {
                                 onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
                               } : {})}
-                              className={`notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`${!isTablet ? 'notes-panel-container' : ''} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'pan-y' } : {}) }}
                             >
                               {task.isExample && (
@@ -13957,6 +13993,7 @@ const DayPlanner = () => {
                                   />
                                 </div>
                               )}
+                            </div>
                             </div>
                           );
                         })}
@@ -14177,7 +14214,48 @@ const DayPlanner = () => {
                           // Default: wide layout (30+ min, >= 200px)
 
                           // Action buttons component (reused in different layouts)
-                          const ActionButtons = ({ inMenu = false }) => (
+                          const isRecurringTask = typeof task.id === 'string' && task.id.startsWith('recurring-');
+                          const ActionButtons = ({ inMenu = false }) => isTablet && isRecurringTask ? (
+                            <>
+                              <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                    }
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                  }
+                                }}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
+                              >
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
+                              </button>
+                              <button
+                                onClick={() => openMobileEditTask(task, false)}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                                {inMenu && <span className="text-xs">Edit</span>}
+                              </button>
+                            </>
+                          ) : (
                             <>
                               <button
                                 onMouseDown={() => {
@@ -14216,6 +14294,7 @@ const DayPlanner = () => {
                                 <SkipForward size={14} />
                                 {inMenu && <span className="text-xs">Postpone</span>}
                               </button>
+                              {!isTablet && (
                               <button
                                 onClick={() => moveToInbox(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -14224,6 +14303,8 @@ const DayPlanner = () => {
                                 <Inbox size={14} />
                                 {inMenu && <span className="text-xs">To Inbox</span>}
                               </button>
+                              )}
+                              {!isTablet && (
                               <div className="color-picker-container relative">
                                 <button
                                   onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
@@ -14251,6 +14332,8 @@ const DayPlanner = () => {
                                   </div>
                                 )}
                               </div>
+                              )}
+                              {!isTablet && (
                               <button
                                 onClick={() => moveToRecycleBin(task.id)}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -14259,6 +14342,7 @@ const DayPlanner = () => {
                                 <Trash2 size={14} />
                                 {inMenu && <span className="text-xs">Delete</span>}
                               </button>
+                              )}
                             </>
                           );
 
