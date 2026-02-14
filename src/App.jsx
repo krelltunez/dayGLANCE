@@ -3386,7 +3386,8 @@ const DayPlanner = () => {
 
       // If scheduling from inbox swipe, remove the original inbox task
       if (swipeSchedulingInboxTaskId.current) {
-        setUnscheduledTasks(prev => prev.filter(t => t.id !== swipeSchedulingInboxTaskId.current));
+        const inboxIdToRemove = swipeSchedulingInboxTaskId.current;
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== inboxIdToRemove));
         swipeSchedulingInboxTaskId.current = null;
       }
 
