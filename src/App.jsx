@@ -9389,23 +9389,13 @@ const DayPlanner = () => {
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                     {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                                   </button>
-                                  {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
-                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                    >
-                                      <Pencil size={14} />
-                                      {inMenu && <span className="text-xs">Edit</span>}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
-                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                    >
-                                      <SkipForward size={14} />
-                                      {inMenu && <span className="text-xs">Postpone</span>}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  >
+                                    <SkipForward size={14} />
+                                    {inMenu && <span className="text-xs">Postpone</span>}
+                                  </button>
                                 </>
                               );
 
@@ -13842,10 +13832,11 @@ const DayPlanner = () => {
 
                           const AllDayActionButtons = ({ inMenu = false }) => {
                             if (isRecurringAllDay) {
-                              // Recurring all-day: Notes, Edit, Delete (desktop) or Notes, Edit (tablet)
+                              // Recurring all-day: Notes, Edit + Delete (desktop only)
                               return (
                                 <>
                                   <AllDayNotesButton inMenu={inMenu} />
+                                  {!isTablet && (
                                   <button
                                     onClick={() => openMobileEditTask(task, false)}
                                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -13854,6 +13845,7 @@ const DayPlanner = () => {
                                     <Pencil size={14} />
                                     {inMenu && <span className="text-xs">Edit</span>}
                                   </button>
+                                  )}
                                   {!isTablet && (
                                   <button
                                     onClick={() => moveToRecycleBin(task.id)}
@@ -14265,10 +14257,11 @@ const DayPlanner = () => {
 
                           const ActionButtons = ({ inMenu = false }) => {
                             if (isRecurringTask) {
-                              // Recurring: Notes, Edit, Delete (desktop) or Notes, Edit (tablet)
+                              // Recurring: Notes (tablet+desktop), Edit + Delete (desktop only)
                               return (
                                 <>
                                   <NotesButton inMenu={inMenu} />
+                                  {!isTablet && (
                                   <button
                                     onClick={() => openMobileEditTask(task, false)}
                                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -14277,6 +14270,7 @@ const DayPlanner = () => {
                                     <Pencil size={14} />
                                     {inMenu && <span className="text-xs">Edit</span>}
                                   </button>
+                                  )}
                                   {!isTablet && (
                                   <button
                                     onClick={() => moveToRecycleBin(task.id)}
