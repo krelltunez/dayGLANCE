@@ -7993,6 +7993,7 @@ const DayPlanner = () => {
   const nonOverdueInboxTasks = unscheduledTasks;
   const filteredUnscheduledTasks = nonOverdueInboxTasks
     .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
+    .filter(task => !(task.completed && task.deadline)) // Completed deadline tasks are scheduled, not inbox
     .filter(task => !hideCompletedInbox || !task.completed)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
