@@ -15614,9 +15614,9 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet: Daily Summary Bottom Sheet */}
+      {/* Tablet: Daily Summary Bottom Sheet — constrained to side panel width */}
       {isTablet && showMobileDailySummary && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileDailySummary(false)}>
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ width: '320px' }} onClick={() => setShowMobileDailySummary(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
             className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
