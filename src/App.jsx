@@ -15278,7 +15278,7 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {/* Glance panel FABs: daily summary, weekly review, recycle bin — only when glance panel is visible (portrait or landscape glance tab) */}
+          {/* Glance panel FABs: weekly review (bottom), daily summary (middle), recycle bin (top) — only when glance panel is visible (portrait or landscape glance tab) */}
           {(!isLandscape || tabletActiveTab === 'glance') && (<>
           {/* Daily summary ring FAB */}
           {actualTodayNonImportedTasks.length > 0 && (() => {
@@ -15288,7 +15288,7 @@ const DayPlanner = () => {
               <button
                 onClick={() => setShowMobileDailySummary(true)}
                 className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
-                style={{ left: '248px', bottom: recycleBin.filter(t => !t.isExample).length > 0 ? '9.5rem' : '5.5rem' }}
+                style={{ left: '248px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
                   <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -15319,12 +15319,12 @@ const DayPlanner = () => {
           >
             <BarChart3 size={22} />
           </button>
-          {/* Recycle bin FAB — only when non-empty */}
+          {/* Recycle bin FAB — only when non-empty, always on top */}
           {recycleBin.filter(t => !t.isExample).length > 0 && (
             <button
               onClick={() => setShowMobileRecycleBin(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
-              style={{ left: '248px', bottom: '5.5rem' }}
+              style={{ left: '248px', bottom: '9.5rem' }}
             >
               <div className="relative">
                 <Trash2 size={22} />
