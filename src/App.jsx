@@ -8929,7 +8929,7 @@ const DayPlanner = () => {
                         <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
                           ALL DAY
                         </div>
-                        <div className="flex-1 p-2 space-y-1.5">
+                        <div className="flex-1 min-w-0 p-2 space-y-1.5">
                           {visibleDates.map((date) => {
                             const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample);
                             const dateStr = dateToString(date);
