@@ -1027,6 +1027,9 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('inboxPriorityFilter');
     return saved ? JSON.parse(saved) : 0;
   }); // 0 = show all, 1-3 = show >= that priority
+  const [hideCompletedInbox, setHideCompletedInbox] = useState(() => {
+    return localStorage.getItem('hideCompletedInbox') === 'true';
+  });
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
@@ -1946,6 +1949,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('inboxPriorityFilter', JSON.stringify(inboxPriorityFilter));
   }, [inboxPriorityFilter]);
+
+  // Persist hideCompletedInbox to localStorage
+  useEffect(() => {
+    localStorage.setItem('hideCompletedInbox', hideCompletedInbox.toString());
+  }, [hideCompletedInbox]);
 
   // Persist priorityPromptDismissed to localStorage
   useEffect(() => {
@@ -7985,6 +7993,7 @@ const DayPlanner = () => {
   const filteredUnscheduledTasks = nonOverdueInboxTasks
     .filter(task => !task.deadline) // Exclude deadline tasks - they're shown in timeline
     .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
+    .filter(task => !hideCompletedInbox || !task.completed)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
   const filteredTodayTasks = filterByTags(todayTasks);
 
@@ -8655,24 +8664,33 @@ const DayPlanner = () => {
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
                     <Inbox size={20} /> Inbox
                   </h2>
-                  <button
-                    onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                    className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
-                    title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
-                  >
-                    {[0, 1, 2].map(i => (
-                      <span
-                        key={i}
-                        className={`w-2.5 h-1 rounded-full ${
-                          inboxPriorityFilter === 0
-                            ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
-                            : i < inboxPriorityFilter
-                              ? 'bg-blue-500'
-                              : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
-                        }`}
-                      />
-                    ))}
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
+                      className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                      title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                    >
+                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')} />
+                    </button>
+                    <button
+                      onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
+                      className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                      title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
+                    >
+                      {[0, 1, 2].map(i => (
+                        <span
+                          key={i}
+                          className={`w-2.5 h-1 rounded-full ${
+                            inboxPriorityFilter === 0
+                              ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                              : i < inboxPriorityFilter
+                                ? 'bg-blue-500'
+                                : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                          }`}
+                        />
+                      ))}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -11934,6 +11952,13 @@ const DayPlanner = () => {
                           </button>
                         )}
                         <button
+                          onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
+                          className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                          title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                        >
+                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')} />
+                        </button>
+                        <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                           className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
                           title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
@@ -12731,24 +12756,33 @@ const DayPlanner = () => {
                   <Inbox size={18} />
                   Inbox
                   {!minimizedSections.inbox && nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
-                    <button
-                      onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                      className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors ml-1`}
-                      title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
-                    >
-                      {[0, 1, 2].map(i => (
-                        <span
-                          key={i}
-                          className={`w-2 h-0.5 rounded-full ${
-                            inboxPriorityFilter === 0
-                              ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
-                              : i < inboxPriorityFilter
-                                ? 'bg-blue-500'
-                                : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
-                          }`}
-                        />
-                      ))}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
+                        className={`${hoverBg} rounded px-1 py-0.5 transition-colors ml-1`}
+                        title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                      >
+                        <CheckCircle size={12} className={hideCompletedInbox ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-500' : 'text-gray-400')} />
+                      </button>
+                      <button
+                        onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
+                        className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors`}
+                        title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
+                      >
+                        {[0, 1, 2].map(i => (
+                          <span
+                            key={i}
+                            className={`w-2 h-0.5 rounded-full ${
+                              inboxPriorityFilter === 0
+                                ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                                : i < inboxPriorityFilter
+                                  ? 'bg-blue-500'
+                                  : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                            }`}
+                          />
+                        ))}
+                      </button>
+                    </>
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
