@@ -1100,6 +1100,7 @@ const DayPlanner = () => {
   const swipeLocked = useRef(false);
   const swipeIsVertical = useRef(false);
   const swipeTaskElement = useRef(null);
+  const swipeSchedulingInboxTaskId = useRef(null); // inbox task being scheduled via swipe
 
   // Mobile long-press drag refs
   const mobileDragActive = useRef(false);
@@ -1285,6 +1286,13 @@ const DayPlanner = () => {
       screen.orientation.lock('portrait').catch(() => {});
     }
   }, [isPhone]);
+
+  // Clear swipe-scheduling ref if add-task modal was dismissed without submitting
+  useEffect(() => {
+    if (!showAddTask) {
+      swipeSchedulingInboxTaskId.current = null;
+    }
+  }, [showAddTask]);
 
   // Measure task widths using ResizeObserver
   useEffect(() => {
@@ -3374,6 +3382,12 @@ const DayPlanner = () => {
             message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
           });
         }
+      }
+
+      // If scheduling from inbox swipe, remove the original inbox task
+      if (swipeSchedulingInboxTaskId.current) {
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== swipeSchedulingInboxTaskId.current));
+        swipeSchedulingInboxTaskId.current = null;
       }
 
       setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null });
@@ -5883,7 +5897,8 @@ const DayPlanner = () => {
             // Schedule: open edit modal as scheduled task
             const task = unscheduledTasks.find(t => t.id === taskId);
             if (task) {
-              // Remove from inbox and create as scheduled
+              // Track which inbox task we're scheduling (removed on submit, restored on cancel)
+              swipeSchedulingInboxTaskId.current = taskId;
               setMobileEditingTask(null);
               setNewTask({
                 title: task.title,
@@ -5894,9 +5909,6 @@ const DayPlanner = () => {
                 color: task.color || colors[0].class,
                 recurrence: null,
               });
-              // Remove from inbox first
-              pushUndo();
-              setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
               setShowAddTask(true);
             }
           }
