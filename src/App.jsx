@@ -3434,7 +3434,7 @@ const DayPlanner = () => {
     if (fromInbox) {
       // Use functional update to avoid stale closure overwriting concurrent state changes (e.g. moveToRecycleBin)
       setUnscheduledTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? new Date().toISOString() : null } : task
+        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? dateToString(new Date()) : null } : task
       ));
     } else {
       // Find the task to check if it's a task calendar item
