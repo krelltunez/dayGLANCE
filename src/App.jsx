@@ -4924,6 +4924,25 @@ const DayPlanner = () => {
           return t;
         }));
       }
+    } else if (newTask.recurrence) {
+      // Convert regular task to recurring: remove from tasks, create recurring template
+      const existingTask = tasks.find(t => t.id === taskId);
+      const taskDate = newTask.date || existingTask?.date || dateToString(selectedDate);
+      const template = {
+        id: Date.now(),
+        title: cleanTitle(newTask.title),
+        startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+        duration: newTask.duration,
+        color: newTask.color || colors[0].class,
+        isAllDay: newTask.isAllDay || false,
+        notes: existingTask?.notes || '',
+        subtasks: existingTask?.subtasks || [],
+        recurrence: { ...newTask.recurrence, startDate: taskDate },
+        completedDates: existingTask?.completed ? [taskDate] : [],
+        exceptions: {}
+      };
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      setRecurringTasks(prev => [...prev, template]);
     } else {
       setTasks(prev => prev.map(t => t.id === taskId ? {
         ...t,
