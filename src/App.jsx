@@ -4606,6 +4606,13 @@ const DayPlanner = () => {
     }
   };
 
+  // Record a tombstone so cloud sync doesn't resurrect a deleted task/template
+  const recordDeletedTaskTombstone = (taskId) => {
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
+    tombstones[String(taskId)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+  };
+
   // Delete recurring task: this occurrence, all future, or entire series
   const deleteRecurringInstance = (mode) => {
     if (!recurringDeleteConfirm) return;
@@ -4629,6 +4636,7 @@ const DayPlanner = () => {
       }));
     } else if (mode === 'series') {
       // Remove the entire template
+      recordDeletedTaskTombstone(taskId);
       setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
     }
 
@@ -4917,6 +4925,7 @@ const DayPlanner = () => {
             date: newTask.date || parsed.dateStr,
           };
           setTasks(prev => [...prev, regularTask]);
+          recordDeletedTaskTombstone(parsed.templateId);
           setRecurringTasks(prev => prev.filter(t => t.id !== parsed.templateId));
         } else {
           setRecurringTasks(prev => prev.map(t => {
@@ -15055,6 +15064,7 @@ const DayPlanner = () => {
                       date: dateStr
                     };
                     setTasks(prev => [...prev, regularTask]);
+                    recordDeletedTaskTombstone(templateId);
                     setRecurringTasks(prev => prev.filter(t => t.id !== templateId));
                     setEditingRecurrenceTaskId(null);
                   }}

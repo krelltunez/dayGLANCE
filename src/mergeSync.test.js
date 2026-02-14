@@ -318,6 +318,45 @@ describe('mergeSyncData', () => {
     expect(data.recurringTasks).toHaveLength(2);
   });
 
+  // ── Recurring task deletion sync ─────────────────────────────
+  it('SCENARIO: recurring template deleted on one device stays deleted when other device syncs', () => {
+    // Device A still has the recurring template
+    const deviceA = {
+      ...emptyData(),
+      recurringTasks: [T(100, 'Daily standup', ts(60))],
+    };
+    // Device B deleted it and recorded a tombstone
+    const deviceB = {
+      ...emptyData(),
+      recurringTasks: [],
+      deletedTaskIds: { '100': ts(2) },
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    // Template should NOT come back — tombstone is newer than lastModified
+    expect(data.recurringTasks).toHaveLength(0);
+    expect(data.deletedTaskIds).toHaveProperty('100');
+  });
+
+  it('SCENARIO: recurring template re-created after deletion survives sync', () => {
+    // Device A re-created the template with a newer timestamp
+    const deviceA = {
+      ...emptyData(),
+      recurringTasks: [T(100, 'Daily standup v2', ts(1))],
+    };
+    // Device B had deleted it earlier
+    const deviceB = {
+      ...emptyData(),
+      recurringTasks: [],
+      deletedTaskIds: { '100': ts(5) },
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    // Re-created template (ts(1) = 1 min ago) is newer than tombstone (ts(5) = 5 min ago)
+    expect(data.recurringTasks).toHaveLength(1);
+    expect(data.recurringTasks[0].title).toBe('Daily standup v2');
+  });
+
   // ── Completion sync scenarios ─────────────────────────────────
   it('SCENARIO: completion on device A survives when stale device B syncs', () => {
     // Device A completed the task (lastModified bumped to ts(1))
