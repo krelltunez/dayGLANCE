@@ -2119,14 +2119,14 @@ const DayPlanner = () => {
         const nowPos = (now.getHours() + now.getMinutes() / 60) * hourHeight;
         const viewTop = el.scrollTop;
         const viewBottom = viewTop + el.clientHeight;
-        // Consider "scrolled away" when the current time line is not in the visible area (with some margin)
-        const margin = hourHeight * 0.5;
-        setTimelineScrolledAway(nowPos < viewTop + margin || nowPos > viewBottom - margin);
+        // Consider "scrolled away" when the current time line is fully outside the visible area
+        setTimelineScrolledAway(nowPos < viewTop || nowPos > viewBottom);
       });
     };
     el.addEventListener('scroll', onScroll, { passive: true });
-    onScroll(); // check initial state
-    return () => el.removeEventListener('scroll', onScroll);
+    // Delay initial check so the scroll-to-current-hour effect (100ms timeout) runs first
+    const initialCheckTimer = setTimeout(onScroll, 200);
+    return () => { el.removeEventListener('scroll', onScroll); clearTimeout(initialCheckTimer); };
   }, [isMobile, isTablet, selectedDate, mobileActiveTab]);
 
   // Auto-refocus timeline every 30 minutes on tablet and desktop
@@ -2140,11 +2140,11 @@ const DayPlanner = () => {
     const msToNext = ((min < 30 ? 30 : 60) - min) * 60000 - sec * 1000 - now.getMilliseconds();
     const timeoutId = setTimeout(() => {
       const isToday = dateToString(selectedDate) === dateToString(new Date());
-      if (isToday && calendarRef.current) scrollToCurrentHour(true);
+      if (isToday && calendarRef.current) { setTimelineScrolledAway(false); scrollToCurrentHour(true); }
       // After the first aligned fire, set a regular 30-minute interval
       intervalId = setInterval(() => {
         const isTodayNow = dateToString(selectedDate) === dateToString(new Date());
-        if (isTodayNow && calendarRef.current) scrollToCurrentHour(true);
+        if (isTodayNow && calendarRef.current) { setTimelineScrolledAway(false); scrollToCurrentHour(true); }
       }, 30 * 60000);
     }, msToNext);
     return () => {
@@ -15824,7 +15824,7 @@ const DayPlanner = () => {
       {timelineScrolledAway && (
         <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <button
-            onClick={() => scrollToCurrentHour(true)}
+            onClick={() => { setTimelineScrolledAway(false); scrollToCurrentHour(true); }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium bg-blue-600 text-white active:bg-blue-700 transition-opacity`}
           >
             <Clock size={14} />
