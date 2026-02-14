@@ -7499,6 +7499,22 @@ const DayPlanner = () => {
       }
     }, [showCalendar]);
 
+    useEffect(() => {
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (showCalendar) {
+            setShowCalendar(false);
+          } else {
+            onClose();
+          }
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [showCalendar, onClose]);
+
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const todayStr = dateToString(today);
