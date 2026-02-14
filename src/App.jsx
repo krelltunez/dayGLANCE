@@ -3000,9 +3000,12 @@ const DayPlanner = () => {
       t.date === todayStr && !t.completed && !t.isExample && isOverdueToday(t)
     ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
-    // Inbox tasks with past deadlines are shown in the inbox (not here)
+    // Inbox tasks with past deadlines
+    const overdueDeadlines = unscheduledTasks.filter(t =>
+      t.deadline && t.deadline < todayStr && !t.completed && !t.isExample
+    ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
-    return [...overdueScheduled, ...todayRecurring];
+    return [...overdueScheduled, ...todayRecurring, ...overdueDeadlines];
   };
 
   // Get inbox tasks with deadlines for a specific date (not overdue)
@@ -9938,7 +9941,7 @@ const DayPlanner = () => {
                                   <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
                                     <span>{task.duration} min</span>
                                     {task.deadline && (
-                                      <span className={`flex items-center gap-1 ${task.deadline < getTodayStr() ? 'text-red-300 font-semibold' : ''}`}>
+                                      <span className="flex items-center gap-1">
                                         <AlertCircle size={10} />
                                         {formatDeadlineDate(task.deadline)}
                                       </span>
@@ -12947,7 +12950,7 @@ const DayPlanner = () => {
                               <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
                                 <span>{task.duration} min</span>
                                 {task.deadline && (
-                                  <span className={`flex items-center gap-1 ${task.deadline < getTodayStr() ? 'text-red-300 font-semibold' : ''}`}>
+                                  <span className="flex items-center gap-1">
                                     <AlertCircle size={10} />
                                     {formatDeadlineDate(task.deadline)}
                                   </span>
