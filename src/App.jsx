@@ -3012,7 +3012,7 @@ const DayPlanner = () => {
   const getDeadlineTasksForDate = (dateStr) => {
     const todayStr = getTodayStr();
     return unscheduledTasks.filter(t =>
-      t.deadline === dateStr && t.deadline >= todayStr
+      t.deadline === dateStr && (t.deadline >= todayStr || t.completed)
     );
   };
 
@@ -7991,11 +7991,9 @@ const DayPlanner = () => {
   // Exclude tasks with overdue deadlines (they appear in Overdue section)
   const todayStr = getTodayStr();
   const nonOverdueInboxTasks = unscheduledTasks
-    .filter(task => !task.deadline || task.deadline >= todayStr || (task.completed && task.deadline < todayStr));
+    .filter(task => !task.deadline || task.deadline >= todayStr);
   const filteredUnscheduledTasks = nonOverdueInboxTasks
-    // Exclude deadline tasks shown elsewhere — but keep completed deadline tasks with
-    // past deadlines visible here since they don't appear in timeline or overdue section
-    .filter(task => !task.deadline || (task.completed && task.deadline < todayStr))
+    .filter(task => !task.deadline) // Exclude deadline tasks - they're shown in timeline
     .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
     .filter(task => !hideCompletedInbox || !task.completed)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0));
