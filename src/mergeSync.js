@@ -187,8 +187,26 @@ export const mergeSyncData = (localData, remoteData) => {
   // Merge routine definitions by bucket (with tombstone support)
   const routineMerge = mergeRoutineDefinitions(localData.routineDefinitions || {}, remoteData.routineDefinitions || {}, allDeletedChipIds);
 
-  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged;
-  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged;
+  // Merge today's selected routines across devices.
+  // Only union by ID when both sides are on the same date — if dates differ,
+  // keep the newer date's routines (avoids mixing yesterday's with today's).
+  const localRoutinesDate = localData.routinesDate || '';
+  const remoteRoutinesDate = remoteData.routinesDate || '';
+  let todayRoutinesMerge;
+  let mergedRoutinesDate;
+  if (localRoutinesDate === remoteRoutinesDate) {
+    todayRoutinesMerge = mergeTaskArrays(localData.todayRoutines || [], remoteData.todayRoutines || [], allDeletedChipIds);
+    mergedRoutinesDate = localRoutinesDate;
+  } else if (localRoutinesDate > remoteRoutinesDate) {
+    todayRoutinesMerge = { merged: localData.todayRoutines || [], localChanged: false, remoteChanged: true };
+    mergedRoutinesDate = localRoutinesDate;
+  } else {
+    todayRoutinesMerge = { merged: remoteData.todayRoutines || [], localChanged: true, remoteChanged: false };
+    mergedRoutinesDate = remoteRoutinesDate;
+  }
+
+  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged;
+  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged;
 
   // Reconcile cross-list conflicts: task active on one device, in recycle bin on other
   const recycledMap = new Map(binMerge.merged.map(t => [String(t.id), t]));
@@ -260,8 +278,8 @@ export const mergeSyncData = (localData, remoteData) => {
       syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,
       taskCalendarUrl: remoteData.taskCalendarUrl !== undefined ? remoteData.taskCalendarUrl : localData.taskCalendarUrl,
       routineDefinitions: routineMerge.merged,
-      todayRoutines: localData.todayRoutines, // daily state — keep local
-      routinesDate: localData.routinesDate,
+      todayRoutines: todayRoutinesMerge.merged,
+      routinesDate: mergedRoutinesDate,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },

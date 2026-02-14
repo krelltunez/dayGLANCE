@@ -729,3 +729,141 @@ describe('mergeSyncData — routine definitions', () => {
     expect(data.deletedRoutineChipIds['2']).toBeDefined();
   });
 });
+
+// ─── mergeSyncData: todayRoutines sync ──────────────────────────────
+
+describe('mergeSyncData — todayRoutines sync', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {}, deletedRoutineChipIds: {},
+    syncUrl: null, taskCalendarUrl: null,
+    routineDefinitions: { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] },
+    todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false
+  });
+
+  const R = (id, name, extra = {}) => ({
+    id, name, bucket: 'everyday', startTime: null, duration: 15, isAllDay: true, ...extra
+  });
+
+  it('SCENARIO: routine selected on tablet appears on desktop after sync (same date)', () => {
+    const tablet = {
+      ...emptyData(),
+      todayRoutines: [R('shower', 'Shower')],
+      routinesDate: '2026-02-14',
+    };
+    const desktop = {
+      ...emptyData(),
+      todayRoutines: [R('banking', 'Banking', { startTime: '14:30', duration: 60, isAllDay: false })],
+      routinesDate: '2026-02-14',
+    };
+
+    // Desktop merges with tablet data
+    const { data, localChanged } = mergeSyncData(desktop, tablet);
+    expect(data.todayRoutines).toHaveLength(2);
+    const ids = data.todayRoutines.map(r => r.id);
+    expect(ids).toContain('shower');
+    expect(ids).toContain('banking');
+    expect(localChanged).toBe(true);
+  });
+
+  it('SCENARIO: both devices see all routines after bidirectional sync', () => {
+    const tablet = {
+      ...emptyData(),
+      todayRoutines: [R('shower', 'Shower')],
+      routinesDate: '2026-02-14',
+    };
+    const desktop = {
+      ...emptyData(),
+      todayRoutines: [R('banking', 'Banking', { startTime: '14:30', duration: 60, isAllDay: false })],
+      routinesDate: '2026-02-14',
+    };
+
+    // Tablet syncs with desktop data
+    const tabletResult = mergeSyncData(tablet, desktop);
+    expect(tabletResult.data.todayRoutines).toHaveLength(2);
+    expect(tabletResult.data.todayRoutines.map(r => r.id)).toContain('banking');
+
+    // Desktop syncs with tablet data
+    const desktopResult = mergeSyncData(desktop, tablet);
+    expect(desktopResult.data.todayRoutines).toHaveLength(2);
+    expect(desktopResult.data.todayRoutines.map(r => r.id)).toContain('shower');
+  });
+
+  it('does not duplicate routines that exist on both sides', () => {
+    const shared = R('shower', 'Shower');
+    const deviceA = { ...emptyData(), todayRoutines: [shared], routinesDate: '2026-02-14' };
+    const deviceB = { ...emptyData(), todayRoutines: [shared], routinesDate: '2026-02-14' };
+
+    const { data, localChanged, remoteChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.todayRoutines).toHaveLength(1);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('respects tombstones — deleted routine does not reappear from remote', () => {
+    const deviceA = {
+      ...emptyData(),
+      todayRoutines: [],
+      routinesDate: '2026-02-14',
+      deletedRoutineChipIds: { 'shower': new Date().toISOString() },
+    };
+    const deviceB = {
+      ...emptyData(),
+      todayRoutines: [R('shower', 'Shower')],
+      routinesDate: '2026-02-14',
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.todayRoutines).toHaveLength(0);
+  });
+
+  it('keeps newer date routines when dates differ (local newer)', () => {
+    const deviceA = {
+      ...emptyData(),
+      todayRoutines: [R('workout', 'Workout')],
+      routinesDate: '2026-02-15',
+    };
+    const deviceB = {
+      ...emptyData(),
+      todayRoutines: [R('shower', 'Shower'), R('banking', 'Banking')],
+      routinesDate: '2026-02-14',
+    };
+
+    const { data, remoteChanged } = mergeSyncData(deviceA, deviceB);
+    // Local is on a newer date — keep local routines only
+    expect(data.todayRoutines).toHaveLength(1);
+    expect(data.todayRoutines[0].id).toBe('workout');
+    expect(data.routinesDate).toBe('2026-02-15');
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('takes remote routines when remote date is newer', () => {
+    const deviceA = {
+      ...emptyData(),
+      todayRoutines: [R('shower', 'Shower')],
+      routinesDate: '2026-02-14',
+    };
+    const deviceB = {
+      ...emptyData(),
+      todayRoutines: [R('workout', 'Workout')],
+      routinesDate: '2026-02-15',
+    };
+
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.todayRoutines).toHaveLength(1);
+    expect(data.todayRoutines[0].id).toBe('workout');
+    expect(data.routinesDate).toBe('2026-02-15');
+    expect(localChanged).toBe(true);
+  });
+
+  it('empty todayRoutines on both sides with same date produces no changes', () => {
+    const deviceA = { ...emptyData(), routinesDate: '2026-02-14' };
+    const deviceB = { ...emptyData(), routinesDate: '2026-02-14' };
+
+    const { data, localChanged, remoteChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.todayRoutines).toEqual([]);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+});
