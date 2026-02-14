@@ -11945,6 +11945,47 @@ const DayPlanner = () => {
                         </div>
                       ); })()}
 
+                      {/* Routines row */}
+                      {todayRoutines.length > 0 && (() => {
+                        const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                        const visibleRoutines = todayRoutines.filter(r => {
+                          if (String(r.id).startsWith('example-')) return false;
+                          if (!r.startTime || r.isAllDay) return true;
+                          return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
+                        });
+                        if (visibleRoutines.length === 0) return null;
+                        return (
+                          <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer active:opacity-70 transition-opacity`} onClick={() => openRoutinesDashboard()}>
+                            <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[...visibleRoutines].sort((a, b) => {
+                                if (a.isAllDay && !b.isAllDay) return -1;
+                                if (!a.isAllDay && b.isAllDay) return 1;
+                                if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+                                return 0;
+                              }).map(r => {
+                                let timeLabel = '';
+                                if (!r.isAllDay && r.startTime) {
+                                  if (use24HourClock) {
+                                    timeLabel = r.startTime;
+                                  } else {
+                                    const [h, m] = r.startTime.split(':').map(Number);
+                                    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                                    const ampm = h < 12 ? 'a' : 'p';
+                                    timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                                  }
+                                }
+                                return (
+                                  <span key={r.id} className={`rounded-full px-3 py-1.5 text-sm font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                                    {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                     </div>
                   </div>
                 )}
@@ -12739,7 +12780,7 @@ const DayPlanner = () => {
                 });
                 if (visibleRoutines.length === 0) return null;
                 return (
-                <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+                <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => openRoutinesDashboard()}>
                   <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
                   <div className="flex flex-wrap gap-1">
                     {[...visibleRoutines].sort((a, b) => {
