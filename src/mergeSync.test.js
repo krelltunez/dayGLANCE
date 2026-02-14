@@ -441,4 +441,56 @@ describe('mergeSyncData', () => {
     expect(data.tasks).toHaveLength(1);
     expect(data.recycleBin).toHaveLength(0);
   });
+
+  // ── Task move (startTime/duration) sync scenarios ────────────────
+  it('SCENARIO: task moved to new time on device A survives when device B syncs', () => {
+    // Device A moved the task from 09:00 to 14:00 (lastModified bumped)
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Meeting', ts(1), { startTime: '14:00', duration: 60, date: '2026-02-14' })],
+    };
+    // Device B still has it at 09:00 (older lastModified)
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Meeting', ts(10), { startTime: '09:00', duration: 60, date: '2026-02-14' })],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.tasks).toHaveLength(1);
+    expect(data.tasks[0].startTime).toBe('14:00');
+  });
+
+  it('SCENARIO: task duration changed on device A survives when device B syncs', () => {
+    const deviceA = {
+      ...emptyData(),
+      tasks: [T(1, 'Focus block', ts(1), { startTime: '10:00', duration: 120, date: '2026-02-14' })],
+    };
+    const deviceB = {
+      ...emptyData(),
+      tasks: [T(1, 'Focus block', ts(10), { startTime: '10:00', duration: 30, date: '2026-02-14' })],
+    };
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.tasks).toHaveLength(1);
+    expect(data.tasks[0].duration).toBe(120);
+  });
+
+  it('SCENARIO: tasks with missing notes/subtasks fields merge correctly', () => {
+    // Simulates the bug where tasks without notes/subtasks defaults get
+    // spuriously re-stamped with a newer lastModified on app load
+    const deviceA = {
+      ...emptyData(),
+      tasks: [{ id: 1, title: 'Moved', startTime: '14:00', duration: 30, date: '2026-02-14',
+                color: 'bg-blue-500', completed: false, lastModified: ts(5) }],
+    };
+    const deviceB = {
+      ...emptyData(),
+      tasks: [{ id: 1, title: 'Moved', startTime: '09:00', duration: 30, date: '2026-02-14',
+                color: 'bg-blue-500', completed: false, notes: '', subtasks: [], lastModified: ts(10) }],
+    };
+
+    // Device A's version is newer (ts(5) = 5 min ago, ts(10) = 10 min ago)
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.tasks[0].startTime).toBe('14:00');
+  });
 });

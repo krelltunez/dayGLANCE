@@ -2215,18 +2215,23 @@ const DayPlanner = () => {
       const recurringTasksData = localStorage.getItem('day-planner-recurring-tasks');
       const welcomeDismissed = localStorage.getItem('welcomeDismissed') === 'true';
 
-      // Parse existing data
+      // Parse existing data and normalize defaults so localStorage and React
+      // state stay in sync.  Without this write-back, stampTaskTimestamps detects
+      // the added defaults as "changes" and re-stamps lastModified on every task
+      // at app load, making stale local tasks win during the initial cloud merge.
       const parsedTasks = tasksData ? JSON.parse(tasksData).map(t => ({
         ...t,
         notes: t.notes ?? '',
         subtasks: t.subtasks ?? []
       })) : [];
+      if (tasksData) localStorage.setItem('day-planner-tasks', JSON.stringify(parsedTasks));
 
       const parsedUnscheduled = unscheduledData ? JSON.parse(unscheduledData).map(t => ({
         ...t,
         notes: t.notes ?? '',
         subtasks: t.subtasks ?? []
       })) : [];
+      if (unscheduledData) localStorage.setItem('day-planner-unscheduled', JSON.stringify(parsedUnscheduled));
 
       // Filter out imported tasks when checking if empty (only count user tasks)
       const userScheduledTasks = parsedTasks.filter(t => !t.imported);
@@ -5988,6 +5993,7 @@ const DayPlanner = () => {
           isAllDay: droppingToAllDay,
           color: task.color || colors[0].class,
           notes: task.notes || '',
+          subtasks: task.subtasks || [],
           completed: task.completed || false,
         }]);
       } else if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
@@ -7205,9 +7211,17 @@ const DayPlanner = () => {
     suppressCloudUploadRef.current = true;
     suppressTimestampRef.current = true;
 
+    // Normalize task defaults so localStorage and React state are identical.
+    // Without this, stampTaskTimestamps detects spurious differences (e.g.
+    // missing notes/subtasks) and re-stamps lastModified, making stale local
+    // tasks appear newer than actual remote changes during merge.
+    const normalizeTasks = (tasks) => tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
+    const normalizedTasks = data.tasks ? normalizeTasks(data.tasks) : null;
+    const normalizedUnsched = data.unscheduledTasks ? normalizeTasks(data.unscheduledTasks) : null;
+
     // Update localStorage
-    if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
-    if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
+    if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
+    if (normalizedUnsched) localStorage.setItem('day-planner-unscheduled', JSON.stringify(normalizedUnsched));
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
     if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
     if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
@@ -7223,8 +7237,8 @@ const DayPlanner = () => {
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload)
-    if (data.tasks) setTasks(data.tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
-    if (data.unscheduledTasks) setUnscheduledTasks(data.unscheduledTasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] })));
+    if (normalizedTasks) setTasks(normalizedTasks);
+    if (normalizedUnsched) setUnscheduledTasks(normalizedUnsched);
     if (data.recycleBin) setRecycleBin(data.recycleBin);
     if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
     if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
