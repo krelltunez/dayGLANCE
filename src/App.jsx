@@ -1127,6 +1127,7 @@ const DayPlanner = () => {
   const [routineTimePickerChipId, setRoutineTimePickerChipId] = useState(null);
   const [routineDeleteConfirm, setRoutineDeleteConfirm] = useState(null); // { bucket, chipId, chipName }
   const [routineFocusedChipId, setRoutineFocusedChipId] = useState(null); // touch: first tap shows buttons, second executes
+  const [routineDurationEditId, setRoutineDurationEditId] = useState(null); // id of routine chip being duration-edited on timeline
 
   // Keyboard shortcut cheat sheet
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
@@ -1871,11 +1872,18 @@ const DayPlanner = () => {
       if (expandedNotesTaskId && !e.target.closest('.notes-panel-container') && !e.target.closest('.notes-toggle-button')) {
         setExpandedNotesTaskId(null);
       }
+      if (routineDurationEditId && !e.target.closest('.routine-duration-edit')) {
+        setRoutineDurationEditId(null);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId]);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId]);
 
   // Close notes panel on ESC
   useEffect(() => {
@@ -9532,6 +9540,40 @@ const DayPlanner = () => {
                                     <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                     <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                     <span className={`relative rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'}`}>{routine.name}</span>
+                                    {/* Duration edit button (mobile) */}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setRoutineDurationEditId(routineDurationEditId === routine.id ? null : routine.id); }}
+                                      className={`routine-duration-edit absolute bottom-0 right-0 translate-y-1/2 translate-x-1/4 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
+                                      aria-label="Edit duration"
+                                    >
+                                      <GripHorizontal size={12} />
+                                    </button>
+                                    {/* Duration edit popover */}
+                                    {routineDurationEditId === routine.id && (
+                                      <div
+                                        className={`routine-duration-edit absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border rounded-xl shadow-xl flex items-center gap-1 px-2 py-1.5`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onTouchStart={(e) => e.stopPropagation()}
+                                      >
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: Math.max(15, r.duration - 15) } : r)); }}
+                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
+                                          aria-label="Decrease duration"
+                                        >
+                                          <ChevronDown size={16} />
+                                        </button>
+                                        <span className={`text-xs font-semibold tabular-nums min-w-[3rem] text-center ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                                          {routine.duration}min
+                                        </span>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: r.duration + 15 } : r)); }}
+                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
+                                          aria-label="Increase duration"
+                                        >
+                                          <ChevronUp size={16} />
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               });
@@ -14618,14 +14660,53 @@ const DayPlanner = () => {
                                 <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                 {/* Compact pill label centered */}
                                 <span className={`relative rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'}`}>{routine.name}</span>
-                                {/* Resize handle */}
-                                <div
-                                  className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-center"
-                                  onMouseDown={(e) => handleRoutineResizeStart(routine, e)}
-                                  style={{ marginBottom: '-4px' }}
-                                >
-                                  <div className={`w-8 h-1 rounded-full ${darkMode ? 'bg-teal-400/50' : 'bg-teal-500/40'}`}></div>
-                                </div>
+                                {/* Desktop: Resize handle (drag) */}
+                                {!isTablet && (
+                                  <div
+                                    className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-center"
+                                    onMouseDown={(e) => handleRoutineResizeStart(routine, e)}
+                                    style={{ marginBottom: '-4px' }}
+                                  >
+                                    <div className={`w-8 h-1 rounded-full ${darkMode ? 'bg-teal-400/50' : 'bg-teal-500/40'}`}></div>
+                                  </div>
+                                )}
+                                {/* Tablet: Duration edit button */}
+                                {isTablet && (
+                                  <>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setRoutineDurationEditId(routineDurationEditId === routine.id ? null : routine.id); }}
+                                      className={`routine-duration-edit absolute bottom-0 right-0 translate-y-1/2 translate-x-1/4 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
+                                      aria-label="Edit duration"
+                                    >
+                                      <GripHorizontal size={12} />
+                                    </button>
+                                    {routineDurationEditId === routine.id && (
+                                      <div
+                                        className={`routine-duration-edit absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border rounded-xl shadow-xl flex items-center gap-1 px-2 py-1.5`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onTouchStart={(e) => e.stopPropagation()}
+                                      >
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: Math.max(15, r.duration - 15) } : r)); }}
+                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
+                                          aria-label="Decrease duration"
+                                        >
+                                          <ChevronDown size={16} />
+                                        </button>
+                                        <span className={`text-xs font-semibold tabular-nums min-w-[3rem] text-center ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                                          {routine.duration}min
+                                        </span>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: r.duration + 15 } : r)); }}
+                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
+                                          aria-label="Increase duration"
+                                        >
+                                          <ChevronUp size={16} />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                               </div>
                             );
                           });
