@@ -13265,41 +13265,12 @@ const DayPlanner = () => {
                                   />
                                 )}
                               </div>
-                              <div className="color-picker-container relative">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowColorPicker(showColorPicker === task.id ? null : task.id);
-                                  }}
-                                  className="hover:bg-white/20 rounded p-1 transition-colors"
-                                  title="Change color"
-                                >
-                                  <Palette size={14} />
-                                </button>
-                                {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-20 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {colors.map((color) => (
-                                        <button
-                                          key={color.class}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            changeTaskColor(task.id, color.class, true);
-                                          }}
-                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                          title={color.name}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
                               <button
-                                onClick={() => moveToRecycleBin(task.id, true)}
-                                className="hover:bg-white/20 rounded p-1"
-                                title="Move to Recycle Bin"
+                                onClick={() => openMobileEditTask(task, true)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Edit"
                               >
-                                <Trash2 size={14} />
+                                <Pencil size={14} />
                               </button>
                             </div>
                             <button
@@ -13749,10 +13720,11 @@ const DayPlanner = () => {
                           const isImported = task.imported;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
 
-                          // Action buttons for all-day tasks (same as regular scheduled tasks)
+                          // Action buttons for all-day tasks
                           const isRecurringAllDay = typeof task.id === 'string' && task.id.startsWith('recurring-');
-                          const AllDayActionButtons = ({ inMenu = false }) => isTablet && isRecurringAllDay ? (
-                            <>
+
+                          // Notes button for all-day tasks
+                          const AllDayNotesButton = ({ inMenu = false }) => (
                               <button
                                 onMouseDown={() => {
                                   if (isLinkOnlyTask(task)) {
@@ -13782,105 +13754,70 @@ const DayPlanner = () => {
                                 {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                               </button>
-                              <button
-                                onClick={() => openMobileEditTask(task, false)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Edit"
-                              >
-                                <Pencil size={14} />
-                                {inMenu && <span className="text-xs">Edit</span>}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onMouseDown={() => {
-                                  if (isLinkOnlyTask(task)) {
-                                    longPressTriggeredRef.current = false;
-                                    longPressTimerRef.current = setTimeout(() => {
-                                      longPressTriggeredRef.current = true;
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                    }, 500);
-                                  }
-                                }}
-                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isLinkOnlyTask(task)) {
-                                    if (!longPressTriggeredRef.current) {
-                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                    }
-                                    longPressTriggeredRef.current = false;
-                                  } else {
-                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                  }
-                                }}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
-                              >
-                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                                {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
-                              </button>
-                              <button
-                                onClick={() => postponeTask(task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Postpone to tomorrow"
-                              >
-                                <SkipForward size={14} />
-                                {inMenu && <span className="text-xs">Postpone</span>}
-                              </button>
-                              {!isTablet && (
-                              <button
-                                onClick={() => moveToInbox(task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Move to Inbox"
-                              >
-                                <Inbox size={14} />
-                                {inMenu && <span className="text-xs">To Inbox</span>}
-                              </button>
-                              )}
-                              {!isTablet && (
-                              <div className="color-picker-container relative">
-                                <button
-                                  onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                  title="Change color"
-                                >
-                                  <Palette size={14} />
-                                  {inMenu && <span className="text-xs">Color</span>}
-                                </button>
-                                {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {colors.map((color) => (
-                                        <button
-                                          key={color.class}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            changeTaskColor(task.id, color.class, false);
-                                          }}
-                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                          title={color.name}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              )}
-                              {!isTablet && (
-                              <button
-                                onClick={() => moveToRecycleBin(task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Move to Recycle Bin"
-                              >
-                                <Trash2 size={14} />
-                                {inMenu && <span className="text-xs">Delete</span>}
-                              </button>
-                              )}
-                            </>
                           );
+
+                          const AllDayActionButtons = ({ inMenu = false }) => {
+                            if (isRecurringAllDay) {
+                              // Recurring all-day: Notes, Edit, Delete (desktop) or Notes, Edit (tablet)
+                              return (
+                                <>
+                                  <AllDayNotesButton inMenu={inMenu} />
+                                  <button
+                                    onClick={() => openMobileEditTask(task, false)}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                    title="Edit"
+                                  >
+                                    <Pencil size={14} />
+                                    {inMenu && <span className="text-xs">Edit</span>}
+                                  </button>
+                                  {!isTablet && (
+                                  <button
+                                    onClick={() => moveToRecycleBin(task.id)}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={14} />
+                                    {inMenu && <span className="text-xs">Delete</span>}
+                                  </button>
+                                  )}
+                                </>
+                              );
+                            }
+                            // Non-recurring all-day: Notes, Postpone (all), Edit + Inbox (desktop only)
+                            return (
+                              <>
+                                <AllDayNotesButton inMenu={inMenu} />
+                                <button
+                                  onClick={() => postponeTask(task.id)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Postpone to tomorrow"
+                                >
+                                  <SkipForward size={14} />
+                                  {inMenu && <span className="text-xs">Postpone</span>}
+                                </button>
+                                {!isTablet && (
+                                <button
+                                  onClick={() => openMobileEditTask(task, false)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Edit"
+                                >
+                                  <Pencil size={14} />
+                                  {inMenu && <span className="text-xs">Edit</span>}
+                                </button>
+                                )}
+                                {!isTablet && (
+                                <button
+                                  onClick={() => moveToInbox(task.id)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Move to Inbox"
+                                >
+                                  <Inbox size={14} />
+                                  {inMenu && <span className="text-xs">To Inbox</span>}
+                                </button>
+                                )}
+                              </>
+                            );
+                          };
 
                           // Width-based layout for all-day tasks (no height concern)
                           const allDayTaskWidth = taskWidths[task.id];
@@ -14066,18 +14003,11 @@ const DayPlanner = () => {
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                   </button>
                                   <button
-                                    onClick={() => clearDeadline(task.id)}
+                                    onClick={() => openMobileEditTask(task, true)}
                                     className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Move to Inbox"
+                                    title="Edit"
                                   >
-                                    <Inbox size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => moveToRecycleBin(task.id, true)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Move to Recycle Bin"
-                                  >
-                                    <Trash2 size={14} />
+                                    <Pencil size={14} />
                                   </button>
                                 </div>
                               </div>
@@ -14215,8 +14145,9 @@ const DayPlanner = () => {
 
                           // Action buttons component (reused in different layouts)
                           const isRecurringTask = typeof task.id === 'string' && task.id.startsWith('recurring-');
-                          const ActionButtons = ({ inMenu = false }) => isTablet && isRecurringTask ? (
-                            <>
+
+                          // Notes button (shared across all variants)
+                          const NotesButton = ({ inMenu = false }) => (
                               <button
                                 onMouseDown={() => {
                                   if (isLinkOnlyTask(task)) {
@@ -14246,105 +14177,70 @@ const DayPlanner = () => {
                                 {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                               </button>
-                              <button
-                                onClick={() => openMobileEditTask(task, false)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Edit"
-                              >
-                                <Pencil size={14} />
-                                {inMenu && <span className="text-xs">Edit</span>}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onMouseDown={() => {
-                                  if (isLinkOnlyTask(task)) {
-                                    longPressTriggeredRef.current = false;
-                                    longPressTimerRef.current = setTimeout(() => {
-                                      longPressTriggeredRef.current = true;
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                    }, 500);
-                                  }
-                                }}
-                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isLinkOnlyTask(task)) {
-                                    if (!longPressTriggeredRef.current) {
-                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                    }
-                                    longPressTriggeredRef.current = false;
-                                  } else {
-                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                  }
-                                }}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
-                              >
-                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                                {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
-                              </button>
-                              <button
-                                onClick={() => postponeTask(task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Postpone to tomorrow"
-                              >
-                                <SkipForward size={14} />
-                                {inMenu && <span className="text-xs">Postpone</span>}
-                              </button>
-                              {!isTablet && (
-                              <button
-                                onClick={() => moveToInbox(task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Move to Inbox"
-                              >
-                                <Inbox size={14} />
-                                {inMenu && <span className="text-xs">To Inbox</span>}
-                              </button>
-                              )}
-                              {!isTablet && (
-                              <div className="color-picker-container relative">
-                                <button
-                                  onClick={() => setShowColorPicker(showColorPicker === task.id ? null : task.id)}
-                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                  title="Change color"
-                                >
-                                  <Palette size={14} />
-                                  {inMenu && <span className="text-xs">Color</span>}
-                                </button>
-                                {showColorPicker === task.id && (
-                                  <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-2 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[120px]">
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {colors.map((color) => (
-                                        <button
-                                          key={color.class}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            changeTaskColor(task.id, color.class, false);
-                                          }}
-                                          className={`${color.class} w-8 h-8 rounded-full hover:scale-110 transition-transform ${task.color === color.class ? 'ring-2 ring-offset-2 ring-white' : ''}`}
-                                          title={color.name}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              )}
-                              {!isTablet && (
-                              <button
-                                onClick={() => moveToRecycleBin(task.id)}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                                title="Move to Recycle Bin"
-                              >
-                                <Trash2 size={14} />
-                                {inMenu && <span className="text-xs">Delete</span>}
-                              </button>
-                              )}
-                            </>
                           );
+
+                          const ActionButtons = ({ inMenu = false }) => {
+                            if (isRecurringTask) {
+                              // Recurring: Notes, Edit, Delete (desktop) or Notes, Edit (tablet)
+                              return (
+                                <>
+                                  <NotesButton inMenu={inMenu} />
+                                  <button
+                                    onClick={() => openMobileEditTask(task, false)}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                    title="Edit"
+                                  >
+                                    <Pencil size={14} />
+                                    {inMenu && <span className="text-xs">Edit</span>}
+                                  </button>
+                                  {!isTablet && (
+                                  <button
+                                    onClick={() => moveToRecycleBin(task.id)}
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={14} />
+                                    {inMenu && <span className="text-xs">Delete</span>}
+                                  </button>
+                                  )}
+                                </>
+                              );
+                            }
+                            // Non-recurring: Notes, Postpone (all), Edit + Inbox (desktop only)
+                            return (
+                              <>
+                                <NotesButton inMenu={inMenu} />
+                                <button
+                                  onClick={() => postponeTask(task.id)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Postpone to tomorrow"
+                                >
+                                  <SkipForward size={14} />
+                                  {inMenu && <span className="text-xs">Postpone</span>}
+                                </button>
+                                {!isTablet && (
+                                <button
+                                  onClick={() => openMobileEditTask(task, false)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Edit"
+                                >
+                                  <Pencil size={14} />
+                                  {inMenu && <span className="text-xs">Edit</span>}
+                                </button>
+                                )}
+                                {!isTablet && (
+                                <button
+                                  onClick={() => moveToInbox(task.id)}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                                  title="Move to Inbox"
+                                >
+                                  <Inbox size={14} />
+                                  {inMenu && <span className="text-xs">To Inbox</span>}
+                                </button>
+                                )}
+                              </>
+                            );
+                          };
 
                           return (
                             <div
