@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
+import { mergeTaskArrays, mergeRoutineDefinitions, mergeSyncData } from './mergeSync.js';
 
 // Helpers to create task fixtures with timestamps
 const T = (id, title, lastModified, extra = {}) => ({
@@ -492,5 +492,177 @@ describe('mergeSyncData', () => {
     // Device A's version is newer (ts(5) = 5 min ago, ts(10) = 10 min ago)
     const { data } = mergeSyncData(deviceB, deviceA);
     expect(data.tasks[0].startTime).toBe('14:00');
+  });
+});
+
+// ─── mergeRoutineDefinitions ─────────────────────────────────────────
+
+describe('mergeRoutineDefinitions', () => {
+  const emptyDefs = () => ({
+    monday: [], tuesday: [], wednesday: [], thursday: [],
+    friday: [], saturday: [], sunday: [], everyday: []
+  });
+
+  it('returns empty buckets for two empty definition sets', () => {
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(emptyDefs(), emptyDefs());
+    expect(merged.monday).toEqual([]);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('keeps local-only chips and flags remoteChanged', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Workout' }] };
+    const remote = emptyDefs();
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.monday).toHaveLength(1);
+    expect(merged.monday[0].name).toBe('Workout');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('keeps remote-only chips and flags localChanged', () => {
+    const local = emptyDefs();
+    const remote = { ...emptyDefs(), tuesday: [{ id: 2, name: 'Meditate' }] };
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.tuesday).toHaveLength(1);
+    expect(merged.tuesday[0].name).toBe('Meditate');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('CORE: routines added on different devices to same bucket are both preserved', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Workout' }] };
+    const remote = { ...emptyDefs(), monday: [{ id: 2, name: 'Journal' }] };
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.monday).toHaveLength(2);
+    const ids = merged.monday.map(c => c.id);
+    expect(ids).toContain(1);
+    expect(ids).toContain(2);
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('CORE: routines added to different buckets on different devices are both preserved', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Workout' }] };
+    const remote = { ...emptyDefs(), friday: [{ id: 2, name: 'Review' }] };
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.monday).toHaveLength(1);
+    expect(merged.friday).toHaveLength(1);
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('does not duplicate chips that exist on both sides', () => {
+    const shared = { id: 1, name: 'Workout' };
+    const local = { ...emptyDefs(), monday: [shared] };
+    const remote = { ...emptyDefs(), monday: [shared] };
+    const { merged, localChanged, remoteChanged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.monday).toHaveLength(1);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('preserves local ordering and appends remote-only at end', () => {
+    const local = { ...emptyDefs(), everyday: [{ id: 1, name: 'First' }, { id: 2, name: 'Second' }] };
+    const remote = { ...emptyDefs(), everyday: [{ id: 3, name: 'New remote' }, { id: 1, name: 'First' }] };
+    const { merged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.everyday.map(c => c.id)).toEqual([1, 2, 3]);
+  });
+
+  it('handles remote bucket not present locally', () => {
+    const local = { monday: [{ id: 1, name: 'Workout' }] };
+    const remote = { monday: [{ id: 1, name: 'Workout' }], custom: [{ id: 2, name: 'Custom' }] };
+    const { merged, localChanged } = mergeRoutineDefinitions(local, remote);
+    expect(merged.custom).toHaveLength(1);
+    expect(localChanged).toBe(true);
+  });
+});
+
+// ─── mergeSyncData: routine definition scenarios ─────────────────────
+
+describe('mergeSyncData — routine definitions', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {},
+    syncUrl: null, taskCalendarUrl: null,
+    routineDefinitions: { monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] },
+    todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false
+  });
+
+  it('SCENARIO: routine added on desktop survives when tablet syncs', () => {
+    const desktop = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 100, name: 'Morning workout' }]
+      }
+    };
+    const tablet = emptyData();
+
+    const { data, localChanged } = mergeSyncData(tablet, desktop);
+    expect(data.routineDefinitions.monday).toHaveLength(1);
+    expect(data.routineDefinitions.monday[0].name).toBe('Morning workout');
+    expect(localChanged).toBe(true);
+  });
+
+  it('SCENARIO: routines added on two devices to same bucket both survive', () => {
+    const deviceA = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout' }, { id: 2, name: 'From A' }]
+      }
+    };
+    const deviceB = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout' }, { id: 3, name: 'From B' }]
+      }
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    const ids = data.routineDefinitions.monday.map(c => c.id);
+    expect(ids).toContain(1);
+    expect(ids).toContain(2);
+    expect(ids).toContain(3);
+    expect(data.routineDefinitions.monday).toHaveLength(3);
+  });
+
+  it('SCENARIO: routines added on two devices to different buckets both survive', () => {
+    const deviceA = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'From A' }]
+      }
+    };
+    const deviceB = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        friday: [{ id: 2, name: 'From B' }]
+      }
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.routineDefinitions.monday).toHaveLength(1);
+    expect(data.routineDefinitions.friday).toHaveLength(1);
+  });
+
+  it('SCENARIO: identical routines on both devices produce no changes', () => {
+    const shared = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        everyday: [{ id: 1, name: 'Meditate' }]
+      }
+    };
+
+    const { data, localChanged, remoteChanged } = mergeSyncData({ ...shared }, { ...shared });
+    expect(data.routineDefinitions.everyday).toHaveLength(1);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
   });
 });

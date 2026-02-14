@@ -66,6 +66,66 @@ export const mergeTaskArrays = (localTasks, remoteTasks, deletedIds) => {
 };
 
 /**
+ * Merges routine definitions by bucket (day of week), unioning chips by ID.
+ *
+ * Each side's bucket is an array of { id, name } chips.  The merge preserves
+ * local ordering and appends any remote-only chips at the end — mirroring the
+ * task merge strategy.
+ *
+ * @param {Object} localDefs  - Local routine definitions (bucket → chip[])
+ * @param {Object} remoteDefs - Remote routine definitions (bucket → chip[])
+ * @returns {{ merged: Object, localChanged: boolean, remoteChanged: boolean }}
+ */
+export const mergeRoutineDefinitions = (localDefs, remoteDefs) => {
+  const allBuckets = new Set([...Object.keys(localDefs), ...Object.keys(remoteDefs)]);
+  const merged = {};
+  let localChanged = false;
+  let remoteChanged = false;
+
+  for (const bucket of allBuckets) {
+    const localChips = localDefs[bucket] || [];
+    const remoteChips = remoteDefs[bucket] || [];
+    const localIds = new Set(localChips.map(c => String(c.id)));
+    const remoteMap = new Map(remoteChips.map(c => [String(c.id), c]));
+
+    // Start with local chips in order (preserves local ordering)
+    const bucketMerged = [...localChips];
+
+    // Append remote-only chips
+    for (const remoteChip of remoteChips) {
+      if (!localIds.has(String(remoteChip.id))) {
+        bucketMerged.push(remoteChip);
+        localChanged = true;
+      }
+    }
+
+    // Check for local-only chips (remote needs them)
+    for (const localChip of localChips) {
+      if (!remoteMap.has(String(localChip.id))) {
+        remoteChanged = true;
+      }
+    }
+
+    merged[bucket] = bucketMerged;
+  }
+
+  // Bucket only on remote → local needs it
+  for (const bucket of Object.keys(remoteDefs)) {
+    if (!localDefs[bucket] && remoteDefs[bucket]?.length > 0) {
+      localChanged = true;
+    }
+  }
+  // Bucket only on local → remote needs it
+  for (const bucket of Object.keys(localDefs)) {
+    if (!remoteDefs[bucket] && localDefs[bucket]?.length > 0) {
+      remoteChanged = true;
+    }
+  }
+
+  return { merged, localChanged, remoteChanged };
+};
+
+/**
  * Full data-level merge: combines local and remote sync snapshots with
  * per-task granularity.
  *
@@ -93,8 +153,11 @@ export const mergeSyncData = (localData, remoteData) => {
   const binMerge = mergeTaskArrays(localData.recycleBin || [], remoteData.recycleBin || [], allDeletedIds);
   const recurMerge = mergeTaskArrays(localData.recurringTasks || [], remoteData.recurringTasks || [], allDeletedIds);
 
-  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged;
-  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged;
+  // Merge routine definitions by bucket
+  const routineMerge = mergeRoutineDefinitions(localData.routineDefinitions || {}, remoteData.routineDefinitions || {});
+
+  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged;
+  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged;
 
   // Reconcile cross-list conflicts: task active on one device, in recycle bin on other
   const recycledMap = new Map(binMerge.merged.map(t => [String(t.id), t]));
@@ -162,7 +225,7 @@ export const mergeSyncData = (localData, remoteData) => {
       // Settings: prefer remote for shared settings, local values are kept per-device
       syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,
       taskCalendarUrl: remoteData.taskCalendarUrl !== undefined ? remoteData.taskCalendarUrl : localData.taskCalendarUrl,
-      routineDefinitions: remoteData.routineDefinitions || localData.routineDefinitions,
+      routineDefinitions: routineMerge.merged,
       todayRoutines: localData.todayRoutines, // daily state — keep local
       routinesDate: localData.routinesDate,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
