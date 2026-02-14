@@ -7557,10 +7557,15 @@ const DayPlanner = () => {
 
     if (showCalendar) {
       const days = getDaysInMonth();
+      const calWidth = 260;
+      const calHeight = 340;
+      const pad = 8;
+      const clampedLeft = Math.max(pad, Math.min(calendarPos.x - calWidth / 2, window.innerWidth - calWidth - pad));
+      const clampedTop = Math.max(pad, Math.min(calendarPos.y - 150, window.innerHeight - calHeight - pad));
       return (
         <div
             className="deadline-picker-container fixed z-[9999]"
-            style={{ left: calendarPos.x - 130, top: calendarPos.y - 150 }}
+            style={{ left: clampedLeft, top: clampedTop }}
           >
           <div
             className={`${cardBg} rounded-lg shadow-xl border ${borderClass} p-3 w-[260px]`}
