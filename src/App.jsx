@@ -13921,8 +13921,12 @@ const DayPlanner = () => {
                               {/* Tablet swipe strips */}
                               {isTablet && !isImported && (
                                 <>
-                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                                    <Inbox size={14} className="mr-1" />Inbox
+                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${isRecurringAllDay ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                    {isRecurringAllDay ? (
+                                      <><Trash2 size={14} className="mr-1" />Delete</>
+                                    ) : (
+                                      <><Inbox size={14} className="mr-1" />Inbox</>
+                                    )}
                                   </div>
                                   <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                     Edit<Settings size={14} className="ml-1" />
@@ -14017,6 +14021,16 @@ const DayPlanner = () => {
                         {deadlineTasks.map((task) => (
                           <div
                             key={`deadline-${task.id}`}
+                            className="notes-panel-container relative rounded-lg overflow-hidden"
+                          >
+                            {/* Swipe action strips */}
+                            <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                              <Inbox size={14} className="mr-1" />Inbox
+                            </div>
+                            <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                              Edit<Settings size={14} className="ml-1" />
+                            </div>
+                          <div
                             draggable
                             onDragStart={(e) => handleDragStart(task, 'inbox', e)}
                             onDragEnd={handleDragEnd}
@@ -14027,7 +14041,11 @@ const DayPlanner = () => {
                               setDragPreviewTime(null);
                             }}
                             onDrop={(e) => handleDropOnDateHeader(e, date)}
+                            onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
+                            onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                            onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                             className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
+                            style={{ touchAction: 'pan-y' }}
                           >
                             {task.isExample && (
                               <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
@@ -14080,13 +14098,6 @@ const DayPlanner = () => {
                                   >
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                   </button>
-                                  <button
-                                    onClick={() => openMobileEditTask(task, true)}
-                                    className="hover:bg-white/20 rounded p-1 transition-colors"
-                                    title="Edit"
-                                  >
-                                    <Pencil size={14} />
-                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -14105,6 +14116,7 @@ const DayPlanner = () => {
                                 />
                               </div>
                             )}
+                          </div>
                           </div>
                         ))}
 
@@ -14332,7 +14344,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : isTablet ? 'overflow-hidden' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -14342,7 +14354,7 @@ const DayPlanner = () => {
                                 width: conflictPos.width,
                                 visibility: isMeasured ? 'visible' : 'hidden',
                                 ...(isTablet ? { touchAction: 'pan-y' } : {}),
-                                ...taskCalendarStyle
+                                ...(isTablet ? {} : taskCalendarStyle)
                               }}
                             >
                               {task.isExample && (
@@ -14350,7 +14362,30 @@ const DayPlanner = () => {
                                   Example
                                 </span>
                               )}
-                              <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : ''} rounded-lg relative`}>
+                              {/* Tablet swipe strips */}
+                              {isTablet && !isImported && (
+                                <>
+                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${isRecurringTask ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                    {isRecurringTask ? (
+                                      <><Trash2 size={14} className="mr-1" />Delete</>
+                                    ) : (
+                                      <><Inbox size={14} className="mr-1" />Inbox</>
+                                    )}
+                                  </div>
+                                  <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                    Edit<Settings size={14} className="ml-1" />
+                                  </div>
+                                </>
+                              )}
+                              <div
+                              {...(isTablet && (!isImported || task.isTaskCalendar) ? {
+                                onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'timeline'),
+                                onTouchMove: (e) => handleMobileTaskTouchMove(e),
+                                onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
+                              } : {})}
+                              className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} h-full flex flex-col text-white ${useMicroLayout ? 'justify-center' : ''} rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''}`}
+                              style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
+                              >
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
                                   <div className="flex items-center justify-between gap-2">
