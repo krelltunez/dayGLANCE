@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 
@@ -915,7 +915,7 @@ const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
-  const [tabletTimelineScrolledAway, setTabletTimelineScrolledAway] = useState(false);
+  const [timelineScrolledAway, setTimelineScrolledAway] = useState(false);
   const [tabletActiveTab, setTabletActiveTab] = useState('glance'); // 'glance' | 'inbox' — for landscape tabbed panel
   // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop uses width-based hook
   const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
@@ -2071,25 +2071,33 @@ const DayPlanner = () => {
     return () => clearInterval(syncTimer);
   }, [syncUrl, taskCalendarUrl]);
 
+  // Scroll timeline to start of current hour on date change / tab switch
+  const scrollToCurrentHour = useCallback((smooth = false) => {
+    const currentHour = new Date().getHours();
+    const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+    const scrollPosition = Math.max(0, currentHour * hourHeight);
+    if (calendarRef.current) {
+      if (smooth) {
+        calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+      } else {
+        calendarRef.current.scrollTop = scrollPosition;
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
-      setTimeout(() => {
-        const currentHour = new Date().getHours();
-        // On mobile show current hour near top; on desktop show 2 hours before
-        const hoursBefore = isMobile ? 0 : 2;
-        const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
-        const scrollPosition = Math.max(0, (currentHour - hoursBefore) * hourHeight);
-        if (calendarRef.current) calendarRef.current.scrollTop = scrollPosition;
-      }, 100);
+      setTimeout(() => scrollToCurrentHour(false), 100);
     }
-  }, [selectedDate, isMobile, mobileActiveTab]);
+  }, [selectedDate, isMobile, mobileActiveTab, scrollToCurrentHour]);
 
-  // Tablet: detect when user scrolls away from current time
+  // Detect when user scrolls away from current time (all form factors)
   useEffect(() => {
-    if (!isTablet) return;
+    // On mobile, only track when on timeline tab
+    if (isMobile && mobileActiveTab !== 'timeline') { setTimelineScrolledAway(false); return; }
     const isToday = dateToString(selectedDate) === dateToString(new Date());
-    if (!isToday) { setTabletTimelineScrolledAway(false); return; }
+    if (!isToday) { setTimelineScrolledAway(false); return; }
     const el = calendarRef.current;
     if (!el) return;
     let ticking = false;
@@ -2105,13 +2113,37 @@ const DayPlanner = () => {
         const viewBottom = viewTop + el.clientHeight;
         // Consider "scrolled away" when the current time line is not in the visible area (with some margin)
         const margin = hourHeight * 0.5;
-        setTabletTimelineScrolledAway(nowPos < viewTop + margin || nowPos > viewBottom - margin);
+        setTimelineScrolledAway(nowPos < viewTop + margin || nowPos > viewBottom - margin);
       });
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     onScroll(); // check initial state
     return () => el.removeEventListener('scroll', onScroll);
-  }, [isTablet, selectedDate]);
+  }, [isMobile, isTablet, selectedDate, mobileActiveTab]);
+
+  // Auto-refocus timeline every 30 minutes on tablet and desktop
+  useEffect(() => {
+    if (isMobile) return;
+    let intervalId = null;
+    const now = new Date();
+    // Calculate ms until next :00 or :30
+    const min = now.getMinutes();
+    const sec = now.getSeconds();
+    const msToNext = ((min < 30 ? 30 : 60) - min) * 60000 - sec * 1000 - now.getMilliseconds();
+    const timeoutId = setTimeout(() => {
+      const isToday = dateToString(selectedDate) === dateToString(new Date());
+      if (isToday && calendarRef.current) scrollToCurrentHour(true);
+      // After the first aligned fire, set a regular 30-minute interval
+      intervalId = setInterval(() => {
+        const isTodayNow = dateToString(selectedDate) === dateToString(new Date());
+        if (isTodayNow && calendarRef.current) scrollToCurrentHour(true);
+      }, 30 * 60000);
+    }, msToNext);
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isMobile, selectedDate, scrollToCurrentHour]);
 
   useEffect(() => {
     saveData();
@@ -15696,17 +15728,12 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet: Refocus timeline toast */}
-      {isTablet && tabletTimelineScrolledAway && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: '1.5rem' }}>
+      {/* Refocus timeline toast — all form factors */}
+      {timelineScrolledAway && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <button
-            onClick={() => {
-              const currentHour = new Date().getHours();
-              const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
-              const scrollPosition = Math.max(0, (currentHour - 2) * hourHeight);
-              if (calendarRef.current) calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium ${darkMode ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'} active:bg-blue-700 transition-opacity`}
+            onClick={() => scrollToCurrentHour(true)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium bg-blue-600 text-white active:bg-blue-700 transition-opacity`}
           >
             <Clock size={14} />
             <span>Refocus timeline</span>
