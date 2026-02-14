@@ -70,6 +70,27 @@ body {
   color-scheme: dark;
 }
 
+/* Focus-visible ring for keyboard navigation accessibility */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.dark button:focus-visible,
+.dark [role="button"]:focus-visible,
+.dark a:focus-visible,
+.dark input:focus-visible,
+.dark select:focus-visible,
+.dark textarea:focus-visible {
+  outline-color: #60a5fa;
+}
+
 /* Hide scrollbar on review carousel */
 .review-carousel::-webkit-scrollbar { display: none; }
 
