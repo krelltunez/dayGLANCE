@@ -8657,14 +8657,22 @@ const DayPlanner = () => {
     return true;
   }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
   const allTimeIncompleteTasks = useMemo(() => {
-    const regularIncomplete = nonImportedTasks.filter(t => !t.completed);
+    // For today's tasks, don't count ones that haven't ended yet (in-progress or upcoming)
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    const isTodayAndFuture = (t) => {
+      if ((t.date || t.deadline) !== todayStr) return false;
+      if (!t.startTime) return false;
+      const [h, m] = t.startTime.split(':').map(Number);
+      return h * 60 + m + (t.duration || 0) > nowMins;
+    };
+    const regularIncomplete = nonImportedTasks.filter(t => !t.completed && !isTodayAndFuture(t));
     const recurringIncomplete = [];
     recurringTasks.forEach(t => {
       const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
       const completedSet = new Set(t.completedDates || []);
       occs.forEach(dateStr => {
         if (!completedSet.has(dateStr) && !t.exceptions?.[dateStr]?.deleted) {
-          recurringIncomplete.push({
+          const entry = {
             id: `recurring-${t.id}-${dateStr}`,
             title: t.title,
             date: dateStr,
@@ -8672,11 +8680,14 @@ const DayPlanner = () => {
             startTime: t.startTime,
             duration: t.duration,
             isRecurring: true,
-          });
+          };
+          if (!isTodayAndFuture(entry)) {
+            recurringIncomplete.push(entry);
+          }
         }
       });
     });
-    const deadlineInboxIncomplete = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr && !t.completed);
+    const deadlineInboxIncomplete = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr && !t.completed && !isTodayAndFuture(t));
     return [...regularIncomplete, ...recurringIncomplete, ...deadlineInboxIncomplete].sort((a, b) => ((a.date || a.deadline || '').localeCompare(b.date || b.deadline || '')) || (a.startTime || '').localeCompare(b.startTime || ''));
   }, [nonImportedTasks, recurringTasks, todayStr, unscheduledTasks]);
 
