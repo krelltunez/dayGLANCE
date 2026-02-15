@@ -15401,7 +15401,7 @@ const DayPlanner = () => {
       )}
 
       {showEmptyBinConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}>
           <div
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
             onClick={(e) => e.stopPropagation()}
