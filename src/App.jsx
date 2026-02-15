@@ -15042,7 +15042,7 @@ const DayPlanner = () => {
                                     onMouseDown={(e) => handleRoutineResizeStart(routine, e)}
                                     style={{ marginBottom: '-4px' }}
                                   >
-                                    <div className={`w-8 h-1 rounded-full ${darkMode ? 'bg-teal-400/50' : 'bg-teal-500/40'}`}></div>
+                                    <div className="w-8 h-1 rounded-full bg-white"></div>
                                   </div>
                                 )}
                                 {/* Tablet: Touch resize handle */}
