@@ -2,92 +2,75 @@
 
 ## Summary
 
-The tablet timeline currently lives inside the desktop rendering branch and inherits many desktop-only interaction patterns that don't make sense on a touch device. This plan identifies all inconsistencies between tablet and mobile timeline behavior and proposes fixes.
+The tablet timeline lives inside the desktop rendering branch and inherits some desktop-only interaction patterns that don't make sense on a touch device. This plan identifies remaining inconsistencies between tablet and mobile timeline behavior and proposes fixes.
+
+**Note:** The drag-and-drop overhaul (branches `mobile-tablet-drag-drop` and `add-daily-notes-feature`) resolved several of the original issues. See "Already Resolved" below.
 
 ---
 
-## Issues & Proposed Fixes
+## Already Resolved
 
-### Issue 1: Resize handles on timeline tasks (user-reported)
-**Location:** `App.jsx:14737-14746`
-**Problem:** Timeline tasks on tablet show a mouse-based drag resize handle at the bottom (`onMouseDown → handleResizeStart`, `cursor-ns-resize`). This is a desktop interaction — mobile has no resize handle at all.
-**Fix:** Wrap the resize handle in `!isTablet && (...)` so it only appears on desktop, matching mobile behavior. (Tablet already has the swipe-to-edit flow and the edit modal for changing duration.)
+### ~~Issue 1: Resize handles on timeline tasks~~ (DONE)
+Resolved by adding touch-based resize (`handleTouchResizeStart` / `handleTouchRoutineResizeStart`) to both mobile and tablet. The desktop `onMouseDown` handle remains for mouse users. Tablet and mobile now both have white-bar touch resize handles.
 
-### Issue 2: Double-click to edit title/tags (user-reported)
-**Location:** `App.jsx:14496-14501`, `14556-14561`, `14641-14646`, `14705-14710`
-**Problem:** Four separate `onDoubleClick` handlers on task title text allow inline editing on tablet. Double-click is a mouse-only interaction; on touch devices it causes awkward text selection and accidental edits. Mobile has no `onDoubleClick` at all — it uses the swipe-to-edit flow instead.
-**Fix:** Wrap all four `onDoubleClick` handlers in `!isTablet` checks. Also remove the `cursor-text` class on tablet (lines 14495, 14555, 14640, 14704).
+### ~~Issues 4, 5, 13: `draggable` on timeline tasks, all-day tasks, and deadline tasks~~ (DONE)
+Resolved with a different approach than originally planned. Instead of disabling `draggable` on tablet, protruding drag tabs (`data-drag-handle` + `GripVertical` icon) were added. Tablet tasks now have dedicated touch handlers (`handleMobileTaskTouchStart/Move/End`) on the drag tabs. The `draggable` HTML attribute and `onDragStart`/`onDragEnd` handlers remain for desktop mouse drag, which is fine — the two don't conflict because touch events go through the drag tab, not the HTML5 DnD API.
+
+---
+
+## Outstanding Issues & Proposed Fixes
+
+### Issue 2: Double-click to edit title/tags on timeline tasks
+**Current locations:** `App.jsx` — four `onDoubleClick` handlers on tablet timeline task title text (in micro-narrow, micro-wide, narrow, and wide layout branches, approximately lines 14975, 15035, 15120, 15184).
+**Problem:** Double-click is a mouse-only interaction; on touch devices it causes awkward text selection and accidental edits. Mobile has no `onDoubleClick` at all — it uses the swipe-to-edit flow instead. Also, `cursor-text` is applied to these title divs on tablet.
+**Fix:** Wrap all four `onDoubleClick` handlers in `!isTablet` checks. Also change `cursor-text` to not apply on tablet.
 
 ### Issue 3: Double-click to edit title on all-day tasks
-**Location:** `App.jsx:14002-14007`
-**Problem:** Same as Issue 2 but for all-day tasks in the desktop/tablet view. The title div has `onDoubleClick` and `cursor-text`.
+**Current location:** `App.jsx` — `onDoubleClick` on the all-day task title div (approximately line 14438).
+**Problem:** Same as Issue 2 but for all-day tasks. The title div has `onDoubleClick` and `cursor-text`.
 **Fix:** Wrap `onDoubleClick` in `!isTablet` check and remove `cursor-text` on tablet.
 
-### Issue 4: `draggable` attribute on timeline tasks
-**Location:** `App.jsx:14407`
-**Problem:** Timeline tasks have `draggable={!isImported || task.isTaskCalendar}` which enables HTML5 drag-and-drop. This is a mouse/desktop API. On tablet, tasks use touch-based drag (`handleMobileTaskTouchStart/Move/End`), so `draggable` is redundant and can interfere with touch gestures. Mobile timeline tasks have no `draggable` attribute.
-**Fix:** Change to `draggable={!isTablet && (!isImported || task.isTaskCalendar)}`, plus guard the `onDragStart`/`onDragEnd`/`onDragOver`/`onDrop` handlers with `!isTablet`.
+### Issue 6: `draggable` on tablet timeline routine pills (no touch drag)
+**Current location:** `App.jsx` — timeline routine pills (approximately line 15318).
+**Problem:** Timeline routine pills have unconditional `draggable` + `onDragStart`/`onDragEnd`/`onDragOver`/`onDrop`. These are desktop-only HTML5 DnD APIs. On mobile, routine pills use touch handlers (`handleMobileTaskTouchStart/Move/End` with `isRoutineDrag: true`). Tablet timeline routine pills have a touch *resize* handle but **no touch drag handlers** — meaning you can resize them via touch but can't drag-reposition them.
+**Fix:** Add touch drag handlers to tablet timeline routine pills (matching mobile at ~line 10075), and optionally guard `draggable` with `!isTablet`.
 
-### Issue 5: `draggable` attribute on all-day tasks
-**Location:** `App.jsx:13946`
-**Problem:** Same as Issue 4 but for all-day tasks. `draggable={!isImported || task.isTaskCalendar}` with `onDragStart`/`onDragEnd`. Tablet all-day tasks already use touch handlers (line 13974-13977).
-**Fix:** Change to `draggable={!isTablet && (!isImported || task.isTaskCalendar)}` and guard drag event handlers with `!isTablet`.
-
-### Issue 6: `draggable` on tablet timeline routine pills
-**Location:** `App.jsx:14835`
-**Problem:** Timeline routine pills have `draggable` + `onDragStart`/`onDragEnd`/`onDragOver`/`onDrop`. This is desktop-only; mobile routine pills use touch handlers. Tablet routine pills already have their own touch handlers (no touch handlers currently though — see Issue 8).
-**Fix:** Change to `draggable={!isTablet}` and guard the drag event handlers with `!isTablet`.
-
-### Issue 7: `draggable` on tablet all-day routine pills
-**Location:** `App.jsx:14192`
-**Problem:** All-day routine pills in the desktop/tablet view have `draggable` + `onDragStart`/`onDragEnd`, with no touch handler equivalent. On mobile, all-day routine pills have touch drag handlers.
-**Fix:** Change to `draggable={!isTablet}` and guard drag handlers. Add touch handlers for tablet (`handleMobileTaskTouchStart/Move/End` with `isRoutineDrag: true`).
+### Issue 7: `draggable` on tablet all-day routine pills (no touch drag)
+**Current location:** `App.jsx` — all-day routine pills (approximately line 14647).
+**Problem:** All-day routine pills have unconditional `draggable` + `onDragStart`/`onDragEnd`, with no touch handler equivalent. On mobile, all-day routine pills have touch drag handlers (~line 9613).
+**Fix:** Add touch drag handlers (`handleMobileTaskTouchStart/Move/End` with `isRoutineDrag: true`) and optionally guard `draggable` with `!isTablet`.
 
 ### Issue 8: Missing touch drag handlers on tablet timeline routine pills
-**Location:** `App.jsx:14832-14870`
-**Problem:** Tablet timeline routine pills have `draggable` + mouse-based drag handlers, but **no touch handlers** (`onTouchStart`/`onTouchMove`/`onTouchEnd`). Compare mobile routine pills (line 9669-9671) which use `handleMobileTaskTouchStart/Move/End`. This means timeline routines can't be drag-repositioned on tablet via touch.
-**Fix:** Add `onTouchStart`, `onTouchMove`, `onTouchEnd` handlers to tablet timeline routine pills, matching mobile behavior.
+**Note:** This is the same underlying problem as Issue 6 — listed separately in the original plan but they share a single fix. See Issue 6.
 
 ### Issue 9: Missing `select-none` on tablet timeline tasks
-**Location:** `App.jsx:14451`
-**Problem:** The tablet timeline task content div does not have `select-none`. Compare mobile timeline tasks (line 9466) which have `select-none` to prevent text selection during touch interactions.
-**Fix:** Add `select-none` to the tablet timeline task content wrapper className at line 14451.
+**Current location:** `App.jsx` — the tablet timeline task content/swipe div (approximately line 14929).
+**Problem:** The div does not have `select-none`. Mobile timeline tasks (~line 9855) have `select-none` to prevent text selection during touch interactions.
+**Fix:** Add `select-none` to the tablet timeline task content wrapper className.
 
 ### Issue 10: Missing `select-none` on tablet all-day tasks
-**Location:** `App.jsx:13979`
-**Problem:** Tablet all-day task content div lacks `select-none`. Mobile all-day tasks (line 9074) have `select-none`.
+**Current location:** `App.jsx` — the tablet all-day task div (approximately line 14415).
+**Problem:** Lacks `select-none`. Mobile all-day tasks (~line 9429) have `select-none`.
 **Fix:** Add `select-none` to the className on tablet.
 
 ### Issue 11: `cursor-move` on tablet tasks
-**Location:** `App.jsx:14412`, `13979`
-**Problem:** Tablet timeline and all-day tasks show `cursor-move` which is a desktop cursor style. On touch devices this is irrelevant and confusing.
+**Current locations:** `App.jsx` — tablet timeline tasks (~line 14868) and all-day tasks (~line 14415).
+**Problem:** Tablet tasks show `cursor-move` which is a desktop cursor style. With the new drag-tab approach, dragging is initiated from the protruding tab, not the task body — so `cursor-move` on the task body is misleading. Mobile tasks have no `cursor-move`.
 **Fix:** Use `cursor-default` instead of `cursor-move` on tablet for both timeline and all-day tasks.
-
-### Issue 12: `draggable` on tablet inbox/overdue/recycle-bin tasks
-**Location:** `App.jsx:12771`, `13248`, `13690`
-**Problem:** Inbox, overdue, and recycle bin tasks in the sidebar have `draggable` with mouse-based drag handlers. These are desktop-only APIs.
-**Note:** These are sidebar tasks, not timeline tasks. The user's request focuses on "tablet timeline." These tasks do already have touch handlers on some (deadline tasks at line 14081-14083), but the main inbox tasks and overdue tasks don't have touch handlers in the desktop/tablet branch. This is a broader scope issue and may be out of scope for this plan. **Recommend deferring** unless the user wants to address it.
-
-### Issue 13: `draggable` on tablet deadline tasks in all-day area
-**Location:** `App.jsx:14071`
-**Problem:** Deadline tasks rendered in the all-day area have `draggable` for desktop drag. They do already have touch handlers (14081-14083), so the fix is just to disable `draggable` on tablet.
-**Fix:** Change to `draggable={!isTablet}` and guard `onDragStart`/`onDragEnd` with `!isTablet`.
 
 ---
 
 ## Out of Scope (Noted but not planned)
 
-- **Sidebar inbox/overdue/recycle bin touch drag**: These sidebar tasks lack touch drag handlers on tablet. This is a larger feature that goes beyond "timeline" behavior. Deferred.
-- **Inline editing infrastructure**: The code has `editingTaskId` checks and input fields for inline editing inside timeline tasks (both mobile and tablet/desktop). On mobile these are apparently never triggered (no `onDoubleClick`). On tablet, removing `onDoubleClick` means these editing input branches become dead code on tablet. They can be left as-is (they won't trigger) or cleaned up in a follow-up.
+- **Sidebar inbox/overdue/recycle bin touch drag** (original Issue 12): These sidebar tasks (~lines 13183, 13660, 14102) still have `draggable` with mouse-based drag handlers and no touch handlers. This is a larger feature beyond "timeline" behavior. Deferred.
+- **Inline editing infrastructure**: The code has `editingTaskId` checks and input fields for inline editing inside timeline tasks. On mobile these are never triggered (no `onDoubleClick`). On tablet, removing `onDoubleClick` means these editing input branches become dead code on tablet. They can be left as-is (they won't trigger) or cleaned up in a follow-up.
 
 ---
 
 ## Implementation Order
 
-1. **Issue 1** — Remove resize handle on tablet timeline tasks
-2. **Issues 2 & 3** — Remove `onDoubleClick` + `cursor-text` on tablet (timeline + all-day)
-3. **Issues 9 & 10** — Add `select-none` on tablet (timeline + all-day)
-4. **Issue 11** — Replace `cursor-move` with `cursor-default` on tablet
-5. **Issues 4, 5, 6, 7, 13** — Disable `draggable` + HTML5 drag handlers on tablet
-6. **Issues 7 & 8** — Add touch handlers to routine pills on tablet
-7. Build verification + commit
+1. **Issues 2 & 3** — Remove `onDoubleClick` + `cursor-text` on tablet (timeline + all-day)
+2. **Issues 9 & 10** — Add `select-none` on tablet (timeline + all-day)
+3. **Issue 11** — Replace `cursor-move` with `cursor-default` on tablet
+4. **Issues 6, 7 & 8** — Add touch drag handlers to routine pills on tablet (timeline + all-day), optionally guard `draggable` with `!isTablet`
+5. Build verification + commit
