@@ -9072,7 +9072,7 @@ const DayPlanner = () => {
                                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                         >
-                                          <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
+                                          <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '14px' }} />
                                           <GripVertical size={14} />
                                         </div>
                                       )}
@@ -9181,7 +9181,7 @@ const DayPlanner = () => {
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                     >
-                                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
+                                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '14px' }} />
                                       <GripVertical size={14} />
                                     </div>
                                     <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
@@ -9495,7 +9495,7 @@ const DayPlanner = () => {
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
                                     >
-                                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
+                                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '14px' }} />
                                       <GripVertical size={14} />
                                     </div>
                                   )}
@@ -14027,7 +14027,7 @@ const DayPlanner = () => {
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                 >
-                                  <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
+                                  <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '14px' }} />
                                   <GripVertical size={14} />
                                 </div>
                               )}
@@ -14149,7 +14149,7 @@ const DayPlanner = () => {
                                 onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                 onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                               >
-                                <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
+                                <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '14px' }} />
                                 <GripVertical size={14} />
                               </div>
                             )}
@@ -14533,7 +14533,7 @@ const DayPlanner = () => {
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
                                 >
-                                  <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
+                                  <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '14px' }} />
                                   <GripVertical size={14} />
                                 </div>
                               )}
