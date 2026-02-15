@@ -5858,6 +5858,10 @@ const DayPlanner = () => {
         const preventScroll = (e) => e.preventDefault();
         document.addEventListener('touchmove', preventScroll, { passive: false });
         mobileDragPreventScrollRef.current = preventScroll;
+        // Suppress iOS text selection / magnifier during drag
+        window.getSelection()?.removeAllRanges();
+        document.body.style.webkitUserSelect = 'none';
+        document.body.style.userSelect = 'none';
         // Haptic feedback
         if (navigator.vibrate) navigator.vibrate(50);
       }, 500);
@@ -6154,6 +6158,9 @@ const DayPlanner = () => {
       document.removeEventListener('touchmove', mobileDragPreventScrollRef.current);
       mobileDragPreventScrollRef.current = null;
     }
+    // Restore text selection after drag
+    document.body.style.webkitUserSelect = '';
+    document.body.style.userSelect = '';
 
     if (mobileDragActive.current && mobileDragPreviewTime && mobileDragOriginalTask.current) {
       const task = mobileDragOriginalTask.current;
@@ -15068,54 +15075,41 @@ const DayPlanner = () => {
                           </div>
                         )}
 
-                        {/* Drag preview - only show in the column being dragged over */}
-                        {dragPreviewTime && draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === dateStr && (
-                          <>
-                            {/* Time label above the box */}
+                        {/* Drag preview - hover bar style */}
+                        {dragPreviewTime && draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === dateStr && (() => {
+                          const dragMinutes = timeToMinutes(dragPreviewTime);
+                          const dragTop = Math.round(minutesToPosition(dragMinutes));
+                          return (
                             <div
-                              className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
-                              style={{
-                                top: `${minutesToPosition(timeToMinutes(dragPreviewTime)) - 30}px`
-                              }}
+                              className="absolute left-0 right-0 pointer-events-none z-20"
+                              style={{ top: `${dragTop}px` }}
                             >
-                              {formatTime(dragPreviewTime)}
+                              <div className="relative">
+                                <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
+                                  {formatTime(dragPreviewTime)}
+                                </div>
+                                <div className="h-0.5 bg-blue-500"></div>
+                              </div>
                             </div>
-                            {/* Preview box */}
-                            <div
-                              className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-lg pointer-events-none z-5"
-                              style={{
-                                top: `${minutesToPosition(timeToMinutes(dragPreviewTime))}px`,
-                                height: `${durationToHeight(draggedTask.duration)}px`,
-                                minHeight: '39px'
-                              }}
-                            >
-                            </div>
-                          </>
-                        )}
+                          );
+                        })()}
 
-                        {/* Tablet touch drag preview */}
+                        {/* Tablet touch drag preview - hover bar style */}
                         {isTablet && mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && mobileDragTaskIdState && (() => {
                           const dragMinutes = timeToMinutes(mobileDragPreviewTime);
-                          const dragTop = minutesToPosition(dragMinutes);
-                          const originalTask = mobileDragOriginalTask.current;
-                          const dragDuration = originalTask?.duration || 30;
+                          const dragTop = Math.round(minutesToPosition(dragMinutes));
                           return (
-                            <>
-                              <div
-                                className="absolute right-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
-                                style={{ top: `${dragTop - 30}px` }}
-                              >
-                                {formatTime(mobileDragPreviewTime)}
+                            <div
+                              className="absolute left-0 right-0 pointer-events-none z-20"
+                              style={{ top: `${dragTop}px` }}
+                            >
+                              <div className="relative">
+                                <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
+                                  {formatTime(mobileDragPreviewTime)}
+                                </div>
+                                <div className="h-0.5 bg-blue-500"></div>
                               </div>
-                              <div
-                                className="absolute left-2 right-2 bg-blue-500/50 border-2 border-blue-500 rounded-lg pointer-events-none z-5"
-                                style={{
-                                  top: `${dragTop}px`,
-                                  height: `${durationToHeight(dragDuration)}px`,
-                                  minHeight: '39px'
-                                }}
-                              />
-                            </>
+                            </div>
                           );
                         })()}
                       </div>

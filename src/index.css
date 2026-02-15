@@ -109,3 +109,13 @@ textarea:focus-visible {
   user-select: none;
   -webkit-touch-callout: none;
 }
+
+/* Broader iOS touch selection prevention for task elements on touch devices */
+@media (pointer: coarse) {
+  [data-drag-handle],
+  [data-drag-handle] ~ * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
