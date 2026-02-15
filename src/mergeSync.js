@@ -147,6 +147,51 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
 };
 
 /**
+ * Merges daily notes by date key, keeping the newer version per day.
+ * Empty notes are treated as deletions.
+ *
+ * @param {Object} localNotes  - Local daily notes { "YYYY-MM-DD": { text, lastModified } }
+ * @param {Object} remoteNotes - Remote daily notes
+ * @returns {{ merged: Object, localChanged: boolean, remoteChanged: boolean }}
+ */
+export const mergeDailyNotes = (localNotes, remoteNotes) => {
+  const allDates = new Set([...Object.keys(localNotes), ...Object.keys(remoteNotes)]);
+  const merged = {};
+  let localChanged = false;
+  let remoteChanged = false;
+
+  for (const dateKey of allDates) {
+    const local = localNotes[dateKey];
+    const remote = remoteNotes[dateKey];
+
+    if (local && !remote) {
+      // Only local has it — remote needs it
+      merged[dateKey] = local;
+      remoteChanged = true;
+    } else if (!local && remote) {
+      // Only remote has it — local needs it
+      merged[dateKey] = remote;
+      localChanged = true;
+    } else {
+      // Both have it — newer wins
+      const localTime = new Date(local.lastModified || 0);
+      const remoteTime = new Date(remote.lastModified || 0);
+      if (remoteTime > localTime) {
+        merged[dateKey] = remote;
+        localChanged = true;
+      } else if (localTime > remoteTime) {
+        merged[dateKey] = local;
+        remoteChanged = true;
+      } else {
+        merged[dateKey] = local; // Equal — keep local
+      }
+    }
+  }
+
+  return { merged, localChanged, remoteChanged };
+};
+
+/**
  * Full data-level merge: combines local and remote sync snapshots with
  * per-task granularity.
  *
@@ -222,8 +267,11 @@ export const mergeSyncData = (localData, remoteData) => {
     mergedRoutinesDate = remoteRoutinesDate;
   }
 
-  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged;
-  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged;
+  // Merge daily notes by date key
+  const dailyNotesMerge = mergeDailyNotes(localData.dailyNotes || {}, remoteData.dailyNotes || {});
+
+  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged || dailyNotesMerge.localChanged;
+  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged || dailyNotesMerge.remoteChanged;
 
   // Reconcile cross-list conflicts: task active on one device, in recycle bin on other
   const recycledMap = new Map(binMerge.merged.map(t => [String(t.id), t]));
@@ -300,6 +348,7 @@ export const mergeSyncData = (localData, remoteData) => {
       routineDefinitions: routineMerge.merged,
       todayRoutines: todayRoutinesMerge.merged,
       routinesDate: mergedRoutinesDate,
+      dailyNotes: dailyNotesMerge.merged,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },

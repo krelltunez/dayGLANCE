@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, StickyNote } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 
 // Hook to determine how many days to show based on window width
@@ -387,6 +387,143 @@ const NotesSubtasksPanel = ({
             className="flex-1 bg-transparent text-white text-sm px-1 py-0.5 outline-none placeholder:text-white/40 border-b border-transparent focus:border-white/30"
           />
         </form>
+      </div>
+    </div>
+  );
+};
+
+// Daily Notes Modal — popover for adding/editing notes on a specific date
+const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile }) => {
+  const [localText, setLocalText] = useState(note?.text || '');
+  const [isEditing, setIsEditing] = useState(!note?.text);
+  const localTextRef = useRef(localText);
+  const onSaveRef = useRef(onSave);
+  const dateStrRef = useRef(dateStr);
+
+  useEffect(() => { localTextRef.current = localText; }, [localText]);
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+  useEffect(() => { dateStrRef.current = dateStr; }, [dateStr]);
+
+  // Save on unmount
+  useEffect(() => {
+    return () => {
+      onSaveRef.current(dateStrRef.current, localTextRef.current);
+    };
+  }, []);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      onSave(dateStr, localText);
+      if (localText.trim()) setIsEditing(false);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      onSave(dateStr, localText);
+      onClose();
+    }
+  };
+
+  const handleBlur = () => {
+    onSave(dateStr, localText);
+  };
+
+  const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
+  const borderClass = darkMode ? 'border-gray-700' : 'border-gray-200';
+  const textPrimary = darkMode ? 'text-gray-100' : 'text-gray-900';
+  const textSecondary = darkMode ? 'text-gray-400' : 'text-gray-600';
+  const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
+
+  // Format date for display
+  const displayDate = (() => {
+    const d = new Date(dateStr + 'T12:00:00');
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+  })();
+
+  if (isMobile) {
+    // Bottom sheet style for mobile
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { onSave(dateStr, localText); onClose(); }}>
+        <div className="bg-black/30 absolute inset-0" />
+        <div
+          className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] overflow-y-auto`}
+          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+            <div className="flex items-center gap-2">
+              <StickyNote size={18} className={textSecondary} />
+              <span className={`font-medium ${textPrimary}`}>Daily Notes — {displayDate}</span>
+            </div>
+            <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close daily notes">
+              <X size={18} className={textSecondary} />
+            </button>
+          </div>
+          <div className="p-4">
+            {isEditing ? (
+              <textarea
+                value={localText}
+                onChange={(e) => setLocalText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
+                className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-gray-50 text-gray-900 border-gray-300 placeholder:text-gray-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
+                rows={8}
+                autoFocus
+              />
+            ) : (
+              <div
+                onClick={() => setIsEditing(true)}
+                className={`text-sm whitespace-pre-wrap cursor-text min-h-[12rem] p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'} ${textPrimary}`}
+              >
+                {renderFormattedText(localText)}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop/tablet: centered modal
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { onSave(dateStr, localText); onClose(); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onSave(dateStr, localText); onClose(); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
+      <div
+        className={`${cardBg} rounded-lg shadow-xl p-6 border ${borderClass} w-full max-w-lg mx-4`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <StickyNote size={20} className={textSecondary} />
+            <h3 className={`text-lg font-semibold ${textPrimary}`}>Daily Notes — {displayDate}</h3>
+          </div>
+          <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded ${hoverBg}`}>
+            <X size={20} className={textSecondary} />
+          </button>
+        </div>
+
+        {isEditing ? (
+          <textarea
+            value={localText}
+            onChange={(e) => setLocalText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+            placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
+            className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-gray-50 text-gray-900 border-gray-300 placeholder:text-gray-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
+            rows={10}
+            autoFocus
+          />
+        ) : (
+          <div
+            onClick={() => setIsEditing(true)}
+            className={`text-sm whitespace-pre-wrap cursor-text min-h-[15rem] p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'} ${textPrimary}`}
+          >
+            {renderFormattedText(localText)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1172,6 +1309,15 @@ const DayPlanner = () => {
   const cloudSyncDownloadRef = useRef(null);
   const drainNotificationQueueRef = useRef(null);
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
+
+  // Daily Notes state — keyed by date string "YYYY-MM-DD" → { text, lastModified }
+  const [dailyNotes, setDailyNotes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-daily-notes');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
 
   // Auto-Backup state
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
@@ -2000,6 +2146,14 @@ const DayPlanner = () => {
     localStorage.setItem('onboardingProgress', JSON.stringify(onboardingProgress));
   }, [onboardingProgress]);
 
+  // Persist dailyNotes to localStorage and trigger cloud sync upload
+  useEffect(() => {
+    localStorage.setItem('day-planner-daily-notes', JSON.stringify(dailyNotes));
+    if (!suppressCloudUploadRef.current && (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current)) {
+      localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+    }
+  }, [dailyNotes]);
+
   // Track for onboarding when sync is set up
   useEffect(() => {
     if (!onboardingProgress.hasSetupSync && (syncUrl.trim() || taskCalendarUrl.trim())) {
@@ -2273,6 +2427,7 @@ const DayPlanner = () => {
       const taskCalendarUrlData = localStorage.getItem('day-planner-task-calendar-url');
       const completedTaskUidsData = localStorage.getItem('day-planner-task-completed-uids');
       const recurringTasksData = localStorage.getItem('day-planner-recurring-tasks');
+      const dailyNotesData = localStorage.getItem('day-planner-daily-notes');
       const welcomeDismissed = localStorage.getItem('welcomeDismissed') === 'true';
 
       // Parse existing data and normalize defaults so localStorage and React
@@ -2456,6 +2611,9 @@ const DayPlanner = () => {
       }
       if (completedTaskUidsData) {
         setCompletedTaskUids(new Set(JSON.parse(completedTaskUidsData)));
+      }
+      if (dailyNotesData) {
+        try { setDailyNotes(JSON.parse(dailyNotesData)); } catch {}
       }
       if (!shouldShowExamples) {
         if (recurringTasksData) {
@@ -3680,6 +3838,18 @@ const DayPlanner = () => {
     if (!onboardingProgress.hasAddedNotes && notes && notes.trim()) {
       setOnboardingProgress(prev => ({ ...prev, hasAddedNotes: true }));
     }
+  };
+
+  const updateDailyNote = (dateStr, text) => {
+    setDailyNotes(prev => {
+      const next = { ...prev };
+      if (!text || !text.trim()) {
+        delete next[dateStr];
+      } else {
+        next[dateStr] = { text, lastModified: new Date().toISOString() };
+      }
+      return next;
+    });
   };
 
   // Helper to update a recurring task template by ID
@@ -7437,7 +7607,8 @@ const DayPlanner = () => {
       use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
       deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
       deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
-      removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}')
+      removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}'),
+      dailyNotes: JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}')
     }
   });
 
@@ -7502,6 +7673,10 @@ const DayPlanner = () => {
     if (data.removedTodayRoutineIds) {
       localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(data.removedTodayRoutineIds));
       setRemovedTodayRoutineIds(data.removedTodayRoutineIds);
+    }
+    if (data.dailyNotes) {
+      localStorage.setItem('day-planner-daily-notes', JSON.stringify(data.dailyNotes));
+      setDailyNotes(data.dailyNotes);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
@@ -9113,8 +9288,15 @@ const DayPlanner = () => {
                           }}
                           title="Tap to add all-day task"
                         >
-                          <div className={`font-bold text-sm ${isDateToday ? 'text-blue-600' : textPrimary}`}>
+                          <div className={`font-bold text-sm flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
                             {formatShortDate(date)}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(dateStr); }}
+                              className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-50'}`}
+                              title="Daily notes"
+                            >
+                              <StickyNote size={14} />
+                            </button>
                           </div>
                         </div>
                       );
@@ -13920,8 +14102,15 @@ const DayPlanner = () => {
                       onDrop={(e) => handleDropOnDateHeader(e, date)}
                       title={draggedTask ? "Drop to make all-day task" : "Click to add all-day task"}
                     >
-                      <div className={`font-bold ${isDateToday ? 'text-blue-600' : textPrimary}`}>
+                      <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
                         {formatShortDate(date)}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(dateStr); }}
+                          className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-50'}`}
+                          title="Daily notes"
+                        >
+                          <StickyNote size={14} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -15191,6 +15380,17 @@ const DayPlanner = () => {
             setShowRecurrenceEndDatePicker(null);
           }}
           onClose={() => setShowRecurrenceEndDatePicker(null)}
+        />
+      )}
+
+      {dailyNotesModalDate && (
+        <DailyNotesModal
+          dateStr={dailyNotesModalDate}
+          note={dailyNotes[dailyNotesModalDate]}
+          onSave={updateDailyNote}
+          onClose={() => setDailyNotesModalDate(null)}
+          darkMode={darkMode}
+          isMobile={isMobile}
         />
       )}
 
