@@ -395,14 +395,20 @@ const NotesSubtasksPanel = ({
 // Daily Notes Modal — popover for adding/editing notes on a specific date
 const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile }) => {
   const [localText, setLocalText] = useState(note?.text || '');
-  const [isEditing, setIsEditing] = useState(!note?.text);
+  const [isEditing, setIsEditing] = useState(true);
   const localTextRef = useRef(localText);
   const onSaveRef = useRef(onSave);
   const dateStrRef = useRef(dateStr);
+  const backdropRef = useRef(null);
 
   useEffect(() => { localTextRef.current = localText; }, [localText]);
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
   useEffect(() => { dateStrRef.current = dateStr; }, [dateStr]);
+
+  // Focus backdrop once on mount (for Escape key) — only when starting in preview mode
+  useEffect(() => {
+    if (!isEditing && backdropRef.current) backdropRef.current.focus();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save on unmount
   useEffect(() => {
@@ -456,7 +462,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
           <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
             <div className="flex items-center gap-2">
               <NotebookPen size={18} className={textSecondary} />
-              <span className={`font-medium ${textPrimary}`}>Daily Notes — {displayDate}</span>
+              <span className={`font-medium ${textPrimary}`}>Daily Note — {displayDate}</span>
             </div>
             <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close daily notes">
               <X size={18} className={textSecondary} />
@@ -490,7 +496,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
 
   // Desktop/tablet: centered modal
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { onSave(dateStr, localText); onClose(); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onSave(dateStr, localText); onClose(); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
+    <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { onSave(dateStr, localText); onClose(); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onSave(dateStr, localText); onClose(); } }} tabIndex={-1}>
       <div
         className={`${cardBg} rounded-lg shadow-xl p-6 border ${borderClass} w-full max-w-lg mx-4`}
         onClick={(e) => e.stopPropagation()}
@@ -498,7 +504,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <NotebookPen size={20} className={textSecondary} />
-            <h3 className={`text-lg font-semibold ${textPrimary}`}>Daily Notes — {displayDate}</h3>
+            <h3 className={`text-lg font-semibold ${textPrimary}`}>Daily Note — {displayDate}</h3>
           </div>
           <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded ${hoverBg}`}>
             <X size={20} className={textSecondary} />
