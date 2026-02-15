@@ -17814,7 +17814,7 @@ const DayPlanner = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
-                    setSpotlightSelectedIndex(prev => Math.min(prev + 1, Math.min(spotlightResults.length - 1, 19)));
+                    setSpotlightSelectedIndex(prev => Math.min(prev + 1, spotlightResults.length - 1));
                   } else if (e.key === 'ArrowUp') {
                     e.preventDefault();
                     setSpotlightSelectedIndex(prev => Math.max(prev - 1, 0));
@@ -17842,7 +17842,7 @@ const DayPlanner = () => {
               ) : spotlightResults.length === 0 ? (
                 <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>No results found</div>
               ) : (
-                spotlightResults.slice(0, 20).map((result, idx) => {
+                spotlightResults.map((result, idx) => {
                   const sourceBadgeColors = darkMode ? {
                     scheduled: 'bg-blue-900/40 text-blue-300',
                     inbox: 'bg-green-900/40 text-green-300',
@@ -17904,7 +17904,7 @@ const DayPlanner = () => {
                     <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
                   </div>
                 ) : <div />}
-                <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}{spotlightResults.length > 20 ? ` (showing 20)` : ''}</span>
+                <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}</span>
               </div>
             )}
           </div>
