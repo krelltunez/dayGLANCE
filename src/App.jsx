@@ -14746,17 +14746,17 @@ const DayPlanner = () => {
                                         </div>
                                       </div>
                                       {!isImported && (
-                                        <div className="flex flex-col items-end flex-shrink-0">
-                                          <div className="flex items-start gap-0.5">
-                                            <ActionButtons />
-                                          </div>
-                                          <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 mt-0.5">
-                                            <Clock size={10} />
-                                            {formatTime(task.startTime)} • {task.duration}min
-                                          </div>
+                                        <div className="flex items-start gap-0.5 flex-shrink-0">
+                                          <ActionButtons />
                                         </div>
                                       )}
                                     </div>
+                                    {!isImported && height >= 55 && (
+                                      <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 mt-0.5">
+                                        <Clock size={10} />
+                                        {formatTime(task.startTime)} • {task.duration}min
+                                      </div>
+                                    )}
                                   </>
                                 )}
                                 </div>{/* end content wrapper */}
