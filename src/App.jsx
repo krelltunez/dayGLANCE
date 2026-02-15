@@ -6702,6 +6702,47 @@ const DayPlanner = () => {
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  const handleTouchResizeStart = (task, e) => {
+    e.stopPropagation();
+    pushUndo();
+    setIsResizing(true);
+
+    const startY = e.touches[0].clientY;
+    const startDuration = task.duration;
+
+    const isRecurringTask = task.isRecurring;
+    const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
+
+    const handleTouchMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      const deltaY = moveEvent.touches[0].clientY - startY;
+      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const newDuration = Math.max(15, startDuration + deltaMinutes);
+
+      if (isRecurringTask && recurringInfo) {
+        const { templateId, dateStr } = recurringInfo;
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id !== templateId) return t;
+          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } } };
+        }));
+      } else {
+        setTasks(prevTasks => prevTasks.map(t =>
+          t.id === task.id ? { ...t, duration: newDuration } : t
+        ));
+      }
+    };
+
+    const handleTouchEnd = () => {
+      playUISound('tick');
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      setIsResizing(false);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
   const parseICS = (icsContent) => {
     // Unfold iCal line continuations (RFC 5545: lines starting with space/tab are continuations)
     const rawLines = icsContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
@@ -9664,6 +9705,16 @@ const DayPlanner = () => {
                                   </div>{/* end swipe content */}
                                   </div>{/* end inner overflow container */}
                                   </div>{/* end flex items-start */}
+                                  {/* Touch resize handle at bottom */}
+                                  {!isImported && !isCalendarEvent && (
+                                    <div
+                                      onTouchStart={(e) => handleTouchResizeStart(task, e)}
+                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 flex items-center justify-center"
+                                      style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10 }}
+                                    >
+                                      <div className="w-12 h-1 bg-white rounded-full"></div>
+                                    </div>
+                                  )}
                                 </div>
                                 );
                               })}
@@ -14862,8 +14913,9 @@ const DayPlanner = () => {
                                 {!isImported && (
                                   <div
                                     onMouseDown={(e) => handleResizeStart(task, e)}
+                                    onTouchStart={(e) => handleTouchResizeStart(task, e)}
                                     className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
-                                    style={{ marginBottom: '-4px' }}
+                                    style={{ marginBottom: '-4px', touchAction: 'none' }}
                                   >
                                     <div className="w-12 h-1 bg-white rounded-full"></div>
                                   </div>
