@@ -9066,12 +9066,13 @@ const DayPlanner = () => {
                                       {(!isImported || task.isTaskCalendar) && (
                                         <div
                                           data-drag-handle
-                                          className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 border-l border-t border-b border-white/20`}
-                                          style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, borderRight: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                          className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                          style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                         >
+                                          <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                           <GripVertical size={14} />
                                         </div>
                                       )}
@@ -9174,12 +9175,13 @@ const DayPlanner = () => {
                                     {/* Protruding drag tab */}
                                     <div
                                       data-drag-handle
-                                      className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 border-l-2 border-t-2 border-b-2 border-dashed border-white/60`}
-                                      style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, borderRight: 'none' }}
+                                      className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                      style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                     >
+                                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
                                       <GripVertical size={14} />
                                     </div>
                                     <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
@@ -9487,12 +9489,13 @@ const DayPlanner = () => {
                                   {!isCalendarEvent && !isImported && (
                                     <div
                                       data-drag-handle
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative border-l border-t border-b border-white/20`}
-                                      style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, borderRight: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                      style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
                                     >
+                                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                       <GripVertical size={14} />
                                     </div>
                                   )}
@@ -14018,12 +14021,13 @@ const DayPlanner = () => {
                               {isTablet && (!isImported || task.isTaskCalendar) && (
                                 <div
                                   data-drag-handle
-                                  className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 border-l border-t border-b border-white/20`}
-                                  style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, borderRight: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                  className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                  style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                 >
+                                  <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                   <GripVertical size={14} />
                                 </div>
                               )}
@@ -14139,12 +14143,13 @@ const DayPlanner = () => {
                             {isTablet && (
                               <div
                                 data-drag-handle
-                                className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 border-l-2 border-t-2 border-b-2 border-dashed border-white/60`}
-                                style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, borderRight: 'none' }}
+                                className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                 onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                 onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                 onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                               >
+                                <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
                                 <GripVertical size={14} />
                               </div>
                             )}
@@ -14522,12 +14527,13 @@ const DayPlanner = () => {
                               {isTablet && (!isImported || task.isTaskCalendar) && (
                                 <div
                                   data-drag-handle
-                                  className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative border-l border-t border-b border-white/20`}
-                                  style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, borderRight: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                  className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                  style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
                                 >
+                                  <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                   <GripVertical size={14} />
                                 </div>
                               )}
