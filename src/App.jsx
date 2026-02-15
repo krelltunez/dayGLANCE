@@ -9083,9 +9083,7 @@ const DayPlanner = () => {
                                     >
                                       <div className="flex items-center gap-2">
                                         {(!isImported || task.isTaskCalendar) && (
-                                          <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
-                                            <GripVertical size={14} />
-                                          </div>
+                                          <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-30 cursor-grab active:opacity-50" />
                                         )}
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
@@ -9173,9 +9171,7 @@ const DayPlanner = () => {
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
-                                        <GripVertical size={14} />
-                                      </div>
+                                      <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-30 cursor-grab active:opacity-50" />
                                       <button
                                         onClick={() => toggleComplete(task.id, true)}
                                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9484,9 +9480,7 @@ const DayPlanner = () => {
                                   {/* Flex wrapper: full-height drag handle on left, content on right */}
                                   <div className="flex h-full">
                                   {!isCalendarEvent && !isImported && (
-                                    <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center self-stretch flex-shrink-0 pl-1.5 pr-0.5 opacity-40 cursor-grab active:opacity-70">
-                                      <GripVertical size={isMicroHeight ? 12 : 14} />
-                                    </div>
+                                    <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px' }} className="self-stretch flex-shrink-0 w-[10px] ml-1 opacity-30 cursor-grab active:opacity-50" />
                                   )}
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
@@ -14010,9 +14004,7 @@ const DayPlanner = () => {
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
                                     {(!isImported || task.isTaskCalendar) && (
-                                      <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
-                                        <GripVertical size={14} />
-                                      </div>
+                                      <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-30 cursor-grab active:opacity-50" />
                                     )}
                                     {(!isImported || task.isTaskCalendar) && (
                                       <button
@@ -14119,9 +14111,7 @@ const DayPlanner = () => {
                             <div className="p-2 text-white">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
-                                    <GripVertical size={14} />
-                                  </div>
+                                  <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-30 cursor-grab active:opacity-50" />
                                   <button
                                     onClick={() => toggleComplete(task.id, true)}
                                     className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -14483,9 +14473,7 @@ const DayPlanner = () => {
                               >
                                 {/* Full-height drag handle on left */}
                                 {isTablet && (!isImported || task.isTaskCalendar) && (
-                                  <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center self-stretch flex-shrink-0 pl-1.5 pr-0.5 opacity-40 cursor-grab active:opacity-70">
-                                    <GripVertical size={useMicroLayout ? 12 : 14} />
-                                  </div>
+                                  <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px' }} className="self-stretch flex-shrink-0 w-[10px] ml-1 opacity-30 cursor-grab active:opacity-50" />
                                 )}
                                 <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} flex-1 min-w-0 h-full flex flex-col ${useMicroLayout ? 'justify-center' : ''}`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
