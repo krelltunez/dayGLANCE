@@ -5807,6 +5807,10 @@ const DayPlanner = () => {
     // Only allow drag initiation from dedicated drag handles (data-drag-handle attribute)
     // or from routine pills (which are entirely draggable, no handle needed)
     const isFromDragHandle = e.target.closest('[data-drag-handle]');
+    // Drag tab lives outside the swipe container, so prevent swipe tracking when touching it
+    if (isFromDragHandle) {
+      swipedTaskId.current = null;
+    }
     const isRoutine = task.isRoutineDrag;
     if ((taskType === 'timeline' || taskType === 'allday' || taskType === 'deadline') && !task.imported && (isFromDragHandle || isRoutine)) {
       mobileDragTouchStartPos.current = { x: touch.clientX, y: touch.clientY };
@@ -9057,7 +9061,21 @@ const DayPlanner = () => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                                   const isImported = task.imported;
                                   return (
-                                    <div key={task.id} className="relative rounded-lg overflow-hidden">
+                                    <div key={task.id} className="relative" style={(!isImported || task.isTaskCalendar) ? { marginLeft: '12px' } : {}}>
+                                      {/* Protruding drag tab */}
+                                      {(!isImported || task.isTaskCalendar) && (
+                                        <div
+                                          data-drag-handle
+                                          className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-md flex items-center justify-center cursor-grab active:opacity-70 text-white/70`}
+                                          style={{ left: '-12px', top: '3px', width: '14px', height: '24px', touchAction: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                          onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
+                                          onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                          onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
+                                        >
+                                          <GripVertical size={14} />
+                                        </div>
+                                      )}
+                                      <div className="relative rounded-lg overflow-hidden">
                                       {/* Swipe action strips */}
                                       {!isImported && (
                                         <>
@@ -9082,9 +9100,6 @@ const DayPlanner = () => {
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
                                     >
                                       <div className="flex items-center gap-2">
-                                        {(!isImported || task.isTaskCalendar) && (
-                                          <div data-drag-handle className="flex-shrink-0 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
-                                        )}
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
                                             onClick={() => toggleComplete(task.id)}
@@ -9151,10 +9166,23 @@ const DayPlanner = () => {
                                       </div>
                                     </div>
                                     </div>
+                                    </div>
                                   );
                                 })}
                                 {deadlineTasks.map((task) => (
-                                  <div key={`deadline-${task.id}`} className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
+                                  <div key={`deadline-${task.id}`} className="relative" style={{ marginLeft: '12px' }}>
+                                    {/* Protruding drag tab */}
+                                    <div
+                                      data-drag-handle
+                                      className={`absolute ${task.color} rounded-l-md flex items-center justify-center cursor-grab active:opacity-70 text-white/70`}
+                                      style={{ left: '-12px', top: '3px', width: '14px', height: '24px', touchAction: 'none' }}
+                                      onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
+                                      onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                      onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
+                                    >
+                                      <GripVertical size={14} />
+                                    </div>
+                                    <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                                     {/* Swipe action strips */}
                                     <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                       <Inbox size={14} className="mr-1" />Inbox
@@ -9171,7 +9199,6 @@ const DayPlanner = () => {
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <div data-drag-handle className="flex-shrink-0 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
                                       <button
                                         onClick={() => toggleComplete(task.id, true)}
                                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9238,6 +9265,7 @@ const DayPlanner = () => {
                                         )}
                                       </div>
                                     </div>
+                                  </div>
                                   </div>
                                   </div>
                                 ))}
@@ -9442,7 +9470,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -9454,6 +9482,21 @@ const DayPlanner = () => {
                                     transition: mobileDragTaskIdState === task.id ? 'transform 0.15s, box-shadow 0.15s' : undefined,
                                   }}
                                 >
+                                  <div className="flex h-full items-start">
+                                  {/* Protruding drag tab */}
+                                  {!isCalendarEvent && !isImported && (
+                                    <div
+                                      data-drag-handle
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-l-md flex items-center justify-center cursor-grab active:opacity-70 text-white/70 flex-shrink-0`}
+                                      style={{ width: '14px', height: '24px', marginTop: '3px', touchAction: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                      onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
+                                      onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                      onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
+                                    >
+                                      <GripVertical size={14} />
+                                    </div>
+                                  )}
+                                  <div className={`flex-1 min-w-0 h-full rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'}`}>
                                   {/* Swipe action strips - hidden until swipe direction determined */}
                                   {!task.imported && (
                                     <>
@@ -9477,11 +9520,8 @@ const DayPlanner = () => {
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
                                   >
-                                  {/* Flex wrapper: full-height drag handle on left, content on right */}
+                                  {/* Flex wrapper: content fills full width */}
                                   <div className="flex h-full">
-                                  {!isCalendarEvent && !isImported && (
-                                    <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
-                                  )}
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
                                     <div className="h-full px-2 py-1.5 flex items-center gap-2 text-white">
@@ -9616,6 +9656,8 @@ const DayPlanner = () => {
                                   </div>{/* end content */}
                                   </div>{/* end flex wrapper */}
                                   </div>{/* end swipe content */}
+                                  </div>{/* end inner overflow container */}
+                                  </div>{/* end flex items-start */}
                                 </div>
                                 );
                               })}
@@ -13969,8 +14011,23 @@ const DayPlanner = () => {
                                 setDragPreviewTime(null);
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
-                              className={`notes-panel-container relative ${isTablet ? 'rounded-lg overflow-hidden' : ''}`}
+                              className={`notes-panel-container relative`}
+                              style={isTablet && (!isImported || task.isTaskCalendar) ? { marginLeft: '12px' } : {}}
                             >
+                              {/* Protruding drag tab (tablet only) */}
+                              {isTablet && (!isImported || task.isTaskCalendar) && (
+                                <div
+                                  data-drag-handle
+                                  className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-md flex items-center justify-center cursor-grab active:opacity-70 text-white/70`}
+                                  style={{ left: '-12px', top: '3px', width: '14px', height: '24px', touchAction: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                  onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
+                                  onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                  onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
+                                >
+                                  <GripVertical size={14} />
+                                </div>
+                              )}
+                              <div className={`${isTablet ? 'rounded-lg overflow-hidden' : ''} relative`}>
                               {/* Tablet swipe strips */}
                               {isTablet && !isImported && (
                                 <>
@@ -14003,9 +14060,6 @@ const DayPlanner = () => {
                               <div className="p-2 text-white">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    {isTablet && (!isImported || task.isTaskCalendar) && (
-                                      <div data-drag-handle className="flex-shrink-0 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
-                                    )}
                                     {(!isImported || task.isTaskCalendar) && (
                                       <button
                                         onClick={() => toggleComplete(task.id)}
@@ -14070,6 +14124,7 @@ const DayPlanner = () => {
                               )}
                             </div>
                             </div>
+                            </div>
                           );
                         })}
 
@@ -14077,8 +14132,23 @@ const DayPlanner = () => {
                         {deadlineTasks.map((task) => (
                           <div
                             key={`deadline-${task.id}`}
-                            className={`notes-panel-container relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}
+                            className="notes-panel-container relative"
+                            style={isTablet ? { marginLeft: '12px' } : {}}
                           >
+                            {/* Protruding drag tab (tablet only) */}
+                            {isTablet && (
+                              <div
+                                data-drag-handle
+                                className={`absolute ${task.color} rounded-l-md flex items-center justify-center cursor-grab active:opacity-70 text-white/70`}
+                                style={{ left: '-12px', top: '3px', width: '14px', height: '24px', touchAction: 'none' }}
+                                onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
+                                onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
+                              >
+                                <GripVertical size={14} />
+                              </div>
+                            )}
+                            <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                             {/* Swipe action strips */}
                             <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                               <Inbox size={14} className="mr-1" />Inbox
@@ -14111,9 +14181,6 @@ const DayPlanner = () => {
                             <div className="p-2 text-white">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  {isTablet && (
-                                    <div data-drag-handle className="flex-shrink-0 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
-                                  )}
                                   <button
                                     onClick={() => toggleComplete(task.id, true)}
                                     className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -14203,6 +14270,7 @@ const DayPlanner = () => {
                                 />
                               </div>
                             )}
+                          </div>
                           </div>
                           </div>
                         ))}
@@ -14431,7 +14499,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} rounded-lg shadow-md pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : isTablet ? 'overflow-hidden' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -14444,7 +14512,27 @@ const DayPlanner = () => {
                                 ...(isTablet ? {} : taskCalendarStyle)
                               }}
                             >
-                              {task.isExample && (
+                              {task.isExample && !isTablet && (
+                                <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                                  Example
+                                </span>
+                              )}
+                              <div className={`${isTablet ? 'flex h-full items-start' : 'h-full'}`}>
+                              {/* Protruding drag tab (tablet only) */}
+                              {isTablet && (!isImported || task.isTaskCalendar) && (
+                                <div
+                                  data-drag-handle
+                                  className={`${task.isTaskCalendar ? '' : task.color} rounded-l-md flex items-center justify-center cursor-grab active:opacity-70 text-white/70 flex-shrink-0`}
+                                  style={{ width: '14px', height: '24px', marginTop: '3px', touchAction: 'none', ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                  onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
+                                  onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                                  onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
+                                >
+                                  <GripVertical size={14} />
+                                </div>
+                              )}
+                              <div className={`${isTablet ? 'flex-1 min-w-0 rounded-lg shadow-md' : ''} h-full ${isTablet ? (expandedNotesTaskId === task.id ? 'overflow-visible z-30' : 'overflow-hidden') : ''}`}>
+                              {task.isExample && isTablet && (
                                 <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
                                   Example
                                 </span>
@@ -14473,10 +14561,6 @@ const DayPlanner = () => {
                               className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''}`}
                               style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
                               >
-                                {/* Full-height drag handle on left */}
-                                {isTablet && (!isImported || task.isTaskCalendar) && (
-                                  <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
-                                )}
                                 <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} flex-1 min-w-0 h-full flex flex-col ${useMicroLayout ? 'justify-center' : ''}`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
@@ -14799,6 +14883,8 @@ const DayPlanner = () => {
                                   );
                                 })()}
                               </div>
+                              </div>{/* end inner overflow (tablet) */}
+                              </div>{/* end flex items-start (tablet) */}
                             </div>
                           );
                         })}
