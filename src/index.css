@@ -102,3 +102,10 @@ textarea:focus-visible {
 .mobile-tab-fade-in {
   animation: mobile-tab-fade-in 120ms ease-out;
 }
+
+/* Prevent iOS text selection and magnifier on touch drag/resize handles */
+[data-drag-handle] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}

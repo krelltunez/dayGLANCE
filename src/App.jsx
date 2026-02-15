@@ -9734,8 +9734,8 @@ const DayPlanner = () => {
                                   {!isImported && !isCalendarEvent && (
                                     <div
                                       onTouchStart={(e) => handleTouchResizeStart(task, e)}
-                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center"
-                                      style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10 }}
+                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center select-none"
+                                      style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10, WebkitTouchCallout: 'none' }}
                                     >
                                       <div className="w-12 h-1 bg-white rounded-full"></div>
                                     </div>
@@ -9816,8 +9816,8 @@ const DayPlanner = () => {
                                     {/* Touch resize handle at bottom */}
                                     <div
                                       onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e)}
-                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center"
-                                      style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10 }}
+                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center select-none"
+                                      style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10, WebkitTouchCallout: 'none' }}
                                     >
                                       <div className="w-12 h-1 bg-white rounded-full"></div>
                                     </div>
@@ -14913,8 +14913,8 @@ const DayPlanner = () => {
                                   <div
                                     onMouseDown={(e) => handleResizeStart(task, e)}
                                     onTouchStart={(e) => handleTouchResizeStart(task, e)}
-                                    className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center"
-                                    style={{ marginBottom: '-4px', touchAction: 'none' }}
+                                    className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
+                                    style={{ marginBottom: '-4px', touchAction: 'none', WebkitTouchCallout: 'none' }}
                                   >
                                     <div className="w-12 h-1 bg-white rounded-full"></div>
                                   </div>
@@ -15041,8 +15041,8 @@ const DayPlanner = () => {
                                 {isTablet && (
                                   <div
                                     onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e)}
-                                    className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center"
-                                    style={{ marginBottom: '-4px', touchAction: 'none' }}
+                                    className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center select-none"
+                                    style={{ marginBottom: '-4px', touchAction: 'none', WebkitTouchCallout: 'none' }}
                                   >
                                     <div className="w-12 h-1 bg-white rounded-full"></div>
                                   </div>
