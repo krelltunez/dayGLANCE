@@ -9083,7 +9083,7 @@ const DayPlanner = () => {
                                     >
                                       <div className="flex items-center gap-2">
                                         {(!isImported || task.isTaskCalendar) && (
-                                          <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
+                                          <div data-drag-handle className="self-stretch flex-shrink-0 flex items-start pt-2 -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
                                         )}
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
@@ -9171,7 +9171,7 @@ const DayPlanner = () => {
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
+                                      <div data-drag-handle className="self-stretch flex-shrink-0 flex items-start pt-2 -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
                                       <button
                                         onClick={() => toggleComplete(task.id, true)}
                                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9480,7 +9480,7 @@ const DayPlanner = () => {
                                   {/* Flex wrapper: full-height drag handle on left, content on right */}
                                   <div className="flex h-full">
                                   {!isCalendarEvent && !isImported && (
-                                    <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
+                                    <div data-drag-handle className="self-stretch flex-shrink-0 w-2 ml-1 cursor-grab active:opacity-70 border-l-2 border-dotted border-white/40" style={{ touchAction: 'none' }} />
                                   )}
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
@@ -14004,7 +14004,7 @@ const DayPlanner = () => {
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
                                     {isTablet && (!isImported || task.isTaskCalendar) && (
-                                      <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
+                                      <div data-drag-handle className="self-stretch flex-shrink-0 flex items-start pt-2 -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
                                     )}
                                     {(!isImported || task.isTaskCalendar) && (
                                       <button
@@ -14112,7 +14112,7 @@ const DayPlanner = () => {
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                   {isTablet && (
-                                    <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
+                                    <div data-drag-handle className="self-stretch flex-shrink-0 flex items-start pt-2 -ml-0.5 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
                                   )}
                                   <button
                                     onClick={() => toggleComplete(task.id, true)}
@@ -14475,7 +14475,7 @@ const DayPlanner = () => {
                               >
                                 {/* Full-height drag handle on left */}
                                 {isTablet && (!isImported || task.isTaskCalendar) && (
-                                  <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={12} /></div>
+                                  <div data-drag-handle className="self-stretch flex-shrink-0 w-2 ml-1 cursor-grab active:opacity-70 border-l-2 border-dotted border-white/40" style={{ touchAction: 'none' }} />
                                 )}
                                 <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} flex-1 min-w-0 h-full flex flex-col ${useMicroLayout ? 'justify-center' : ''}`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
