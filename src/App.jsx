@@ -9035,7 +9035,16 @@ const DayPlanner = () => {
                         </div>
                         <div className="flex-1 min-w-0 p-2 space-y-1.5">
                           {visibleDates.map((date) => {
-                            const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample);
+                            const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample).sort((a, b) => {
+                              const order = (t) => {
+                                if (t.importSource === 'file') return 0;             // ICS downloads
+                                if (t.imported && !t.isTaskCalendar) return 1;       // Imported calendar events
+                                if (t.isTaskCalendar) return 2;                      // Imported task calendar items
+                                if (typeof t.id === 'string' && t.id.startsWith('recurring-')) return 4; // Recurring
+                                return 3;                                            // Regular all-day tasks
+                              };
+                              return order(a) - order(b);
+                            });
                             const dateStr = dateToString(date);
                             const deadlineTasks = getDeadlineTasksForDate(dateStr).filter(t => !t.isExample);
                             return (
@@ -13790,7 +13799,16 @@ const DayPlanner = () => {
                     ALL DAY
                   </div>
                   {visibleDates.map((date, idx) => {
-                    const dayTasks = getTasksForDate(date).filter(t => t.isAllDay);
+                    const dayTasks = getTasksForDate(date).filter(t => t.isAllDay).sort((a, b) => {
+                      const order = (t) => {
+                        if (t.importSource === 'file') return 0;             // ICS downloads
+                        if (t.imported && !t.isTaskCalendar) return 1;       // Imported calendar events
+                        if (t.isTaskCalendar) return 2;                      // Imported task calendar items
+                        if (typeof t.id === 'string' && t.id.startsWith('recurring-')) return 4; // Recurring
+                        return 3;                                            // Regular all-day tasks
+                      };
+                      return order(a) - order(b);
+                    });
                     const dateStr = dateToString(date);
                     const deadlineTasks = getDeadlineTasksForDate(dateStr);
                     const isDragOverThis = dragOverAllDay === dateStr;
