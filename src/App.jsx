@@ -14412,7 +14412,7 @@ const DayPlanner = () => {
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
                               } : {})}
-                              className={`${!isTablet ? 'notes-panel-container' : ''} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`${!isTablet ? 'notes-panel-container' : 'select-none'} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'pan-y' } : {}) }}
                             >
                               {task.isExample && (
@@ -14434,13 +14434,13 @@ const DayPlanner = () => {
                                     <Calendar size={14} className="flex-shrink-0" />
                                     {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                     <div
-                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                      onDoubleClick={(e) => {
+                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                      onDoubleClick={!isTablet ? (e) => {
                                         if (!isImported) {
                                           e.stopPropagation();
                                           startEditingTask(task, false);
                                         }
-                                      }}
+                                      } : undefined}
                                       title={task.title}
                                     >
                                       {renderTitle(task.title)}
@@ -14644,12 +14644,18 @@ const DayPlanner = () => {
                         {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay).map((routine) => (
                           <div
                             key={`routine-${routine.id}`}
-                            draggable
-                            onDragStart={(e) => {
+                            draggable={!isTablet}
+                            onDragStart={!isTablet ? (e) => {
                               handleDragStart({ ...routine, duration: routine.duration || 15 }, 'routine', e);
-                            }}
-                            onDragEnd={handleDragEnd}
-                            className={`rounded-full px-3 py-1 text-xs font-medium cursor-move inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                            } : undefined}
+                            onDragEnd={!isTablet ? handleDragEnd : undefined}
+                            {...(isTablet ? {
+                              onTouchStart: (e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday'),
+                              onTouchMove: (e) => handleMobileTaskTouchMove(e),
+                              onTouchEnd: (e) => handleMobileTaskTouchEnd(e, routine.id, 'allday'),
+                            } : {})}
+                            className={`rounded-full px-3 py-1 text-xs font-medium ${isTablet ? 'cursor-default select-none' : 'cursor-move'} inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+                            style={isTablet ? { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' } : {}}
                           >
                             {routine.name}
                           </div>
@@ -14865,7 +14871,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -14926,7 +14932,7 @@ const DayPlanner = () => {
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
                               } : {})}
-                              className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''}`}
+                              className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
                               style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
                               >
                                 <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} flex-1 min-w-0 h-full flex flex-col ${useMicroLayout ? 'justify-center' : ''}`}>
@@ -14971,13 +14977,13 @@ const DayPlanner = () => {
                                       )}
                                       {task.isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                       <div
-                                        className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                        onDoubleClick={(e) => {
+                                        className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                        onDoubleClick={!isTablet ? (e) => {
                                           if (!isImported) {
                                             e.stopPropagation();
                                             startEditingTask(task, false);
                                           }
-                                        }}
+                                        } : undefined}
                                         title={task.title}
                                       >
                                         {renderTitleWithoutTags(task.title)}
@@ -15003,7 +15009,7 @@ const DayPlanner = () => {
                                       )}
                                       {task.isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                       <div className="flex-1 min-w-0">
-                                        {editingTaskId === task.id ? (
+                                        {!isTablet && editingTaskId === task.id ? (
                                           <div className="relative tag-autocomplete-container">
                                             <input
                                               type="text"
@@ -15031,13 +15037,13 @@ const DayPlanner = () => {
                                           </div>
                                         ) : (
                                           <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                            onDoubleClick={(e) => {
+                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                            onDoubleClick={!isTablet ? (e) => {
                                               if (!isImported) {
                                                 e.stopPropagation();
                                                 startEditingTask(task, false);
                                               }
-                                            }}
+                                            } : undefined}
                                             title={task.title}
                                           >
                                             {renderTitleWithoutTags(task.title)}
@@ -15088,7 +15094,7 @@ const DayPlanner = () => {
                                         )}
                                         {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                         <div className="flex-1 min-w-0">
-                                          {editingTaskId === task.id ? (
+                                          {!isTablet && editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
                                               <input
                                                 type="text"
@@ -15116,13 +15122,13 @@ const DayPlanner = () => {
                                             </div>
                                           ) : (
                                             <div
-                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                              onDoubleClick={(e) => {
+                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                              onDoubleClick={!isTablet ? (e) => {
                                                 if (!isImported) {
                                                   e.stopPropagation();
                                                   startEditingTask(task, false);
                                                 }
-                                              }}
+                                              } : undefined}
                                               title={task.title}
                                             >
                                               {renderTitleWithoutTags(task.title)}
@@ -15152,7 +15158,7 @@ const DayPlanner = () => {
                                         )}
                                         {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                         <div className="flex-1 min-w-0">
-                                          {editingTaskId === task.id ? (
+                                          {!isTablet && editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
                                               <input
                                                 type="text"
@@ -15180,14 +15186,14 @@ const DayPlanner = () => {
                                             </div>
                                           ) : (
                                             <div
-                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported ? 'cursor-text' : ''}`}
-                                              onDoubleClick={(e) => {
+                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                              onDoubleClick={!isTablet ? (e) => {
                                                 if (!isImported) {
                                                   e.stopPropagation();
                                                   startEditingTask(task, false);
                                                 }
-                                              }}
-                                              title={!isImported ? "Double-click to edit" : undefined}
+                                              } : undefined}
+                                              title={!isImported && !isTablet ? "Double-click to edit" : undefined}
                                             >
                                               {renderTitleWithoutTags(task.title)}
                                             </div>
@@ -15315,17 +15321,23 @@ const DayPlanner = () => {
                             return (
                               <div
                                 key={`routine-tl-${routine.id}`}
-                                draggable
-                                onDragStart={(e) => handleDragStart({ ...routine }, 'routine', e)}
-                                onDragEnd={handleDragEnd}
+                                draggable={!isTablet}
+                                onDragStart={!isTablet ? (e) => handleDragStart({ ...routine }, 'routine', e) : undefined}
+                                onDragEnd={!isTablet ? handleDragEnd : undefined}
                                 onDragOver={(e) => handleDragOver(e, date)}
                                 onDrop={(e) => handleDropOnCalendar(e, date)}
-                                className={`absolute pointer-events-auto cursor-move flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                                {...(isTablet ? {
+                                  onTouchStart: (e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true }, 'timeline'),
+                                  onTouchMove: (e) => handleMobileTaskTouchMove(e),
+                                  onTouchEnd: (e) => handleMobileTaskTouchEnd(e, routine.id, 'timeline'),
+                                } : {})}
+                                className={`absolute pointer-events-auto ${isTablet ? 'cursor-default select-none' : 'cursor-move'} flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
                                 style={{
                                   top: `${top}px`,
                                   height: `${Math.max(height, 27)}px`,
                                   left: `calc(${leftPercent} + 4px)`,
                                   width: `calc(${widthPercent} - 8px)`,
+                                  ...(isTablet ? { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' } : {}),
                                 }}
                               >
                                 {/* Teal cross lines — horizontal + vertical */}
