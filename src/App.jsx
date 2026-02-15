@@ -9893,7 +9893,7 @@ const DayPlanner = () => {
                                     </div>
                                   ) : isNarrowWidth ? (
                                     /* NARROW: overflow menu + checkbox + title */
-                                    <div className="h-full px-2 py-1 flex flex-col justify-center text-white">
+                                    <div className="h-full px-2 py-1 flex flex-col text-white">
                                       <button
                                         onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
                                         className="task-menu-container absolute top-0.5 right-0.5 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
@@ -9925,7 +9925,7 @@ const DayPlanner = () => {
                                     </div>
                                   ) : (
                                     /* WIDE: checkbox + title + action buttons + time row */
-                                    <div className="h-full px-2 py-1 flex flex-col justify-center text-white">
+                                    <div className="h-full px-2 py-1 flex flex-col text-white">
                                       <div className="flex items-center justify-between gap-1">
                                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                           <button
@@ -14893,7 +14893,7 @@ const DayPlanner = () => {
                               className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
                               style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
                               >
-                                <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col justify-center">
+                                <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col">
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
                                   <div className="flex items-center justify-between gap-2">
