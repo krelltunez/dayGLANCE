@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, StickyNote } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 
 // Hook to determine how many days to show based on window width
@@ -455,7 +455,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
         >
           <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
             <div className="flex items-center gap-2">
-              <StickyNote size={18} className={textSecondary} />
+              <NotebookPen size={18} className={textSecondary} />
               <span className={`font-medium ${textPrimary}`}>Daily Notes — {displayDate}</span>
             </div>
             <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close daily notes">
@@ -497,7 +497,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <StickyNote size={20} className={textSecondary} />
+            <NotebookPen size={20} className={textSecondary} />
             <h3 className={`text-lg font-semibold ${textPrimary}`}>Daily Notes — {displayDate}</h3>
           </div>
           <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded ${hoverBg}`}>
@@ -9295,7 +9295,7 @@ const DayPlanner = () => {
                               className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-50'}`}
                               title="Daily notes"
                             >
-                              <StickyNote size={14} />
+                              <NotebookPen size={14} />
                             </button>
                           </div>
                         </div>
@@ -14109,7 +14109,7 @@ const DayPlanner = () => {
                           className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-50'}`}
                           title="Daily notes"
                         >
-                          <StickyNote size={14} />
+                          <NotebookPen size={14} />
                         </button>
                       </div>
                     </div>
