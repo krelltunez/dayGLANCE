@@ -9066,7 +9066,7 @@ const DayPlanner = () => {
                                       {(!isImported || task.isTaskCalendar) && (
                                         <div
                                           data-drag-handle
-                                          className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-[5px] cursor-grab active:opacity-70 text-white/70`}
+                                          className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
                                           style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -9174,7 +9174,7 @@ const DayPlanner = () => {
                                     {/* Protruding drag tab */}
                                     <div
                                       data-drag-handle
-                                      className={`absolute ${task.color} rounded-l-lg flex items-center pl-[5px] cursor-grab active:opacity-70 text-white/70`}
+                                      className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
                                       style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -9487,7 +9487,7 @@ const DayPlanner = () => {
                                   {!isCalendarEvent && !isImported && (
                                     <div
                                       data-drag-handle
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-[5px] cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
                                       style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -14018,7 +14018,7 @@ const DayPlanner = () => {
                               {isTablet && (!isImported || task.isTaskCalendar) && (
                                 <div
                                   data-drag-handle
-                                  className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-[5px] cursor-grab active:opacity-70 text-white/70`}
+                                  className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
                                   style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -14139,7 +14139,7 @@ const DayPlanner = () => {
                             {isTablet && (
                               <div
                                 data-drag-handle
-                                className={`absolute ${task.color} rounded-l-lg flex items-center pl-[5px] cursor-grab active:opacity-70 text-white/70`}
+                                className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
                                 style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                 onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                 onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -14522,7 +14522,7 @@ const DayPlanner = () => {
                               {isTablet && (!isImported || task.isTaskCalendar) && (
                                 <div
                                   data-drag-handle
-                                  className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-[5px] cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                  className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
                                   style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
