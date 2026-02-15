@@ -9161,6 +9161,7 @@ const DayPlanner = () => {
                                       >
                                         {task.completed && <Check size={10} strokeWidth={3} />}
                                       </button>
+                                      <Calendar size={14} className="flex-shrink-0" />
                                       <AlertCircle size={14} className="flex-shrink-0" />
                                       <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</span>
                                       <button
@@ -14061,6 +14062,7 @@ const DayPlanner = () => {
                                   >
                                     {task.completed && <Check size={10} strokeWidth={3} />}
                                   </button>
+                                  <Calendar size={14} className="flex-shrink-0" />
                                   <AlertCircle size={14} className="flex-shrink-0" />
                                   <div
                                     className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}
@@ -14118,6 +14120,15 @@ const DayPlanner = () => {
                                         />
                                       )}
                                     </div>
+                                  )}
+                                  {!isTablet && (
+                                    <button
+                                      onClick={() => openMobileEditTask(task, true)}
+                                      className="hover:bg-white/20 rounded p-1 transition-colors"
+                                      title="Edit"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
                                   )}
                                 </div>
                               </div>
