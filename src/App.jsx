@@ -15483,7 +15483,7 @@ const DayPlanner = () => {
           'day-planner-auto-backup-config': 'Backup config',
         };
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setShowStorageBreakdown(false)}>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setShowStorageBreakdown(false)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowStorageBreakdown(false); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
             <div className={`${cardBg} rounded-lg shadow-xl p-5 border ${borderClass} max-w-sm w-full mx-4 max-h-[70vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className={`text-sm font-semibold ${textPrimary}`}>Storage Breakdown</h3>
