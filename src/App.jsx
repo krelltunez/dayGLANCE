@@ -11016,18 +11016,20 @@ const DayPlanner = () => {
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
                   </div>
-                  {(() => {
-                    const su = getStorageUsage();
-                    const warn = su.totalBytes > 4 * 1024 * 1024;
-                    return (
-                      <button onClick={() => setShowStorageBreakdown(true)} className={`text-center text-[10px] ${warn ? 'text-orange-500' : textSecondary} opacity-50 pt-2 flex items-center justify-center gap-1 w-full hover:opacity-75 active:opacity-75 transition-opacity`}>
-                        {warn && <AlertTriangle size={10} />}
-                        Storage: {formatBytes(su.totalBytes)} / ~5 MB
-                      </button>
-                    );
-                  })()}
-                  <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-1`}>
-                    Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
+                  <div className="pt-2 space-y-1">
+                    {(() => {
+                      const su = getStorageUsage();
+                      const warn = su.totalBytes > 4 * 1024 * 1024;
+                      return (
+                        <button onClick={() => setShowStorageBreakdown(true)} className={`text-center text-[10px] ${warn ? 'text-orange-500' : textSecondary} opacity-50 flex items-center justify-center gap-1 w-full hover:opacity-75 active:opacity-75 transition-opacity`}>
+                          {warn && <AlertTriangle size={10} />}
+                          Storage: {formatBytes(su.totalBytes)} / ~5 MB
+                        </button>
+                      );
+                    })()}
+                    <div className={`text-center text-[10px] ${textSecondary} opacity-50`}>
+                      Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
+                    </div>
                   </div>
                 </div>
 
