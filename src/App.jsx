@@ -9368,7 +9368,7 @@ const DayPlanner = () => {
                                   style={{ top: `${dragTop}px` }}
                                 >
                                   <div className="relative">
-                                    <div className={`absolute bottom-0.5 left-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
+                                    <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
                                       {formatTime(mobileDragPreviewTime)}
                                     </div>
                                     <div className="h-0.5 bg-blue-500"></div>
@@ -15077,7 +15077,7 @@ const DayPlanner = () => {
                           return (
                             <>
                               <div
-                                className="absolute left-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
+                                className="absolute right-2 bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold pointer-events-none z-20 shadow-lg"
                                 style={{ top: `${dragTop - 30}px` }}
                               >
                                 {formatTime(mobileDragPreviewTime)}
