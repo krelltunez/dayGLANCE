@@ -6047,7 +6047,10 @@ const DayPlanner = () => {
     swipeDirection.current = null;
     swipeLocked.current = false;
     swipeIsVertical.current = false;
-    swipeTaskElement.current = e.currentTarget;
+    // Use the swipe container (flex wrapper with tab + content) as transform target
+    // so the drag tab slides with the content. Fall back to e.currentTarget for
+    // tasks without a container (all-day, deadline, inbox).
+    swipeTaskElement.current = e.currentTarget.closest('[data-swipe-container]') || e.currentTarget;
 
     // Start long-press timer for timeline, all-day, and deadline tasks
     // Only allow drag initiation from dedicated drag handles (data-drag-handle attribute)
@@ -9818,7 +9821,22 @@ const DayPlanner = () => {
                                     transition: mobileDragTaskIdState === task.id ? 'transform 0.15s, box-shadow 0.15s' : undefined,
                                   }}
                                 >
-                                  <div className="flex h-full items-start">
+                                  {/* Swipe action strips - outside flex wrapper so they stay stationary */}
+                                  {!task.imported && (
+                                    <>
+                                      <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                        {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
+                                          <><Trash2 size={14} className="mr-1" />Delete</>
+                                        ) : (
+                                          <><Inbox size={14} className="mr-1" />Inbox</>
+                                        )}
+                                      </div>
+                                      <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                        Edit<Settings size={14} className="ml-1" />
+                                      </div>
+                                    </>
+                                  )}
+                                  <div data-swipe-container className="flex h-full items-start">
                                   {/* Protruding drag tab */}
                                   {!isCalendarEvent && !isImported && (
                                     <div
@@ -9835,21 +9853,6 @@ const DayPlanner = () => {
                                     </div>
                                   )}
                                   <div className={`flex-1 min-w-0 h-full rounded-lg ${expandedTaskMenu === task.id ? 'overflow-visible z-30' : 'overflow-hidden'}`}>
-                                  {/* Swipe action strips - hidden until swipe direction determined */}
-                                  {!task.imported && (
-                                    <>
-                                      <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                                        {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
-                                          <><Trash2 size={14} className="mr-1" />Delete</>
-                                        ) : (
-                                          <><Inbox size={14} className="mr-1" />Inbox</>
-                                        )}
-                                      </div>
-                                      <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                                        Edit<Settings size={14} className="ml-1" />
-                                      </div>
-                                    </>
-                                  )}
                                   {/* Task content with swipe + drag touch handlers */}
                                   <div
                                     className={`relative h-full select-none ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${task.isTaskCalendar ? '' : 'border border-white/20'}`}
@@ -9954,7 +9957,7 @@ const DayPlanner = () => {
                                   </div>{/* end flex wrapper */}
                                   </div>{/* end swipe content */}
                                   </div>{/* end inner overflow container */}
-                                  </div>{/* end flex items-start */}
+                                  </div>{/* end data-swipe-container flex */}
                                   {/* Touch resize handle at bottom */}
                                   {!isImported && !isCalendarEvent && (
                                     <div
@@ -14847,7 +14850,22 @@ const DayPlanner = () => {
                                   Example
                                 </span>
                               )}
-                              <div className={`${isTablet ? 'flex h-full items-start' : 'h-full'}`}>
+                              {/* Tablet swipe strips - outside flex wrapper so they stay stationary */}
+                              {isTablet && !isImported && (
+                                <>
+                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${isRecurringTask ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                    {isRecurringTask ? (
+                                      <><Trash2 size={14} className="mr-1" />Delete</>
+                                    ) : (
+                                      <><Inbox size={14} className="mr-1" />Inbox</>
+                                    )}
+                                  </div>
+                                  <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                    Edit<Settings size={14} className="ml-1" />
+                                  </div>
+                                </>
+                              )}
+                              <div className={`${isTablet ? 'flex h-full items-start' : 'h-full'}`} {...(isTablet ? { 'data-swipe-container': true } : {})}>
                               {/* Protruding drag tab (tablet only) */}
                               {isTablet && (!isImported || task.isTaskCalendar) && (
                                 <div
@@ -14868,21 +14886,6 @@ const DayPlanner = () => {
                                 <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
                                   Example
                                 </span>
-                              )}
-                              {/* Tablet swipe strips */}
-                              {isTablet && !isImported && (
-                                <>
-                                  <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${isRecurringTask ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                                    {isRecurringTask ? (
-                                      <><Trash2 size={14} className="mr-1" />Delete</>
-                                    ) : (
-                                      <><Inbox size={14} className="mr-1" />Inbox</>
-                                    )}
-                                  </div>
-                                  <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                                    Edit<Settings size={14} className="ml-1" />
-                                  </div>
-                                </>
                               )}
                               <div
                               {...(isTablet && (!isImported || task.isTaskCalendar) ? {
