@@ -9740,7 +9740,7 @@ const DayPlanner = () => {
                                     {/* Duration edit button (mobile) */}
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setRoutineDurationEditId(routineDurationEditId === routine.id ? null : routine.id); }}
-                                      className={`routine-duration-edit absolute bottom-0 right-0 translate-y-1/2 translate-x-1/4 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
+                                      className={`routine-duration-edit absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
                                       aria-label="Edit duration"
                                     >
                                       <GripHorizontal size={12} />
@@ -14991,7 +14991,7 @@ const DayPlanner = () => {
                                   <>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); e.preventDefault(); setRoutineDurationEditId(routineDurationEditId === routine.id ? null : routine.id); }}
-                                      className={`routine-duration-edit absolute bottom-0 right-0 translate-y-1/2 translate-x-1/4 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
+                                      className={`routine-duration-edit absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
                                       aria-label="Edit duration"
                                     >
                                       <GripHorizontal size={12} />
