@@ -9138,7 +9138,7 @@ const DayPlanner = () => {
                                   );
                                 })}
                                 {deadlineTasks.map((task) => (
-                                  <div key={`deadline-${task.id}`} className="relative rounded-lg overflow-hidden">
+                                  <div key={`deadline-${task.id}`} className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                                     {/* Swipe action strips */}
                                     <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                       <Inbox size={14} className="mr-1" />Inbox
@@ -9161,7 +9161,6 @@ const DayPlanner = () => {
                                       >
                                         {task.completed && <Check size={10} strokeWidth={3} />}
                                       </button>
-                                      <Calendar size={14} className="flex-shrink-0" />
                                       <AlertCircle size={14} className="flex-shrink-0" />
                                       <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</span>
                                       <button
@@ -9202,6 +9201,25 @@ const DayPlanner = () => {
                                       >
                                         {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                       </button>
+                                      <div className="deadline-picker-container relative">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                          }}
+                                          className="hover:bg-white/20 rounded p-1 transition-colors bg-white/20 flex-shrink-0"
+                                          title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                        >
+                                          <Calendar size={14} />
+                                        </button>
+                                        {showDeadlinePicker === task.id && (
+                                          <DeadlinePickerPopover
+                                            taskId={task.id}
+                                            currentDeadline={task.deadline}
+                                            onClose={() => setShowDeadlinePicker(null)}
+                                          />
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                   </div>
@@ -14062,7 +14080,7 @@ const DayPlanner = () => {
                                   >
                                     {task.completed && <Check size={10} strokeWidth={3} />}
                                   </button>
-                                  <Calendar size={14} className="flex-shrink-0" />
+                                  {!isTablet && <Calendar size={14} className="flex-shrink-0" />}
                                   <AlertCircle size={14} className="flex-shrink-0" />
                                   <div
                                     className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}
@@ -14100,27 +14118,25 @@ const DayPlanner = () => {
                                   >
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                   </button>
-                                  {!isTablet && (
-                                    <div className="deadline-picker-container relative">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
-                                        }}
-                                        className="hover:bg-white/20 rounded p-1 transition-colors bg-white/20"
-                                        title={`Deadline: ${formatDeadlineDate(task.deadline)}`}
-                                      >
-                                        <Calendar size={14} />
-                                      </button>
-                                      {showDeadlinePicker === task.id && (
-                                        <DeadlinePickerPopover
-                                          taskId={task.id}
-                                          currentDeadline={task.deadline}
-                                          onClose={() => setShowDeadlinePicker(null)}
-                                        />
-                                      )}
-                                    </div>
-                                  )}
+                                  <div className="deadline-picker-container relative">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                      }}
+                                      className="hover:bg-white/20 rounded p-1 transition-colors bg-white/20"
+                                      title={`Deadline: ${formatDeadlineDate(task.deadline)}`}
+                                    >
+                                      <Calendar size={14} />
+                                    </button>
+                                    {showDeadlinePicker === task.id && (
+                                      <DeadlinePickerPopover
+                                        taskId={task.id}
+                                        currentDeadline={task.deadline}
+                                        onClose={() => setShowDeadlinePicker(null)}
+                                      />
+                                    )}
+                                  </div>
                                   {!isTablet && (
                                     <button
                                       onClick={() => openMobileEditTask(task, true)}
