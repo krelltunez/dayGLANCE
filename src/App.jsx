@@ -9412,14 +9412,14 @@ const DayPlanner = () => {
                                       {/* Swipe action strips */}
                                       {!isImported && (
                                         <>
-                                          <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                          <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                             {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
                                               <><Trash2 size={14} className="mr-1" />Delete</>
                                             ) : (
                                               <><Inbox size={14} className="mr-1" />Inbox</>
                                             )}
                                           </div>
-                                          <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                          <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                             Edit<Settings size={14} className="ml-1" />
                                           </div>
                                         </>
@@ -9519,10 +9519,10 @@ const DayPlanner = () => {
                                     </div>
                                     <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                                     {/* Swipe action strips */}
-                                    <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                    <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                       <Inbox size={14} className="mr-1" />Inbox
                                     </div>
-                                    <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                    <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                       Edit<Settings size={14} className="ml-1" />
                                     </div>
                                   <div
@@ -9838,14 +9838,14 @@ const DayPlanner = () => {
                                   {/* Swipe action strips - hidden until swipe direction determined */}
                                   {!task.imported && (
                                     <>
-                                      <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                      <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                         {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
                                           <><Trash2 size={14} className="mr-1" />Delete</>
                                         ) : (
                                           <><Inbox size={14} className="mr-1" />Inbox</>
                                         )}
                                       </div>
-                                      <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                      <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                         Edit<Settings size={14} className="ml-1" />
                                       </div>
                                     </>
@@ -9891,58 +9891,12 @@ const DayPlanner = () => {
                                         </div>
                                       )}
                                     </div>
-                                  ) : isMicroHeight && isNarrowWidth ? (
-                                    /* MICRO NARROW: ... menu + checkbox + truncated title */
-                                    <div className={`h-full px-1.5 py-1 flex items-center text-white justify-center`}>
+                                  ) : isNarrowWidth ? (
+                                    /* NARROW: overflow menu + checkbox + title */
+                                    <div className="h-full px-2 py-1 flex flex-col justify-center text-white">
                                       <button
                                         onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
                                         className="task-menu-container absolute top-0.5 right-0.5 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
-                                      >
-                                        <MoreHorizontal size={12} />
-                                        {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                            <MobileActionButtons inMenu={true} />
-                                          </div>
-                                        )}
-                                      </button>
-                                      <div className="flex items-center gap-1 min-w-0 pr-5">
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
-                                        >
-                                          {task.completed && <Check size={8} strokeWidth={3} />}
-                                        </button>
-                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
-                                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
-                                          {renderTitle(task.title)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  ) : isMicroHeight ? (
-                                    /* MICRO WIDE: checkbox + title + action buttons inline */
-                                    <div className="h-full px-1.5 py-1 flex items-center justify-between gap-1 text-white">
-                                      <div className="flex items-center gap-1 min-w-0">
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
-                                        >
-                                          {task.completed && <Check size={8} strokeWidth={3} />}
-                                        </button>
-                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
-                                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
-                                          {renderTitle(task.title)}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-0.5 flex-shrink-0">
-                                        <MobileActionButtons />
-                                      </div>
-                                    </div>
-                                  ) : isNarrowWidth ? (
-                                    /* NARROW: ... menu + checkbox + title, no time row */
-                                    <div className="h-full px-2 py-1.5 flex flex-col text-white">
-                                      <button
-                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                        className="task-menu-container absolute top-1 right-1 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
                                       >
                                         <MoreHorizontal size={14} />
                                         {expandedTaskMenu === task.id && (
@@ -9951,23 +9905,28 @@ const DayPlanner = () => {
                                           </div>
                                         )}
                                       </button>
-                                      <div className="flex items-start gap-1 pr-6">
+                                      <div className="flex items-center gap-1 pr-6">
                                         <button
                                           onClick={() => toggleComplete(task.id)}
-                                          className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
+                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
                                         >
                                           {task.completed && <Check size={10} strokeWidth={3} />}
                                         </button>
-                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60 mt-1" />}
-                                        <span className={`text-sm font-medium leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''}`}>
+                                        {isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-60" />}
+                                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                                           {renderTitle(task.title)}
                                         </span>
                                       </div>
+                                      {height >= 55 && (
+                                        <div className="text-xs text-white/70 mt-0.5">
+                                          {formatTime(task.startTime)} · {task.duration}m
+                                        </div>
+                                      )}
                                     </div>
                                   ) : (
                                     /* WIDE: checkbox + title + action buttons + time row */
-                                    <div className="h-full px-2 py-1.5 flex flex-col text-white">
-                                      <div className="flex items-start justify-between gap-1">
+                                    <div className="h-full px-2 py-1 flex flex-col justify-center text-white">
+                                      <div className="flex items-center justify-between gap-1">
                                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                           <button
                                             onClick={() => toggleComplete(task.id)}
@@ -14394,14 +14353,14 @@ const DayPlanner = () => {
                               {/* Tablet swipe strips */}
                               {isTablet && !isImported && (
                                 <>
-                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${isRecurringAllDay ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                  <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${isRecurringAllDay ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                     {isRecurringAllDay ? (
                                       <><Trash2 size={14} className="mr-1" />Delete</>
                                     ) : (
                                       <><Inbox size={14} className="mr-1" />Inbox</>
                                     )}
                                   </div>
-                                  <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                  <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                     Edit<Settings size={14} className="ml-1" />
                                   </div>
                                 </>
@@ -14515,10 +14474,10 @@ const DayPlanner = () => {
                             )}
                             <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
                             {/* Swipe action strips */}
-                            <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                            <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                               <Inbox size={14} className="mr-1" />Inbox
                             </div>
-                            <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                            <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                               Edit<Settings size={14} className="ml-1" />
                             </div>
                           <div
@@ -14756,8 +14715,7 @@ const DayPlanner = () => {
                           const isMeasured = taskWidth !== undefined;
                           const isNarrowWidth = taskWidth < 300;
 
-                          const useMicroLayout = isMicroHeight;  // all 15-min tasks (unchanged)
-                          const useNarrowLayout = !useMicroLayout && isNarrowWidth;  // 30+ min, squished
+                          // Layout: narrow (< 300px) or wide (>= 300px), same for all heights
                           // Default: wide layout (30+ min, >= 200px)
 
                           // Action buttons component (reused in different layouts)
@@ -14875,7 +14833,7 @@ const DayPlanner = () => {
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
-                                minHeight: useMicroLayout ? '27px' : '39px',
+                                minHeight: isMicroHeight ? '27px' : '39px',
                                 left: conflictPos.left,
                                 right: conflictPos.right,
                                 width: conflictPos.width,
@@ -14914,14 +14872,14 @@ const DayPlanner = () => {
                               {/* Tablet swipe strips */}
                               {isTablet && !isImported && (
                                 <>
-                                  <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${isRecurringTask ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                  <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${isRecurringTask ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                                     {isRecurringTask ? (
                                       <><Trash2 size={14} className="mr-1" />Delete</>
                                     ) : (
                                       <><Inbox size={14} className="mr-1" />Inbox</>
                                     )}
                                   </div>
-                                  <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                                  <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                     Edit<Settings size={14} className="ml-1" />
                                   </div>
                                 </>
@@ -14935,7 +14893,7 @@ const DayPlanner = () => {
                               className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
                               style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
                               >
-                                <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} flex-1 min-w-0 h-full flex flex-col ${useMicroLayout ? 'justify-center' : ''}`}>
+                                <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col justify-center">
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
                                   <div className="flex items-center justify-between gap-2">
@@ -14950,129 +14908,13 @@ const DayPlanner = () => {
                                       {formatTime(task.startTime)} • {task.duration}m
                                     </div>
                                   </div>
-                                ) : useMicroLayout && isNarrowWidth ? (
-                                  /* MICRO NARROW: ... menu + checkbox + truncated title + tag, single row */
+                                ) : isNarrowWidth ? (
+                                  /* NARROW LAYOUT: overflow menu + checkbox + title + tags */
                                   <>
                                     {!isImported && (
                                       <button
                                         onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
                                         className="task-menu-container absolute top-0.5 right-0.5 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
-                                      >
-                                        <MoreHorizontal size={12} />
-                                        {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                            <ActionButtons inMenu={true} />
-                                          </div>
-                                        )}
-                                      </button>
-                                    )}
-                                    <div className="flex items-center gap-1 min-w-0 pr-5">
-                                      {(!isImported || task.isTaskCalendar) && (
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                        >
-                                          {task.completed && <Check size={8} strokeWidth={3} />}
-                                        </button>
-                                      )}
-                                      {task.isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
-                                      <div
-                                        className={`flex-1 min-w-0 ${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
-                                        onDoubleClick={!isTablet ? (e) => {
-                                          if (!isImported) {
-                                            e.stopPropagation();
-                                            startEditingTask(task, false);
-                                          }
-                                        } : undefined}
-                                        title={task.title}
-                                      >
-                                        {renderTitleWithoutTags(task.title)}
-                                      </div>
-                                      {extractTags(task.title).length > 0 && (
-                                        <div className="text-xs italic opacity-75 whitespace-nowrap flex-shrink-0">
-                                          {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </>
-                                ) : useMicroLayout ? (
-                                  /* MICRO WIDE: checkbox + truncated title + tag + action buttons, single row */
-                                  <div className="flex items-center justify-between gap-1 min-w-0">
-                                    <div className="flex items-center gap-1 min-w-0">
-                                      {(!isImported || task.isTaskCalendar) && (
-                                        <button
-                                          onClick={() => toggleComplete(task.id)}
-                                          className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                                        >
-                                          {task.completed && <Check size={8} strokeWidth={3} />}
-                                        </button>
-                                      )}
-                                      {task.isRecurring && <RefreshCw size={10} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
-                                      <div className="flex-1 min-w-0">
-                                        {!isTablet && editingTaskId === task.id ? (
-                                          <div className="relative tag-autocomplete-container">
-                                            <input
-                                              type="text"
-                                              value={editingTaskText}
-                                              onChange={(e) => handleEditInputChange(e, false)}
-                                              onKeyDown={(e) => handleEditKeyDown(e, false)}
-                                              onBlur={() => {
-                                                setTimeout(() => {
-                                                  if (!showSuggestions) {
-                                                    saveTaskTitle(false);
-                                                  }
-                                                }, 100);
-                                              }}
-                                              autoFocus
-                                              className="w-full bg-white/20 text-white font-semibold text-sm px-1 rounded border border-white/30 outline-none focus:bg-white/30"
-                                              onClick={(e) => e.stopPropagation()}
-                                            />
-                                            {showSuggestions && suggestionContext === 'editing' && (
-                                              <SuggestionAutocomplete
-                                                suggestions={suggestions}
-                                                selectedIndex={selectedSuggestionIndex}
-                                                onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
-                                              />
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <div
-                                            className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
-                                            onDoubleClick={!isTablet ? (e) => {
-                                              if (!isImported) {
-                                                e.stopPropagation();
-                                                startEditingTask(task, false);
-                                              }
-                                            } : undefined}
-                                            title={task.title}
-                                          >
-                                            {renderTitleWithoutTags(task.title)}
-                                          </div>
-                                        )}
-                                      </div>
-                                      {extractTags(task.title).length > 0 && (
-                                        <div className="text-xs italic opacity-75 whitespace-nowrap flex-shrink-0">
-                                          {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      {renderTitleWithoutTags(task.title).length <= 20 && (
-                                        <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
-                                          <Clock size={10} />
-                                          {formatTime(task.startTime)} • {task.duration}m
-                                        </div>
-                                      )}
-                                      {!isImported && <ActionButtons />}
-                                    </div>
-                                  </div>
-                                ) : useNarrowLayout ? (
-                                  /* NARROW LAYOUT (<200px): ... menu, checkbox + title with line-clamp-3, no time */
-                                  <>
-                                    {!isImported && (
-                                      <button
-                                        onClick={() => setExpandedTaskMenu(expandedTaskMenu === task.id ? null : task.id)}
-                                        className="task-menu-container absolute top-1 right-1 hover:bg-white/20 rounded p-0.5 transition-colors z-10"
                                       >
                                         <MoreHorizontal size={14} />
                                         {expandedTaskMenu === task.id && (
@@ -15083,16 +14925,16 @@ const DayPlanner = () => {
                                       </button>
                                     )}
                                     <div className="pr-6">
-                                      <div className="flex items-start gap-1">
+                                      <div className="flex items-center gap-1">
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
                                             onClick={() => toggleComplete(task.id)}
-                                            className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                            className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                           >
                                             {task.completed && <Check size={10} strokeWidth={3} />}
                                           </button>
                                         )}
-                                        {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+                                        {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                         <div className="flex-1 min-w-0">
                                           {!isTablet && editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
@@ -15122,7 +14964,7 @@ const DayPlanner = () => {
                                             </div>
                                           ) : (
                                             <div
-                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
                                               onDoubleClick={!isTablet ? (e) => {
                                                 if (!isImported) {
                                                   e.stopPropagation();
@@ -15144,19 +14986,19 @@ const DayPlanner = () => {
                                     </div>
                                   </>
                                 ) : (
-                                  /* WIDE LAYOUT (>=200px): Title+tags row 1 with action buttons, time row 2 */
+                                  /* WIDE LAYOUT: Title+tags row 1 with action buttons, time row 2 */
                                   <>
-                                    <div className="flex items-start justify-between gap-1">
-                                      <div className="flex items-start gap-1 flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <div className="flex items-center gap-1 flex-1 min-w-0">
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
                                             onClick={() => toggleComplete(task.id)}
-                                            className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                                            className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
                                           >
                                             {task.completed && <Check size={10} strokeWidth={3} />}
                                           </button>
                                         )}
-                                        {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer mt-0.5" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+                                        {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                         <div className="flex-1 min-w-0">
                                           {!isTablet && editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
@@ -15186,7 +15028,7 @@ const DayPlanner = () => {
                                             </div>
                                           ) : (
                                             <div
-                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight line-clamp-2 ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                              className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm leading-tight truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
                                               onDoubleClick={!isTablet ? (e) => {
                                                 if (!isImported) {
                                                   e.stopPropagation();
@@ -15206,7 +15048,7 @@ const DayPlanner = () => {
                                         </div>
                                       </div>
                                       {!isImported && (
-                                        <div className="flex items-start gap-0.5 flex-shrink-0">
+                                        <div className="flex items-center gap-0.5 flex-shrink-0">
                                           <ActionButtons />
                                         </div>
                                       )}
