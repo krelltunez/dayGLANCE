@@ -5804,7 +5804,11 @@ const DayPlanner = () => {
     swipeTaskElement.current = e.currentTarget;
 
     // Start long-press timer for timeline, all-day, and deadline tasks
-    if ((taskType === 'timeline' || taskType === 'allday' || taskType === 'deadline') && !task.imported) {
+    // Only allow drag initiation from dedicated drag handles (data-drag-handle attribute)
+    // or from routine pills (which are entirely draggable, no handle needed)
+    const isFromDragHandle = e.target.closest('[data-drag-handle]');
+    const isRoutine = task.isRoutineDrag;
+    if ((taskType === 'timeline' || taskType === 'allday' || taskType === 'deadline') && !task.imported && (isFromDragHandle || isRoutine)) {
       mobileDragTouchStartPos.current = { x: touch.clientX, y: touch.clientY };
       mobileDragTaskId.current = task.id;
       mobileDragOriginalTask.current = task;
@@ -9079,6 +9083,11 @@ const DayPlanner = () => {
                                     >
                                       <div className="flex items-center gap-2">
                                         {(!isImported || task.isTaskCalendar) && (
+                                          <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
+                                            <GripVertical size={14} />
+                                          </div>
+                                        )}
+                                        {(!isImported || task.isTaskCalendar) && (
                                           <button
                                             onClick={() => toggleComplete(task.id)}
                                             className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9164,6 +9173,9 @@ const DayPlanner = () => {
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
                                   >
                                     <div className="flex items-center gap-2">
+                                      <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
+                                        <GripVertical size={14} />
+                                      </div>
                                       <button
                                         onClick={() => toggleComplete(task.id, true)}
                                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9238,7 +9250,7 @@ const DayPlanner = () => {
                                   <div
                                     key={`routine-${routine.id}`}
                                     className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
-                                    style={{ touchAction: 'pan-y', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+                                    style={{ touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, routine.id, 'allday')}
@@ -9514,6 +9526,9 @@ const DayPlanner = () => {
                                         )}
                                       </button>
                                       <div className="flex items-center gap-1 min-w-0 pr-5">
+                                        <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 cursor-grab active:opacity-70">
+                                          <GripVertical size={12} />
+                                        </div>
                                         <button
                                           onClick={() => toggleComplete(task.id)}
                                           className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
@@ -9530,6 +9545,9 @@ const DayPlanner = () => {
                                     /* MICRO WIDE: checkbox + title + action buttons inline */
                                     <div className="h-full px-1.5 py-1 flex items-center justify-between gap-1 text-white">
                                       <div className="flex items-center gap-1 min-w-0">
+                                        <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 cursor-grab active:opacity-70">
+                                          <GripVertical size={12} />
+                                        </div>
                                         <button
                                           onClick={() => toggleComplete(task.id)}
                                           className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
@@ -9560,6 +9578,9 @@ const DayPlanner = () => {
                                         )}
                                       </button>
                                       <div className="flex items-start gap-1 pr-6">
+                                        <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 mt-0.5 cursor-grab active:opacity-70">
+                                          <GripVertical size={14} />
+                                        </div>
                                         <button
                                           onClick={() => toggleComplete(task.id)}
                                           className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9577,6 +9598,9 @@ const DayPlanner = () => {
                                     <div className="h-full px-2 py-1.5 flex flex-col text-white">
                                       <div className="flex items-start justify-between gap-1">
                                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                          <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 cursor-grab active:opacity-70">
+                                            <GripVertical size={14} />
+                                          </div>
                                           <button
                                             onClick={() => toggleComplete(task.id)}
                                             className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center`}
@@ -9658,7 +9682,7 @@ const DayPlanner = () => {
                                     key={`routine-tl-${routine.id}`}
                                     className={`absolute pointer-events-auto select-none flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{
-                                      touchAction: 'pan-y',
+                                      touchAction: 'none',
                                       WebkitTouchCallout: 'none',
                                       WebkitUserSelect: 'none',
                                       top: `${rTop}px`,
@@ -13988,6 +14012,11 @@ const DayPlanner = () => {
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
                                     {(!isImported || task.isTaskCalendar) && (
+                                      <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
+                                        <GripVertical size={14} />
+                                      </div>
+                                    )}
+                                    {(!isImported || task.isTaskCalendar) && (
                                       <button
                                         onClick={() => toggleComplete(task.id)}
                                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -14092,6 +14121,9 @@ const DayPlanner = () => {
                             <div className="p-2 text-white">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 -ml-1 py-1 px-0.5 cursor-grab active:opacity-70">
+                                    <GripVertical size={14} />
+                                  </div>
                                   <button
                                     onClick={() => toggleComplete(task.id, true)}
                                     className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -14483,6 +14515,11 @@ const DayPlanner = () => {
                                     )}
                                     <div className="flex items-center gap-1 min-w-0 pr-5">
                                       {(!isImported || task.isTaskCalendar) && (
+                                        <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 cursor-grab active:opacity-70">
+                                          <GripVertical size={12} />
+                                        </div>
+                                      )}
+                                      {(!isImported || task.isTaskCalendar) && (
                                         <button
                                           onClick={() => toggleComplete(task.id)}
                                           className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -14514,6 +14551,11 @@ const DayPlanner = () => {
                                   /* MICRO WIDE: checkbox + truncated title + tag + action buttons, single row */
                                   <div className="flex items-center justify-between gap-1 min-w-0">
                                     <div className="flex items-center gap-1 min-w-0">
+                                      {(!isImported || task.isTaskCalendar) && (
+                                        <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 cursor-grab active:opacity-70">
+                                          <GripVertical size={12} />
+                                        </div>
+                                      )}
                                       {(!isImported || task.isTaskCalendar) && (
                                         <button
                                           onClick={() => toggleComplete(task.id)}
@@ -14600,6 +14642,11 @@ const DayPlanner = () => {
                                     <div className="pr-6">
                                       <div className="flex items-start gap-1">
                                         {(!isImported || task.isTaskCalendar) && (
+                                          <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 mt-0.5 cursor-grab active:opacity-70">
+                                            <GripVertical size={14} />
+                                          </div>
+                                        )}
+                                        {(!isImported || task.isTaskCalendar) && (
                                           <button
                                             onClick={() => toggleComplete(task.id)}
                                             className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
@@ -14663,6 +14710,11 @@ const DayPlanner = () => {
                                   <>
                                     <div className="flex items-start justify-between gap-1">
                                       <div className="flex items-start gap-1 flex-1 min-w-0">
+                                        {(!isImported || task.isTaskCalendar) && (
+                                          <div data-drag-handle style={{ touchAction: 'none' }} className="flex items-center justify-center flex-shrink-0 opacity-40 mt-0.5 cursor-grab active:opacity-70">
+                                            <GripVertical size={14} />
+                                          </div>
+                                        )}
                                         {(!isImported || task.isTaskCalendar) && (
                                           <button
                                             onClick={() => toggleComplete(task.id)}
