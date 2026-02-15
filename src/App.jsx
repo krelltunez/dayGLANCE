@@ -405,10 +405,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
   useEffect(() => { dateStrRef.current = dateStr; }, [dateStr]);
 
-  // Focus backdrop once on mount (for Escape key) — only when starting in preview mode
+  // Focus backdrop when in preview mode (for Escape key) — on mount and after Shift+Enter
   useEffect(() => {
     if (!isEditing && backdropRef.current) backdropRef.current.focus();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEditing]);
 
   // Save on unmount
   useEffect(() => {
@@ -17783,6 +17783,17 @@ const DayPlanner = () => {
       {showSettings && (() => {
         const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
         const provider = cloudSyncProviders[currentProvider];
+        // Compute localStorage usage
+        let storageSizeBytes = 0;
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            storageSizeBytes += (key.length + (localStorage.getItem(key) || '').length) * 2; // UTF-16
+          }
+        } catch {}
+        const storageSizeKB = (storageSizeBytes / 1024).toFixed(0);
+        const storageSizeMB = (storageSizeBytes / (1024 * 1024)).toFixed(1);
+        const storageWarning = storageSizeBytes > 4 * 1024 * 1024; // warn at 4MB
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
             <div
@@ -17981,7 +17992,11 @@ const DayPlanner = () => {
                   </div>
                 </div>
 
-                <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-4`}>
+                <div className={`mt-4 text-center text-[10px] ${storageWarning ? 'text-orange-500' : textSecondary} opacity-50 flex items-center justify-center gap-1`}>
+                  {storageWarning && <AlertTriangle size={10} />}
+                  Storage: {storageSizeBytes > 1024 * 1024 ? `${storageSizeMB} MB` : `${storageSizeKB} KB`} / ~5 MB
+                </div>
+                <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-1`}>
                   Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
                 </div>
                 <button
