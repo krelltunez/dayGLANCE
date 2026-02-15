@@ -86,6 +86,28 @@ const useIsLandscape = () => {
   return isLandscape;
 };
 
+// Compute localStorage usage with per-key breakdown
+const getStorageUsage = () => {
+  const keys = [];
+  let totalBytes = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      const val = localStorage.getItem(key) || '';
+      const bytes = (key.length + val.length) * 2; // UTF-16
+      keys.push({ key, bytes });
+      totalBytes += bytes;
+    }
+  } catch {}
+  keys.sort((a, b) => b.bytes - a.bytes);
+  return { totalBytes, keys };
+};
+
+const formatBytes = (bytes) => {
+  if (bytes > 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
+};
+
 // URL detection regex for notes
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
 
@@ -1345,6 +1367,7 @@ const DayPlanner = () => {
   const [autoBackupHistory, setAutoBackupHistory] = useState({ local: [], remote: [] });
   const [autoBackupRestoreConfirm, setAutoBackupRestoreConfirm] = useState(null); // { type: 'local'|'remote', id, filename, timestamp }
   const autoBackupInProgressRef = useRef(false);
+  const [showStorageBreakdown, setShowStorageBreakdown] = useState(false);
 
   // Undo/redo stacks (refs to avoid re-renders)
   const undoStackRef = useRef([]);
@@ -10960,7 +10983,17 @@ const DayPlanner = () => {
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
                   </div>
-                  <div className={`text-center text-[10px] ${textSecondary} opacity-50 pt-2`}>
+                  {(() => {
+                    const su = getStorageUsage();
+                    const warn = su.totalBytes > 4 * 1024 * 1024;
+                    return (
+                      <button onClick={() => setShowStorageBreakdown(true)} className={`text-center text-[10px] ${warn ? 'text-orange-500' : textSecondary} opacity-50 pt-2 flex items-center justify-center gap-1 w-full hover:opacity-75 active:opacity-75 transition-opacity`}>
+                        {warn && <AlertTriangle size={10} />}
+                        Storage: {formatBytes(su.totalBytes)} / ~5 MB
+                      </button>
+                    );
+                  })()}
+                  <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-1`}>
                     Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
                   </div>
                 </div>
@@ -15433,6 +15466,50 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {showStorageBreakdown && (() => {
+        const { totalBytes, keys } = getStorageUsage();
+        const warn = totalBytes > 4 * 1024 * 1024;
+        // Friendly labels for known keys
+        const labels = {
+          'day-planner-tasks': 'Scheduled tasks',
+          'day-planner-unscheduled': 'Inbox tasks',
+          'day-planner-recycle-bin': 'Recycle bin',
+          'day-planner-recurring-tasks': 'Recurring tasks',
+          'day-planner-daily-notes': 'Daily notes',
+          'day-planner-routine-definitions': 'Routines',
+          'day-planner-today-routines': 'Today routines',
+          'day-planner-cloud-sync-config': 'Cloud sync config',
+          'day-planner-deleted-task-ids': 'Deletion tombstones',
+          'day-planner-auto-backup-config': 'Backup config',
+        };
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setShowStorageBreakdown(false)}>
+            <div className={`${cardBg} rounded-lg shadow-xl p-5 border ${borderClass} max-w-sm w-full mx-4 max-h-[70vh] overflow-y-auto`} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className={`text-sm font-semibold ${textPrimary}`}>Storage Breakdown</h3>
+                <button onClick={() => setShowStorageBreakdown(false)} className={`p-1 rounded ${hoverBg}`}><X size={16} className={textSecondary} /></button>
+              </div>
+              <div className={`text-xs font-medium mb-3 ${warn ? 'text-orange-500' : textSecondary}`}>
+                {warn && <AlertTriangle size={12} className="inline mr-1" />}
+                Total: {formatBytes(totalBytes)} / ~5 MB ({(totalBytes / (5 * 1024 * 1024) * 100).toFixed(0)}%)
+              </div>
+              {/* Progress bar */}
+              <div className={`w-full h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} mb-4`}>
+                <div className={`h-full rounded-full transition-all ${warn ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, totalBytes / (5 * 1024 * 1024) * 100)}%` }} />
+              </div>
+              <div className="space-y-1.5">
+                {keys.filter(k => k.bytes > 100).map(({ key, bytes }) => (
+                  <div key={key} className="flex items-center justify-between text-xs">
+                    <span className={`${textSecondary} truncate flex-1 mr-2`}>{labels[key] || key}</span>
+                    <span className={`font-mono ${textPrimary} flex-shrink-0`}>{formatBytes(bytes)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {recurringDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRecurringDeleteConfirm(null)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setRecurringDeleteConfirm(null); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
           <div
@@ -17783,17 +17860,8 @@ const DayPlanner = () => {
       {showSettings && (() => {
         const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
         const provider = cloudSyncProviders[currentProvider];
-        // Compute localStorage usage
-        let storageSizeBytes = 0;
-        try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            storageSizeBytes += (key.length + (localStorage.getItem(key) || '').length) * 2; // UTF-16
-          }
-        } catch {}
-        const storageSizeKB = (storageSizeBytes / 1024).toFixed(0);
-        const storageSizeMB = (storageSizeBytes / (1024 * 1024)).toFixed(1);
-        const storageWarning = storageSizeBytes > 4 * 1024 * 1024; // warn at 4MB
+        const storageUsage = getStorageUsage();
+        const storageWarning = storageUsage.totalBytes > 4 * 1024 * 1024;
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
             <div
@@ -17992,10 +18060,10 @@ const DayPlanner = () => {
                   </div>
                 </div>
 
-                <div className={`mt-4 text-center text-[10px] ${storageWarning ? 'text-orange-500' : textSecondary} opacity-50 flex items-center justify-center gap-1`}>
+                <button onClick={() => setShowStorageBreakdown(true)} className={`mt-4 text-center text-[10px] ${storageWarning ? 'text-orange-500' : textSecondary} opacity-50 flex items-center justify-center gap-1 w-full hover:opacity-75 transition-opacity cursor-pointer`}>
                   {storageWarning && <AlertTriangle size={10} />}
-                  Storage: {storageSizeBytes > 1024 * 1024 ? `${storageSizeMB} MB` : `${storageSizeKB} KB`} / ~5 MB
-                </div>
+                  Storage: {formatBytes(storageUsage.totalBytes)} / ~5 MB
+                </button>
                 <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-1`}>
                   Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
                 </div>
