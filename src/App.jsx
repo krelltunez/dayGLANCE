@@ -1177,6 +1177,10 @@ const DayPlanner = () => {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
   const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
+  const [syncRetentionDays, setSyncRetentionDays] = useState(() => {
+    const saved = localStorage.getItem('day-planner-sync-retention-days');
+    return saved ? JSON.parse(saved) : 30;
+  });
   const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -2369,7 +2373,7 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
@@ -2726,6 +2730,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
       localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
       localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(taskCalendarUrl));
+      localStorage.setItem('day-planner-sync-retention-days', JSON.stringify(syncRetentionDays));
       localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
       localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(stampedRecurring));
       localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
@@ -7199,6 +7204,16 @@ const DayPlanner = () => {
     return new Date();
   };
 
+  // Filter imported tasks to a date window: keep events from (today - retentionDays) onward.
+  // retentionDays=0 means keep all events (no filtering).
+  const filterByDateWindow = (importedTasks, retentionDays) => {
+    if (!retentionDays || retentionDays <= 0) return importedTasks;
+    const today = new Date();
+    const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - retentionDays);
+    const cutoffStr = dateToString(cutoff);
+    return importedTasks.filter(t => t.date >= cutoffStr);
+  };
+
   // Helper to expand multi-day events into separate tasks for each day
   const expandMultiDayEvent = (event, options = {}) => {
     const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor, importSource = 'sync' } = options;
@@ -7271,9 +7286,10 @@ const DayPlanner = () => {
         JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]')
       );
 
-      const importedTasks = events.flatMap(event =>
+      const allImported = events.flatMap(event =>
         expandMultiDayEvent(event, { asTaskCalendar, freshCompletedUids, color: importColor, importSource: 'file' })
       );
+      const importedTasks = filterByDateWindow(allImported, syncRetentionDays);
 
       if (asTaskCalendar) {
         const kept = tasks.filter(t => !(t.isTaskCalendar && t.importSource === 'file'));
@@ -7524,9 +7540,10 @@ const DayPlanner = () => {
       const icsContent = await response.text();
       const events = parseICS(icsContent);
 
-      const importedTasks = events.flatMap(event =>
+      const allImported = events.flatMap(event =>
         expandMultiDayEvent(event, { asTaskCalendar: false })
       );
+      const importedTasks = filterByDateWindow(allImported, syncRetentionDays);
 
       // Remove old sync-sourced imported events (not task calendar) and add the fresh ones
       // Preserves file-imported events; uses functional form to avoid stale closures
@@ -7560,9 +7577,10 @@ const DayPlanner = () => {
         JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]')
       );
 
-      const taskCalendarItems = events.flatMap(event =>
+      const allTaskItems = events.flatMap(event =>
         expandMultiDayEvent(event, { asTaskCalendar: true, freshCompletedUids })
       );
+      const taskCalendarItems = filterByDateWindow(allTaskItems, syncRetentionDays);
 
       // Remove old sync-sourced task calendar items and add the fresh ones
       // Preserves file-imported task calendar items; uses functional form to avoid stale closures
@@ -18012,6 +18030,28 @@ const DayPlanner = () => {
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
                           Tasks appear with striped pattern; completion state persists across syncs
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Keep past events
+                        </label>
+                        <select
+                          value={syncRetentionDays}
+                          onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
+                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        >
+                          <option value={7}>7 days</option>
+                          <option value={14}>14 days</option>
+                          <option value={30}>30 days</option>
+                          <option value={60}>60 days</option>
+                          <option value={90}>90 days</option>
+                          <option value={180}>6 months</option>
+                          <option value={365}>1 year</option>
+                          <option value={0}>All (no limit)</option>
+                        </select>
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Older imported events are dropped to save storage. Future events are always kept.
                         </p>
                       </div>
                       <button
