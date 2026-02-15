@@ -2516,6 +2516,7 @@ const DayPlanner = () => {
       const stampedUnscheduled = stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled');
       const stampedRecycleBin = stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin');
       const stampedRecurring = stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks');
+      const stampedTodayRoutines = stampTaskTimestamps(todayRoutines, 'day-planner-today-routines');
       localStorage.setItem('day-planner-tasks', JSON.stringify(stampedTasks));
       localStorage.setItem('day-planner-unscheduled', JSON.stringify(stampedUnscheduled));
       localStorage.setItem('day-planner-recycle-bin', JSON.stringify(stampedRecycleBin));
@@ -2525,7 +2526,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
       localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(stampedRecurring));
       localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
-      localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
+      localStorage.setItem('day-planner-today-routines', JSON.stringify(stampedTodayRoutines));
       localStorage.setItem('day-planner-routines-date', routinesDate);
       localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(removedTodayRoutineIds));
       // Only update local-modified after initial cloud sync has run,
