@@ -1043,6 +1043,7 @@ const DayPlanner = () => {
   const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
   const [mobileSettingsView, setMobileSettingsView] = useState('main');
   const [mobileDragPreviewTime, setMobileDragPreviewTime] = useState(null);
+  const [mobileDragPreviewDate, setMobileDragPreviewDate] = useState(null);
   const [mobileDragTaskIdState, setMobileDragTaskIdState] = useState(null);
 
   // Onboarding state - start false, set true after data loads if zero tasks
@@ -5853,6 +5854,7 @@ const DayPlanner = () => {
         }
         // Set initial preview based on source
         setMobileDragPreviewTime((taskType === 'allday' || taskType === 'deadline') ? 'all-day' : task.startTime);
+        setMobileDragPreviewDate(task.date || dateToString(selectedDate));
         // Add native non-passive touchmove listener to prevent browser scroll
         // (React 18 registers touchmove as passive, so e.preventDefault() in onTouchMove is a no-op)
         const preventScroll = (e) => e.preventDefault();
@@ -6065,6 +6067,15 @@ const DayPlanner = () => {
     const touch = mobileDragLastTouch.current;
     const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollTop = calendarRef.current.scrollTop;
+    // Detect which date column the finger is over
+    const columns = calendarRef.current.querySelectorAll('[data-date-column]');
+    for (const col of columns) {
+      const rect = col.getBoundingClientRect();
+      if (touch.clientX >= rect.left && touch.clientX < rect.right) {
+        setMobileDragPreviewDate(col.getAttribute('data-date-column'));
+        break;
+      }
+    }
     // Detect if finger is in the date header or all-day section (all-day zone)
     const headerBottom = mobileDateHeaderRef.current?.getBoundingClientRect().bottom ?? 0;
     const allDayBottom = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom;
@@ -6167,13 +6178,13 @@ const DayPlanner = () => {
       const droppingToAllDay = mobileDragPreviewTime === 'all-day';
       const newTime = droppingToAllDay ? '00:00' : mobileDragPreviewTime;
       const fromAllDay = mobileDragSourceType.current === 'allday';
+      const dropDateStr = mobileDragPreviewDate || dateToString(selectedDate);
 
       // Check for conflicts with imported calendar events and routines (same as desktop)
       let finalTime = newTime;
       let conflicted = false;
       let conflictingEvent = null;
       if (!droppingToAllDay && !task.isRoutineDrag) {
-        const dropDateStr = dateToString(selectedDate);
         const result = getAdjustedTimeForImportedConflicts(
           task.id,
           newTime,
@@ -6197,7 +6208,7 @@ const DayPlanner = () => {
           title: task.title,
           startTime: droppingToAllDay ? '00:00' : finalTime,
           duration: task.duration || 30,
-          date: dateToString(selectedDate),
+          date: dropDateStr,
           isAllDay: droppingToAllDay,
           color: task.color || colors[0].class,
           notes: task.notes || '',
@@ -6235,12 +6246,13 @@ const DayPlanner = () => {
           setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: newTime, isAllDay: false } : r));
         }
       } else {
-        // Regular task: update time and isAllDay status
+        // Regular task: update time, isAllDay status, and date (for cross-column drag)
         pushUndo();
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
           startTime: finalTime,
           isAllDay: droppingToAllDay,
+          date: dropDateStr,
         } : t));
       }
       // Show notification if task was rescheduled to avoid calendar conflict
@@ -6262,6 +6274,7 @@ const DayPlanner = () => {
     mobileDragOriginalTask.current = null;
     mobileDragSourceType.current = null;
     setMobileDragPreviewTime(null);
+    setMobileDragPreviewDate(null);
     setMobileDragTaskIdState(null);
   };
 
@@ -9417,6 +9430,7 @@ const DayPlanner = () => {
                         return (
                           <div
                             key={dateStr}
+                            data-date-column={dateStr}
                             className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
                           >
                             {/* Current time line */}
@@ -9433,7 +9447,7 @@ const DayPlanner = () => {
                             )}
 
                             {/* Mobile drag time preview */}
-                            {mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && (() => {
+                            {mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && (!mobileDragPreviewDate || mobileDragPreviewDate === dateStr) && (() => {
                               const dragMinutes = timeToMinutes(mobileDragPreviewTime);
                               const dragTop = Math.round(minutesToPosition(dragMinutes));
                               return (
@@ -14420,6 +14434,7 @@ const DayPlanner = () => {
                     return (
                       <div
                         key={dateStr}
+                        data-date-column={dateStr}
                         className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
                       >
                         {/* Current time line - only on today */}
@@ -15095,7 +15110,7 @@ const DayPlanner = () => {
                         })()}
 
                         {/* Tablet touch drag preview - hover bar style */}
-                        {isTablet && mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && mobileDragTaskIdState && (() => {
+                        {isTablet && mobileDragPreviewTime && mobileDragPreviewTime !== 'all-day' && mobileDragTaskIdState && mobileDragPreviewDate === dateStr && (() => {
                           const dragMinutes = timeToMinutes(mobileDragPreviewTime);
                           const dragTop = Math.round(minutesToPosition(dragMinutes));
                           return (
