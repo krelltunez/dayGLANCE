@@ -9480,7 +9480,7 @@ const DayPlanner = () => {
                                   {/* Flex wrapper: full-height drag handle on left, content on right */}
                                   <div className="flex h-full">
                                   {!isCalendarEvent && !isImported && (
-                                    <div data-drag-handle className="self-stretch flex-shrink-0 flex items-start pt-1.5 ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
+                                    <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
                                   )}
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
@@ -14475,7 +14475,7 @@ const DayPlanner = () => {
                               >
                                 {/* Full-height drag handle on left */}
                                 {isTablet && (!isImported || task.isTaskCalendar) && (
-                                  <div data-drag-handle className="self-stretch flex-shrink-0 flex items-start pt-1.5 ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
+                                  <div data-drag-handle className="self-stretch flex-shrink-0 flex items-center ml-1 cursor-grab active:opacity-70 text-white/70" style={{ touchAction: 'none' }}><GripVertical size={16} /></div>
                                 )}
                                 <div className={`${useMicroLayout ? 'px-1.5 py-1' : 'p-2'} flex-1 min-w-0 h-full flex flex-col ${useMicroLayout ? 'justify-center' : ''}`}>
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
