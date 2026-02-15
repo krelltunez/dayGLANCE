@@ -14003,7 +14003,7 @@ const DayPlanner = () => {
                               <div className="p-2 text-white">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    {(!isImported || task.isTaskCalendar) && (
+                                    {isTablet && (!isImported || task.isTaskCalendar) && (
                                       <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px', backgroundRepeat: 'no-repeat', backgroundPosition: '0 calc(50% - 9px), 0 calc(50% - 9px), 0 calc(50% - 3px), 0 calc(50% - 3px), 0 calc(50% + 3px), 0 calc(50% + 3px)' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-50 cursor-grab active:opacity-70 bg-white/20 rounded-sm" />
                                     )}
                                     {(!isImported || task.isTaskCalendar) && (
@@ -14111,7 +14111,9 @@ const DayPlanner = () => {
                             <div className="p-2 text-white">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px', backgroundRepeat: 'no-repeat', backgroundPosition: '0 calc(50% - 9px), 0 calc(50% - 9px), 0 calc(50% - 3px), 0 calc(50% - 3px), 0 calc(50% + 3px), 0 calc(50% + 3px)' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-50 cursor-grab active:opacity-70 bg-white/20 rounded-sm" />
+                                  {isTablet && (
+                                    <div data-drag-handle style={{ touchAction: 'none', backgroundImage: 'radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 3px 3px, currentColor 1px, transparent 1px), radial-gradient(circle at 7px 3px, currentColor 1px, transparent 1px)', backgroundSize: '10px 6px', backgroundRepeat: 'no-repeat', backgroundPosition: '0 calc(50% - 9px), 0 calc(50% - 9px), 0 calc(50% - 3px), 0 calc(50% - 3px), 0 calc(50% + 3px), 0 calc(50% + 3px)' }} className="self-stretch flex-shrink-0 w-[10px] -ml-0.5 opacity-50 cursor-grab active:opacity-70 bg-white/20 rounded-sm" />
+                                  )}
                                   <button
                                     onClick={() => toggleComplete(task.id, true)}
                                     className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
