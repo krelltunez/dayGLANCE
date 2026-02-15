@@ -14080,7 +14080,6 @@ const DayPlanner = () => {
                                   >
                                     {task.completed && <Check size={10} strokeWidth={3} />}
                                   </button>
-                                  {!isTablet && <Calendar size={14} className="flex-shrink-0" />}
                                   <AlertCircle size={14} className="flex-shrink-0" />
                                   <div
                                     className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}
