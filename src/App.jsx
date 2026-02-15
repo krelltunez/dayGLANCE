@@ -395,7 +395,7 @@ const NotesSubtasksPanel = ({
 // Daily Notes Modal — popover for adding/editing notes on a specific date
 const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile }) => {
   const [localText, setLocalText] = useState(note?.text || '');
-  const [isEditing, setIsEditing] = useState(true);
+  const [isEditing, setIsEditing] = useState(!note?.text);
   const localTextRef = useRef(localText);
   const onSaveRef = useRef(onSave);
   const dateStrRef = useRef(dateStr);
