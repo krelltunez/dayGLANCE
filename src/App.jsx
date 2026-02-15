@@ -88,19 +88,34 @@ const useIsLandscape = () => {
 
 // Compute localStorage usage with per-key breakdown
 const getStorageUsage = () => {
-  const keys = [];
+  const entries = [];
   let totalBytes = 0;
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       const val = localStorage.getItem(key) || '';
       const bytes = (key.length + val.length) * 2; // UTF-16
-      keys.push({ key, bytes });
+      // Split day-planner-tasks into user tasks vs imported calendar events
+      if (key === 'day-planner-tasks') {
+        try {
+          const tasks = JSON.parse(val);
+          const userTasks = tasks.filter(t => !t.imported);
+          const importedTasks = tasks.filter(t => t.imported);
+          const userBytes = (key.length + JSON.stringify(userTasks).length) * 2;
+          const importedBytes = bytes - userBytes;
+          if (userTasks.length > 0) entries.push({ key: 'day-planner-tasks:user', bytes: userBytes, count: userTasks.length });
+          if (importedTasks.length > 0) entries.push({ key: 'day-planner-tasks:imported', bytes: importedBytes, count: importedTasks.length });
+        } catch {
+          entries.push({ key, bytes });
+        }
+      } else {
+        entries.push({ key, bytes });
+      }
       totalBytes += bytes;
     }
   } catch {}
-  keys.sort((a, b) => b.bytes - a.bytes);
-  return { totalBytes, keys };
+  entries.sort((a, b) => b.bytes - a.bytes);
+  return { totalBytes, entries };
 };
 
 const formatBytes = (bytes) => {
@@ -15467,11 +15482,13 @@ const DayPlanner = () => {
       )}
 
       {showStorageBreakdown && (() => {
-        const { totalBytes, keys } = getStorageUsage();
+        const { totalBytes, entries } = getStorageUsage();
         const warn = totalBytes > 4 * 1024 * 1024;
         // Friendly labels for known keys
         const labels = {
           'day-planner-tasks': 'Scheduled tasks',
+          'day-planner-tasks:user': 'Scheduled tasks',
+          'day-planner-tasks:imported': 'Imported calendar events',
           'day-planner-unscheduled': 'Inbox tasks',
           'day-planner-recycle-bin': 'Recycle bin',
           'day-planner-recurring-tasks': 'Recurring tasks',
@@ -15498,9 +15515,9 @@ const DayPlanner = () => {
                 <div className={`h-full rounded-full transition-all ${warn ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, totalBytes / (5 * 1024 * 1024) * 100)}%` }} />
               </div>
               <div className="space-y-1.5">
-                {keys.filter(k => k.bytes > 100).map(({ key, bytes }) => (
+                {entries.filter(k => k.bytes > 100).map(({ key, bytes, count }) => (
                   <div key={key} className="flex items-center justify-between text-xs">
-                    <span className={`${textSecondary} truncate flex-1 mr-2`}>{labels[key] || key}</span>
+                    <span className={`${textSecondary} truncate flex-1 mr-2`}>{labels[key] || key}{count != null ? ` (${count.toLocaleString()})` : ''}</span>
                     <span className={`font-mono ${textPrimary} flex-shrink-0`}>{formatBytes(bytes)}</span>
                   </div>
                 ))}
