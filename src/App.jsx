@@ -11135,6 +11135,26 @@ const DayPlanner = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
                         />
                       </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>Keep past events</label>
+                        <select
+                          value={syncRetentionDays}
+                          onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
+                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        >
+                          <option value={7}>7 days</option>
+                          <option value={14}>14 days</option>
+                          <option value={30}>30 days</option>
+                          <option value={60}>60 days</option>
+                          <option value={90}>90 days</option>
+                          <option value={180}>6 months</option>
+                          <option value={365}>1 year</option>
+                          <option value={0}>All (no limit)</option>
+                        </select>
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Older imported events are dropped to save storage
+                        </p>
+                      </div>
                       <button
                         onClick={() => syncAll()}
                         disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
