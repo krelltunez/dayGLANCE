@@ -5643,6 +5643,31 @@ const DayPlanner = () => {
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  const handleTouchRoutineResizeStart = (routine, e) => {
+    e.stopPropagation();
+    setIsResizing(true);
+
+    const startY = e.touches[0].clientY;
+    const startDuration = routine.duration;
+
+    const handleTouchMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      const deltaY = moveEvent.touches[0].clientY - startY;
+      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const newDuration = Math.max(15, startDuration + deltaMinutes);
+      setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: newDuration } : r));
+    };
+
+    const handleTouchEnd = () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      setIsResizing(false);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
   // Helper function to convert cursor Y position to time
   const getTimeFromCursorPosition = (e, options = {}) => {
     const { roundTo = 15, maxMinutes = 23 * 60 + 45, taskDuration = 0 } = options;
@@ -9709,7 +9734,7 @@ const DayPlanner = () => {
                                   {!isImported && !isCalendarEvent && (
                                     <div
                                       onTouchStart={(e) => handleTouchResizeStart(task, e)}
-                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 flex items-center justify-center"
+                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center"
                                       style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10 }}
                                     >
                                       <div className="w-12 h-1 bg-white rounded-full"></div>
@@ -9788,40 +9813,14 @@ const DayPlanner = () => {
                                     <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                     <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`}></div>
                                     <span className={`relative rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'}`}>{routine.name}</span>
-                                    {/* Duration edit button (mobile) */}
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setRoutineDurationEditId(routineDurationEditId === routine.id ? null : routine.id); }}
-                                      className={`routine-duration-edit absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
-                                      aria-label="Edit duration"
+                                    {/* Touch resize handle at bottom */}
+                                    <div
+                                      onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e)}
+                                      className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center"
+                                      style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10 }}
                                     >
-                                      <GripHorizontal size={12} />
-                                    </button>
-                                    {/* Duration edit popover */}
-                                    {routineDurationEditId === routine.id && (
-                                      <div
-                                        className={`routine-duration-edit absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border rounded-xl shadow-xl flex items-center gap-1 px-2 py-1.5`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onTouchStart={(e) => e.stopPropagation()}
-                                      >
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: Math.max(15, r.duration - 15) } : r)); }}
-                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
-                                          aria-label="Decrease duration"
-                                        >
-                                          <ChevronDown size={16} />
-                                        </button>
-                                        <span className={`text-xs font-semibold tabular-nums min-w-[3rem] text-center ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                                          {routine.duration}min
-                                        </span>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: r.duration + 15 } : r)); }}
-                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
-                                          aria-label="Increase duration"
-                                        >
-                                          <ChevronUp size={16} />
-                                        </button>
-                                      </div>
-                                    )}
+                                      <div className="w-12 h-1 bg-white rounded-full"></div>
+                                    </div>
                                   </div>
                                 );
                               });
@@ -15038,42 +15037,15 @@ const DayPlanner = () => {
                                     <div className={`w-8 h-1 rounded-full ${darkMode ? 'bg-teal-400/50' : 'bg-teal-500/40'}`}></div>
                                   </div>
                                 )}
-                                {/* Tablet: Duration edit button */}
+                                {/* Tablet: Touch resize handle */}
                                 {isTablet && (
-                                  <>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setRoutineDurationEditId(routineDurationEditId === routine.id ? null : routine.id); }}
-                                      className={`routine-duration-edit absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-10 rounded-full p-0.5 shadow-md border transition-colors ${darkMode ? 'bg-teal-700 border-teal-500 text-teal-200 active:bg-teal-600' : 'bg-teal-600 border-teal-400 text-white active:bg-teal-500'}`}
-                                      aria-label="Edit duration"
-                                    >
-                                      <GripHorizontal size={12} />
-                                    </button>
-                                    {routineDurationEditId === routine.id && (
-                                      <div
-                                        className={`routine-duration-edit absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} border rounded-xl shadow-xl flex items-center gap-1 px-2 py-1.5`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onTouchStart={(e) => e.stopPropagation()}
-                                      >
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: Math.max(15, r.duration - 15) } : r)); }}
-                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
-                                          aria-label="Decrease duration"
-                                        >
-                                          <ChevronDown size={16} />
-                                        </button>
-                                        <span className={`text-xs font-semibold tabular-nums min-w-[3rem] text-center ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                                          {routine.duration}min
-                                        </span>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: r.duration + 15 } : r)); }}
-                                          className={`p-1 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600 text-gray-300' : 'hover:bg-gray-100 active:bg-gray-200 text-gray-600'}`}
-                                          aria-label="Increase duration"
-                                        >
-                                          <ChevronUp size={16} />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </>
+                                  <div
+                                    onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e)}
+                                    className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center"
+                                    style={{ marginBottom: '-4px', touchAction: 'none' }}
+                                  >
+                                    <div className="w-12 h-1 bg-white rounded-full"></div>
+                                  </div>
                                 )}
                               </div>
                             );
