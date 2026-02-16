@@ -2085,6 +2085,19 @@ const DayPlanner = () => {
     };
   }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId]);
 
+  // Close tag filter on ESC
+  useEffect(() => {
+    if (!showMobileTagFilter) return;
+    const handleTagFilterEsc = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMobileTagFilter(false);
+      }
+    };
+    document.addEventListener('keydown', handleTagFilterEsc);
+    return () => document.removeEventListener('keydown', handleTagFilterEsc);
+  }, [showMobileTagFilter]);
+
   // Close notes panel on ESC
   useEffect(() => {
     if (!expandedNotesTaskId) return;
@@ -4527,11 +4540,6 @@ const DayPlanner = () => {
           setEditingRecurrenceTaskId(null);
           return;
         }
-        if (showMobileTagFilter) {
-          e.preventDefault();
-          setShowMobileTagFilter(false);
-          return;
-        }
         if (showMonthView) {
           e.preventDefault();
           setShowMonthView(false);
@@ -4731,7 +4739,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showMobileTagFilter, hoverPreviewTime, hoverPreviewDate]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -11781,11 +11789,11 @@ const DayPlanner = () => {
                         )}
                       </div>
 
-                      {/* All Time Summary */}
+                      {/* All-Time Summary */}
                       <div className={`mt-4 pt-4 border-t ${borderClass}`}>
                         <div className="flex items-center gap-2 mb-3">
-                          <TrendingUp size={16} className={textSecondary} />
-                          <span className={`font-semibold text-sm ${textPrimary}`}>All Time</span>
+                          <TrendingUp size={18} className={textSecondary} />
+                          <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
                         </div>
                         <div className={`space-y-2 text-sm ${textSecondary}`}>
                           <div className="flex items-center justify-between">
@@ -11938,7 +11946,7 @@ const DayPlanner = () => {
       <>
       {/* Desktop & Tablet Layout */}
       {!isTablet && (
-      <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between`} style={{ height: '72px' }}>
+      <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between`} style={{ height: '80px' }}>
         {/* Left: Logo + Date Nav */}
         <div className="flex items-center gap-3">
           <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
@@ -12308,7 +12316,7 @@ const DayPlanner = () => {
       )}
 
       {/* Content area: side panel + calendar */}
-      <div className="flex" style={{ height: isTablet ? 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' : 'calc(100vh - 72px - env(safe-area-inset-top, 0px))' }}>
+      <div className="flex" style={{ height: isTablet ? 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' : 'calc(100vh - 80px - env(safe-area-inset-top, 0px))' }}>
 
         <div className="contents">
 
@@ -15756,24 +15764,30 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Desktop/Tablet: Daily Summary Popover */}
+      {/* Desktop/Tablet: Daily Summary Bottom Card */}
       {!isMobile && showMobileDailySummary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowMobileDailySummary(false)}>
+        <div className="fixed inset-0 z-50 flex flex-col justify-end items-start" style={{ width: '320px' }} onClick={() => setShowMobileDailySummary(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
-            className={`relative ${cardBg} rounded-2xl shadow-xl max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto`}
+            className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] flex flex-col w-full`}
+            style={{ paddingBottom: '1rem' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
                 <BarChart3 size={18} className={textSecondary} />
-                <span className={`font-semibold ${textPrimary}`}>Summary</span>
+                <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
               </div>
               <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`} aria-label="Close">
                 <X size={16} className={textSecondary} />
               </button>
             </div>
-            <div className="px-4 pb-4">
+            <div className="overflow-y-auto px-4 pb-2">
               {actualTodayNonImportedTasks.length === 0 ? (
                 <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
               ) : (() => {
@@ -15794,7 +15808,7 @@ const DayPlanner = () => {
                       <div>
                         <div className={`text-lg font-bold ${textPrimary}`}>{actualTodayCompletedTasks.length} of {actualTodayNonImportedTasks.length} done</div>
                         {todayIncompleteTasks.length > 0 && (
-                          <button onClick={() => { setShowIncompleteTasks('today'); setShowMobileDailySummary(false); }} className="text-sm text-blue-500 active:text-blue-600">
+                          <button onClick={() => { setShowIncompleteTasks('today'); setShowMobileDailySummary(false); }} className="text-sm text-blue-500 hover:text-blue-600">
                             {todayIncompleteTasks.length} incomplete
                           </button>
                         )}
@@ -15823,11 +15837,11 @@ const DayPlanner = () => {
                 );
               })()}
 
-              {/* All Time Summary */}
+              {/* All-Time Summary */}
               <div className={`mt-4 pt-4 border-t ${borderClass}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp size={16} className={textSecondary} />
-                  <span className={`font-semibold text-sm ${textPrimary}`}>All Time</span>
+                  <TrendingUp size={18} className={textSecondary} />
+                  <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
                 </div>
                 <div className={`space-y-2 text-sm ${textSecondary}`}>
                   <div className="flex items-center justify-between">
