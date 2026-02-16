@@ -11843,7 +11843,7 @@ const DayPlanner = () => {
                           )}
                           {allTimeScheduledCount > 0 && (
                             <div className={`pt-1 font-semibold ${textPrimary}`}>
-                              {Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}% completion rate
+                              {Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate
                             </div>
                           )}
                         </div>
@@ -15891,7 +15891,7 @@ const DayPlanner = () => {
                   )}
                   {allTimeScheduledCount > 0 && (
                     <div className={`pt-1 font-semibold ${textPrimary}`}>
-                      {Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}% completion rate
+                      {Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate
                     </div>
                   )}
                 </div>
