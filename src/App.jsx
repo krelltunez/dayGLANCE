@@ -537,7 +537,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
 
   // Desktop/tablet: centered modal
   return (
-    <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { onSave(dateStr, localText); onClose(); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onSave(dateStr, localText); onClose(); } }} tabIndex={-1}>
+    <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] outline-none" onClick={() => { onSave(dateStr, localText); onClose(); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onSave(dateStr, localText); onClose(); } }} tabIndex={-1}>
       <div
         className={`${cardBg} rounded-lg shadow-xl p-6 border ${borderClass} w-full max-w-lg mx-4`}
         onClick={(e) => e.stopPropagation()}
