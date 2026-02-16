@@ -11888,259 +11888,210 @@ const DayPlanner = () => {
       <>
       {/* Desktop & Tablet Layout */}
       {!isTablet && (
-      <div className={`${cardBg} border-b ${borderClass}`}>
-        <div className="max-w-[2000px] mx-auto px-6 py-4">
-          <div className="flex gap-4">
-            {/* Sidebar area - date navigator centered with Today button below */}
-            <div className={`${sidebarCollapsed ? 'w-[59px]' : 'w-72'} flex-shrink-0 transition-[width] duration-200 relative`} style={{ height: '76px' }}>
-              {/* Collapsed date navigator */}
-              <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                <button onClick={() => changeDate(-1)} className={`p-0.5 rounded ${hoverBg}`}>
-                  <ChevronLeft size={16} className={textSecondary} />
-                </button>
-                <button
-                  onClick={goToToday}
-                  className={`p-1 rounded ${hoverBg}`}
-                  title="Go to today"
-                >
-                  <Calendar size={20} className={textSecondary} />
-                </button>
-                <button onClick={() => changeDate(1)} className={`p-0.5 rounded ${hoverBg}`}>
-                  <ChevronRight size={16} className={textSecondary} />
-                </button>
-              </div>
-
-              {/* Expanded date navigator */}
-              <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-200 ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                <div className="flex items-center gap-2 relative">
-                    <button onClick={() => changeDate(-1)} className={`p-1 rounded ${hoverBg} flex-shrink-0`}>
-                      <ChevronLeft size={20} className={textSecondary} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!showMonthView) setViewedMonth(new Date(selectedDate));
-                        setShowMonthView(!showMonthView);
-                      }}
-                      className={`month-view-toggle ${textPrimary} font-bold text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors cursor-pointer min-w-[220px] text-center`}
-                    >
-                      {formatDateRange(visibleDates)}
-                    </button>
-                    <button onClick={() => changeDate(1)} className={`p-1 rounded ${hoverBg} flex-shrink-0`}>
-                      <ChevronRight size={20} className={textSecondary} />
-                    </button>
-
-                    {/* Month View Popup */}
-                    {showMonthView && (
-                      <div className={`month-view-container absolute top-full left-1/2 -translate-x-1/2 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }}
-                            className={`p-1 rounded ${hoverBg}`}
-                          >
-                            <ChevronLeft size={18} className={textSecondary} />
-                          </button>
-                          <div className={`font-bold ${textPrimary}`}>
-                            {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }}
-                            className={`p-1 rounded ${hoverBg}`}
-                          >
-                            <ChevronRight size={18} className={textSecondary} />
-                          </button>
-                        </div>
-
-                        {/* Day headers */}
-                        <div className="grid grid-cols-7 gap-1 mb-2">
-                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                            <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
-                              {day}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Calendar days */}
-                        <div className="grid grid-cols-7 gap-1">
-                          {getMonthDays().map((day, index) => {
-                            const isDayToday = day && day.toDateString() === new Date().toDateString();
-                            const isSelected = day && day.toDateString() === selectedDate.toDateString();
-                            const hasTasks = hasTasksOnDate(day);
-
-                            return (
-                              <button
-                                key={index}
-                                onClick={() => day && goToDate(day)}
-                                disabled={!day}
-                                className={`
-                                  h-10 rounded text-sm relative
-                                  ${!day ? 'invisible' : ''}
-                                  ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
-                                  ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
-                                  ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
-                                  ${!day ? '' : 'cursor-pointer'}
-                                `}
-                              >
-                                {day && day.getDate()}
-                                {hasTasks && (
-                                  <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+      <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '48px' }}>
+        {/* Left: Logo + Date Nav */}
+        <div className="flex items-center gap-3">
+          <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
+          <div className="flex items-center gap-1 relative">
+            <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
+              <ChevronLeft size={20} className={textSecondary} />
+            </button>
+            <button
+              onClick={() => {
+                if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                setShowMonthView(!showMonthView);
+              }}
+              className={`month-view-toggle ${textPrimary} font-semibold text-base px-2 py-1 rounded-lg ${hoverBg} transition-colors cursor-pointer`}
+            >
+              {formatDateRange(visibleDates)}
+            </button>
+            <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Next day">
+              <ChevronRight size={20} className={textSecondary} />
+            </button>
+            {dateToString(selectedDate) !== dateToString(new Date()) && (
+              <button
+                onClick={goToToday}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
+              >
+                Today
+              </button>
+            )}
+            {/* Month View Popup */}
+            {showMonthView && (
+              <div className={`month-view-container absolute top-full left-0 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+                <div className="flex items-center justify-between mb-3">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-1 rounded ${hoverBg}`}>
+                    <ChevronLeft size={18} className={textSecondary} />
+                  </button>
+                  <div className={`font-bold ${textPrimary}`}>
+                    {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </div>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-1 rounded ${hoverBg}`}>
+                    <ChevronRight size={18} className={textSecondary} />
+                  </button>
                 </div>
-                <button
-                  onClick={goToToday}
-                  className="mt-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Today
-                </button>
-              </div>
-            </div>
-            {/* Calendar area - weather aligned with left edge */}
-            <div className="flex-1 flex items-center gap-6">
-              {weather && (
-                <>
-                  {/* Current weather */}
-                  <div className={`flex items-center gap-3 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
-                    <div className="text-2xl">{weather.icon}</div>
-                    <div>
-                      <div className={`text-lg font-bold ${textPrimary}`}>{weather.temp}°F</div>
-                      <div className={`text-xs ${textSecondary}`}>H: {weather.high}° L: {weather.low}°</div>
-                    </div>
-                  </div>
-                  
-                  {/* 5-day forecast (hidden in narrow mode) */}
-                  {visibleDays > 1 && weather.forecast && weather.forecast.length > 0 && (
-                    <div className={`flex items-center gap-2`}>
-                      {weather.forecast.map((day, index) => (
-                        <div key={index} className={`px-3 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
-                          <div className={`text-xs font-semibold ${textSecondary}`}>{day.day}</div>
-                          <div className="text-lg my-1">{day.icon}</div>
-                          <div className={`text-xs ${textPrimary}`}>
-                            <span className="font-semibold">{day.high}°</span>
-                            <span className={`${textSecondary} ml-1`}>{day.low}°</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Rotating Daily Content - shows 2 of 4 content types (widescreen only) */}
-              {visibleDays === 3 && (() => {
-                const contentItems = [
-                  { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
-                  { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
-                  { key: 'quote', icon: '💬', label: 'Quote', content: dailyContent.quote ? `"${dailyContent.quote.text}" — ${dailyContent.quote.author}` : null },
-                  { key: 'history', icon: '📜', label: 'This Day in History', content: dailyContent.history ? `${dailyContent.history.year}: ${dailyContent.history.text}` : null }
-                ].filter(item => item.content);
-
-                if (contentItems.length === 0) return null;
-
-                const idx1 = contentRotation % contentItems.length;
-                const idx2 = (contentRotation + 1) % contentItems.length;
-                const visibleItems = contentItems.length === 1 ? [contentItems[0]] : [contentItems[idx1], contentItems[idx2]];
-
-                return visibleItems.map(item => (
-                  <div key={item.key} className={`flex-1 max-w-lg h-[92px] px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden`}>
-                    <div className={`text-xs font-semibold ${textSecondary} mb-1`}>{item.icon} {item.label}</div>
-                    <div className={`text-sm ${textPrimary} leading-snug line-clamp-3`}>{item.content}</div>
-                  </div>
-                ));
-              })()}
-
-              <div className="flex items-center gap-1 ml-auto">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        if (isSyncing) return;
-                        if (syncUrl || taskCalendarUrl) {
-                          syncAll();
-                        } else {
-                          setShowSettings(true);
-                        }
-                      }}
-                      disabled={isSyncing}
-                      className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
-                      title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
-                    >
-                      <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-                      {(syncUrl || taskCalendarUrl) && (
-                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                          isSyncing ? 'bg-blue-500 animate-pulse' :
-                          calSyncStatus === 'success' ? 'bg-green-500' :
-                          calSyncStatus === 'error' ? 'bg-red-500' :
-                          'bg-green-500'
-                        }`} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setShowSettings(true)}
-                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                      title="Settings"
-                    >
-                      <Settings size={18} className={textSecondary} />
-                    </button>
-                    <button
-                      onClick={() => setDarkMode(!darkMode)}
-                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                      title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-                    >
-                      {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        if (cloudSyncConfig?.enabled) {
-                          cloudSyncUpload();
-                        } else {
-                          setShowSettings(true);
-                        }
-                      }}
-                      className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                      title={cloudSyncConfig?.enabled
-                        ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
-                        : 'Set up cloud sync'}
-                    >
-                      <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-                      {cloudSyncConfig?.enabled && (
-                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                          (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
-                          cloudSyncStatus === 'error' ? 'bg-red-500' :
-                          'bg-green-500'
-                        }`} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setShowRemindersSettings(true)}
-                      className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                      title="Reminders"
-                    >
-                      <Bell size={18} className={textSecondary} />
-                      {activeReminders.length > 0 && (
-                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setShowBackupMenu(true)}
-                      className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
-                      title="Backup or restore data"
-                    >
-                      <Save size={18} className={textSecondary} />
-                    </button>
-                  </div>
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {getMonthDays().map((day, index) => {
+                    const isDayToday = day && day.toDateString() === new Date().toDateString();
+                    const isSelected = day && day.toDateString() === selectedDate.toDateString();
+                    const hasTasks = hasTasksOnDate(day);
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => day && goToDate(day)}
+                        disabled={!day}
+                        className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
+                      >
+                        {day && day.getDate()}
+                        {hasTasks && (
+                          <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
+            )}
           </div>
+        </div>
+
+        {/* Center: Weather + Daily Content (1 item rotating) */}
+        <div className="flex-1 flex items-center justify-center gap-4 mx-4 min-w-0">
+          {weather && (
+            <>
+              {/* Current weather */}
+              <div className={`flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg flex-shrink-0`}>
+                <div className="text-xl">{weather.icon}</div>
+                <div>
+                  <div className={`text-sm font-bold ${textPrimary}`}>{weather.temp}°F</div>
+                  <div className={`text-[10px] ${textSecondary}`}>H: {weather.high}° L: {weather.low}°</div>
+                </div>
+              </div>
+
+              {/* 5-day forecast (only on 3-day view) */}
+              {visibleDays === 3 && weather.forecast && weather.forecast.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {weather.forecast.map((day, index) => (
+                    <div key={index} className={`px-2 py-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
+                      <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
+                      <div className="text-base">{day.icon}</div>
+                      <div className={`text-[10px] ${textPrimary}`}>
+                        <span className="font-semibold">{day.high}°</span>
+                        <span className={`${textSecondary} ml-0.5`}>{day.low}°</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Rotating Daily Content - 1 item at a time */}
+          {visibleDays >= 2 && (() => {
+            const contentItems = [
+              { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
+              { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
+              { key: 'quote', icon: '💬', label: 'Quote', content: dailyContent.quote ? `"${dailyContent.quote.text}" — ${dailyContent.quote.author}` : null },
+              { key: 'history', icon: '📜', label: 'This Day in History', content: dailyContent.history ? `${dailyContent.history.year}: ${dailyContent.history.text}` : null }
+            ].filter(item => item.content);
+
+            if (contentItems.length === 0) return null;
+
+            const idx1 = contentRotation % contentItems.length;
+            const item = contentItems[idx1];
+
+            return (
+              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500`}>
+                <div className={`text-[10px] font-semibold ${textSecondary} mb-0.5`}>{item.icon} {item.label}</div>
+                <div className={`text-xs ${textPrimary} leading-snug line-clamp-2`}>{item.content}</div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Right: Action buttons */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => {
+              if (isSyncing) return;
+              if (syncUrl || taskCalendarUrl) {
+                syncAll();
+              } else {
+                setShowSettings(true);
+              }
+            }}
+            disabled={isSyncing}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
+            title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
+          >
+            <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+            {(syncUrl || taskCalendarUrl) && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                isSyncing ? 'bg-blue-500 animate-pulse' :
+                calSyncStatus === 'success' ? 'bg-green-500' :
+                calSyncStatus === 'error' ? 'bg-red-500' :
+                'bg-green-500'
+              }`} />
+            )}
+          </button>
+          <button
+            onClick={() => {
+              if (cloudSyncConfig?.enabled) {
+                cloudSyncUpload();
+              } else {
+                setShowSettings(true);
+              }
+            }}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            title={cloudSyncConfig?.enabled
+              ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
+              : 'Set up cloud sync'}
+          >
+            <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+            {cloudSyncConfig?.enabled && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
+                cloudSyncStatus === 'error' ? 'bg-red-500' :
+                'bg-green-500'
+              }`} />
+            )}
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            title="Settings"
+          >
+            <Settings size={18} className={textSecondary} />
+          </button>
+          <button
+            onClick={() => setShowRemindersSettings(true)}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            title="Reminders"
+          >
+            <Bell size={18} className={textSecondary} />
+            {activeReminders.length > 0 && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
+            )}
+          </button>
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
+          </button>
+          <button
+            onClick={() => setShowBackupMenu(true)}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            title="Backup or restore data"
+          >
+            <Save size={18} className={textSecondary} />
+          </button>
         </div>
       </div>
       )}
@@ -12306,10 +12257,10 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Content area: sidebar/rail + calendar */}
-      <div className={isTablet ? 'flex' : 'max-w-[2000px] mx-auto px-6 py-6'} style={isTablet ? { height: 'calc(100vh - 48px - env(safe-area-inset-top, 0px))' } : undefined}>
+      {/* Content area: side panel + calendar */}
+      <div className="flex" style={{ height: 'calc(100vh - 48px - env(safe-area-inset-top, 0px))' }}>
 
-        <div className={isTablet ? 'contents' : 'flex gap-4'}>
+        <div className="contents">
 
           {/* Tablet static side panel */}
           {isTablet && (
@@ -12889,449 +12840,297 @@ const DayPlanner = () => {
             </div>
           )}
 
-          {/* Desktop sidebar */}
+          {/* Desktop side panel — Glance + Inbox (matching tablet design) */}
           {!isTablet && (
-          <div className={`${sidebarCollapsed ? 'w-[59px]' : 'w-72'} flex-shrink-0 transition-[width] duration-200 flex flex-col`} style={{ height: '1168px' }}>
-            {sidebarCollapsed ? (
-              /* Collapsed sidebar - icon-only buttons */
-              <div className="flex flex-col gap-2 flex-1">
-                {/* Action buttons - matching expanded view */}
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={openNewTaskForm}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="New Scheduled Task"
-                  >
-                    <Calendar size={24} />
-                  </button>
-                  <button
-                    onClick={openNewInboxTask}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="New Inbox Task"
-                  >
-                    <Inbox size={24} />
-                  </button>
-                  <button
-                    onClick={openRoutinesDashboard}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Routines"
-                  >
-                    <Sparkles size={24} />
-                  </button>
-                  <button
-                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Weekly Review"
-                  >
-                    <BarChart3 size={24} />
-                  </button>
-                  <button
-                    onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Spotlight Search (Ctrl+K)"
-                  >
-                    <Search size={24} />
-                  </button>
-                  <button
-                    onClick={() => setSidebarCollapsed(false)}
-                    className="w-[51px] h-[51px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Expand sidebar"
-                  >
-                    <ChevronsRight size={24} />
-                  </button>
-                </div>
+          <div
+            className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
+            style={{ width: '320px', height: '100%' }}
+          >
+            {/* Scrollable content */}
+            <div className={`flex-1 overflow-y-auto ${darkMode ? 'dark-scrollbar' : ''}`}>
+              {/* Glance section */}
+              <div className="p-4">
+                <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2 mb-4`}>
+                  <Eye size={20} className="text-blue-500" /> Glance
+                </h2>
+                <div className="space-y-4">
+                  {/* Search bar + filter */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
+                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors hover:opacity-80`}
+                    >
+                      <Search size={16} />
+                      <span className="text-sm">Search tasks...</span>
+                      <span className={`ml-auto text-xs ${textSecondary}`}>Ctrl+K</span>
+                    </button>
+                    {allTags.length > 0 && (
+                      <button
+                        onClick={() => setShowMobileTagFilter(true)}
+                        className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
+                          !allTags.every(tag => selectedTags.includes(tag))
+                            ? 'bg-blue-500 text-white'
+                            : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                        } hover:opacity-80`}
+                      >
+                        <Filter size={16} />
+                      </button>
+                    )}
+                  </div>
 
-                {/* Section icons - clicking expands sidebar */}
-                <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} w-[51px] py-2 flex flex-col items-center gap-2`}>
+                  {/* Overdue Tasks */}
                   {(() => {
                     const todayStr = getTodayStr();
                     const pastOverdue = getOverdueTasks().filter(t => {
                       if (t._overdueType === 'scheduled') return t.date < todayStr;
                       return true;
                     });
-                    return pastOverdue.length > 0 ? (
-                    <button
-                      onClick={() => setSidebarCollapsed(false)}
-                      className={`p-2 rounded ${hoverBg} relative`}
-                      title="Overdue"
-                    >
-                      <AlertTriangle size={20} className="text-orange-500" />
-                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {pastOverdue.length > 9 ? '9+' : pastOverdue.length}
-                      </span>
-                    </button>
-                    ) : null;
-                  })()}
-                  <button
-                    onClick={() => setSidebarCollapsed(false)}
-                    className={`p-2 rounded ${hoverBg} relative`}
-                    title="Inbox"
-                  >
-                    <Inbox size={20} className={textSecondary} />
-                    {filteredUnscheduledTasks.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {filteredUnscheduledTasks.length > 9 ? '9+' : filteredUnscheduledTasks.length}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setSidebarCollapsed(false)}
-                    className={`p-2 rounded ${hoverBg}`}
-                    title="Tags"
-                  >
-                    <Hash size={20} className={textSecondary} />
-                  </button>
-                  <button
-                    onClick={() => setSidebarCollapsed(false)}
-                    className={`p-2 rounded ${hoverBg}`}
-                    title="Daily Summary"
-                  >
-                    <BarChart3 size={20} className={textSecondary} />
-                  </button>
-                  <button
-                    onClick={() => setSidebarCollapsed(false)}
-                    className={`p-2 rounded ${hoverBg} relative`}
-                    title="Recycle Bin"
-                  >
-                    <Trash2 size={20} className={textSecondary} />
-                    {recycleBin.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {recycleBin.length > 9 ? '9+' : recycleBin.length}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Expanded sidebar - full content */
-              <div className="flex-1 min-h-0">
-                <div className={`h-full overflow-y-auto w-[calc(100%+14px)] ${darkMode ? 'dark-scrollbar' : ''}`}>
-                <div className="w-72">
-                <div className={`flex gap-1.5 mb-4`}>
-                  {/* Calendar - new scheduled task */}
-                  <button
-                    onClick={openNewTaskForm}
-                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="New Scheduled Task"
-                  >
-                    <Calendar size={22} />
-                  </button>
-                  {/* Inbox - add to inbox */}
-                  <button
-                    onClick={openNewInboxTask}
-                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="New Inbox Task"
-                  >
-                    <Inbox size={22} />
-                  </button>
-                  {/* Routines */}
-                  <button
-                    onClick={openRoutinesDashboard}
-                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Routines"
-                  >
-                    <Sparkles size={22} />
-                  </button>
-                  {/* Weekly Review */}
-                  <button
-                    onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
-                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Weekly Review"
-                  >
-                    <BarChart3 size={22} />
-                  </button>
-                  {/* Spotlight Search */}
-                  <button
-                    onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                    className="w-[45px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Spotlight Search (Ctrl+K)"
-                  >
-                    <Search size={22} />
-                  </button>
-                  {/* Collapse sidebar */}
-                  <button
-                    onClick={() => setSidebarCollapsed(true)}
-                    className="w-[33px] h-[45px] flex items-center justify-center bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Collapse sidebar"
-                  >
-                    <ChevronsLeft size={20} />
-                  </button>
-                </div>
-
-            {/* Getting Started Checklist */}
-            {showOnboarding && (
-              <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
-                <div className="flex flex-col items-start mb-3">
-                  <img
-                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
-                    alt="dayGLANCE"
-                    className="h-9 mb-2"
-                  />
-                  <p className={`text-sm font-semibold ${textPrimary}`}>Let's start with these steps:</p>
-                </div>
-                <div className="space-y-2">
-                  {gettingStartedItems.map(item => (
-                    <div
-                      key={item.id}
-                      className={`flex items-center gap-2 text-sm ${item.completed ? textSecondary : textPrimary}`}
-                    >
-                      <div className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center ${
-                        item.completed
-                          ? 'bg-green-500 text-white'
-                          : `border-2 ${darkMode ? 'border-gray-600' : 'border-gray-300'}`
-                      }`}>
-                        {item.completed && <Check size={10} strokeWidth={3} />}
-                      </div>
-                      <span className={item.completed ? 'line-through' : ''}>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className={`mt-3 text-xs ${textSecondary}`}>
-                  {gettingStartedItems.filter(i => i.completed).length} of {gettingStartedItems.length} complete
-                </div>
-                <button
-                  onClick={() => {
-                    // Skip persisting these changes (for testing - reload will show onboarding again)
-                    skipOnboardingPersist.current = true;
-                    // Remove all example tasks
-                    setTasks(prev => prev.filter(t => !t.isExample));
-                    setUnscheduledTasks(prev => prev.filter(t => !t.isExample));
-                    setRecycleBin(prev => prev.filter(t => !t.isExample));
-                    setRecurringTasks(prev => prev.filter(t => !t.isExample));
-                    setTodayRoutines([]);
-                    setRoutineDefinitions({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
-                    // Mark onboarding as complete (hides Getting Started and ? buttons)
-                    setOnboardingComplete(true);
-                  }}
-                  className="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                >
-                  I'm Good to Go!
-                </button>
-              </div>
-            )}
-
-            {/* Overdue Tasks Section - only past days (today's overdue shown in dayGLANCE) */}
-            {(() => {
-              const todayStr = getTodayStr();
-              const pastOverdue = getOverdueTasks().filter(t => {
-                if (t._overdueType === 'scheduled') return t.date < todayStr;
-                return true; // deadline overdue are always from past dates
-              });
-              if (pastOverdue.length === 0) return null;
-              return (
-              <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} border-orange-500/50 p-4 mb-4`}>
-                <div className={`flex items-center justify-between ${minimizedSections.overdue ? '' : 'mb-4'}`}>
-                  <h3 className={`font-semibold text-orange-500 flex items-center gap-2`}>
-                    <AlertTriangle size={18} />
-                    Overdue
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm text-orange-500`}>{pastOverdue.length}</span>
-                    <button
-                      onClick={() => toggleSection('overdue')}
-                      className={`text-orange-500 hover:text-orange-400 transition-colors`}
-                      title={minimizedSections.overdue ? "Expand" : "Minimize"}
-                    >
-                      {minimizedSections.overdue ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                    </button>
-                  </div>
-                </div>
-
-                {!minimizedSections.overdue && (
-                  <div className="space-y-2">
-                    {pastOverdue.map(task => (
-                      <div
-                        key={task.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(task, 'overdue', e)}
-                        onDragEnd={handleDragEnd}
-                        className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative border-2 border-orange-500/50`}
-                      >
-                        <div className="flex items-start justify-between text-white">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <button
-                              onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
-                              className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                            >
-                              {task.completed && <Check size={10} strokeWidth={3} />}
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>
-                                {renderTitle(task.title)}
-                              </div>
-                              <div className="text-xs opacity-90 mt-1 flex items-center gap-1">
-                                {task._overdueType === 'scheduled' ? (
-                                  <>
-                                    <Clock size={10} />
-                                    {task.date} {task.isAllDay ? '' : `• ${formatTime(task.startTime)}`}
-                                  </>
-                                ) : (
-                                  <>
-                                    <AlertCircle size={10} />
-                                    Due: {formatDeadlineDate(task.deadline)}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-1 flex-shrink-0">
-                            {task._overdueType === 'scheduled' ? (
-                              <button
-                                onClick={() => {
-                                  pushUndo();
-                                  setTasks(tasks.filter(t => t.id !== task.id));
-                                  const { startTime, date, _overdueType, ...taskWithoutSchedule } = task;
-                                  setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
-                                  playUISound('slide');
-                                  setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                }}
-                                className="hover:bg-white/20 rounded p-1"
-                                title="Move to Inbox"
-                              >
-                                <Inbox size={14} />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => { clearDeadline(task.id); playUISound('slide'); setUndoToast({ message: 'Deadline cleared', actionable: true }); }}
-                                className="hover:bg-white/20 rounded p-1"
-                                title="Move to Inbox (clear deadline)"
-                              >
-                                <Inbox size={14} />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
-                              className="hover:bg-white/20 rounded p-1"
-                              title="Move to Recycle Bin"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                    if (pastOverdue.length === 0) return null;
+                    return (
+                      <div className={`${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'} rounded-lg border p-3`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <AlertTriangle size={14} className="text-orange-500" />
+                            <span className={`text-sm font-semibold ${textPrimary}`}>Overdue</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-orange-800 text-orange-200' : 'bg-orange-200 text-orange-700'}`}>
+                              {pastOverdue.length}
+                            </span>
                           </div>
                         </div>
+                        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                          {pastOverdue.slice(0, 5).map(task => (
+                            <div key={task.id} className={`flex items-center gap-2 text-xs ${textSecondary} cursor-pointer hover:${textPrimary}`} onClick={() => {
+                              if (task._overdueType === 'scheduled') {
+                                const d = new Date(task.date + 'T00:00:00');
+                                goToDate(d);
+                              }
+                            }}>
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.color || 'bg-orange-500'}`} />
+                              <span className="truncate flex-1">{task.title?.replace(/#\w+/g, '').trim()}</span>
+                              <span className="flex-shrink-0 text-orange-500">{task.date ? new Date(task.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+                            </div>
+                          ))}
+                          {pastOverdue.length > 5 && (
+                            <div className={`text-xs ${textSecondary} text-center pt-1`}>+{pastOverdue.length - 5} more</div>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              );
-            })()}
+                    );
+                  })()}
 
-            {/* dayGLANCE Agenda Section */}
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4`}>
-              <div className={`flex items-center justify-between ${minimizedSections.dayglance ? '' : 'mb-3'}`}>
-                <img
-                  src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
-                  alt="dayGLANCE"
-                  className="h-9"
-                />
-                <div className="flex items-center gap-2">
-                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && !sectionInfoDismissed.dayglance && (
-                    <button
-                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'dayglance' ? null : 'dayglance')}
-                      className={`${expandedSectionInfo === 'dayglance' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
-                      title="How dayGLANCE works"
-                    >
-                      <HelpCircle size={16} />
-                    </button>
+                  {/* Today's Agenda (dayGLANCE) */}
+                  {!minimizedSections.dayglance && todayAgenda.length > 0 && (
+                    <div className={`rounded-lg border ${borderClass} p-3`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-sm font-semibold ${textPrimary}`}>Today's Agenda</span>
+                        <span className={`text-xs ${textSecondary}`}>{todayAgenda.length} tasks</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                        {todayAgenda.map((task, idx) => {
+                          const taskStartMin = task.startTime ? timeToMinutes(task.startTime) : null;
+                          const taskEndMin = taskStartMin !== null ? taskStartMin + (task.duration || 0) : null;
+                          const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                          const isInProgress = taskStartMin !== null && taskEndMin !== null && nowMin >= taskStartMin && nowMin < taskEndMin && !task.completed;
+                          const isPast = taskEndMin !== null && nowMin >= taskEndMin;
+                          return (
+                            <div key={task.id || idx} className={`flex items-center gap-2 text-xs ${task.completed ? 'line-through opacity-40' : isPast ? 'opacity-50' : isInProgress ? `font-medium ${textPrimary}` : textSecondary}`}>
+                              <div className={`w-1 h-4 rounded-full flex-shrink-0 ${task.completed ? 'bg-green-500' : isInProgress ? 'bg-blue-500 animate-pulse' : isPast ? 'bg-gray-400' : task.color || 'bg-gray-400'}`} />
+                              <span className="flex-shrink-0 tabular-nums w-10">{task.startTime ? formatTime(task.startTime) : '--:--'}</span>
+                              <span className="truncate flex-1">{task.title?.replace(/#\w+/g, '').trim()}</span>
+                              {task.completed && <CheckCircle size={10} className="text-green-500 flex-shrink-0" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
-                  <button
-                    onClick={() => toggleSection('dayglance')}
-                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                    title={minimizedSections.dayglance ? "Expand" : "Minimize"}
-                  >
-                    {minimizedSections.dayglance ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                  </button>
+
+                  {/* Routines row */}
+                  {!minimizedSections.dayglance && todayRoutines.length > 0 && (() => {
+                    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                    const visibleRoutines = todayRoutines.filter(r => {
+                      if (!r.startTime || r.isAllDay) return true;
+                      return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
+                    });
+                    if (visibleRoutines.length === 0) return null;
+                    return (
+                      <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => openRoutinesDashboard()}>
+                        <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+                        <div className="flex flex-wrap gap-1">
+                          {[...visibleRoutines].sort((a, b) => {
+                            if (a.isAllDay && !b.isAllDay) return -1;
+                            if (!a.isAllDay && b.isAllDay) return 1;
+                            if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+                            return 0;
+                          }).map(r => {
+                            let timeLabel = '';
+                            if (!r.isAllDay && r.startTime) {
+                              if (use24HourClock) {
+                                timeLabel = r.startTime;
+                              } else {
+                                const [h, m] = r.startTime.split(':').map(Number);
+                                const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                                const ampm = h < 12 ? 'a' : 'p';
+                                timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
+                              }
+                            }
+                            return (
+                              <span key={r.id} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                                {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
-              {/* dayGLANCE info popup */}
-              {expandedSectionInfo === 'dayglance' && (
-                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
-                  <div className="flex items-start gap-2">
-                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                        Your Smart Agenda
-                      </p>
-                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
-                        <li>Shows all upcoming tasks and events for today</li>
-                        <li>Incomplete past tasks stay visible so nothing slips through</li>
-                        <li>Tasks show "In Progress" or "Overdue" status in real time</li>
-                        <li>Completed and past calendar events are automatically hidden</li>
-                      </ul>
-                      <button
-                        onClick={() => {
-                          setExpandedSectionInfo(null);
-                          setSectionInfoDismissed(prev => ({ ...prev, dayglance: true }));
-                        }}
-                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
-                      >
-                        Got it, don't show again
-                      </button>
+              {/* Divider */}
+              <div className={`border-t ${borderClass} mx-4`} />
+
+              {/* Inbox section */}
+              <div className="p-4">
+                <div
+                  onDragOver={handleDragOverInbox}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) {
+                      setDragOverInbox(false);
+                    }
+                  }}
+                  onDrop={handleDropOnInbox}
+                  className={`transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-900/20 rounded-lg ring-2 ring-inset ring-green-400' : 'bg-green-50 rounded-lg ring-2 ring-inset ring-green-500') : ''}`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2`}>
+                      <Inbox size={20} className="text-blue-500" /> Inbox
+                      {filteredUnscheduledTasks.length > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                          {filteredUnscheduledTasks.length}
+                        </span>
+                      )}
+                    </h2>
+                    <div className="flex items-center gap-1.5">
+                      {nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
+                        <>
+                          <button
+                            onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
+                            className={`${hoverBg} rounded px-1 py-0.5 transition-colors`}
+                            title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                          >
+                            <CheckCircle size={12} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                          </button>
+                          <button
+                            onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
+                            className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors`}
+                            title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
+                          >
+                            {[0, 1, 2].map(i => (
+                              <span
+                                key={i}
+                                className={`w-2 h-0.5 rounded-full ${
+                                  inboxPriorityFilter === 0
+                                    ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                                    : i < inboxPriorityFilter
+                                      ? 'bg-blue-500'
+                                      : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                                }`}
+                              />
+                            ))}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
 
-              {!minimizedSections.dayglance && (
-                  <div className="space-y-1">
-                    {todayAgenda.flatMap((task, idx) => {
-                      const items = [];
-                      // Insert "Now" marker at the right position (skip when inside a task/event)
-                      if (!agendaNowMarker.insideTask && idx === agendaNowMarker.insertAfterIndex + 1) {
-                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                        const gapM = agendaNowMarker.gapMinutes % 60;
-                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                        items.push(
-                          <div key="now-marker" className="flex gap-2 py-1.5">
-                            <div className="w-1 rounded-full flex-shrink-0 bg-red-500" />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-xs font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                              {agendaNowMarker.inboxCount > 0 && (
-                                <div className="text-[10px] italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return [...items, (() => {
-                      const colorClass = task.color === 'task-calendar' ? '' : task.color;
-                      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                      let timeLabel = '';
-                      let relativeLabel = '';
-                      if (task._agendaType === 'allday') {
-                        timeLabel = 'ALL DAY';
-                      } else if (task._agendaType === 'deadline') {
-                        timeLabel = 'DUE TODAY';
-                      } else {
-                        const [h, m] = (task.startTime || '0:0').split(':').map(Number);
-                        const startMin = h * 60 + m;
-                        const endMin = startMin + (task.duration || 0);
-                        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
-                        const endM = String(endMin % 60).padStart(2, '0');
-                        timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
-                        const diff = startMin - nowMin;
-                        if (diff > 0) {
-                          relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
-                        } else if (diff === 0) {
-                          relativeLabel = 'now';
-                        } else if (nowMin < endMin && !task.completed) {
-                          relativeLabel = 'In Progress';
-                        } else if (nowMin >= endMin && !task.completed) {
-                          relativeLabel = 'Overdue';
-                        }
-                      }
-                      return (
+                  <div className="space-y-2">
+                    {filteredUnscheduledTasks.length === 0 ? (
+                      <p className={`text-sm ${textSecondary} text-center py-4`}>
+                        {unscheduledTasks.length === 0
+                          ? "Drag tasks here to unschedule them"
+                          : nonOverdueInboxTasks.length === 0
+                            ? "All tasks have overdue deadlines"
+                            : "No tasks match current filter"}
+                      </p>
+                    ) : (
+                      filteredUnscheduledTasks.map(task => (
+                      <div
+                        key={task.id}
+                        data-task-id={task.id}
+                        className="notes-panel-container"
+                      >
                         <div
-                          key={`${task._agendaType}-${task.id}`}
-                          className={`flex gap-2 py-1.5 ${task.completed ? 'opacity-50' : ''}`}
+                          draggable
+                          onDragStart={(e) => handleDragStart(task, 'inbox', e)}
+                          onDragEnd={handleDragEnd}
+                          className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                         >
-                          <div className={`w-1 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
-                          <div className="min-w-0 flex-1">
-                            <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1`}>
-                              {task.isRecurring && <RefreshCw size={11} className="flex-shrink-0 opacity-60" />}
-                              <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
-                              {hasNotesOrSubtasks(task) && (
+                          {task.isExample && (
+                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                              Example
+                            </span>
+                          )}
+                          <div className="flex items-start justify-between text-white">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleComplete(task.id, true)}
+                                className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                              >
+                                {task.completed && <Check size={10} strokeWidth={3} />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                {editingTaskId === task.id ? (
+                                  <div className="relative tag-autocomplete-container">
+                                    <input
+                                      type="text"
+                                      value={editingTaskText}
+                                      onChange={(e) => handleEditInputChange(e, true)}
+                                      onKeyDown={(e) => handleEditKeyDown(e, true)}
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          if (!showSuggestions) {
+                                            saveTaskTitle(true);
+                                          }
+                                        }, 100);
+                                      }}
+                                      autoFocus
+                                      className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    {showSuggestions && suggestionContext === 'editing' && (
+                                      <SuggestionAutocomplete
+                                        suggestions={suggestions}
+                                        selectedIndex={selectedSuggestionIndex}
+                                        onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, true)}
+                                      />
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      startEditingTask(task, true);
+                                    }}
+                                    title="Double-click to edit"
+                                  >
+                                    {renderTitle(task.title)}
+                                  </div>
+                                )}
+                                <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
+                                  <span>{task.duration} min</span>
+                                  {task.deadline && (
+                                    <span className="flex items-center gap-1">
+                                      <AlertCircle size={10} />
+                                      {formatDeadlineDate(task.deadline)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              <div className="flex items-start gap-1">
                                 <button
                                   onMouseDown={() => {
                                     if (isLinkOnlyTask(task)) {
@@ -13342,8 +13141,12 @@ const DayPlanner = () => {
                                       }, 500);
                                     }
                                   }}
-                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                  onMouseUp={() => {
+                                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                  }}
+                                  onMouseLeave={() => {
+                                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                                  }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (isLinkOnlyTask(task)) {
@@ -13355,773 +13158,124 @@ const DayPlanner = () => {
                                       setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
                                     }
                                   }}
-                                  className={`notes-toggle-button flex-shrink-0 rounded p-0.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                                   title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                                 >
-                                  {isLinkOnlyTask(task) ? <ExternalLink size={12} /> : hasOnlySubtasks(task) ? <CheckSquare size={12} /> : <FileText size={12} />}
+                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                 </button>
-                              )}
-                              {relativeLabel === 'Overdue' && !task.completed && (
-                                <>
-                                  {task.isRecurring ? (
-                                    <span
-                                      className="flex-shrink-0 p-0.5 text-orange-500"
-                                      title="Recurring tasks can't be moved to Inbox"
-                                    >
-                                      <Ban size={12} />
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        pushUndo();
-                                        setTasks(prev => prev.filter(t => t.id !== task.id));
-                                        const { startTime, date, _agendaType, ...rest } = task;
-                                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                        playUISound('slide');
-                                        setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                      }}
-                                      className={`flex-shrink-0 rounded p-0.5 transition-colors text-orange-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                      title="Move to Inbox"
-                                    >
-                                      <Inbox size={12} />
-                                    </button>
-                                  )}
+                                <div className="deadline-picker-container relative">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      toggleComplete(task.id, false);
+                                      setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
                                     }}
-                                    className={`flex-shrink-0 rounded p-0.5 transition-colors text-green-500 ${darkMode ? 'hover:bg-white/20' : 'hover:bg-black/10'}`}
-                                    title="Mark complete"
+                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                    title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
                                   >
-                                    <CheckCircle size={12} />
+                                    <Calendar size={14} />
                                   </button>
-                                </>
-                              )}
-                            </div>
-                            <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
-                              {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
-                              {relativeLabel === 'In Progress' && focusModeAvailable && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
-                                  className="ml-1 p-0.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
-                                  title="Enter Focus Mode"
-                                >
-                                  <BrainCircuit size={14} className="animate-pulse" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                      })()];
-                    })}
-                    {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
-                      const hr = currentTime.getHours();
-                      const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
-                      const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
-                      const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
-                      return (
-                        <div key="now-marker-end" className="flex gap-2 py-1.5">
-                          <div className={`w-1 rounded-full flex-shrink-0 ${barColor}`} />
-                          <div className="min-w-0 flex-1">
-                            <div className={`text-xs font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
-                            <div className={`text-[10px] italic ${textColor} mt-0.5`}>{subtitle}</div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-              )}
-              {/* Routines row */}
-              {!minimizedSections.dayglance && todayRoutines.length > 0 && (() => {
-                const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                const visibleRoutines = todayRoutines.filter(r => {
-                  if (!r.startTime || r.isAllDay) return true;
-                  return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
-                });
-                if (visibleRoutines.length === 0) return null;
-                return (
-                <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => openRoutinesDashboard()}>
-                  <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
-                  <div className="flex flex-wrap gap-1">
-                    {[...visibleRoutines].sort((a, b) => {
-                      // All-day first, then by start time
-                      if (a.isAllDay && !b.isAllDay) return -1;
-                      if (!a.isAllDay && b.isAllDay) return 1;
-                      if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-                      return 0;
-                    }).map(r => {
-                      let timeLabel = '';
-                      if (!r.isAllDay && r.startTime) {
-                        if (use24HourClock) {
-                          timeLabel = r.startTime;
-                        } else {
-                          const [h, m] = r.startTime.split(':').map(Number);
-                          const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                          const ampm = h < 12 ? 'a' : 'p';
-                          timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
-                        }
-                      }
-                      return (
-                        <span key={r.id} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
-                          {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-                );
-              })()}
-            </div>
-
-            <div
-              onDragOver={handleDragOverInbox}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget)) {
-                  setDragOverInbox(false);
-                }
-              }}
-              onDrop={handleDropOnInbox}
-              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mb-4 transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-900/40 ring-2 ring-inset ring-green-400' : 'bg-green-100 ring-2 ring-inset ring-green-500') : ''}`}
-            >
-              <div className={`flex items-center justify-between ${minimizedSections.inbox ? '' : 'mb-4'}`}>
-                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <Inbox size={18} />
-                  Inbox
-                  {!minimizedSections.inbox && nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
-                    <>
-                      <button
-                        onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                        className={`${hoverBg} rounded px-1 py-0.5 transition-colors ml-1`}
-                        title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
-                      >
-                        <CheckCircle size={12} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
-                      </button>
-                      <button
-                        onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                        className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors`}
-                        title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
-                      >
-                        {[0, 1, 2].map(i => (
-                          <span
-                            key={i}
-                            className={`w-2 h-0.5 rounded-full ${
-                              inboxPriorityFilter === 0
-                                ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
-                                : i < inboxPriorityFilter
-                                  ? 'bg-blue-500'
-                                  : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
-                            }`}
-                          />
-                        ))}
-                      </button>
-                    </>
-                  )}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {filteredUnscheduledTasks.length > 0 && (
-                    <span className={`text-sm ${textSecondary}`}>
-                      {filteredUnscheduledTasks.length}
-                    </span>
-                  )}
-                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && (
-                    <button
-                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'inbox' ? null : 'inbox')}
-                      className={`${expandedSectionInfo === 'inbox' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
-                      title="How to use Inbox"
-                    >
-                      <HelpCircle size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => toggleSection('inbox')}
-                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                    title={minimizedSections.inbox ? "Expand" : "Minimize"}
-                  >
-                    {minimizedSections.inbox ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Inbox info popup */}
-              {expandedSectionInfo === 'inbox' && (
-                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
-                  <div className="flex items-start gap-2">
-                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                        Inbox Tips
-                      </p>
-                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
-                        <li>Drag inbox tasks to the timeline to schedule them</li>
-                        <li>Set priorities with the bars icon (filter with the header control)</li>
-                        <li>Add deadlines by clicking the calendar icon on an inbox task</li>
-                        <li>Add notes or subtasks by clicking the paper icon</li>
-                      </ul>
-                      <button
-                        onClick={() => {
-                          setExpandedSectionInfo(null);
-                          setSectionInfoDismissed(prev => ({ ...prev, inbox: true }));
-                        }}
-                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
-                      >
-                        Got it, don't show again
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!minimizedSections.inbox && (
-                <>
-                  {/* Priority prompt for unprioritized inbox */}
-                  {!priorityPromptDismissed &&
-                   nonOverdueInboxTasks.filter(t => !t.deadline).length > 5 &&
-                   nonOverdueInboxTasks.filter(t => !t.deadline).every(t => !t.priority || t.priority === 0) && (
-                    <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
-                      <div className="flex items-start gap-2">
-                        <AlertCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                            Prioritize your inbox
-                          </p>
-                          <p className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'}`}>
-                            You have {nonOverdueInboxTasks.filter(t => !t.deadline).length} tasks without priorities.
-                            Set priorities (click the bars on each task) then use the filter above to focus on what matters most.
-                          </p>
-                          <button
-                            onClick={() => setPriorityPromptDismissed(true)}
-                            className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
-                          >
-                            Don't show again
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                <div className="space-y-2">
-                  {filteredUnscheduledTasks.length === 0 ? (
-                    <p className={`text-sm ${textSecondary} text-center py-2`}>
-                      {unscheduledTasks.length === 0
-                        ? "Drag tasks here to unschedule them"
-                        : nonOverdueInboxTasks.length === 0
-                          ? "All tasks have overdue deadlines"
-                          : "No tasks match current filter"}
-                    </p>
-                  ) : (
-                    filteredUnscheduledTasks.map(task => (
-                    <div
-                      key={task.id}
-                      data-task-id={task.id}
-                      className="notes-panel-container"
-                    >
-                      <div
-                        draggable
-                        onDragStart={(e) => handleDragStart(task, 'inbox', e)}
-                        onDragEnd={handleDragEnd}
-                        className={`${task.color} rounded-lg p-3 cursor-move shadow-sm ${task.completed ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
-                      >
-                        {task.isExample && (
-                          <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                            Example
-                          </span>
-                        )}
-                        <div className="flex items-start justify-between text-white">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <button
-                              onClick={() => toggleComplete(task.id, true)}
-                              className={`mt-0.5 rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
-                            >
-                              {task.completed && <Check size={10} strokeWidth={3} />}
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              {editingTaskId === task.id ? (
-                                <div className="relative tag-autocomplete-container">
-                                  <input
-                                    type="text"
-                                    value={editingTaskText}
-                                    onChange={(e) => handleEditInputChange(e, true)}
-                                    onKeyDown={(e) => handleEditKeyDown(e, true)}
-                                    onBlur={() => {
-                                      // Delay blur to allow click on autocomplete
-                                      setTimeout(() => {
-                                        if (!showSuggestions) {
-                                          saveTaskTitle(true);
-                                        }
-                                      }, 100);
-                                    }}
-                                    autoFocus
-                                    className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  {showSuggestions && suggestionContext === 'editing' && (
-                                    <SuggestionAutocomplete
-                                      suggestions={suggestions}
-                                      selectedIndex={selectedSuggestionIndex}
-                                      onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, true)}
+                                  {showDeadlinePicker === task.id && (
+                                    <DeadlinePickerPopover
+                                      taskId={task.id}
+                                      currentDeadline={task.deadline}
+                                      onClose={() => setShowDeadlinePicker(null)}
                                     />
                                   )}
                                 </div>
-                              ) : (
-                                <div
-                                  className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
-                                  onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    startEditingTask(task, true);
-                                  }}
-                                  title="Double-click to edit"
+                                <button
+                                  onClick={() => openMobileEditTask(task, true)}
+                                  className="hover:bg-white/20 rounded p-1 transition-colors"
+                                  title="Edit"
                                 >
-                                  {renderTitle(task.title)}
-                                </div>
-                              )}
-                              <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
-                                <span>{task.duration} min</span>
-                                {task.deadline && (
-                                  <span className="flex items-center gap-1">
-                                    <AlertCircle size={10} />
-                                    {formatDeadlineDate(task.deadline)}
-                                  </span>
-                                )}
+                                  <Pencil size={14} />
+                                </button>
                               </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                            <div className="flex items-start gap-1">
-                              {/* Notes button - opens link directly if link-only, long press to edit */}
                               <button
-                                onMouseDown={() => {
-                                  if (isLinkOnlyTask(task)) {
-                                    longPressTriggeredRef.current = false;
-                                    longPressTimerRef.current = setTimeout(() => {
-                                      longPressTriggeredRef.current = true;
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                    }, 500);
-                                  }
-                                }}
-                                onMouseUp={() => {
-                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                                }}
-                                onMouseLeave={() => {
-                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                                }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (isLinkOnlyTask(task)) {
-                                    if (!longPressTriggeredRef.current) {
-                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                    }
-                                    longPressTriggeredRef.current = false;
-                                  } else {
-                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
-                                  }
+                                  cyclePriority(task.id);
                                 }}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
-                                title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
+                                className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 mt-1 transition-colors"
+                                title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
                               >
-                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                              </button>
-                              {/* Deadline picker */}
-                              <div className="deadline-picker-container relative">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
-                                  }}
-                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
-                                  title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
-                                >
-                                  <Calendar size={14} />
-                                </button>
-                                {showDeadlinePicker === task.id && (
-                                  <DeadlinePickerPopover
-                                    taskId={task.id}
-                                    currentDeadline={task.deadline}
-                                    onClose={() => setShowDeadlinePicker(null)}
+                                {[0, 1, 2].map(i => (
+                                  <span
+                                    key={i}
+                                    className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
                                   />
-                                )}
-                              </div>
-                              <button
-                                onClick={() => openMobileEditTask(task, true)}
-                                className="hover:bg-white/20 rounded p-1 transition-colors"
-                                title="Edit"
-                              >
-                                <Pencil size={14} />
+                                ))}
                               </button>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                cyclePriority(task.id);
-                              }}
-                              className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 mt-1 transition-colors"
-                              title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
-                            >
-                              {[0, 1, 2].map(i => (
-                                <span
-                                  key={i}
-                                  className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
-                                />
-                              ))}
-                            </button>
                           </div>
-                        </div>
-                        {/* Notes panel - inline below task */}
-                        {expandedNotesTaskId === task.id && (
-                          <NotesSubtasksPanel
-                            task={task}
-                            isInbox={true}
-                            darkMode={darkMode}
-                            updateTaskNotes={updateTaskNotes}
-                            addSubtask={addSubtask}
-                            toggleSubtask={toggleSubtask}
-                            deleteSubtask={deleteSubtask}
-                            updateSubtaskTitle={updateSubtaskTitle}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-                </div>
-                </>
-              )}
-            </div>
-
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className={`flex items-center justify-between ${minimizedSections.tags ? '' : 'mb-4'}`}>
-                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <Hash size={18} />
-                  Tags
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!minimizedSections.tags && allTags.length > 0 && (
-                    allTags.every(tag => selectedTags.includes(tag)) ? (
-                      <button
-                        onClick={clearTagFilter}
-                        className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
-                      >
-                        Clear
-                      </button>
-                    ) : (
-                      <button
-                        onClick={selectAllTags}
-                        className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
-                      >
-                        Select All
-                      </button>
-                    )
-                  )}
-                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && (
-                    <button
-                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'tags' ? null : 'tags')}
-                      className={`${expandedSectionInfo === 'tags' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
-                      title="How to use Tags"
-                    >
-                      <HelpCircle size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => toggleSection('tags')}
-                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                    title={minimizedSections.tags ? "Expand" : "Minimize"}
-                  >
-                    {minimizedSections.tags ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Tags info popup */}
-              {expandedSectionInfo === 'tags' && (
-                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
-                  <div className="flex items-start gap-2">
-                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                        Tags Tips
-                      </p>
-                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
-                        <li>Add #tags in task titles (e.g., "Meeting #work #urgent")</li>
-                        <li>Check or uncheck tags to filter the tasks visible on the timeline</li>
-                        <li>Tag counts show incomplete tasks only</li>
-                      </ul>
-                      <button
-                        onClick={() => {
-                          setExpandedSectionInfo(null);
-                          setSectionInfoDismissed(prev => ({ ...prev, tags: true }));
-                        }}
-                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
-                      >
-                        Got it, don't show again
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!minimizedSections.tags && (
-                <div className={`text-sm ${textSecondary}`}>
-                  {allTags.length === 0 ? (
-                    <p className="text-center py-2">Add #tags to task titles</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {allTags.map(tag => {
-                        const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
-                        const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                        const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                        const tagCount = regularCount + recurringCount;
-                        if (tagCount === 0) return null;
-                        return (
-                          <label
-                            key={tag}
-                            className={`flex items-center gap-2 cursor-pointer hover:${textPrimary} transition-colors`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTags.includes(tag)}
-                              onChange={() => toggleTag(tag)}
-                              className="rounded"
+                          {expandedNotesTaskId === task.id && (
+                            <NotesSubtasksPanel
+                              task={task}
+                              isInbox={true}
+                              darkMode={darkMode}
+                              updateTaskNotes={updateTaskNotes}
+                              addSubtask={addSubtask}
+                              toggleSubtask={toggleSubtask}
+                              deleteSubtask={deleteSubtask}
+                              updateSubtaskTitle={updateSubtaskTitle}
                             />
-                            <span>{tag} <span className={`text-xs ${textSecondary}`}>({tagCount})</span></span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className={`flex items-center justify-between ${minimizedSections.dailySummary ? '' : 'mb-2'}`}>
-                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <BarChart3 size={18} />
-                  Daily Summary
-                </h3>
-                <button
-                  onClick={() => toggleSection('dailySummary')}
-                  className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                  title={minimizedSections.dailySummary ? "Expand" : "Minimize"}
-                >
-                  {minimizedSections.dailySummary ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                </button>
-              </div>
-              {!minimizedSections.dailySummary && (
-                <div className={`text-sm ${textSecondary} space-y-1`}>
-                  <div>{actualTodayNonImportedTasks.length} tasks scheduled</div>
-                  <div>
-                    {actualTodayCompletedTasks.length} tasks completed
-                    {todayIncompleteTasks.length > 0 && (
-                      <button
-                        onClick={() => setShowIncompleteTasks('today')}
-                        className="ml-1 text-blue-500 hover:text-blue-400 hover:underline cursor-pointer"
-                      >
-                        ({todayIncompleteTasks.length} incomplete)
-                      </button>
-                    )}
-                  </div>
-                  {inboxCompletedTodayCount > 0 && (
-                    <div>{inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
-                  )}
-                  <div>{Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60)}h {(actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60}m time spent</div>
-                  <div>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m time planned</div>
-                  {actualTodayFocusMinutes > 0 && (
-                    <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m focus time</div>
-                  )}
-                  {actualTodayNonImportedTasks.length > 0 && (
-                    <div className="pt-1">
-                      <div className="font-semibold">{Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100)}% completion rate</div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4`}>
-              <div className={`flex items-center justify-between ${minimizedSections.allTimeSummary ? '' : 'mb-2'}`}>
-                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <BarChart3 size={18} />
-                  All Time Summary
-                </h3>
-                <button
-                  onClick={() => toggleSection('allTimeSummary')}
-                  className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                  title={minimizedSections.allTimeSummary ? "Expand" : "Minimize"}
-                >
-                  {minimizedSections.allTimeSummary ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                </button>
-              </div>
-              {!minimizedSections.allTimeSummary && (
-                <div className={`text-sm ${textSecondary} space-y-1`}>
-                  <div>{allTimeScheduledCount} tasks scheduled</div>
-                  <div>
-                    {allTimeCompletedCount} tasks completed
-                    {allTimeIncompleteTasks.length > 0 && (
-                      <button
-                        onClick={() => setShowIncompleteTasks('allTime')}
-                        className="ml-1 text-blue-500 hover:text-blue-400 hover:underline cursor-pointer"
-                      >
-                        ({allTimeIncompleteTasks.length} incomplete)
-                      </button>
-                    )}
-                  </div>
-                  {allTimeInboxCompletedCount > 0 && (
-                    <div>{allTimeInboxCompletedCount} inbox {allTimeInboxCompletedCount === 1 ? 'task' : 'tasks'} done</div>
-                  )}
-                  <div>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m time spent</div>
-                  <div>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m time planned</div>
-                  {allTimeFocusMinutes > 0 && (
-                    <div className="flex items-center gap-1"><BrainCircuit size={14} /> {Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m focus time</div>
-                  )}
-                  {allTimeScheduledCount > 0 && (
-                    <div className="pt-1">
-                      <div className="font-semibold">{Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}% completion rate</div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div
-              onDragOver={handleDragOverRecycleBin}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget)) {
-                  setDragOverRecycleBin(false);
-                }
-              }}
-              onDrop={handleDropOnRecycleBin}
-              className={`${cardBg} rounded-lg shadow-sm border ${borderClass} p-4 mt-4 transition-colors ${dragOverRecycleBin ? (darkMode ? 'bg-red-900/40 ring-2 ring-inset ring-red-400' : 'bg-red-100 ring-2 ring-inset ring-red-500') : ''}`}
-            >
-              <div className={`flex items-center justify-between ${minimizedSections.recycleBin ? '' : 'mb-4'}`}>
-                <h3 className={`font-semibold ${textPrimary} flex items-center gap-2`}>
-                  <Trash2 size={18} />
-                  Recycle Bin
-                </h3>
-                <div className="flex items-center gap-2">
-                  {recycleBin.length > 0 && (
-                    <span className={`text-sm ${textSecondary}`}>{recycleBin.length}</span>
-                  )}
-                  {!onboardingComplete && dataLoaded && hasZeroRealTasks && (
-                    <button
-                      onClick={() => setExpandedSectionInfo(expandedSectionInfo === 'recycleBin' ? null : 'recycleBin')}
-                      className={`${expandedSectionInfo === 'recycleBin' ? 'text-blue-500' : textSecondary} hover:text-blue-500 transition-colors`}
-                      title="How to use Recycle Bin"
-                    >
-                      <HelpCircle size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => toggleSection('recycleBin')}
-                    className={`${textSecondary} hover:${textPrimary} transition-colors`}
-                    title={minimizedSections.recycleBin ? "Expand" : "Minimize"}
-                  >
-                    {minimizedSections.recycleBin ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Recycle Bin info popup */}
-              {expandedSectionInfo === 'recycleBin' && (
-                <div className={`mb-3 p-3 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
-                  <div className="flex items-start gap-2">
-                    <HelpCircle size={18} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
-                        Recycle Bin Tips
-                      </p>
-                      <ul className={`text-xs mt-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-600'} space-y-1 list-disc list-inside`}>
-                        <li>Deleted tasks are kept in the recycle bin for 30 days</li>
-                        <li>Drag tasks back to Inbox or timeline to restore</li>
-                        <li>Click the restore icon (↩) on any task to restore it</li>
-                        <li>Use "Empty Bin" to permanently delete all items</li>
-                      </ul>
-                      <button
-                        onClick={() => {
-                          setExpandedSectionInfo(null);
-                          setSectionInfoDismissed(prev => ({ ...prev, recycleBin: true }));
-                        }}
-                        className={`text-xs mt-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} underline`}
-                      >
-                        Got it, don't show again
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!minimizedSections.recycleBin && (
-                <>
-                  <div className="space-y-2">
-                    {recycleBin.length === 0 ? (
-                      <p className={`text-sm ${textSecondary} text-center py-2`}>Drag tasks here to delete them</p>
-                    ) : (
-                      recycleBin.map(task => (
-                        <div
-                          key={task.id}
-                          data-task-id={"bin-" + task.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(task, 'recycleBin', e)}
-                          onDragEnd={handleDragEnd}
-                          className={`${task.color} rounded-lg p-3 shadow-sm opacity-50 relative cursor-move ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
-                        >
-                          {task.isExample && (
-                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
-                              Example
-                            </span>
                           )}
-                          <div className="flex items-start justify-between text-white">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
-                                <div className="text-xs opacity-75 mt-1">
-                                  {task._deletedFrom === 'inbox' ? (
-                                    <>Inbox • {task.duration}min</>
-                                  ) : task.startTime ? (
-                                    <>{formatTime(task.startTime)} • {task.duration}min</>
-                                  ) : (
-                                    <>{task.duration}min</>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => undeleteTask(task.id)}
-                              className="hover:bg-white/20 rounded p-1 transition-colors"
-                              title="Restore Task"
-                            >
-                              <Undo2 size={14} />
-                            </button>
-                          </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                  {recycleBin.length > 0 && (
-                    <button
-                      onClick={emptyRecycleBin}
-                      className={`w-full mt-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium`}
-                    >
-                      Empty Recycle Bin
-                    </button>
+                      </div>
+                    ))
                   )}
-                </>
-              )}
-            </div>
-                </div>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* FAB cluster for Glance panel actions */}
+            <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-10">
+              <button
+                onClick={() => setShowMobileDailySummary(true)}
+                className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
+                title="Daily Summary"
+              >
+                <BarChart3 size={18} />
+              </button>
+              <button
+                onClick={() => setShowMobileRecycleBin(true)}
+                className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
+                title="Recycle Bin"
+              >
+                <Trash2 size={18} />
+                {recycleBin.filter(t => !t.isExample).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
+                className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
+                title="Weekly Review"
+              >
+                <TrendingUp size={18} />
+                {showWeeklyReviewReminder && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
+                )}
+              </button>
+              <button
+                onClick={openRoutinesDashboard}
+                className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
+                title="Routines"
+              >
+                <Sparkles size={18} />
+              </button>
+            </div>
           </div>
           )}
 
           {/* Calendar area — shared between desktop and tablet */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 relative">
             <div
               ref={calendarRef}
-              className={`${cardBg} ${isTablet ? '' : 'rounded-lg shadow-sm'} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
-              style={{ height: isTablet ? '100%' : '1168px', ...(isTablet ? { touchAction: 'manipulation' } : {}) }}
+              className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
+              style={{ height: '100%', touchAction: isTablet ? 'manipulation' : undefined }}
             >
               {/* Date headers row - sticky at top */}
               <div ref={(el) => { stickyHeaderRef.current = el; if (isTablet) mobileDateHeaderRef.current = el; }} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
@@ -16178,8 +15332,30 @@ const DayPlanner = () => {
         </>
       )}
 
-      {/* Tablet: Recycle Bin Bottom Sheet */}
-      {isTablet && showMobileRecycleBin && (
+      {/* Desktop: Timeline FABs — + (new task) and inbox */}
+      {!isTablet && !isMobile && (
+        <>
+          <button
+            onClick={openNewTaskForm}
+            className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
+            style={{ right: '1.5rem', bottom: '1.5rem' }}
+            title="New Scheduled Task"
+          >
+            <Plus size={28} />
+          </button>
+          <button
+            onClick={openNewInboxTask}
+            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
+            style={{ right: '1.75rem', bottom: '5rem' }}
+            title="New Inbox Task"
+          >
+            <Inbox size={20} />
+          </button>
+        </>
+      )}
+
+      {/* Desktop/Tablet: Recycle Bin Bottom Sheet */}
+      {!isMobile && showMobileRecycleBin && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileRecycleBin(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
@@ -16232,8 +15408,8 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet: Tag Filter Bottom Sheet */}
-      {isTablet && showMobileTagFilter && (
+      {/* Desktop/Tablet: Tag Filter Bottom Sheet */}
+      {!isMobile && showMobileTagFilter && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileTagFilter(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
@@ -16293,24 +15469,20 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet: Daily Summary Bottom Sheet — constrained to side panel width */}
-      {isTablet && showMobileDailySummary && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ width: '320px' }} onClick={() => setShowMobileDailySummary(false)}>
+      {/* Desktop/Tablet: Daily Summary Popover */}
+      {!isMobile && showMobileDailySummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowMobileDailySummary(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
-            className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
-            style={{ paddingBottom: '1rem' }}
+            className={`relative ${cardBg} rounded-2xl shadow-xl max-w-sm w-full mx-4 max-h-[80vh] overflow-y-auto`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
-            </div>
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <div className="flex items-center gap-2">
                 <BarChart3 size={18} className={textSecondary} />
-                <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
+                <span className={`font-semibold ${textPrimary}`}>Summary</span>
               </div>
-              <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`} aria-label="Close daily summary">
+              <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`} aria-label="Close">
                 <X size={16} className={textSecondary} />
               </button>
             </div>
@@ -16363,6 +15535,59 @@ const DayPlanner = () => {
                   </>
                 );
               })()}
+
+              {/* All Time Summary */}
+              <div className={`mt-4 pt-4 border-t ${borderClass}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={16} className={textSecondary} />
+                  <span className={`font-semibold text-sm ${textPrimary}`}>All Time</span>
+                </div>
+                <div className={`space-y-2 text-sm ${textSecondary}`}>
+                  <div className="flex items-center justify-between">
+                    <span>Tasks scheduled</span>
+                    <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Tasks completed</span>
+                    <span className={`font-medium ${textPrimary}`}>
+                      {allTimeCompletedCount}
+                      {allTimeIncompleteTasks.length > 0 && (
+                        <button
+                          onClick={() => { setShowIncompleteTasks('allTime'); setShowMobileDailySummary(false); }}
+                          className="ml-1 text-blue-500 hover:text-blue-400"
+                        >
+                          ({allTimeIncompleteTasks.length} incomplete)
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  {allTimeInboxCompletedCount > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span>Inbox done</span>
+                      <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span>Time spent</span>
+                    <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Time planned</span>
+                    <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                  </div>
+                  {allTimeFocusMinutes > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span>Focus time</span>
+                      <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                    </div>
+                  )}
+                  {allTimeScheduledCount > 0 && (
+                    <div className={`pt-1 font-semibold ${textPrimary}`}>
+                      {Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}% completion rate
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
