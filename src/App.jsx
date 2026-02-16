@@ -4731,7 +4731,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showMobileTagFilter, hoverPreviewTime, hoverPreviewDate]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
