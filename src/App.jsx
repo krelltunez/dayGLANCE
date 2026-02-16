@@ -4527,6 +4527,11 @@ const DayPlanner = () => {
           setEditingRecurrenceTaskId(null);
           return;
         }
+        if (showMobileTagFilter) {
+          e.preventDefault();
+          setShowMobileTagFilter(false);
+          return;
+        }
         if (showMonthView) {
           e.preventDefault();
           setShowMonthView(false);
@@ -18308,116 +18313,119 @@ const DayPlanner = () => {
         ) : (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowWeeklyReview(false)}>
             <div
-              className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border max-w-2xl w-full mx-4 flex flex-col`}
-              style={{ maxHeight: '90vh' }}
+              className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border w-full mx-4 flex flex-col`}
+              style={{ maxHeight: '90vh', maxWidth: '56rem' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="overflow-y-auto p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
-                      alt="dayGLANCE"
-                      className="h-[4.5rem]"
-                    />
-                    <div>
-                      <h2 className={`text-xl font-bold ${textPrimary}`}>Weekly Review</h2>
-                      <p className={`text-sm ${textSecondary}`}>{formatRange(pastStartStr, pastEndStr)}</p>
-                    </div>
+              {/* Header */}
+              <div className={`flex items-center justify-between px-6 py-4 border-b ${borderClass} flex-shrink-0`}>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    alt="dayGLANCE"
+                    className="h-[4.5rem]"
+                  />
+                  <div>
+                    <h2 className={`text-xl font-bold ${textPrimary}`}>Weekly Review</h2>
+                    <p className={`text-sm ${textSecondary}`}>{formatRange(pastStartStr, nextEndStr)}</p>
                   </div>
-                  <button onClick={() => setShowWeeklyReview(false)} className={`${textSecondary} hover:${textPrimary}`}>
-                    <X size={20} />
-                  </button>
                 </div>
+                <button onClick={() => setShowWeeklyReview(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}>
+                  <X size={20} className={textSecondary} />
+                </button>
+              </div>
 
-                {/* LAST WEEK */}
-                <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-3`}>Past 7 Days</h3>
+              {/* Two-panel body */}
+              <div className="flex flex-1 overflow-hidden min-h-0">
+                {/* Left panel: Past 7 Days */}
+                <div className={`flex-1 overflow-y-auto p-6 border-r ${borderClass} ${darkMode ? 'dark-scrollbar' : ''}`}>
+                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Past 7 Days</h3>
+                  <p className={`text-sm ${textSecondary} mb-4`}>{formatRange(pastStartStr, pastEndStr)}</p>
 
-                {pastScheduled === 0 ? (
-                  <p className={`text-sm ${textSecondary} mb-5 italic`}>No tasks were scheduled in the past 7 days</p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <StatCard value={`${pastCompleted}/${pastScheduled}`} label="Tasks done" icon={<CheckSquare size={16} className="text-green-400" />} />
-                      <StatCard value={`${pastCompletionRate}%`} label="Completion" icon={<Target size={16} className="text-blue-400" />} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
-                      <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<BrainCircuit size={16} className="text-purple-400" />} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
-                      {bestDayName && (
-                        <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Incomplete list */}
-                {pastIncomplete.length > 0 && (
-                  <div className={`rounded-lg border ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'} p-3 mb-5`}>
-                    <div className={`flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'} font-bold text-sm mb-2`}>
-                      <AlertCircle size={16} />
-                      {pastIncomplete.length} incomplete task{pastIncomplete.length !== 1 ? 's' : ''}
-                    </div>
-                    <div className="max-h-40 overflow-y-auto -mx-1">
-                      {pastIncomplete.map((task) => (
-                        <button
-                          key={task.id}
-                          className={`w-full flex items-center gap-3 px-2 py-1.5 rounded text-left ${darkMode ? 'hover:bg-red-900/40' : 'hover:bg-red-100/60'} transition-colors`}
-                          onClick={() => {
-                            const d = new Date(task.date + 'T12:00:00');
-                            setSelectedDate(d);
-                            setShowWeeklyReview(false);
-                          }}
-                        >
-                          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
-                          <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{task.title}</span>
-                          <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
-                            {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {task.startTime ? ` \u00b7 ${formatTime(task.startTime)}` : ''}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Divider */}
-                <div className={`border-t ${borderClass} my-5`} />
-
-                {/* WEEK AHEAD */}
-                <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-0.5`}>Next 7 Days</h3>
-                <p className={`text-sm ${textSecondary} mb-3`}>{formatRange(nextStartStr, nextEndStr)}</p>
-
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
-                  <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {busiestDayName && busiestMinutes > 0 && (
-                    <StatCard value={busiestDayName} label="Busiest" icon={<Zap size={16} className="text-amber-400" />} />
+                  {pastScheduled === 0 ? (
+                    <p className={`text-sm ${textSecondary} italic`}>No tasks were scheduled in the past 7 days</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <StatCard value={`${pastCompleted}/${pastScheduled}`} label="Tasks done" icon={<CheckSquare size={16} className="text-green-400" />} />
+                        <StatCard value={`${pastCompletionRate}%`} label="Completion" icon={<Target size={16} className="text-blue-400" />} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
+                        <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<BrainCircuit size={16} className="text-purple-400" />} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                        {bestDayName && (
+                          <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
+                        )}
+                      </div>
+                    </>
                   )}
-                  {nextRecurringCount > 0 && (
-                    <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+
+                  {/* Incomplete list */}
+                  {pastIncomplete.length > 0 && (
+                    <div className={`rounded-lg border ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'} p-3`}>
+                      <div className={`flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'} font-bold text-sm mb-2`}>
+                        <AlertCircle size={16} />
+                        {pastIncomplete.length} incomplete task{pastIncomplete.length !== 1 ? 's' : ''}
+                      </div>
+                      <div className="max-h-48 overflow-y-auto -mx-1">
+                        {pastIncomplete.map((task) => (
+                          <button
+                            key={task.id}
+                            className={`w-full flex items-center gap-3 px-2 py-1.5 rounded text-left ${darkMode ? 'hover:bg-red-900/40' : 'hover:bg-red-100/60'} transition-colors`}
+                            onClick={() => {
+                              const d = new Date(task.date + 'T12:00:00');
+                              setSelectedDate(d);
+                              setShowWeeklyReview(false);
+                            }}
+                          >
+                            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
+                            <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{task.title}</span>
+                            <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
+                              {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {task.startTime ? ` \u00b7 ${formatTime(task.startTime)}` : ''}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                {/* Open days nudge */}
-                {openDays.length > 0 && (
-                  <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3 mb-2`}>
-                    <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm`}>
-                      <Sparkles size={16} />
-                      {openDayNames.join(', ')} {openDays.length === 1 ? 'is' : 'are'} open. {openDays.length === 1 ? 'That would be a great day' : 'Those would be great days'} for deep work or planning.
-                    </div>
+                {/* Right panel: Next 7 Days */}
+                <div className={`flex-1 overflow-y-auto p-6 ${darkMode ? 'dark-scrollbar' : ''}`}>
+                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Next 7 Days</h3>
+                  <p className={`text-sm ${textSecondary} mb-4`}>{formatRange(nextStartStr, nextEndStr)}</p>
+
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
+                    <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
                   </div>
-                )}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {busiestDayName && busiestMinutes > 0 && (
+                      <StatCard value={busiestDayName} label="Busiest" icon={<Zap size={16} className="text-amber-400" />} />
+                    )}
+                    {nextRecurringCount > 0 && (
+                      <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                    )}
+                  </div>
+
+                  {/* Open days nudge */}
+                  {openDays.length > 0 && (
+                    <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3`}>
+                      <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm`}>
+                        <Sparkles size={16} />
+                        {openDayNames.join(', ')} {openDays.length === 1 ? 'is' : 'are'} open. {openDays.length === 1 ? 'Great' : 'Those are great'} for deep work.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Done button */}
-              <div className={`p-4 border-t ${borderClass}`}>
+              <div className={`px-6 py-4 border-t ${borderClass} flex-shrink-0`}>
                 <button
                   onClick={() => setShowWeeklyReview(false)}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
