@@ -11938,7 +11938,7 @@ const DayPlanner = () => {
       <>
       {/* Desktop & Tablet Layout */}
       {!isTablet && (
-      <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '56px' }}>
+      <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between`} style={{ height: '72px' }}>
         {/* Left: Logo + Date Nav */}
         <div className="flex items-center gap-3">
           <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
@@ -12027,7 +12027,7 @@ const DayPlanner = () => {
               {visibleDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {weather.forecast.slice(0, visibleDays === 3 ? 5 : 2).map((day, index) => (
-                    <div key={index} className={`px-2 py-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
+                    <div key={index} className={`px-2 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
                       <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
                       <div className="text-base">{day.icon}</div>
                       <div className={`text-[10px] ${textPrimary}`}>
@@ -12308,7 +12308,7 @@ const DayPlanner = () => {
       )}
 
       {/* Content area: side panel + calendar */}
-      <div className="flex" style={{ height: 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' }}>
+      <div className="flex" style={{ height: isTablet ? 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' : 'calc(100vh - 72px - env(safe-area-inset-top, 0px))' }}>
 
         <div className="contents">
 
