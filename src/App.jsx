@@ -11775,6 +11775,59 @@ const DayPlanner = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* All Time Summary */}
+                      <div className={`mt-4 pt-4 border-t ${borderClass}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <TrendingUp size={16} className={textSecondary} />
+                          <span className={`font-semibold text-sm ${textPrimary}`}>All Time</span>
+                        </div>
+                        <div className={`space-y-2 text-sm ${textSecondary}`}>
+                          <div className="flex items-center justify-between">
+                            <span>Tasks scheduled</span>
+                            <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Tasks completed</span>
+                            <span className={`font-medium ${textPrimary}`}>
+                              {allTimeCompletedCount}
+                              {allTimeIncompleteTasks.length > 0 && (
+                                <button
+                                  onClick={() => { setShowIncompleteTasks('allTime'); setShowMobileDailySummary(false); }}
+                                  className="ml-1 text-blue-500 active:text-blue-400"
+                                >
+                                  ({allTimeIncompleteTasks.length} incomplete)
+                                </button>
+                              )}
+                            </span>
+                          </div>
+                          {allTimeInboxCompletedCount > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span>Inbox done</span>
+                              <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span>Time spent</span>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Time planned</span>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                          </div>
+                          {allTimeFocusMinutes > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span>Focus time</span>
+                              <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                            </div>
+                          )}
+                          {allTimeScheduledCount > 0 && (
+                            <div className={`pt-1 font-semibold ${textPrimary}`}>
+                              {Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}% completion rate
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </>
                     );
                   })()}
@@ -11880,7 +11933,7 @@ const DayPlanner = () => {
       <>
       {/* Desktop & Tablet Layout */}
       {!isTablet && (
-      <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '48px' }}>
+      <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '56px' }}>
         {/* Left: Logo + Date Nav */}
         <div className="flex items-center gap-3">
           <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
@@ -11965,10 +12018,10 @@ const DayPlanner = () => {
                 </div>
               </div>
 
-              {/* 5-day forecast (only on 3-day view) */}
-              {visibleDays === 3 && weather.forecast && weather.forecast.length > 0 && (
+              {/* Forecast — proportional to visible day columns */}
+              {visibleDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {weather.forecast.map((day, index) => (
+                  {weather.forecast.slice(0, visibleDays === 3 ? 5 : 2).map((day, index) => (
                     <div key={index} className={`px-2 py-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
                       <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
                       <div className="text-base">{day.icon}</div>
@@ -12090,7 +12143,7 @@ const DayPlanner = () => {
 
       {/* Tablet header strip */}
       {isTablet && (
-        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '48px' }}>
+        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '56px' }}>
           <div className="flex items-center">
             <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
           </div>
@@ -12250,7 +12303,7 @@ const DayPlanner = () => {
       )}
 
       {/* Content area: side panel + calendar */}
-      <div className="flex" style={{ height: 'calc(100vh - 48px - env(safe-area-inset-top, 0px))' }}>
+      <div className="flex" style={{ height: 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' }}>
 
         <div className="contents">
 
@@ -12260,42 +12313,34 @@ const DayPlanner = () => {
               className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0`}
               style={{ width: '320px', height: '100%' }}
             >
-              {/* Landscape: tabbed header */}
-              {isLandscape && (
-                <div className={`flex border-b ${borderClass} flex-shrink-0`}>
-                  <button
-                    onClick={() => setTabletActiveTab('glance')}
-                    className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
-                  >
-                    <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> Glance</span>
-                  </button>
-                  <button
-                    onClick={() => setTabletActiveTab('inbox')}
-                    className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
-                  >
-                    <span className="flex items-center justify-center gap-1.5">
-                      <Inbox size={16} /> Inbox
-                      {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
-                        <span className="bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
-                          {filteredUnscheduledTasks.filter(t => !t.isExample).length}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </div>
-              )}
+              {/* Tabbed header — both portrait and landscape */}
+              <div className={`flex border-b ${borderClass} flex-shrink-0`}>
+                <button
+                  onClick={() => setTabletActiveTab('glance')}
+                  className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+                >
+                  <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> Glance</span>
+                </button>
+                <button
+                  onClick={() => setTabletActiveTab('inbox')}
+                  className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+                >
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Inbox size={16} /> Inbox
+                    {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
+                      <span className="bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                        {filteredUnscheduledTasks.filter(t => !t.isExample).length}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </div>
 
               {/* Scrollable content */}
               <div className={`flex-1 overflow-y-auto ${darkMode ? 'dark-scrollbar' : ''}`}>
-                {/* Glance section — shown when: portrait (always) or landscape with glance tab active */}
-                {(!isLandscape || tabletActiveTab === 'glance') && (
+                {/* Glance section — shown when glance tab active */}
+                {tabletActiveTab === 'glance' && (
                   <div className="p-4">
-                    {/* Portrait: section header */}
-                    {!isLandscape && (
-                      <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2 mb-4`}>
-                        <Eye size={20} className="text-blue-500" /> Glance
-                      </h2>
-                    )}
                     <div className="space-y-4">
                       {/* Search bar + filter */}
                       <div className="flex items-center gap-2">
@@ -12609,39 +12654,19 @@ const DayPlanner = () => {
                   </div>
                 )}
 
-                {/* Inbox section — shown when: portrait (always, below glance) or landscape with inbox tab active */}
-                {(!isLandscape || tabletActiveTab === 'inbox') && (
-                  <div className={`p-4 ${!isLandscape ? `border-t ${borderClass}` : ''}`}>
+                {/* Inbox section — shown when inbox tab active */}
+                {tabletActiveTab === 'inbox' && (
+                  <div className="p-4">
                     {/* Inbox header with priority filter */}
                     <div className="flex items-center justify-between mb-4">
-                      {!isLandscape ? (
-                        <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2`}>
-                          <Inbox size={20} className="text-blue-500" /> Inbox
-                          {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
-                            <span className="bg-blue-600 text-white text-xs font-bold min-w-[20px] h-5 flex items-center justify-center rounded-full px-1.5">
-                              {filteredUnscheduledTasks.filter(t => !t.isExample).length}
-                            </span>
-                          )}
-                        </h2>
-                      ) : (
-                        <button
-                          onClick={openNewInboxTask}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
-                        >
-                          <Plus size={14} />
-                          New Inbox Task
-                        </button>
-                      )}
+                      <button
+                        onClick={openNewInboxTask}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
+                      >
+                        <Plus size={14} />
+                        New Inbox Task
+                      </button>
                       <div className="flex items-center gap-2">
-                        {!isLandscape && (
-                          <button
-                            onClick={openNewInboxTask}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium active:bg-blue-700 transition-colors"
-                          >
-                            <Plus size={12} />
-                            New
-                          </button>
-                        )}
                         <button
                           onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                           className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
@@ -12832,19 +12857,39 @@ const DayPlanner = () => {
             </div>
           )}
 
-          {/* Desktop side panel — Glance + Inbox (matching tablet design) */}
+          {/* Desktop side panel — Glance + Inbox (matching tablet landscape design) */}
           {!isTablet && (
           <div
             className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
             style={{ width: '320px', height: '100%' }}
           >
+            {/* Tab bar — matching tablet */}
+            <div className={`flex border-b ${borderClass} flex-shrink-0`}>
+              <button
+                onClick={() => setTabletActiveTab('glance')}
+                className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+              >
+                <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> Glance</span>
+              </button>
+              <button
+                onClick={() => setTabletActiveTab('inbox')}
+                className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <Inbox size={16} /> Inbox
+                  {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
+                    <span className="bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                      {filteredUnscheduledTasks.filter(t => !t.isExample).length}
+                    </span>
+                  )}
+                </span>
+              </button>
+            </div>
             {/* Scrollable content */}
             <div className={`flex-1 overflow-y-auto ${darkMode ? 'dark-scrollbar' : ''}`}>
-              {/* Glance section */}
+              {/* Glance section — shown when glance tab active */}
+              {tabletActiveTab === 'glance' && (
               <div className="p-4">
-                <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2 mb-4`}>
-                  <Eye size={20} className="text-blue-500" /> Glance
-                </h2>
                 <div className="space-y-4">
                   {/* Search bar + filter */}
                   <div className="flex items-center gap-2">
@@ -12966,32 +13011,161 @@ const DayPlanner = () => {
                     );
                   })()}
 
-                  {/* Today's Agenda (dayGLANCE) */}
-                  {todayAgenda.length > 0 && (
-                    <div className={`rounded-lg border ${borderClass} p-3`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-sm font-semibold ${textPrimary}`}>Today's Agenda</span>
-                        <span className={`text-xs ${textSecondary}`}>{todayAgenda.length} tasks</span>
-                      </div>
-                      <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                        {todayAgenda.map((task, idx) => {
-                          const taskStartMin = task.startTime ? timeToMinutes(task.startTime) : null;
-                          const taskEndMin = taskStartMin !== null ? taskStartMin + (task.duration || 0) : null;
-                          const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                          const isInProgress = taskStartMin !== null && taskEndMin !== null && nowMin >= taskStartMin && nowMin < taskEndMin && !task.completed;
-                          const isPast = taskEndMin !== null && nowMin >= taskEndMin;
-                          return (
-                            <div key={task.id || idx} className={`flex items-center gap-2 text-xs ${task.completed ? 'line-through opacity-40' : isPast ? 'opacity-50' : isInProgress ? `font-medium ${textPrimary}` : textSecondary}`}>
-                              <div className={`w-1 h-4 rounded-full flex-shrink-0 ${task.completed ? 'bg-green-500' : isInProgress ? 'bg-blue-500 animate-pulse' : isPast ? 'bg-gray-400' : task.color || 'bg-gray-400'}`} />
-                              <span className="flex-shrink-0 tabular-nums w-10">{task.startTime ? formatTime(task.startTime) : '--:--'}</span>
-                              <span className="truncate flex-1">{task.title?.replace(/#\w+/g, '').trim()}</span>
-                              {task.completed && <CheckCircle size={10} className="text-green-500 flex-shrink-0" />}
+                  {/* Today's agenda — matching tablet landscape */}
+                  {(() => { const filteredAgenda = filterByTags(todayAgenda); return (
+                    <div className="space-y-1.5">
+                      {filteredAgenda.length === 0 && (
+                        <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
+                      )}
+                      {filteredAgenda.flatMap((task, idx) => {
+                        const items = [];
+                        // Insert "Now" marker (skip when inside a task/event)
+                        if (!agendaNowMarker.insideTask) {
+                          if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
+                            const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                            const gapM = agendaNowMarker.gapMinutes % 60;
+                            const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                            items.push(
+                              <div key="desktop-now-marker" className="flex gap-2.5 py-2.5">
+                                <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                  {agendaNowMarker.inboxCount > 0 && (
+                                    <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          } else if (idx > 0) {
+                            const prevTask = filteredAgenda[idx - 1];
+                            const prevIdxInFull = todayAgenda.indexOf(prevTask);
+                            const curIdxInFull = todayAgenda.indexOf(task);
+                            if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
+                              const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                              const gapM = agendaNowMarker.gapMinutes % 60;
+                              const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                              items.push(
+                                <div key="desktop-now-marker" className="flex gap-2.5 py-2.5">
+                                  <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                    {agendaNowMarker.inboxCount > 0 && (
+                                      <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                          }
+                        }
+                        const colorClass = task.color === 'task-calendar' ? '' : task.color;
+                        const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+                        let timeLabel = '';
+                        let relativeLabel = '';
+                        if (task._agendaType === 'allday') {
+                          timeLabel = 'ALL DAY';
+                        } else if (task._agendaType === 'deadline') {
+                          timeLabel = 'DUE TODAY';
+                        } else {
+                          const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                          const startMin = h * 60 + m;
+                          const endMin = startMin + (task.duration || 0);
+                          const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                          const endM = String(endMin % 60).padStart(2, '0');
+                          timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                          const diff = startMin - nowMin;
+                          if (diff > 0) {
+                            relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                          } else if (diff === 0) {
+                            relativeLabel = 'now';
+                          } else if (nowMin < endMin && !task.completed) {
+                            relativeLabel = 'In Progress';
+                          } else if (nowMin >= endMin && !task.completed) {
+                            relativeLabel = 'Overdue';
+                          }
+                        }
+                        items.push(
+                          <div
+                            key={`desktop-glance-${task._agendaType}-${task.id}`}
+                            className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer hover:bg-white/5 rounded-lg transition-colors`}
+                            onClick={() => {
+                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                              if (el) {
+                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                el.classList.add('ring-2', 'ring-blue-400');
+                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                              }
+                            }}
+                          >
+                            <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                            <div className="min-w-0 flex-1">
+                              <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
+                                {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
+                                <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                              </div>
+                              <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                                {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                                {relativeLabel === 'In Progress' && focusModeAvailable && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                    className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                    title="Enter Focus Mode"
+                                  >
+                                    <BrainCircuit size={16} className="animate-pulse" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                            {relativeLabel === 'Overdue' && !task.completed && (
+                              <div className="flex items-center gap-1 flex-shrink-0 mr-5">
+                                {!task.isRecurring && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      pushUndo();
+                                      setTasks(prev => prev.filter(t => t.id !== task.id));
+                                      const { startTime, date, _agendaType, ...rest } = task;
+                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                      playUISound('slide');
+                                      setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                    }}
+                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} hover:scale-95 transition-transform`}
+                                    title="Move to Inbox"
+                                  >
+                                    <Inbox size={14} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} hover:scale-95 transition-transform`}
+                                  title="Mark complete"
+                                >
+                                  <CheckCircle size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                        return items;
+                      })}
+                      {/* Now marker after all tasks */}
+                      {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
+                        const hr = currentTime.getHours();
+                        const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
+                        const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
+                        const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
+                        return (
+                          <div key="desktop-now-marker-end" className="flex gap-2.5 py-2.5">
+                            <div className={`w-1.5 rounded-full flex-shrink-0 ${barColor}`} />
+                            <div className="min-w-0 flex-1">
+                              <div className={`text-sm font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+                              <div className={`text-xs italic ${textColor} mt-0.5`}>{subtitle}</div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
-                  )}
+                  ); })()}
 
                   {/* Routines row */}
                   {todayRoutines.length > 0 && (() => {
@@ -13035,10 +13209,10 @@ const DayPlanner = () => {
                 </div>
               </div>
 
-              {/* Divider */}
-              <div className={`border-t ${borderClass} mx-4`} />
+              )}
 
-              {/* Inbox section */}
+              {/* Inbox section — shown when inbox tab active */}
+              {tabletActiveTab === 'inbox' && (
               <div className="p-4">
                 <div
                   onDragOver={handleDragOverInbox}
@@ -13051,33 +13225,32 @@ const DayPlanner = () => {
                   className={`transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-900/20 rounded-lg ring-2 ring-inset ring-green-400' : 'bg-green-50 rounded-lg ring-2 ring-inset ring-green-500') : ''}`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className={`font-semibold text-lg ${textPrimary} flex items-center gap-2`}>
-                      <Inbox size={20} className="text-blue-500" /> Inbox
-                      {filteredUnscheduledTasks.length > 0 && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
-                          {filteredUnscheduledTasks.length}
-                        </span>
-                      )}
-                    </h2>
+                    <button
+                      onClick={openNewInboxTask}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      <Plus size={14} />
+                      New Inbox Task
+                    </button>
                     <div className="flex items-center gap-1.5">
                       {nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
                         <>
                           <button
                             onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                            className={`${hoverBg} rounded px-1 py-0.5 transition-colors`}
+                            className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                             title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                           >
-                            <CheckCircle size={12} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                            <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                           </button>
                           <button
                             onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                            className={`flex gap-0.5 ${hoverBg} rounded px-1.5 py-1 transition-colors`}
+                            className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
                             title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
                           >
                             {[0, 1, 2].map(i => (
                               <span
                                 key={i}
-                                className={`w-2 h-0.5 rounded-full ${
+                                className={`w-2.5 h-1 rounded-full ${
                                   inboxPriorityFilter === 0
                                     ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
                                     : i < inboxPriorityFilter
@@ -13274,53 +13447,7 @@ const DayPlanner = () => {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* FAB cluster for Glance panel actions */}
-            <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-10">
-              <button
-                onClick={() => setShowMobileDailySummary(true)}
-                className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
-                title="Daily Summary"
-              >
-                <BarChart3 size={18} />
-              </button>
-              <button
-                onClick={() => setShowMobileRecycleBin(true)}
-                onDragOver={handleDragOverRecycleBin}
-                onDragLeave={() => setDragOverRecycleBin(false)}
-                onDrop={handleDropOnRecycleBin}
-                className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all ${
-                  dragOverRecycleBin
-                    ? 'bg-red-500 text-white scale-125 ring-2 ring-red-300'
-                    : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'
-                } border ${dragOverRecycleBin ? 'border-red-400' : borderClass}`}
-                title="Recycle Bin (drop tasks here to delete)"
-              >
-                <Trash2 size={18} />
-                {!dragOverRecycleBin && recycleBin.filter(t => !t.isExample).length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                    {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => { if (showWeeklyReviewReminder) { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); } setShowWeeklyReview(true); }}
-                className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
-                title="Weekly Review"
-              >
-                <TrendingUp size={18} />
-                {showWeeklyReviewReminder && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
-                )}
-              </button>
-              <button
-                onClick={openRoutinesDashboard}
-                className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
-                title="Routines"
-              >
-                <Sparkles size={18} />
-              </button>
+              )}
             </div>
           </div>
           )}
@@ -15313,7 +15440,7 @@ const DayPlanner = () => {
           <button
             onClick={openRoutinesDashboard}
             className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-teal-700 text-teal-100 active:bg-teal-600' : 'bg-teal-600 text-white active:bg-teal-700'}`}
-            style={{ right: '1rem', bottom: '5.5rem' }}
+            style={{ right: '1rem', bottom: '6rem' }}
             title="Routines"
           >
             <Sparkles size={22} />
@@ -15328,7 +15455,7 @@ const DayPlanner = () => {
             <Plus size={28} />
           </button>
           {/* Glance panel FABs: weekly review (bottom), daily summary (middle), recycle bin (top) — only when glance panel is visible (portrait or landscape glance tab) */}
-          {(!isLandscape || tabletActiveTab === 'glance') && (<>
+          {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
           {actualTodayNonImportedTasks.length > 0 && (() => {
             const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
@@ -15401,11 +15528,68 @@ const DayPlanner = () => {
           <button
             onClick={openRoutinesDashboard}
             className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-teal-700 hover:bg-teal-600 text-teal-100' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
-            style={{ right: '1.75rem', bottom: '5rem' }}
+            style={{ right: '1.75rem', bottom: '6rem' }}
             title="Routines"
           >
             <Sparkles size={20} />
           </button>
+          {/* Desktop Glance panel FABs — matching tablet landscape */}
+          {tabletActiveTab === 'glance' && (<>
+          {/* Daily summary ring FAB */}
+          {actualTodayNonImportedTasks.length > 0 && (() => {
+            const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
+            const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+            return (
+              <button
+                onClick={() => setShowMobileDailySummary(true)}
+                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} border ${borderClass}`}
+                style={{ left: '248px', bottom: '5.5rem' }}
+              >
+                <div className="relative w-11 h-11">
+                  <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
+                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                      strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
+                    />
+                  </svg>
+                  <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
+                    <ChevronUp size={16} />
+                  </span>
+                </div>
+              </button>
+            );
+          })()}
+          {/* Weekly review FAB */}
+          <button
+            onClick={() => {
+              if (showWeeklyReviewReminder) {
+                weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
+                localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
+                setShowWeeklyReviewReminder(false);
+              }
+              setShowWeeklyReview(true);
+            }}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+            style={{ left: '248px', bottom: '1.5rem' }}
+          >
+            <BarChart3 size={22} />
+          </button>
+          {/* Recycle bin FAB — only when non-empty */}
+          {recycleBin.filter(t => !t.isExample).length > 0 && (
+            <button
+              onClick={() => setShowMobileRecycleBin(true)}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+              style={{ left: '248px', bottom: '9.5rem' }}
+            >
+              <div className="relative">
+                <Trash2 size={22} />
+                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] flex items-center justify-center rounded-full px-0.5">
+                  {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
+                </span>
+              </div>
+            </button>
+          )}
+          </>)}
         </>
       )}
 
