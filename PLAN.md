@@ -174,11 +174,14 @@ The row of 6 blue action buttons (New Scheduled Task, New Inbox Task, Routines, 
 - Desktop: Inline card in sidebar, always accessible
 - Tablet: Hidden inside Settings > Stats (non-obvious location)
 
-**Proposed solution**: Add All Time Summary as an expandable section within the Daily Summary modal/popover:
-- When the Daily Summary FAB is tapped/clicked, the popover shows today's daily summary at the top
-- Below it, an "All Time" toggle or accordion expands to show the all-time stats
-- This makes it accessible on **both** desktop and tablet without taking permanent screen real estate
-- Alternative: Add a small link/button in the Daily Summary popover that says "View All Time Stats" which navigates to the all-time stats view
+**Proposed solution**: Two-card paginated popover (modeled after the tablet's weekly review pattern):
+- Daily Summary FAB opens a popover with **two cards/pages**
+- **Card 1 (default)**: Today's daily stats (tasks scheduled, completed, time spent, time planned, focus time, completion rate, incomplete task drill-down)
+- **Card 2**: All Time stats (lifetime totals and averages)
+- **Navigation**: Dot indicators at the bottom showing which card is active
+  - **Desktop**: Click left/right arrows or dot indicators to switch cards
+  - **Tablet**: Swipe left/right to switch cards (matching the weekly review interaction)
+- This makes All Time stats accessible on **both** desktop and tablet without taking permanent screen real estate, and the interaction is consistent with existing patterns in the app
 
 ---
 
