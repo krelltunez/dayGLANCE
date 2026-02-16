@@ -15704,11 +15704,11 @@ const DayPlanner = () => {
 
       {/* Desktop/Tablet: Recycle Bin Bottom Sheet */}
       {!isMobile && showMobileRecycleBin && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileRecycleBin(false)}>
+        <div className="fixed inset-0 z-50 flex flex-col justify-end items-start" onClick={() => setShowMobileRecycleBin(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
             className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] flex flex-col`}
-            style={{ paddingBottom: '1rem' }}
+            style={{ paddingBottom: '1rem', width: '320px' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-center pt-3 pb-1">
