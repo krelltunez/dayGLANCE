@@ -55,38 +55,38 @@ Bring the desktop UI in line with the tablet UI for a consistent cross-device ex
 
 ### 1. Header Bar Redesign
 
-**Layout**: `[dayGLANCE logo] [daily content (1 item, rotating)] ... [weather] [date nav] [action buttons]`
+**Layout**: `[dayGLANCE logo] [date nav] [weather] [daily content (1 item, rotating)] [action buttons]`
 
 #### 1a. Add dayGLANCE Logo (Left)
 - Insert the `dayGLANCE` logo SVG on the far left of the header, matching the tablet's implementation
 - Use `darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'`
 - Height ~36-40px, consistent with tablet
 
-#### 1b. Daily Content — Single Item Rotation
+#### 1b. Date Navigation — Next to Logo
+- Move date navigation cluster from the sidebar column to immediately right of the logo
+- Include: left/right arrows, clickable date range (opens month view), "Today" button
+- This gives date nav prime position as the most-used header control
+- This frees the sidebar column from needing a date nav area
+
+#### 1c. Weather — Center Area
+- Move weather display from its current left-of-center position to the center of the header, after date nav
+- Keep current weather (icon + temp + high/low) always visible
+- 5-day forecast visible when space allows (3-day view)
+
+#### 1d. Daily Content — Single Item Rotation
 - Change from showing 2 items simultaneously to showing **1 item at a time**
 - Rotate through all 4 content types (dad joke, fun fact, quote, this day in history) every 15 minutes (existing interval)
 - Remove the `visibleDays === 3` condition so content shows on all desktop widths (currently only visible when 3 days are shown)
 - Fade/crossfade transition between items for visual polish
-- Place to the right of the logo, taking available space
+- Place between weather and action buttons, flexing to fill available space
 - Show on 2-day and 3-day views; hide on 1-day narrow mode for space
-
-#### 1c. Weather — Shift Right
-- Move weather display from its current left-of-center position to the right side of the header
-- Keep current weather (icon + temp + high/low) always visible
-- 5-day forecast visible when space allows (3-day view)
-- Position: between daily content and date navigation
-
-#### 1d. Date Navigation — Shift Right
-- Move date navigation cluster from the sidebar column to the right area of the header bar, similar to the tablet's centered approach but positioned in the right zone
-- Include: left/right arrows, clickable date range (opens month view), "Today" button
-- This frees the sidebar column from needing a date nav area
 
 #### 1e. Action Buttons — Far Right
 - Keep existing action buttons (sync, cloud sync, settings, reminders, dark mode, backup) grouped on the far right
 - These already match the tablet's right-side button cluster
 
-**Result**: Header becomes `[Logo] [Daily Content x1 rotating] ... [Weather] [Date Nav] [Actions]`
-This closely matches the tablet's `[Logo] [Date Nav (center)] [Actions (right)]` but with the bonus desktop-only weather and daily content using the extra horizontal space.
+**Result**: Header becomes `[Logo] [Date Nav] [Weather] [Daily Content x1 rotating] [Actions]`
+Date nav gets prime placement next to the logo. Weather and daily content fill the middle, gracefully degrading at narrower widths. Action buttons anchor the right edge.
 
 ---
 
