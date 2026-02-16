@@ -148,9 +148,12 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
 
 /**
  * Merges daily notes by date key, keeping the newer version per day.
- * Empty notes are treated as deletions.
+ * Entries with { deleted: true } are tombstones representing intentional
+ * deletions — they participate in the "newer wins" comparison so that a
+ * deletion on one device propagates to the other instead of being
+ * resurrected by the non-deleted copy.
  *
- * @param {Object} localNotes  - Local daily notes { "YYYY-MM-DD": { text, lastModified } }
+ * @param {Object} localNotes  - Local daily notes { "YYYY-MM-DD": { text, lastModified, deleted? } }
  * @param {Object} remoteNotes - Remote daily notes
  * @returns {{ merged: Object, localChanged: boolean, remoteChanged: boolean }}
  */
@@ -165,7 +168,7 @@ export const mergeDailyNotes = (localNotes, remoteNotes) => {
     const remote = remoteNotes[dateKey];
 
     if (local && !remote) {
-      // Only local has it — remote needs it
+      // Only local has it — keep it (remote needs it, even if tombstone)
       merged[dateKey] = local;
       remoteChanged = true;
     } else if (!local && remote) {
@@ -173,7 +176,7 @@ export const mergeDailyNotes = (localNotes, remoteNotes) => {
       merged[dateKey] = remote;
       localChanged = true;
     } else {
-      // Both have it — newer wins
+      // Both have it — newer wins (tombstones included)
       const localTime = new Date(local.lastModified || 0);
       const remoteTime = new Date(remote.lastModified || 0);
       if (remoteTime > localTime) {

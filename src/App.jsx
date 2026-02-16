@@ -3899,7 +3899,8 @@ const DayPlanner = () => {
     setDailyNotes(prev => {
       const next = { ...prev };
       if (!text || !text.trim()) {
-        delete next[dateStr];
+        // Keep a tombstone so sync can propagate the deletion
+        next[dateStr] = { text: '', lastModified: new Date().toISOString(), deleted: true };
       } else {
         next[dateStr] = { text, lastModified: new Date().toISOString() };
       }
