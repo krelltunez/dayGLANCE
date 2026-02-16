@@ -9408,13 +9408,13 @@ const DayPlanner = () => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                                   const isImported = task.imported;
                                   return (
-                                    <div key={task.id} className="relative" style={(!isImported || task.isTaskCalendar) ? { marginLeft: '12px' } : {}}>
+                                    <div key={task.id} className="relative" style={!isImported ? { marginLeft: '12px' } : {}}>
                                       {/* Protruding drag tab */}
-                                      {(!isImported || task.isTaskCalendar) && (
+                                      {!isImported && (
                                         <div
                                           data-drag-handle
-                                          className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
-                                          style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                          className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                          style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -13785,8 +13785,8 @@ const DayPlanner = () => {
                               key={task.id}
                               ref={setTaskRef(task.id)}
                               data-task-id={task.id}
-                              draggable={!isImported || task.isTaskCalendar}
-                              onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              draggable={!isImported}
+                              onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
                               onDragEnter={(e) => {
@@ -13796,14 +13796,14 @@ const DayPlanner = () => {
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
                               className={`notes-panel-container relative`}
-                              style={isTablet && (!isImported || task.isTaskCalendar) ? { marginLeft: '12px' } : {}}
+                              style={isTablet && !isImported ? { marginLeft: '12px' } : {}}
                             >
                               {/* Protruding drag tab (tablet only) */}
-                              {isTablet && (!isImported || task.isTaskCalendar) && (
+                              {isTablet && !isImported && (
                                 <div
                                   data-drag-handle
-                                  className={`absolute ${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
-                                  style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                  className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                  style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
@@ -13830,7 +13830,7 @@ const DayPlanner = () => {
                                 </>
                               )}
                               <div
-                              {...(isTablet && (!isImported || task.isTaskCalendar) ? {
+                              {...(isTablet && !isImported ? {
                                 onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
