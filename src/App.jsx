@@ -2085,13 +2085,14 @@ const DayPlanner = () => {
     };
   }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId]);
 
-  // Close tag filter on ESC
+  // Close tag filter on ESC and blur the trigger button
   useEffect(() => {
     if (!showMobileTagFilter) return;
     const handleTagFilterEsc = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         setShowMobileTagFilter(false);
+        if (document.activeElement) document.activeElement.blur();
       }
     };
     document.addEventListener('keydown', handleTagFilterEsc);
@@ -4705,6 +4706,12 @@ const DayPlanner = () => {
       if (e.key === 'm' && noModifiers) {
         e.preventDefault();
         setShowMonthView(prev => !prev);
+      }
+
+      // '/' to toggle tag filter
+      if (e.key === '/' && noModifiers) {
+        e.preventDefault();
+        setShowMobileTagFilter(prev => !prev);
       }
 
       // 'b' to toggle backup menu
@@ -17925,6 +17932,7 @@ const DayPlanner = () => {
                   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
                   return [
                     [isMac ? '⌘K' : 'Ctrl+K', 'Search tasks'],
+                    ['/', 'Filter by tag'],
                     ['F', 'Focus mode'],
                     ['D', 'Toggle dark mode'],
                     ['B', 'Backup menu'],
