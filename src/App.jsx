@@ -12352,16 +12352,72 @@ const DayPlanner = () => {
                           <span className="text-sm">Search tasks...</span>
                         </button>
                         {allTags.length > 0 && (
-                          <button
-                            onClick={() => setShowMobileTagFilter(true)}
-                            className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
-                              !allTags.every(tag => selectedTags.includes(tag))
-                                ? 'bg-blue-500 text-white'
-                                : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
-                            }`}
-                          >
-                            <Filter size={16} />
-                          </button>
+                          <div className="relative flex-shrink-0 self-stretch flex items-center">
+                            <button
+                              onClick={() => setShowMobileTagFilter(v => !v)}
+                              className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
+                                !allTags.every(tag => selectedTags.includes(tag))
+                                  ? 'bg-blue-500 text-white'
+                                  : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                              } active:opacity-80`}
+                            >
+                              <Filter size={16} />
+                            </button>
+                            {/* Tag filter popover — matching desktop */}
+                            {showMobileTagFilter && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowMobileTagFilter(false)} />
+                                <div
+                                  className={`absolute top-full right-0 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
+                                  style={{ width: '280px' }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'inherit' }}>
+                                    <div className="flex items-center gap-1.5">
+                                      <Filter size={14} className={textSecondary} />
+                                      <span className={`text-sm font-semibold ${textPrimary}`}>Filter by Tag</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {allTags.every(tag => selectedTags.includes(tag)) ? (
+                                        <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Clear</button>
+                                      ) : (
+                                        <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Select All</button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="py-1 max-h-[300px] overflow-y-auto">
+                                    {allTags.map(tag => {
+                                      const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
+                                      const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                      const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                      const tagCount = regularCount + recurringCount;
+                                      if (tagCount === 0) return null;
+                                      return (
+                                        <button
+                                          key={tag}
+                                          onClick={() => toggleTag(tag)}
+                                          className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
+                                            selectedTags.includes(tag)
+                                              ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                                              : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                                          }`}
+                                        >
+                                          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                                            selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                          }`}>
+                                            {selectedTags.includes(tag) && <Check size={12} className="text-white" />}
+                                          </div>
+                                          <Hash size={12} className={textSecondary} />
+                                          <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
+                                          <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
 
@@ -15642,67 +15698,6 @@ const DayPlanner = () => {
                   </div>
                 ))
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tablet: Tag Filter Bottom Sheet (desktop uses inline popover) */}
-      {isTablet && showMobileTagFilter && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileTagFilter(false)}>
-          <div className="bg-black/30 absolute inset-0" />
-          <div
-            className={`relative ${cardBg} rounded-t-2xl shadow-xl`}
-            style={{ paddingBottom: '1rem' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
-            </div>
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Filter size={18} className={textSecondary} />
-                <span className={`font-semibold ${textPrimary}`}>Filter by Tag</span>
-              </div>
-              <div className="flex items-center gap-3">
-                {allTags.every(tag => selectedTags.includes(tag)) ? (
-                  <button onClick={clearTagFilter} className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors">Clear</button>
-                ) : (
-                  <button onClick={selectAllTags} className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors">Select All</button>
-                )}
-                <button onClick={() => setShowMobileTagFilter(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`} aria-label="Close tag filter">
-                  <X size={16} className={textSecondary} />
-                </button>
-              </div>
-            </div>
-            <div className="px-4 pb-4 space-y-1 max-h-[50vh] overflow-y-auto">
-              {allTags.map(tag => {
-                const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
-                const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                const tagCount = regularCount + recurringCount;
-                if (tagCount === 0) return null;
-                return (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
-                      selectedTags.includes(tag)
-                        ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                        : darkMode ? 'active:bg-white/5' : 'active:bg-gray-50'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                      selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-gray-300'
-                    }`}>
-                      {selectedTags.includes(tag) && <Check size={14} className="text-white" />}
-                    </div>
-                    <Hash size={14} className={textSecondary} />
-                    <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
-                    <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
-                  </button>
-                );
-              })}
             </div>
           </div>
         </div>
