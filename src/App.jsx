@@ -1482,6 +1482,20 @@ const DayPlanner = () => {
     }
   }, [isPhone]);
 
+  // Track mouse vs keyboard input to suppress focus rings after mouse clicks
+  useEffect(() => {
+    const onPointerDown = () => document.body.classList.add('using-pointer');
+    const onKeyDown = (e) => {
+      if (e.key === 'Tab') document.body.classList.remove('using-pointer');
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
   // Clear swipe-scheduling ref if add-task modal was dismissed without submitting
   useEffect(() => {
     if (!showAddTask) {

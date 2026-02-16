@@ -70,24 +70,27 @@ body {
   color-scheme: dark;
 }
 
-/* Focus-visible ring for keyboard navigation accessibility */
-button:focus-visible,
-[role="button"]:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+/* Focus-visible ring for keyboard navigation accessibility.
+   Suppressed when the user last interacted with a pointer (mouse/touch)
+   so that clicking then pressing Escape doesn't leave a visible ring.
+   The .using-pointer class is removed when Tab is pressed. */
+body:not(.using-pointer) button:focus-visible,
+body:not(.using-pointer) [role="button"]:focus-visible,
+body:not(.using-pointer) a:focus-visible,
+body:not(.using-pointer) input:focus-visible,
+body:not(.using-pointer) select:focus-visible,
+body:not(.using-pointer) textarea:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-.dark button:focus-visible,
-.dark [role="button"]:focus-visible,
-.dark a:focus-visible,
-.dark input:focus-visible,
-.dark select:focus-visible,
-.dark textarea:focus-visible {
+.dark body:not(.using-pointer) button:focus-visible,
+.dark body:not(.using-pointer) [role="button"]:focus-visible,
+.dark body:not(.using-pointer) a:focus-visible,
+.dark body:not(.using-pointer) input:focus-visible,
+.dark body:not(.using-pointer) select:focus-visible,
+.dark body:not(.using-pointer) textarea:focus-visible {
   outline-color: #60a5fa;
 }
 
