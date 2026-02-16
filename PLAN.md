@@ -241,12 +241,14 @@ The row of 6 blue action buttons (New Scheduled Task, New Inbox Task, Routines, 
 4. **FABs for Glance panel** — add Daily Summary, Weekly Review, Recycle Bin FABs (3b)
 5. **Daily Summary popover/modal** — create the FAB-triggered summary view (5a)
 6. **Recycle Bin popover/modal** — create the FAB-triggered recycle bin (5b, ensure drag-drop works)
-7. **All Time Summary integration** — add to Daily Summary popover (6)
-8. **Remove old sidebar** — delete blue buttons, tags section, inline summary/bin cards, collapse logic (4, 7c)
-9. **Tag filter popover** — desktop-appropriate tag filter UI (2d)
-10. **Onboarding adjustment** — reposition Getting Started checklist (7a)
-11. **Polish** — hover states, tooltips, responsive width behavior, keyboard shortcuts verification (7d-7g)
-12. **Testing** — verify all functionality works across different window widths
+7. **Weekly Review two-card popover** — same paginated card design as tablet/mobile (5c)
+8. **All Time Summary integration** — add to Daily Summary popover (6)
+9. **Collapsible sections cleanup** — remove inline collapse toggles for FAB-owned sections, keep Overdue toggle (7b)
+10. **Remove old sidebar** — delete blue buttons, tags section, inline summary/bin cards, collapse logic (4, 7c)
+11. **Tag filter popover** — desktop-appropriate tag filter UI (2d)
+12. **Onboarding adjustment** — reposition Getting Started checklist (7a)
+13. **Polish** — hover states, tooltips, responsive width behavior, keyboard shortcuts verification (7d-7g)
+14. **Testing** — verify all functionality works across different window widths
 
 ---
 
