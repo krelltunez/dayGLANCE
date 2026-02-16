@@ -162,9 +162,14 @@ The row of 6 blue action buttons (New Scheduled Task, New Inbox Task, Routines, 
 - **Important**: Preserve the drag-to-Recycle-Bin capability — the Recycle Bin FAB should accept dropped tasks (add `onDragOver`/`onDrop` handlers to the FAB itself, or add a drop zone that appears when dragging)
 
 #### 5c. Weekly Review
-- Already triggered via the blue button row or `setShowWeeklyReview(true)`
-- Now triggered via the Weekly Review FAB (same handler)
+- Remove inline trigger from the blue button row
+- Now triggered via the Weekly Review FAB
+- Opens the same **two-card paginated popover** used on tablet and mobile:
+  - **Card 1**: Weekly summary stats (tasks completed, completion rate, time spent, focus time, streaks)
+  - **Card 2**: Weekly review checklist / reflection prompts
+  - **Navigation**: Dot indicators, swipe (tablet) or click arrows (desktop) to switch cards
 - The weekly review reminder badge transfers to the FAB (pulsing blue when reminder is active)
+- Desktop uses the same two-card design as tablet/mobile — no separate full-page or modal implementation
 
 ---
 
