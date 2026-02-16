@@ -5061,6 +5061,37 @@ const DayPlanner = () => {
     return false;
   };
 
+  // Returns which indicator dots to show for a date: { hasNote, hasImported, hasAppTask }
+  const getDateIndicators = (date) => {
+    if (!date) return { hasNote: false, hasImported: false, hasAppTask: false };
+    const dateStr = dateToString(date);
+    const note = dailyNotes[dateStr];
+    const hasNote = !!(note && note.text && note.text.trim() && !note.deleted);
+    let hasImported = false;
+    let hasAppTask = false;
+    for (const task of tasks) {
+      if (task.date !== dateStr) continue;
+      if (task.imported) {
+        hasImported = true;
+      } else {
+        hasAppTask = true;
+      }
+      if (hasImported && hasAppTask) break;
+    }
+    // Check recurring tasks
+    if (!hasAppTask) {
+      for (const template of recurringTasks) {
+        const occs = getOccurrencesInRange(template, dateStr, dateStr);
+        if (occs.length > 0) { hasAppTask = true; break; }
+      }
+    }
+    // Check inbox tasks with deadlines on this date
+    if (!hasAppTask) {
+      hasAppTask = unscheduledTasks.some(t => t.deadline === dateStr);
+    }
+    return { hasNote, hasImported, hasAppTask };
+  };
+
   const openNewTaskForm = () => {
     setNewTask({
       title: '',
@@ -9241,7 +9272,8 @@ const DayPlanner = () => {
                       {getMonthDays().map((day, index) => {
                         const isDayToday = day && day.toDateString() === new Date().toDateString();
                         const isSelected = day && day.toDateString() === selectedDate.toDateString();
-                        const hasTasks = hasTasksOnDate(day);
+                        const { hasNote, hasImported, hasAppTask } = getDateIndicators(day);
+                        const hasDots = hasNote || hasImported || hasAppTask;
                         return (
                           <button
                             key={index}
@@ -9257,8 +9289,12 @@ const DayPlanner = () => {
                             `}
                           >
                             {day && day.getDate()}
-                            {hasTasks && (
-                              <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                            {hasDots && (
+                              <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                                {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
+                                {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />}
+                                {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
+                              </div>
                             )}
                           </button>
                         );
@@ -12009,7 +12045,8 @@ const DayPlanner = () => {
                   {getMonthDays().map((day, index) => {
                     const isDayToday = day && day.toDateString() === new Date().toDateString();
                     const isSelected = day && day.toDateString() === selectedDate.toDateString();
-                    const hasTasks = hasTasksOnDate(day);
+                    const { hasNote, hasImported, hasAppTask } = getDateIndicators(day);
+                    const hasDots = hasNote || hasImported || hasAppTask;
                     return (
                       <button
                         key={index}
@@ -12018,8 +12055,12 @@ const DayPlanner = () => {
                         className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
                       >
                         {day && day.getDate()}
-                        {hasTasks && (
-                          <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                        {hasDots && (
+                          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                            {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
+                            {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />}
+                            {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
+                          </div>
                         )}
                       </button>
                     );
@@ -12306,7 +12347,8 @@ const DayPlanner = () => {
                 {getMonthDays().map((day, index) => {
                   const isDayToday = day && day.toDateString() === new Date().toDateString();
                   const isSelected = day && day.toDateString() === selectedDate.toDateString();
-                  const hasTasks = hasTasksOnDate(day);
+                  const { hasNote, hasImported, hasAppTask } = getDateIndicators(day);
+                  const hasDots = hasNote || hasImported || hasAppTask;
                   return (
                     <button
                       key={index}
@@ -12315,8 +12357,12 @@ const DayPlanner = () => {
                       className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} active:bg-gray-100 dark:active:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
                     >
                       {day && day.getDate()}
-                      {hasTasks && (
-                        <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />
+                      {hasDots && (
+                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                          {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
+                          {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />}
+                          {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
+                        </div>
                       )}
                     </button>
                   );
