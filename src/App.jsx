@@ -1196,10 +1196,6 @@ const DayPlanner = () => {
     history: null
   });
   const [contentRotation, setContentRotation] = useState(0);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebarCollapsed');
-    return saved ? JSON.parse(saved) : false;
-  });
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
   const [dragOverAllDay, setDragOverAllDay] = useState(null);
@@ -2156,10 +2152,6 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-sound-enabled', JSON.stringify(soundEnabled));
   }, [soundEnabled]);
 
-  // Persist sidebarCollapsed to localStorage
-  useEffect(() => {
-    localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
-  }, [sidebarCollapsed]);
 
   // Persist inboxPriorityFilter to localStorage
   useEffect(() => {
@@ -12865,16 +12857,72 @@ const DayPlanner = () => {
                       <span className={`ml-auto text-xs ${textSecondary}`}>Ctrl+K</span>
                     </button>
                     {allTags.length > 0 && (
-                      <button
-                        onClick={() => setShowMobileTagFilter(true)}
-                        className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
-                          !allTags.every(tag => selectedTags.includes(tag))
-                            ? 'bg-blue-500 text-white'
-                            : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
-                        } hover:opacity-80`}
-                      >
-                        <Filter size={16} />
-                      </button>
+                      <div className="relative flex-shrink-0 self-stretch flex items-center">
+                        <button
+                          onClick={() => setShowMobileTagFilter(v => !v)}
+                          className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
+                            !allTags.every(tag => selectedTags.includes(tag))
+                              ? 'bg-blue-500 text-white'
+                              : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                          } hover:opacity-80`}
+                        >
+                          <Filter size={16} />
+                        </button>
+                        {/* Desktop tag filter popover */}
+                        {showMobileTagFilter && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowMobileTagFilter(false)} />
+                            <div
+                              className={`absolute top-full right-0 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
+                              style={{ width: '280px' }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'inherit' }}>
+                                <div className="flex items-center gap-1.5">
+                                  <Filter size={14} className={textSecondary} />
+                                  <span className={`text-sm font-semibold ${textPrimary}`}>Filter by Tag</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {allTags.every(tag => selectedTags.includes(tag)) ? (
+                                    <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Clear</button>
+                                  ) : (
+                                    <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Select All</button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="py-1 max-h-[300px] overflow-y-auto">
+                                {allTags.map(tag => {
+                                  const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
+                                  const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                  const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
+                                  const tagCount = regularCount + recurringCount;
+                                  if (tagCount === 0) return null;
+                                  return (
+                                    <button
+                                      key={tag}
+                                      onClick={() => toggleTag(tag)}
+                                      className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
+                                        selectedTags.includes(tag)
+                                          ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
+                                          : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
+                                        selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                      }`}>
+                                        {selectedTags.includes(tag) && <Check size={12} className="text-white" />}
+                                      </div>
+                                      <Hash size={12} className={textSecondary} />
+                                      <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
+                                      <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -12919,7 +12967,7 @@ const DayPlanner = () => {
                   })()}
 
                   {/* Today's Agenda (dayGLANCE) */}
-                  {!minimizedSections.dayglance && todayAgenda.length > 0 && (
+                  {todayAgenda.length > 0 && (
                     <div className={`rounded-lg border ${borderClass} p-3`}>
                       <div className="flex items-center justify-between mb-2">
                         <span className={`text-sm font-semibold ${textPrimary}`}>Today's Agenda</span>
@@ -12946,7 +12994,7 @@ const DayPlanner = () => {
                   )}
 
                   {/* Routines row */}
-                  {!minimizedSections.dayglance && todayRoutines.length > 0 && (() => {
+                  {todayRoutines.length > 0 && (() => {
                     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                     const visibleRoutines = todayRoutines.filter(r => {
                       if (!r.startTime || r.isAllDay) return true;
@@ -13239,11 +13287,18 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => setShowMobileRecycleBin(true)}
-                className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
-                title="Recycle Bin"
+                onDragOver={handleDragOverRecycleBin}
+                onDragLeave={() => setDragOverRecycleBin(false)}
+                onDrop={handleDropOnRecycleBin}
+                className={`relative w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all ${
+                  dragOverRecycleBin
+                    ? 'bg-red-500 text-white scale-125 ring-2 ring-red-300'
+                    : darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'
+                } border ${dragOverRecycleBin ? 'border-red-400' : borderClass}`}
+                title="Recycle Bin (drop tasks here to delete)"
               >
                 <Trash2 size={18} />
-                {recycleBin.filter(t => !t.isExample).length > 0 && (
+                {!dragOverRecycleBin && recycleBin.filter(t => !t.isExample).length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                     {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
                   </span>
@@ -15332,7 +15387,7 @@ const DayPlanner = () => {
         </>
       )}
 
-      {/* Desktop: Timeline FABs — + (new task) and inbox */}
+      {/* Desktop: Timeline FABs — + (new task) and routines */}
       {!isTablet && !isMobile && (
         <>
           <button
@@ -15344,12 +15399,12 @@ const DayPlanner = () => {
             <Plus size={28} />
           </button>
           <button
-            onClick={openNewInboxTask}
-            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-50 text-gray-600'} border ${borderClass}`}
+            onClick={openRoutinesDashboard}
+            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-teal-700 hover:bg-teal-600 text-teal-100' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
             style={{ right: '1.75rem', bottom: '5rem' }}
-            title="New Inbox Task"
+            title="Routines"
           >
-            <Inbox size={20} />
+            <Sparkles size={20} />
           </button>
         </>
       )}
@@ -15408,8 +15463,8 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Desktop/Tablet: Tag Filter Bottom Sheet */}
-      {!isMobile && showMobileTagFilter && (
+      {/* Tablet: Tag Filter Bottom Sheet (desktop uses inline popover) */}
+      {isTablet && showMobileTagFilter && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowMobileTagFilter(false)}>
           <div className="bg-black/30 absolute inset-0" />
           <div
