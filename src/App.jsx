@@ -458,7 +458,11 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
       onSave(dateStr, localText);
-      if (localText.trim()) setIsEditing(false);
+      if (localText.trim()) {
+        setIsEditing(false);
+      } else {
+        onClose();
+      }
     }
     if (e.key === 'Escape') {
       e.preventDefault();
