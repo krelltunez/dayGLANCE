@@ -8827,10 +8827,18 @@ const DayPlanner = () => {
   // Keep SW message handler refs up to date (avoids stale closures)
   swMessageHandlersRef.current = { toggleComplete, snoozeReminder, dismissReminder, setShowWeeklyReview };
 
-  // Process a notification action message (shared by postMessage and IndexedDB queue)
+  // Process a notification action message (shared by postMessage and IndexedDB queue).
+  // Deduplicates to prevent double-processing when both the SW postMessage and the
+  // visibilitychange queue drain fire for the same action (e.g. toggleComplete twice = no-op).
+  const processedActionsRef = useRef(new Set());
   const processNotificationAction = (msg) => {
     if (!msg || msg.type !== 'notification-action') return;
     const { action, data } = msg;
+    if (action === 'focus') return; // No-op action, just focuses the tab
+    const dedupeKey = `${action}-${data?.id || data?.taskId || ''}`;
+    if (processedActionsRef.current.has(dedupeKey)) return;
+    processedActionsRef.current.add(dedupeKey);
+    setTimeout(() => processedActionsRef.current.delete(dedupeKey), 3000);
     const handlers = swMessageHandlersRef.current;
     if (action === 'open-weekly-review') {
       handlers.setShowWeeklyReview(true);
@@ -9914,7 +9922,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,

@@ -47,22 +47,20 @@ self.addEventListener('notificationclick', (event) => {
     : { type: 'notification-action', action: 'focus', data };
 
   event.waitUntil(
-    // Queue in IndexedDB first (reliable fallback for mobile)
-    queueAction(message).then(() =>
-      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-        // Try to focus an existing tab
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.focus();
-            client.postMessage(message);
-            return;
-          }
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+      // Try to focus an existing tab and send directly via postMessage
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          await client.focus();
+          client.postMessage(message);
+          return;
         }
-        // No existing tab — open the app
-        if (self.clients.openWindow) {
-          return self.clients.openWindow('/');
-        }
-      })
-    )
+      }
+      // No existing tab — queue in IndexedDB (fallback) and open the app
+      await queueAction(message);
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('/');
+      }
+    })
   );
 });
