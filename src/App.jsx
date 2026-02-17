@@ -1351,6 +1351,7 @@ const DayPlanner = () => {
   const cloudSyncDebounceRef = useRef(null);
   const suppressCloudUploadRef = useRef(false);
   const suppressTimestampRef = useRef(false);
+  const suppressClearPendingRef = useRef(false);
   const cloudSyncInProgressRef = useRef(false);
   const cloudSyncInitialDoneRef = useRef(false);
   const cloudSyncDownloadRef = useRef(null);
@@ -2397,6 +2398,17 @@ const DayPlanner = () => {
   useEffect(() => {
     saveData();
     checkConflicts();
+    // After the first save pass following applyRemoteData, clear the suppress flags
+    // so subsequent user actions (e.g. completing a task) get properly stamped and uploaded.
+    if (suppressClearPendingRef.current) {
+      suppressClearPendingRef.current = false;
+      // Use microtask so the upload-debounce effect (which runs next in this batch)
+      // still sees suppress=true for THIS pass, but clears before the next user action.
+      queueMicrotask(() => {
+        suppressCloudUploadRef.current = false;
+        suppressTimestampRef.current = false;
+      });
+    }
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
 
   // Cloud sync: debounced upload on data changes
@@ -3592,6 +3604,37 @@ const DayPlanner = () => {
         if (!onboardingProgress.hasCreatedRecurring) {
           setOnboardingProgress(prev => ({ ...prev, hasCreatedRecurring: true }));
         }
+      } else if (swipeSchedulingInboxTaskId.current) {
+        // Scheduling from inbox swipe: move existing task (preserve ID, notes, subtasks)
+        // so cloud sync cross-list reconciliation sees the same task ID in both lists
+        const inboxId = swipeSchedulingInboxTaskId.current;
+        const inboxTask = unscheduledTasks.find(t => t.id === inboxId);
+        swipeSchedulingInboxTaskId.current = null;
+        if (inboxTask) {
+          const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
+          const taskDate = newTask.date || dateToString(selectedDate);
+          const { conflicted, adjustedStartTime, conflictingEvent } = newTask.isAllDay
+            ? { conflicted: false, adjustedStartTime: requestedStartTime, conflictingEvent: null }
+            : getAdjustedTimeForImportedConflicts(inboxTask.id, requestedStartTime, newTask.duration, taskDate);
+          const { priority, deadline, ...preserved } = inboxTask;
+          setTasks([...tasks, {
+            ...preserved,
+            title: cleanTitle(newTask.title),
+            duration: newTask.duration,
+            color: newTask.color || colors[0].class,
+            isAllDay: newTask.isAllDay || false,
+            startTime: adjustedStartTime,
+            date: taskDate
+          }]);
+          setUnscheduledTasks(prev => prev.filter(t => t.id !== inboxId));
+          if (conflicted && conflictingEvent) {
+            setSyncNotification({
+              type: 'info',
+              title: 'Task Rescheduled',
+              message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
+            });
+          }
+        }
       } else {
         const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
         const taskDate = newTask.date || dateToString(selectedDate);
@@ -3615,13 +3658,6 @@ const DayPlanner = () => {
             message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
           });
         }
-      }
-
-      // If scheduling from inbox swipe, remove the original inbox task
-      if (swipeSchedulingInboxTaskId.current) {
-        const inboxIdToRemove = swipeSchedulingInboxTaskId.current;
-        setUnscheduledTasks(prev => prev.filter(t => t.id !== inboxIdToRemove));
-        swipeSchedulingInboxTaskId.current = null;
       }
 
       setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null });
@@ -7820,7 +7856,9 @@ const DayPlanner = () => {
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
 
-    setTimeout(() => { suppressCloudUploadRef.current = false; suppressTimestampRef.current = false; }, 500);
+    // Flag for the save effect to clear suppress after the initial (merged-data) save pass.
+    // This avoids a fixed 500ms window that could swallow user actions.
+    suppressClearPendingRef.current = true;
   };
 
   const cloudSyncDownload = async () => {
