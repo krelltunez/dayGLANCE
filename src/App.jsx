@@ -9451,6 +9451,15 @@ const DayPlanner = () => {
                     </button>
                   </div>
                 </div>
+                <div className="px-4 pb-3">
+                  <button
+                    onClick={openNewInboxTask}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium active:bg-blue-700 transition-colors"
+                  >
+                    <Plus size={16} />
+                    New Inbox Task
+                  </button>
+                </div>
               </div>
             )}
             {mobileActiveTab === 'routines' && (
@@ -11106,18 +11115,6 @@ const DayPlanner = () => {
                   )}
 
                   {/* Stats */}
-                  <div className="space-y-2">
-                    <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Stats</h3>
-                    <button
-                      onClick={() => setMobileSettingsView('stats')}
-                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-                    >
-                      <TrendingUp size={20} className={textSecondary} />
-                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>All Time Summary</span>
-                      <ChevronRight size={18} className={textSecondary} />
-                    </button>
-                  </div>
-
                   {/* Sub-menu buttons */}
                   <div className="space-y-2">
                     <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
@@ -11163,70 +11160,6 @@ const DayPlanner = () => {
                   </div>
                 </div>
 
-                {/* Stats sub-view */}
-                {mobileSettingsView === 'stats' && (
-                  <div className="px-4 py-4 space-y-4 mobile-tab-fade-in">
-                    <button
-                      onClick={() => setMobileSettingsView('main')}
-                      className={`flex items-center gap-2 ${textSecondary} active:opacity-70`}
-                    >
-                      <ChevronLeft size={18} />
-                      <span className="text-sm font-medium">Settings</span>
-                    </button>
-                    <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
-                      <TrendingUp size={20} /> All Time Summary
-                    </h2>
-                    <div className={`${cardBg} border ${borderClass} rounded-xl p-4`}>
-                      <div className={`space-y-3 text-sm ${textSecondary}`}>
-                        <div className="flex justify-between">
-                          <span>Tasks scheduled</span>
-                          <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Tasks completed</span>
-                          <span className={`font-medium ${textPrimary}`}>
-                            {allTimeCompletedCount}
-                            {allTimeIncompleteTasks.length > 0 && (
-                              <button
-                                onClick={() => setShowIncompleteTasks('allTime')}
-                                className="ml-1 text-blue-500 active:text-blue-600"
-                              >
-                                ({allTimeIncompleteTasks.length} incomplete)
-                              </button>
-                            )}
-                          </span>
-                        </div>
-                        {allTimeInboxCompletedCount > 0 && (
-                          <div className="flex justify-between">
-                            <span>Inbox tasks done</span>
-                            <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span>Time spent</span>
-                          <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Time planned</span>
-                          <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
-                        </div>
-                        {allTimeFocusMinutes > 0 && (
-                          <div className="flex justify-between">
-                            <span>Focus time</span>
-                            <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
-                          </div>
-                        )}
-                        {allTimeScheduledCount > 0 && (
-                          <div className={`flex justify-between pt-2 border-t ${borderClass}`}>
-                            <span className="font-semibold">Completion rate</span>
-                            <span className={`font-bold ${textPrimary}`}>{Math.round(((allTimeCompletedCount + allTimeInboxCompletedCount) / allTimeScheduledCount) * 100)}%</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* App Settings sub-view */}
                 {mobileSettingsView === 'app' && (() => {
                   const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
@@ -11238,7 +11171,7 @@ const DayPlanner = () => {
                       className={`flex items-center gap-2 ${textSecondary} mb-2`}
                     >
                       <ChevronLeft size={18} />
-                      <span className="text-sm font-medium">App Settings</span>
+                      <span className="text-sm font-medium">Settings</span>
                     </button>
 
                     {/* Calendar Sync */}
@@ -11351,7 +11284,7 @@ const DayPlanner = () => {
                       className={`flex items-center gap-2 ${textSecondary} mb-2`}
                     >
                       <ChevronLeft size={18} />
-                      <span className="text-sm font-medium">Notifications</span>
+                      <span className="text-sm font-medium">Settings</span>
                     </button>
 
                     {/* Master toggle */}
@@ -11535,7 +11468,7 @@ const DayPlanner = () => {
                       className={`flex items-center gap-2 ${textSecondary} mb-2`}
                     >
                       <ChevronLeft size={18} />
-                      <span className="text-sm font-medium">Backups</span>
+                      <span className="text-sm font-medium">Settings</span>
                     </button>
 
                     {/* Export / Restore */}
@@ -11638,10 +11571,10 @@ const DayPlanner = () => {
             )}
           </div>
 
-          {/* FAB - Floating Action Button */}
-          {(mobileActiveTab === 'timeline' || mobileActiveTab === 'inbox') && (
+          {/* FAB - Floating Action Button (timeline only) */}
+          {mobileActiveTab === 'timeline' && (
             <button
-              onClick={() => mobileActiveTab === 'timeline' ? openNewTaskForm() : openNewInboxTask()}
+              onClick={() => openNewTaskForm()}
               className="fixed right-4 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:bg-blue-800 flex items-center justify-center transition-colors"
               style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
             >
@@ -11952,58 +11885,6 @@ const DayPlanner = () => {
                         )}
                       </div>
 
-                      {/* All-Time Summary */}
-                      <div className={`mt-4 pt-4 border-t ${borderClass}`}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <TrendingUp size={18} className={textSecondary} />
-                          <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
-                        </div>
-                        <div className={`space-y-2 text-sm ${textSecondary}`}>
-                          <div className="flex items-center justify-between">
-                            <span>Tasks scheduled</span>
-                            <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span>Tasks completed</span>
-                            <span className={`font-medium ${textPrimary}`}>
-                              {allTimeCompletedCount}
-                              {allTimeIncompleteTasks.length > 0 && (
-                                <button
-                                  onClick={() => { setShowIncompleteTasks('allTime'); setShowMobileDailySummary(false); }}
-                                  className="ml-1 text-blue-500 active:text-blue-400"
-                                >
-                                  ({allTimeIncompleteTasks.length} incomplete)
-                                </button>
-                              )}
-                            </span>
-                          </div>
-                          {allTimeInboxCompletedCount > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span>Inbox done</span>
-                              <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <span>Time spent</span>
-                            <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span>Time planned</span>
-                            <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
-                          </div>
-                          {allTimeFocusMinutes > 0 && (
-                            <div className="flex items-center justify-between">
-                              <span>Focus time</span>
-                              <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
-                            </div>
-                          )}
-                          {allTimeScheduledCount > 0 && (
-                            <div className={`pt-1 font-semibold ${textPrimary}`}>
-                              {Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate
-                            </div>
-                          )}
-                        </div>
-                      </div>
                     </>
                     );
                   })()}
