@@ -129,40 +129,42 @@ A built-in onboarding flow guides new users through the app's features: adding t
 
 ## Quick Start
 
-### Local Development
+### Docker (recommended)
 
-```bash
-# Clone the repository
-git clone https://github.com/krelltunez/day-planner.git
-cd day-planner
+No build required. Create a `docker-compose.yml`:
 
-# Install dependencies
-npm install
-
-# Start the dev server
-npm run dev
+```yaml
+services:
+  dayglance:
+    image: ghcr.io/krelltunez/dayglance:latest
+    container_name: dayglance
+    restart: unless-stopped
+    ports:
+      - "6767:80"
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-### Docker Deployment
+Then run:
 
 ```bash
-# Build and run
-docker-compose up -d --build
-
-# View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
+docker compose up -d
 ```
 
 The app will be available at `http://localhost:6767`.
 
+### Build from Source
+
+```bash
+git clone https://github.com/krelltunez/day-planner.git
+cd day-planner
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser. To build for production: `npm run build`.
+
 ### Production Deployment
 
-1. Clone the repo to your server and run with Docker Compose.
+1. Run the Docker container on your server (see above).
 
 2. Set up a reverse proxy (e.g., Caddy) for HTTPS:
 
