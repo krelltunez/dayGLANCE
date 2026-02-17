@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 
 // Hook to determine how many days to show based on window width
@@ -1150,6 +1150,12 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
     return saved !== null ? JSON.parse(saved) : false;
   });
+  const [weatherZip, setWeatherZip] = useState(() => {
+    return localStorage.getItem('day-planner-weather-zip') || '';
+  });
+  const [weatherTempUnit, setWeatherTempUnit] = useState(() => {
+    return localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit';
+  });
   const [pendingPriorities, setPendingPriorities] = useState({});
   const [syncUrl, setSyncUrl] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -2175,6 +2181,15 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(use24HourClock));
   }, [use24HourClock]);
 
+  // Persist weather settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-weather-zip', weatherZip);
+  }, [weatherZip]);
+
+  useEffect(() => {
+    localStorage.setItem('day-planner-weather-temp-unit', weatherTempUnit);
+  }, [weatherTempUnit]);
+
   // Persist reminderSettings to localStorage
   useEffect(() => {
     localStorage.setItem('day-planner-reminder-settings', JSON.stringify(reminderSettings));
@@ -2800,11 +2815,37 @@ const DayPlanner = () => {
 
   const fetchWeather = async () => {
     try {
-      // Using Open-Meteo API (free, no API key needed)
-      // Erie, CO coordinates: 40.0503, -105.0497
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.0503&longitude=-105.0497&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=fahrenheit&timezone=America%2FDenver&forecast_days=6');
+      // Read settings from localStorage to avoid stale closures
+      const zip = localStorage.getItem('day-planner-weather-zip') || '';
+      const tempUnit = localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit';
+
+      if (!zip) {
+        setWeather(null);
+        return;
+      }
+
+      // Geocode ZIP/postal code using Open-Meteo geocoding API (free, no key needed)
+      const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(zip)}&count=1&language=en&format=json`);
+      const geoData = await geoResponse.json();
+
+      if (!geoData.results || geoData.results.length === 0) {
+        setWeather({
+          temp: '--',
+          condition: 'Location not found',
+          icon: '📍',
+          high: '--',
+          low: '--',
+          forecast: []
+        });
+        return;
+      }
+
+      const { latitude, longitude, timezone } = geoData.results[0];
+      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=${tempUnit}&timezone=${encodeURIComponent(tz)}&forecast_days=6`);
       const data = await response.json();
-      
+
       if (data.current && data.daily) {
         // Build forecast array for next 5 days (starting from tomorrow)
         const forecast = [];
@@ -2819,7 +2860,7 @@ const DayPlanner = () => {
             code: data.daily.weather_code[i] // For debugging
           });
         }
-        
+
         setWeather({
           temp: Math.round(data.current.temperature_2m),
           condition: getWeatherCondition(data.current.weather_code),
@@ -3583,7 +3624,7 @@ const DayPlanner = () => {
         if (newTask.deadline) {
           inboxTask.deadline = newTask.deadline;
         }
-        setUnscheduledTasks([...unscheduledTasks, inboxTask]);
+        setUnscheduledTasks(prev => [...prev, inboxTask]);
       } else if (newTask.recurrence) {
         // Create recurring task template
         const taskDate = newTask.date || dateToString(selectedDate);
@@ -3617,7 +3658,7 @@ const DayPlanner = () => {
             ? { conflicted: false, adjustedStartTime: requestedStartTime, conflictingEvent: null }
             : getAdjustedTimeForImportedConflicts(inboxTask.id, requestedStartTime, newTask.duration, taskDate);
           const { priority, deadline, ...preserved } = inboxTask;
-          setTasks([...tasks, {
+          setTasks(prev => [...prev, {
             ...preserved,
             title: cleanTitle(newTask.title),
             duration: newTask.duration,
@@ -3644,7 +3685,7 @@ const DayPlanner = () => {
           ? { conflicted: false, adjustedStartTime: requestedStartTime, conflictingEvent: null }
           : getAdjustedTimeForImportedConflicts(taskId, requestedStartTime, newTask.duration, taskDate);
 
-        setTasks([...tasks, {
+        setTasks(prev => [...prev, {
           ...task,
           startTime: adjustedStartTime,
           date: taskDate
@@ -3691,11 +3732,11 @@ const DayPlanner = () => {
     }
 
     if (fromInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(task =>
+      setUnscheduledTasks(prev => prev.map(task =>
         task.id === taskId ? { ...task, color: newColor } : task
       ));
     } else {
-      setTasks(tasks.map(task =>
+      setTasks(prev => prev.map(task =>
         task.id === taskId ? { ...task, color: newColor } : task
       ));
     }
@@ -3833,7 +3874,7 @@ const DayPlanner = () => {
     }
 
     // Update the task with the new date (same time)
-    setTasks(tasks.map(t =>
+    setTasks(prev => prev.map(t =>
       t.id === id ? { ...t, date: nextDateStr } : t
     ));
 
@@ -3861,8 +3902,8 @@ const DayPlanner = () => {
       priority: task.priority || 0
     };
 
-    setTasks(tasks.filter(t => t.id !== id));
-    setUnscheduledTasks([...unscheduledTasks, unscheduledTask]);
+    setTasks(prev => prev.filter(t => t.id !== id));
+    setUnscheduledTasks(prev => [...prev, unscheduledTask]);
     playUISound('slide');
     setUndoToast({ message: 'Moved to inbox', actionable: true });
 
@@ -3898,11 +3939,11 @@ const DayPlanner = () => {
         t.id === templateId ? { ...t, title: cleanedTitle } : t
       ));
     } else if (isInbox) {
-      setUnscheduledTasks(unscheduledTasks.map(t =>
+      setUnscheduledTasks(prev => prev.map(t =>
         t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
       ));
     } else {
-      setTasks(tasks.map(t =>
+      setTasks(prev => prev.map(t =>
         t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
       ));
     }
@@ -6739,9 +6780,9 @@ const DayPlanner = () => {
 
     pushUndo();
     if (dragSource === 'inbox') {
-      setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
       const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
-      setTasks([...tasks, {
+      setTasks(prev => [...prev, {
         ...taskWithoutPriorityAndDeadline,
         startTime,
         date: dropDateStr,
@@ -6769,11 +6810,11 @@ const DayPlanner = () => {
               return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
             }));
             const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
-            setTasks([...tasks, { ...taskData, id: Date.now(), startTime, date: dropDateStr, isAllDay: false }]);
+            setTasks(prev => [...prev, { ...taskData, id: Date.now(), startTime, date: dropDateStr, isAllDay: false }]);
           }
         }
       } else {
-        setTasks(tasks.map(t =>
+        setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
             ? { ...t, startTime, date: dropDateStr, isAllDay: false }
             : t
@@ -6782,8 +6823,8 @@ const DayPlanner = () => {
     } else if (dragSource === 'recycleBin') {
       // Remove metadata and add to calendar
       const { _deletedFrom, ...cleanTask } = draggedTask;
-      setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
-      setTasks([...tasks, {
+      setRecycleBin(prev => prev.filter(t => t.id !== draggedTask.id));
+      setTasks(prev => [...prev, {
         ...cleanTask,
         startTime,
         date: dropDateStr,
@@ -6793,16 +6834,16 @@ const DayPlanner = () => {
       // Handle overdue tasks - they can be scheduled or deadline tasks
       if (draggedTask._overdueType === 'scheduled') {
         // Reschedule an existing scheduled task
-        setTasks(tasks.map(t =>
+        setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
             ? { ...t, startTime, date: dropDateStr, isAllDay: false }
             : t
         ));
       } else if (draggedTask._overdueType === 'deadline') {
         // Schedule an overdue inbox task - remove from inbox, add to calendar
-        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
         const { priority, deadline, _overdueType, ...taskWithoutMeta } = draggedTask;
-        setTasks([...tasks, {
+        setTasks(prev => [...prev, {
           ...taskWithoutMeta,
           startTime,
           date: dropDateStr,
@@ -6848,22 +6889,22 @@ const DayPlanner = () => {
             return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
           }));
           const { id, isRecurring, recurringTemplateId, startTime, date, ...taskData } = draggedTask;
-          setUnscheduledTasks([...unscheduledTasks, { ...taskData, id: Date.now(), priority: taskData.priority || 0 }]);
+          setUnscheduledTasks(prev => [...prev, { ...taskData, id: Date.now(), priority: taskData.priority || 0 }]);
         }
       } else {
-        setTasks(tasks.filter(t => t.id !== draggedTask.id));
+        setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
         const { startTime, date, ...taskWithoutSchedule } = draggedTask;
-        setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+        setUnscheduledTasks(prev => [...prev, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
       }
     } else if (dragSource === 'recycleBin') {
-      setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
+      setRecycleBin(prev => prev.filter(t => t.id !== draggedTask.id));
       const { _deletedFrom, startTime, date, ...taskWithoutSchedule } = draggedTask;
-      setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+      setUnscheduledTasks(prev => [...prev, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
     } else if (dragSource === 'overdue' && draggedTask._overdueType === 'scheduled') {
       // Move overdue scheduled task back to inbox
-      setTasks(tasks.filter(t => t.id !== draggedTask.id));
+      setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
       const { startTime, date, _overdueType, ...taskWithoutSchedule } = draggedTask;
-      setUnscheduledTasks([...unscheduledTasks, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+      setUnscheduledTasks(prev => [...prev, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
     } else if (dragSource === 'overdue' && draggedTask._overdueType === 'deadline') {
       // Clear deadline from overdue inbox task to move it back to regular inbox view
       clearDeadline(draggedTask.id);
@@ -6918,18 +6959,18 @@ const DayPlanner = () => {
       _deletedFrom: deletedFrom,
       deletedAt: new Date().toISOString()
     };
-    setRecycleBin([...recycleBin, taskWithMeta]);
+    setRecycleBin(prev => [...prev, taskWithMeta]);
 
     // Remove from original location
     if (dragSource === 'inbox') {
-      setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
     } else if (dragSource === 'calendar') {
-      setTasks(tasks.filter(t => t.id !== draggedTask.id));
+      setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
     } else if (dragSource === 'overdue') {
       if (draggedTask._overdueType === 'scheduled') {
-        setTasks(tasks.filter(t => t.id !== draggedTask.id));
+        setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
       } else {
-        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
       }
     }
 
@@ -6961,9 +7002,9 @@ const DayPlanner = () => {
 
     pushUndo();
     if (dragSource === 'inbox') {
-      setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
       const { priority, deadline, ...taskWithoutPriorityAndDeadline } = draggedTask;
-      setTasks([...tasks, {
+      setTasks(prev => [...prev, {
         ...taskWithoutPriorityAndDeadline,
         startTime: '00:00',
         date: dropDateStr,
@@ -6980,10 +7021,10 @@ const DayPlanner = () => {
             return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
           }));
           const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
-          setTasks([...tasks, { ...taskData, id: Date.now(), startTime: '00:00', date: dropDateStr, isAllDay: true }]);
+          setTasks(prev => [...prev, { ...taskData, id: Date.now(), startTime: '00:00', date: dropDateStr, isAllDay: true }]);
         }
       } else {
-        setTasks(tasks.map(t =>
+        setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
             ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
             : t
@@ -6991,8 +7032,8 @@ const DayPlanner = () => {
       }
     } else if (dragSource === 'recycleBin') {
       const { _deletedFrom, ...cleanTask } = draggedTask;
-      setRecycleBin(recycleBin.filter(t => t.id !== draggedTask.id));
-      setTasks([...tasks, {
+      setRecycleBin(prev => prev.filter(t => t.id !== draggedTask.id));
+      setTasks(prev => [...prev, {
         ...cleanTask,
         startTime: '00:00',
         date: dropDateStr,
@@ -7002,16 +7043,16 @@ const DayPlanner = () => {
       // Handle overdue tasks - they can be scheduled or deadline tasks
       if (draggedTask._overdueType === 'scheduled') {
         // Reschedule an existing scheduled task to a new all-day slot
-        setTasks(tasks.map(t =>
+        setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
             ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
             : t
         ));
       } else if (draggedTask._overdueType === 'deadline') {
         // Schedule an overdue inbox task - remove from inbox, add to calendar
-        setUnscheduledTasks(unscheduledTasks.filter(t => t.id !== draggedTask.id));
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
         const { priority, deadline, _overdueType, ...taskWithoutMeta } = draggedTask;
-        setTasks([...tasks, {
+        setTasks(prev => [...prev, {
           ...taskWithoutMeta,
           startTime: '00:00',
           date: dropDateStr,
@@ -7434,7 +7475,9 @@ const DayPlanner = () => {
         minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
         cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
         reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null'),
-        use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false')
+        use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
+        weatherZip: localStorage.getItem('day-planner-weather-zip') || '',
+        weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit'
       }
     };
 
@@ -7613,6 +7656,8 @@ const DayPlanner = () => {
         if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
         if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
         if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
+        if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
+        if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
 
         // Reload app to reflect changes
         window.location.reload();
@@ -7768,6 +7813,8 @@ const DayPlanner = () => {
       routinesDate: localStorage.getItem('day-planner-routines-date') || '',
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
       use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
+      weatherZip: localStorage.getItem('day-planner-weather-zip') || '',
+      weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit',
       deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
       deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
       removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}'),
@@ -7831,6 +7878,8 @@ const DayPlanner = () => {
     // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
     if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
+    if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
+    if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
     if (data.deletedTaskIds) localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(data.deletedTaskIds));
     if (data.deletedRoutineChipIds) localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(data.deletedRoutineChipIds));
     if (data.removedTodayRoutineIds) {
@@ -7855,6 +7904,8 @@ const DayPlanner = () => {
     if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
+    if (data.weatherZip !== undefined) setWeatherZip(data.weatherZip);
+    if (data.weatherTempUnit !== undefined) setWeatherTempUnit(data.weatherTempUnit);
 
     // Flag for the save effect to clear suppress after the initial (merged-data) save pass.
     // This avoids a fixed 500ms window that could swallow user actions.
@@ -12063,7 +12114,7 @@ const DayPlanner = () => {
               <div className={`flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg flex-shrink-0`}>
                 <div className="text-xl">{weather.icon}</div>
                 <div>
-                  <div className={`text-sm font-bold ${textPrimary}`}>{weather.temp}°F</div>
+                  <div className={`text-sm font-bold ${textPrimary}`}>{weather.temp}°{weatherTempUnit === 'celsius' ? 'C' : 'F'}</div>
                   <div className={`text-[10px] ${textSecondary}`}>H: {weather.high}° L: {weather.low}°</div>
                 </div>
               </div>
@@ -17466,6 +17517,60 @@ const DayPlanner = () => {
                         >
                           12-hour
                         </button>
+                      </div>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Weather Location Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <MapPin size={16} className={textSecondary} />
+                        Weather Location
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          ZIP / Postal code
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 90210"
+                          value={weatherZip}
+                          onChange={(e) => setWeatherZip(e.target.value)}
+                          onBlur={() => fetchWeather()}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                          className={`w-32 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Leave empty to hide weather
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Temperature unit
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'fahrenheit'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            °F
+                          </button>
+                          <button
+                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'celsius'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            °C
+                          </button>
+                        </div>
                       </div>
                     </div>
 
