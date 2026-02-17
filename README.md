@@ -22,9 +22,9 @@ Most planners either lock your data in someone else's cloud or lack the polish o
 
 ### Visual Time-Blocking
 
-Drag and drop tasks onto a 24-hour timeline to plan your day. Resize tasks by dragging their edges, move them between time slots, and see conflicts highlighted instantly when tasks overlap. Supports multi-day views (1, 2, or 3 days) depending on screen size.
+Drag and drop tasks onto a 24-hour timeline to plan your day. Resize tasks by dragging their edges and move them between time slots. Supports multi-day views (1, 2, or 3 days) depending on screen size.
 
-<!-- SCREENSHOT: Timeline close-up showing 3-4 color-coded tasks at various times, one being dragged, and a conflict indicator where two tasks overlap. -->
+<!-- SCREENSHOT: Timeline close-up showing 3-4 color-coded tasks at various times, with one being dragged to a new slot. -->
 ![Time-Blocking on the Timeline](screenshots/timeline-timeblocking.png)
 
 ### Smart Inbox

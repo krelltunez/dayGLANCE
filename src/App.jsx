@@ -3565,9 +3565,8 @@ const DayPlanner = () => {
     const widthPercent = 100 / totalColumns;
     const leftPercent = widthPercent * column;
 
-    // Use tighter margins when all completed (no red border to account for)
-    const margin = allCompleted ? '0.125rem' : '0.25rem';
-    const totalMargin = allCompleted ? '0.25rem' : '0.5rem';
+    const margin = '0.125rem';
+    const totalMargin = '0.25rem';
 
     return {
       left: `calc(${leftPercent}% + ${margin})`,
@@ -14443,7 +14442,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${isConflicted && !task.completed ? 'ring-4 ring-red-500' : ''} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
