@@ -9434,11 +9434,11 @@ const DayPlanner = () => {
             )}
             {mobileActiveTab === 'inbox' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                <div className="flex items-center px-4 py-3">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2 flex-shrink-0`}>
                     <Inbox size={20} /> Inbox
                   </h2>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex-1 flex justify-center">
                     <button
                       onClick={openNewInboxTask}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
@@ -9446,6 +9446,8 @@ const DayPlanner = () => {
                       <Plus size={14} />
                       New Inbox Task
                     </button>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
