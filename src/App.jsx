@@ -13895,7 +13895,7 @@ const DayPlanner = () => {
                               key={task.id}
                               ref={setTaskRef(task.id)}
                               data-task-id={task.id}
-                              draggable={!isImported}
+                              draggable={!isImported && !isTablet}
                               onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
@@ -14398,7 +14398,7 @@ const DayPlanner = () => {
                               key={task.id}
                               ref={setTaskRef(task.id)}
                               data-task-id={task.id}
-                              draggable={!isImported || task.isTaskCalendar}
+                              draggable={(!isImported || task.isTaskCalendar) && !isTablet}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
