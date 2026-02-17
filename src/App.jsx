@@ -2248,6 +2248,25 @@ const DayPlanner = () => {
     }
   }, [mobileSettingsView, isMobile]);
 
+  // Android back button: navigate to dayglance tab from other screens
+  useEffect(() => {
+    if (!isMobile) return;
+    if (mobileActiveTab === 'dayglance') return;
+    // Don't interfere with settings sub-view back navigation
+    if (mobileActiveTab === 'settings' && mobileSettingsView !== 'main') return;
+
+    // Only push if there isn't already an app-tab history entry
+    if (!window.history.state?.appTab) {
+      window.history.pushState({ appTab: mobileActiveTab }, '');
+    }
+
+    const onPopState = () => {
+      setMobileActiveTab('dayglance');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [mobileActiveTab, mobileSettingsView, isMobile]);
+
   // Persist dailyNotes to localStorage and trigger cloud sync upload
   useEffect(() => {
     localStorage.setItem('day-planner-daily-notes', JSON.stringify(dailyNotes));
@@ -4841,6 +4860,18 @@ const DayPlanner = () => {
         setShowBackupMenu(prev => !prev);
       }
 
+      // ',' to switch side panel to Glance
+      if (e.key === ',' && noModifiers && !isMobile) {
+        e.preventDefault();
+        setTabletActiveTab('glance');
+      }
+
+      // '.' to switch side panel to Inbox
+      if (e.key === '.' && noModifiers && !isMobile) {
+        e.preventDefault();
+        setTabletActiveTab('inbox');
+      }
+
       // Arrow left/right to navigate dates
       if (e.key === 'ArrowLeft' && noModifiers) {
         e.preventDefault();
@@ -4867,7 +4898,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate, isMobile]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -12074,7 +12105,7 @@ const DayPlanner = () => {
               {/* Forecast — proportional to visible day columns */}
               {visibleDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {weather.forecast.slice(0, visibleDays === 3 ? 5 : 2).map((day, index) => (
+                  {weather.forecast.slice(0, visibleDays === 3 ? 5 : 3).map((day, index) => (
                     <div key={index} className={`px-2 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg text-center`}>
                       <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
                       <div className="text-base">{day.icon}</div>
@@ -12089,8 +12120,8 @@ const DayPlanner = () => {
             </>
           )}
 
-          {/* Rotating Daily Content - 1 item at a time */}
-          {visibleDays >= 2 && (() => {
+          {/* Rotating Daily Content - 1 item at a time (3-col only to avoid header overlap) */}
+          {visibleDays >= 3 && (() => {
             const contentItems = [
               { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
               { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
@@ -18112,6 +18143,8 @@ const DayPlanner = () => {
                     ['F', 'Focus mode'],
                     ['D', 'Toggle dark mode'],
                     ['B', 'Backup menu'],
+                    [',', 'Side panel: Glance'],
+                    ['.', 'Side panel: Inbox'],
                     ['?', 'This help'],
                   ];
                 })().map(([key, desc]) => (
