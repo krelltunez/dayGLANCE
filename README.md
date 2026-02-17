@@ -20,6 +20,13 @@ Most planners either lock your data in someone else's cloud or lack the polish o
 
 ## Features
 
+### The Glance Panel
+
+The heart of the app. The Glance panel gives you an intelligent, real-time snapshot of your day — no scrolling through a calendar required. It shows your full agenda with color-coded tasks, a "now" marker that tracks where you are in the day and how much free time you have, overdue tasks that need attention, and today's routines. On desktop, the header adds current weather and rotating daily content (jokes, quotes, fun facts, history).
+
+<!-- SCREENSHOT: The Glance panel showing a populated agenda with the "now" marker between tasks, an overdue section at the top, and the routines row at the bottom. -->
+![The Glance Panel](screenshots/glance-panel.png)
+
 ### Visual Time-Blocking
 
 Drag and drop tasks onto a 24-hour timeline to plan your day. Resize tasks by dragging their edges and move them between time slots. Filter the timeline by `#tags` to focus on what matters. Supports multi-day views (1, 2, or 3 days) depending on screen size.
