@@ -221,9 +221,13 @@ Import events from any iCal-compatible source:
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl/Cmd + K` | Spotlight search |
+| `N` | New scheduled task |
+| `I` | New inbox task |
+| `R` | Open routines dashboard |
 | `Ctrl/Cmd + Z` | Undo |
 | `Ctrl/Cmd + Y` | Redo |
 | `Escape` | Close modal / dropdown |
+| `?` | Show full shortcut list |
 
 ---
 
