@@ -243,6 +243,12 @@ npm run test
 
 Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/krelltunez/day-planner).
 
+We'd especially appreciate help with:
+
+- **Sync providers** — Dropbox, Google Drive, WebDAV (generic), and other cloud storage integrations
+- **Improved icons** — Better app icons and PWA assets
+- **Documentation** — Guides, tutorials, and translations
+
 ---
 
 ## License
