@@ -22,14 +22,14 @@ Most planners either lock your data in someone else's cloud or lack the polish o
 
 ### Visual Time-Blocking
 
-Drag and drop tasks onto a 24-hour timeline to plan your day. Resize tasks by dragging their edges and move them between time slots. Supports multi-day views (1, 2, or 3 days) depending on screen size.
+Drag and drop tasks onto a 24-hour timeline to plan your day. Resize tasks by dragging their edges and move them between time slots. Filter the timeline by `#tags` to focus on what matters. Supports multi-day views (1, 2, or 3 days) depending on screen size.
 
 <!-- SCREENSHOT: Timeline close-up showing 3-4 color-coded tasks at various times, with one being dragged to a new slot. -->
 ![Time-Blocking on the Timeline](screenshots/timeline-timeblocking.png)
 
 ### Smart Inbox
 
-Capture tasks as they come to mind without worrying about when to do them. Prioritize with three priority levels, filter by priority, and drag tasks to the timeline when you're ready to commit. Tag tasks with `#hashtags` for quick filtering.
+Capture tasks as they come to mind without worrying about when to do them. Prioritize with three priority levels, filter by priority, and drag tasks to the timeline when you're ready to commit.
 
 <!-- SCREENSHOT: Sidebar showing the Inbox section with several tasks at different priorities, one task being dragged toward the timeline area. -->
 ![Inbox with Priorities and Tags](screenshots/inbox.png)
