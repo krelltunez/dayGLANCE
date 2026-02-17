@@ -1362,7 +1362,6 @@ const DayPlanner = () => {
   const cloudSyncInProgressRef = useRef(false);
   const cloudSyncInitialDoneRef = useRef(false);
   const cloudSyncDownloadRef = useRef(null);
-  const drainNotificationQueueRef = useRef(null);
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
   // Daily Notes state — keyed by date string "YYYY-MM-DD" → { text, lastModified }
@@ -1439,7 +1438,6 @@ const DayPlanner = () => {
   const [activeReminders, setActiveReminders] = useState([]);
   const [showMorningTimePicker, setShowMorningTimePicker] = useState(false);
   const firedRemindersRef = useRef(new Set());
-  const swMessageHandlersRef = useRef({});
   const lastReminderDateRef = useRef((() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })());
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-sound-enabled');
@@ -2259,19 +2257,11 @@ const DayPlanner = () => {
   }, []);
 
   // Catch up on missed reminders and sync when tab becomes visible
-  // Drain queued notification actions first, then update time and sync
   useEffect(() => {
     const handleVisibility = () => {
       if (!document.hidden) {
-        // Process any queued SW notification actions (snooze/dismiss) before
-        // updating time, so the reminder engine sees the updated task state
-        drainNotificationQueueRef.current?.().then(() => {
-          setCurrentTime(new Date());
-          cloudSyncDownloadRef.current?.();
-        }).catch(() => {
-          setCurrentTime(new Date());
-          cloudSyncDownloadRef.current?.();
-        });
+        setCurrentTime(new Date());
+        cloudSyncDownloadRef.current?.();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -8802,11 +8792,6 @@ const DayPlanner = () => {
                   body: 'Time for your weekly review!',
                   icon: '/icon-192.png',
                   tag: 'weekly-review',
-                  actions: [
-                    { action: 'open-weekly-review', title: 'Open Review' },
-                    { action: 'dismiss', title: 'Dismiss' },
-                  ],
-                  data: { type: 'weekly-review' },
                 });
               });
             } catch {}
@@ -8878,21 +8863,11 @@ const DayPlanner = () => {
       if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         navigator.serviceWorker?.ready.then(reg => {
           for (const r of newReminders) {
-            const actions = [];
-            if (r.type === 'end' && !r.isCalendarEvent) {
-              actions.push({ action: 'complete', title: 'Complete' });
-            }
-            if (r.type !== 'end' && r.type !== 'morning' && r.startTime) {
-              actions.push({ action: 'snooze', title: 'Snooze 15m' });
-            }
-            actions.push({ action: 'dismiss', title: 'Dismiss' });
             try {
               reg.showNotification(r.taskTitle, {
                 body: r.message,
                 icon: '/icon-192.png',
                 tag: r.id,
-                actions,
-                data: r,
               });
             } catch {}
           }
@@ -8916,69 +8891,6 @@ const DayPlanner = () => {
     return () => clearInterval(timer);
   }, [activeReminders.length > 0]);
 
-  // Keep SW message handler refs up to date (avoids stale closures)
-  swMessageHandlersRef.current = { toggleComplete, snoozeReminder, dismissReminder, setShowWeeklyReview };
-
-  // Process a notification action message (shared by postMessage and IndexedDB queue).
-  // Deduplicates to prevent double-processing when both the SW postMessage and the
-  // visibilitychange queue drain fire for the same action (e.g. toggleComplete twice = no-op).
-  const processedActionsRef = useRef(new Set());
-  const processNotificationAction = (msg) => {
-    if (!msg || msg.type !== 'notification-action') return;
-    const { action, data } = msg;
-    if (action === 'focus') return; // No-op action, just focuses the tab
-    const dedupeKey = `${action}-${data?.id || data?.taskId || ''}`;
-    if (processedActionsRef.current.has(dedupeKey)) return;
-    processedActionsRef.current.add(dedupeKey);
-    setTimeout(() => processedActionsRef.current.delete(dedupeKey), 3000);
-    const handlers = swMessageHandlersRef.current;
-    if (action === 'open-weekly-review') {
-      handlers.setShowWeeklyReview(true);
-    } else if (action === 'complete' && data?.taskId) {
-      handlers.toggleComplete(data.taskId);
-      handlers.dismissReminder(data.id);
-    } else if (action === 'snooze' && data) {
-      handlers.snoozeReminder(data);
-    } else if (action === 'dismiss' && data?.id) {
-      handlers.dismissReminder(data.id);
-    }
-  };
-
-  // Drain any queued notification actions from IndexedDB (fallback for mobile)
-  const drainNotificationActionQueue = async (processItems = true) => {
-    try {
-      const req = indexedDB.open('dayglance-sw', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('actions', { autoIncrement: true });
-      const db = await new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = reject; });
-      const tx = db.transaction('actions', 'readwrite');
-      const store = tx.objectStore('actions');
-      if (processItems) {
-        const all = await new Promise((resolve, reject) => { const r = store.getAll(); r.onsuccess = () => resolve(r.result); r.onerror = reject; });
-        if (all.length > 0) {
-          for (const msg of all) processNotificationAction(msg);
-        }
-      }
-      store.clear();
-      db.close();
-    } catch (e) {
-      // IndexedDB not available or empty — no-op
-    }
-  };
-
-  drainNotificationQueueRef.current = drainNotificationActionQueue;
-
-  // Listen for service worker notification action messages
-  // When postMessage arrives, process it and clear the IndexedDB queue to prevent double-processing
-  useEffect(() => {
-    if (!navigator.serviceWorker) return;
-    const handler = (event) => {
-      processNotificationAction(event.data);
-      // Clear queue without re-processing (postMessage already handled the action)
-      drainNotificationQueueRef.current?.(false).catch(() => {});
-    };
-    navigator.serviceWorker.addEventListener('message', handler);
-    return () => navigator.serviceWorker.removeEventListener('message', handler);
-  }, []);
 
   // Spotlight search results
   const spotlightResults = useMemo(() => {

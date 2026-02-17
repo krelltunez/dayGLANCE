@@ -14,50 +14,16 @@ registerRoute(navigationRoute);
 self.skipWaiting();
 self.addEventListener('activate', () => self.clients.claim());
 
-// Queue notification actions in IndexedDB so the app can process them
-// even if postMessage doesn't reach a backgrounded/killed tab
-function openActionQueue() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('dayglance-sw', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('actions', { autoIncrement: true });
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function queueAction(message) {
-  try {
-    const db = await openActionQueue();
-    const tx = db.transaction('actions', 'readwrite');
-    tx.objectStore('actions').add(message);
-    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
-    db.close();
-  } catch (e) {
-    // Silently fail — postMessage is the primary path
-  }
-}
-
-// Handle notification action clicks
+// Handle notification clicks — just focus or open the app
 self.addEventListener('notificationclick', (event) => {
-  const { action, data } = event.notification;
   event.notification.close();
-
-  const message = action
-    ? { type: 'notification-action', action, data }
-    : { type: 'notification-action', action: 'focus', data };
-
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
-      // Try to focus an existing tab and send directly via postMessage
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          await client.focus();
-          client.postMessage(message);
-          return;
+          return client.focus();
         }
       }
-      // No existing tab — queue in IndexedDB (fallback) and open the app
-      await queueAction(message);
       if (self.clients.openWindow) {
         return self.clients.openWindow('/');
       }
