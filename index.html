@@ -6,6 +6,14 @@
   <meta name="description" content="dayGLANCE - A beautiful time-blocking day planner with task management">
   <meta name="theme-color" content="#2563eb">
   <meta name="color-scheme" content="light dark">
+  <script>
+    try {
+      if (JSON.parse(localStorage.getItem('day-planner-darkmode'))) {
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1f2937');
+        document.documentElement.classList.add('dark');
+      }
+    } catch(e) {}
+  </script>
 
   <!-- Favicon -->
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
