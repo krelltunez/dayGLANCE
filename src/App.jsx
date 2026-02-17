@@ -2402,6 +2402,7 @@ const DayPlanner = () => {
   }, [isMobile, selectedDate, scrollToCurrentHour]);
 
   useEffect(() => {
+    if (!dataLoaded) return; // Don't overwrite localStorage before initial load
     saveData();
     checkConflicts();
     // After the first save pass following applyRemoteData, clear the suppress flags
@@ -2415,7 +2416,7 @@ const DayPlanner = () => {
         suppressTimestampRef.current = false;
       });
     }
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
@@ -2694,10 +2695,11 @@ const DayPlanner = () => {
         setDarkMode(JSON.parse(darkModeData));
       }
       if (syncUrlData) {
-        setSyncUrl(JSON.parse(syncUrlData));
+        // Migrate from JSON-stringified format (e.g. "\"https://...\"") to plain string
+        setSyncUrl(syncUrlData.startsWith('"') ? JSON.parse(syncUrlData) : syncUrlData);
       }
       if (taskCalendarUrlData) {
-        setTaskCalendarUrl(JSON.parse(taskCalendarUrlData));
+        setTaskCalendarUrl(taskCalendarUrlData.startsWith('"') ? JSON.parse(taskCalendarUrlData) : taskCalendarUrlData);
       }
       if (completedTaskUidsData) {
         setCompletedTaskUids(new Set(JSON.parse(completedTaskUidsData)));
@@ -2770,8 +2772,8 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-unscheduled', JSON.stringify(stampedUnscheduled));
       localStorage.setItem('day-planner-recycle-bin', JSON.stringify(stampedRecycleBin));
       localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
-      localStorage.setItem('day-planner-sync-url', JSON.stringify(syncUrl));
-      localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(taskCalendarUrl));
+      localStorage.setItem('day-planner-sync-url', syncUrl);
+      localStorage.setItem('day-planner-task-calendar-url', taskCalendarUrl);
       localStorage.setItem('day-planner-sync-retention-days', JSON.stringify(syncRetentionDays));
       localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
       localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(stampedRecurring));
@@ -2915,9 +2917,8 @@ const DayPlanner = () => {
     const content = { dadJoke: null, funFact: null, quote: null, history: null };
     const decodeHTML = (str) => {
       if (!str) return str;
-      const el = document.createElement('textarea');
-      el.innerHTML = str;
-      return el.value.replace(/`/g, "'");
+      const doc = new DOMParser().parseFromString(str, 'text/html');
+      return (doc.body.textContent || '').replace(/`/g, "'");
     };
 
     // Fetch dad joke
@@ -3623,7 +3624,7 @@ const DayPlanner = () => {
   const addTask = (toInbox = false) => {
     if (newTask.title.trim()) {
       pushUndo();
-      const taskId = Date.now();
+      const taskId = crypto.randomUUID();
       const task = {
         id: taskId,
         title: cleanTitle(newTask.title),
@@ -4052,7 +4053,7 @@ const DayPlanner = () => {
     if (!title.trim()) return;
     pushUndo();
     const newSubtask = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       title: title.trim(),
       completed: false
     };
@@ -5298,7 +5299,7 @@ const DayPlanner = () => {
           const template = recurringTasks.find(t => t.id === parsed.templateId);
           const isCompleted = template?.completedDates?.includes(parsed.dateStr);
           const regularTask = {
-            id: Date.now(),
+            id: crypto.randomUUID(),
             title: cleanTitle(newTask.title),
             startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
             duration: newTask.duration,
@@ -5342,7 +5343,7 @@ const DayPlanner = () => {
       const existingTask = tasks.find(t => t.id === taskId);
       const taskDate = newTask.date || existingTask?.date || dateToString(selectedDate);
       const template = {
-        id: Date.now(),
+        id: crypto.randomUUID(),
         title: cleanTitle(newTask.title),
         startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
         duration: newTask.duration,
@@ -5388,7 +5389,7 @@ const DayPlanner = () => {
   const addRoutineChip = (bucket) => {
     const name = routineNewChipName.trim();
     if (!name) return;
-    const chipId = Date.now();
+    const chipId = crypto.randomUUID();
     setRoutineDefinitions(prev => ({
       ...prev,
       [bucket]: [...prev[bucket], { id: chipId, name, lastModified: new Date().toISOString() }]
@@ -5949,7 +5950,7 @@ const DayPlanner = () => {
   };
   const focusAddSubtask = (taskId, title, isInbox) => {
     addSubtask(taskId, title, isInbox);
-    const newSt = { id: Date.now(), title, completed: false };
+    const newSt = { id: crypto.randomUUID(), title, completed: false };
     setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSt] } : t));
   };
   const focusToggleSubtask = (taskId, subtaskId, isInbox) => {
@@ -6841,7 +6842,7 @@ const DayPlanner = () => {
               return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
             }));
             const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
-            setTasks(prev => [...prev, { ...taskData, id: Date.now(), startTime, date: dropDateStr, isAllDay: false }]);
+            setTasks(prev => [...prev, { ...taskData, id: crypto.randomUUID(), startTime, date: dropDateStr, isAllDay: false }]);
           }
         }
       } else {
@@ -6920,7 +6921,7 @@ const DayPlanner = () => {
             return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
           }));
           const { id, isRecurring, recurringTemplateId, startTime, date, ...taskData } = draggedTask;
-          setUnscheduledTasks(prev => [...prev, { ...taskData, id: Date.now(), priority: taskData.priority || 0 }]);
+          setUnscheduledTasks(prev => [...prev, { ...taskData, id: crypto.randomUUID(), priority: taskData.priority || 0 }]);
         }
       } else {
         setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
@@ -7052,7 +7053,7 @@ const DayPlanner = () => {
             return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
           }));
           const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
-          setTasks(prev => [...prev, { ...taskData, id: Date.now(), startTime: '00:00', date: dropDateStr, isAllDay: true }]);
+          setTasks(prev => [...prev, { ...taskData, id: crypto.randomUUID(), startTime: '00:00', date: dropDateStr, isAllDay: true }]);
         }
       } else {
         setTasks(prev => prev.map(t =>
@@ -7497,8 +7498,8 @@ const DayPlanner = () => {
         unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
         recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
         darkMode: JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'),
-        syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
-        taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
+        syncUrl: localStorage.getItem('day-planner-sync-url') || '',
+        taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
         completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
         recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
         routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -7531,8 +7532,8 @@ const DayPlanner = () => {
       unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
       darkMode: JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'),
-      syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
-      taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
+      syncUrl: localStorage.getItem('day-planner-sync-url') || '',
+      taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
       completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
       recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -7677,8 +7678,8 @@ const DayPlanner = () => {
         if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
         if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
         if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
-        if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
-        if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
+        if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
+        if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
         if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
         if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
         if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
@@ -7835,8 +7836,8 @@ const DayPlanner = () => {
       tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
       unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
-      syncUrl: JSON.parse(localStorage.getItem('day-planner-sync-url') || 'null'),
-      taskCalendarUrl: JSON.parse(localStorage.getItem('day-planner-task-calendar-url') || 'null'),
+      syncUrl: localStorage.getItem('day-planner-sync-url') || '',
+      taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
       completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
       recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -7899,8 +7900,8 @@ const DayPlanner = () => {
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
     if (normalizedUnsched) localStorage.setItem('day-planner-unscheduled', JSON.stringify(normalizedUnsched));
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
-    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', JSON.stringify(data.syncUrl));
-    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', JSON.stringify(data.taskCalendarUrl));
+    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
+    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
@@ -15145,7 +15146,7 @@ const DayPlanner = () => {
                     // Convert recurring task to a regular scheduled task for this date
                     const isCompleted = template.completedDates?.includes(dateStr);
                     const regularTask = {
-                      id: Date.now(),
+                      id: crypto.randomUUID(),
                       title: template.title,
                       startTime: template.startTime,
                       duration: template.duration,
