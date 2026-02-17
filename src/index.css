@@ -94,6 +94,13 @@ body:not(.using-pointer) textarea:focus-visible {
   outline-color: #60a5fa;
 }
 
+/* Suppress browser default focus ring after pointer interaction */
+body.using-pointer button:focus-visible,
+body.using-pointer [role="button"]:focus-visible,
+body.using-pointer a:focus-visible {
+  outline: none;
+}
+
 /* Hide scrollbar on review carousel */
 .review-carousel::-webkit-scrollbar { display: none; }
 
