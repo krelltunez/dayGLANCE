@@ -9700,7 +9700,7 @@ const DayPlanner = () => {
                   <div ref={timeGridRef} className="relative">
                     {hours.map((hour, index) => (
                       <div key={hour} className="relative">
-                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.04]' : 'bg-stone-50/60') : ''}`}>
+                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50') : ''}`}>
                           <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`}>
                             {use24HourClock
                               ? `${hour.toString().padStart(2, '0')}:00`
@@ -14168,7 +14168,7 @@ const DayPlanner = () => {
                 {hours.map((hour, index) => (
                   <div key={hour} className="relative">
                     {/* Main hour row with solid border */}
-                    <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
+                    <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50') : ''}`}>
                       <div className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass}`}>
                         {use24HourClock
                           ? `${hour.toString().padStart(2, '0')}:00`
