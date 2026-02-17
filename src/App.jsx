@@ -18841,14 +18841,14 @@ const DayPlanner = () => {
                   <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Spotlight Search & Weekly Review</h2>
                   <div className={`text-sm ${textSecondary} space-y-4 text-left`}>
                     <div className="flex items-start gap-3">
-                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Search size={16} />
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                        <Search size={16} className={textPrimary} />
                       </span>
                       <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded text-xs font-mono`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
                     </div>
                     <div className="flex items-start gap-3">
-                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <BarChart3 size={16} />
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                        <BarChart3 size={16} className={textPrimary} />
                       </span>
                       <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button on the side panel to review your week — see completion stats, reflect on wins, and plan ahead.</span>
                     </div>
