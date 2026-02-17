@@ -3692,6 +3692,9 @@ const DayPlanner = () => {
               message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
             });
           }
+          if (!onboardingProgress.hasDraggedToTimeline) {
+            setOnboardingProgress(prev => ({ ...prev, hasDraggedToTimeline: true }));
+          }
         }
       } else {
         const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
@@ -4789,16 +4792,6 @@ const DayPlanner = () => {
         }
       }
 
-      // ',' to collapse sidebar, '.' to expand sidebar
-      if (e.key === ',' && noModifiers) {
-        e.preventDefault();
-        setSidebarCollapsed(true);
-      }
-      if (e.key === '.' && noModifiers) {
-        e.preventDefault();
-        setSidebarCollapsed(false);
-      }
-
       // 'd' to toggle dark mode
       if (e.key === 'd' && noModifiers) {
         e.preventDefault();
@@ -5110,8 +5103,7 @@ const DayPlanner = () => {
       if (isMobile) {
         setMobileActiveTab('inbox');
       } else {
-        setSidebarCollapsed(false);
-        setMinimizedSections(prev => ({ ...prev, inbox: false }));
+        setTabletActiveTab('inbox');
       }
       scrollAndHighlight(`[data-task-id="${task.id}"]`);
     } else if (source === 'recurring') {
@@ -5121,11 +5113,8 @@ const DayPlanner = () => {
       }
       goToDate(date);
     } else if (source === 'deleted') {
-      if (!isMobile) {
-        setSidebarCollapsed(false);
-        setMinimizedSections(prev => ({ ...prev, recycleBin: false }));
-        scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
-      }
+      // Recycle bin is accessed via FAB — just highlight if visible
+      scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
     }
   };
 
@@ -8598,7 +8587,7 @@ const DayPlanner = () => {
     return [
       { id: 'inbox', label: 'Add your first inbox task', completed: onboardingProgress.hasAddedInboxTask },
       { id: 'scheduled', label: 'Add your first scheduled task', completed: onboardingProgress.hasAddedScheduledTask },
-      { id: 'drag', label: 'Drag a task to the timeline', completed: onboardingProgress.hasDraggedToTimeline },
+      { id: 'drag', label: isMobile ? 'Schedule a task from inbox' : 'Drag a task to the timeline', completed: onboardingProgress.hasDraggedToTimeline },
       { id: 'deadline', label: 'Add a deadline to an inbox task', completed: onboardingProgress.hasAddedDeadline },
       { id: 'priority', label: 'Set a priority on an inbox task', completed: onboardingProgress.hasSetPriority },
       { id: 'notes', label: 'Add notes or subtasks to a task', completed: onboardingProgress.hasAddedNotes },
@@ -8610,9 +8599,51 @@ const DayPlanner = () => {
       { id: 'focus', label: 'Try Focus Mode', completed: onboardingProgress.hasUsedFocusMode },
       { id: 'sync', label: 'Set up calendar sync', completed: onboardingProgress.hasSetupSync },
     ];
-  }, [onboardingProgress]);
+  }, [onboardingProgress, isMobile]);
 
   const allGettingStartedComplete = gettingStartedItems.every(item => item.completed);
+  const gettingStartedCompleteCount = gettingStartedItems.filter(item => item.completed).length;
+
+  const renderGettingStartedChecklist = () => {
+    const completedCount = gettingStartedCompleteCount;
+    const totalCount = gettingStartedItems.length;
+    const progressPct = Math.round((completedCount / totalCount) * 100);
+    return (
+      <div className={`mb-4 rounded-lg border ${darkMode ? 'border-blue-500/30 bg-blue-500/10' : 'border-blue-200 bg-blue-50'} overflow-hidden`}>
+        <div className="px-3 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles size={15} className="text-blue-500" />
+            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">Getting Started</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-200 text-blue-700'}`}>
+              {completedCount}/{totalCount}
+            </span>
+          </div>
+          <button
+            onClick={() => setGettingStartedDismissed(true)}
+            className={`${textSecondary} hover:${textPrimary} p-0.5`}
+            title="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        {/* Progress bar */}
+        <div className={`mx-3 mb-2 h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-blue-100'}`}>
+          <div className="h-full rounded-full bg-blue-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+        </div>
+        <div className="px-3 pb-3 space-y-1">
+          {gettingStartedItems.map(item => (
+            <div key={item.id} className={`flex items-center gap-2 py-0.5 text-sm ${item.completed ? (darkMode ? 'text-gray-500' : 'text-stone-400') : textSecondary}`}>
+              {item.completed
+                ? <CheckCircle size={14} className="text-blue-500 flex-shrink-0" />
+                : <div className={`w-3.5 h-3.5 rounded-full border ${darkMode ? 'border-gray-600' : 'border-stone-300'} flex-shrink-0`} />
+              }
+              <span className={item.completed ? 'line-through' : ''}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // Check if user has zero real tasks (for showing onboarding)
   const hasZeroRealTasks = useMemo(() => {
@@ -8623,6 +8654,8 @@ const DayPlanner = () => {
 
   // Show onboarding when user has zero real tasks (and data is loaded, to prevent flash)
   const showOnboarding = dataLoaded && !onboardingComplete && hasZeroRealTasks;
+  // Getting Started checklist — show until dismissed or all items complete
+  const showGettingStarted = dataLoaded && !gettingStartedDismissed && !allGettingStartedComplete;
 
   // Persist welcome dismissal only when user has real tasks
   useEffect(() => {
@@ -10259,6 +10292,8 @@ const DayPlanner = () => {
                     </button>
                   )}
                 </div>
+                {/* Getting Started checklist */}
+                {showGettingStarted && renderGettingStartedChecklist()}
                 {/* Overdue tasks from past days */}
                 {(() => {
                   const todayStr = getTodayStr();
@@ -12574,6 +12609,8 @@ const DayPlanner = () => {
                         )}
                       </div>
 
+                      {/* Getting Started checklist */}
+                      {showGettingStarted && renderGettingStartedChecklist()}
                       {/* Overdue tasks from past days */}
                       {(() => {
                         const todayStr = getTodayStr();
@@ -13180,6 +13217,8 @@ const DayPlanner = () => {
                     )}
                   </div>
 
+                  {/* Getting Started checklist */}
+                  {showGettingStarted && renderGettingStartedChecklist()}
                   {/* Overdue tasks from past days — matching tablet landscape */}
                   {(() => {
                     const todayStr = getTodayStr();
@@ -18125,8 +18164,6 @@ const DayPlanner = () => {
                     ['F', 'Focus mode'],
                     ['D', 'Toggle dark mode'],
                     ['B', 'Backup menu'],
-                    [',', 'Collapse sidebar'],
-                    ['.', 'Expand sidebar'],
                     ['?', 'This help'],
                   ];
                 })().map(([key, desc]) => (
@@ -18756,25 +18793,25 @@ const DayPlanner = () => {
                   <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <Plus size={32} className="text-blue-500" />
                   </div>
-                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Adding Tasks</h2>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Your Layout</h2>
                   <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Calendar size={16} />
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Eye size={16} className="text-blue-500" />
                       </span>
-                      <span><strong className={textPrimary}>Scheduled</strong> — tasks with a specific time</span>
+                      <span><strong className={textPrimary}>Glance</strong> — your smart agenda with overdue tasks, today's schedule, and routines</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Inbox size={16} />
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Inbox size={16} className="text-blue-500" />
                       </span>
-                      <span><strong className={textPrimary}>Inbox</strong> — tasks to organize later</span>
+                      <span><strong className={textPrimary}>Inbox</strong> — capture tasks to organize later, drag them to the timeline when ready</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Sparkles size={16} />
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Calendar size={16} className="text-blue-500" />
                       </span>
-                      <span><strong className={textPrimary}>Routines</strong> — daily rituals like exercise or journaling</span>
+                      <span><strong className={textPrimary}>Timeline</strong> — your day's schedule, click or use the <Plus size={12} className="inline mx-0.5" /> button to add tasks</span>
                     </div>
                   </div>
                 </div>
@@ -18792,7 +18829,6 @@ const DayPlanner = () => {
                     <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
                     <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
                     <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
-                    <li>Drag tasks to Recycle Bin to <strong className={textPrimary}>delete</strong> them</li>
                     <li>Use <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
                   </ul>
                 </div>
@@ -18814,7 +18850,7 @@ const DayPlanner = () => {
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                         <BarChart3 size={16} />
                       </span>
-                      <span>Click <BarChart3 size={14} className="inline mx-0.5" /> in the sidebar to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+                      <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button on the side panel to review your week — see completion stats, reflect on wins, and plan ahead.</span>
                     </div>
                   </div>
                 </div>
