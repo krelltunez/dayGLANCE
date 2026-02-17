@@ -477,10 +477,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
   };
 
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
-  const borderClass = darkMode ? 'border-gray-700' : 'border-gray-200';
-  const textPrimary = darkMode ? 'text-gray-100' : 'text-gray-900';
-  const textSecondary = darkMode ? 'text-gray-400' : 'text-gray-600';
-  const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
+  const borderClass = darkMode ? 'border-gray-700' : 'border-stone-300';
+  const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
+  const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-600';
+  const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
   // Format date for display
   const displayDate = (() => {
@@ -517,14 +517,14 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
                 placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
-                className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-gray-50 text-gray-900 border-gray-300 placeholder:text-gray-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
+                className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-stone-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
                 rows={8}
                 autoFocus
               />
             ) : (
               <div
                 onClick={() => setIsEditing(true)}
-                className={`text-sm whitespace-pre-wrap cursor-text min-h-[12rem] p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'} ${textPrimary}`}
+                className={`text-sm whitespace-pre-wrap cursor-text min-h-[12rem] p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-50 hover:bg-stone-100'} ${textPrimary}`}
               >
                 {renderFormattedText(localText)}
               </div>
@@ -559,14 +559,14 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
-            className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-gray-50 text-gray-900 border-gray-300 placeholder:text-gray-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
+            className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-stone-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
             rows={10}
             autoFocus
           />
         ) : (
           <div
             onClick={() => setIsEditing(true)}
-            className={`text-sm whitespace-pre-wrap cursor-text min-h-[15rem] p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'} ${textPrimary}`}
+            className={`text-sm whitespace-pre-wrap cursor-text min-h-[15rem] p-3 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-50 hover:bg-stone-100'} ${textPrimary}`}
           >
             {renderFormattedText(localText)}
           </div>
@@ -683,7 +683,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         <select
           value={currentProvider}
           disabled
-          className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
+          className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100'}`}
         >
           {Object.entries(cloudSyncProviders).map(([key, p]) => (
             <option key={key} value={key}>{p.name}</option>
@@ -712,7 +712,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         <button
           onClick={handleTest}
           disabled={testing || !formData.nextcloudUrl || !formData.username || !formData.appPassword}
-          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
+          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
         >
           {testing ? 'Testing...' : 'Test Connection'}
         </button>
@@ -732,7 +732,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
       <div className="flex justify-end gap-2 pt-2">
         <button
           onClick={onClose}
-          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
         >
           Cancel
         </button>
@@ -1064,7 +1064,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                 <button
                   onClick={handleTest}
                   disabled={testing || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
-                  className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
+                  className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
                   {testing ? 'Testing...' : 'Test Connection'}
                 </button>
@@ -2622,7 +2622,7 @@ const DayPlanner = () => {
           {
             id: 'example-deleted-1',
             title: 'Example: Restore me!',
-            color: 'bg-gray-500',
+            color: 'bg-stone-500',
             completed: false,
             deletedAt: new Date().toISOString(),
             _deletedFrom: 'inbox',
@@ -8045,7 +8045,7 @@ const DayPlanner = () => {
                           ? darkMode ? 'bg-blue-900 text-blue-200 font-semibold' : 'bg-blue-100 text-blue-900 font-semibold'
                           : darkMode
                             ? 'hover:bg-gray-700 text-gray-300'
-                            : 'hover:bg-gray-100 text-gray-700'
+                            : 'hover:bg-stone-100 text-gray-700'
                     }`}
                   >
                     {day.getDate()}
@@ -8057,7 +8057,7 @@ const DayPlanner = () => {
             <div className={`border-t ${borderClass} mt-2 pt-2 flex gap-2`}>
               <button
                 onClick={() => setShowCalendar(false)}
-                className={`flex-1 px-2 py-1 text-sm rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+                className={`flex-1 px-2 py-1 text-sm rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
                 Back
               </button>
@@ -8249,7 +8249,7 @@ const DayPlanner = () => {
                     ? 'bg-blue-600 text-white'
                     : darkMode
                       ? 'hover:bg-gray-700 text-gray-300'
-                      : 'hover:bg-gray-200 text-gray-700'
+                      : 'hover:bg-stone-200 text-gray-700'
                 }`}
                 style={{
                   width: `${btnSize}px`,
@@ -8301,7 +8301,7 @@ const DayPlanner = () => {
               {!use24HourClock && (
                 <button
                   onClick={toggleAMPM}
-                  className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   {isAM ? 'AM' : 'PM'}
                 </button>
@@ -8316,7 +8316,7 @@ const DayPlanner = () => {
           <div className={`flex justify-end ${isTablet ? 'gap-3' : 'gap-2'}`}>
             <button
               onClick={onClose}
-              className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
             >
               Cancel
             </button>
@@ -8426,7 +8426,7 @@ const DayPlanner = () => {
                         ? darkMode ? 'bg-blue-900 text-blue-200 font-semibold' : 'bg-blue-100 text-blue-900 font-semibold'
                         : darkMode 
                           ? 'hover:bg-gray-700 text-gray-300' 
-                          : 'hover:bg-gray-100 text-gray-700'
+                          : 'hover:bg-stone-100 text-gray-700'
                   }`}
                 >
                   {day.getDate()}
@@ -8447,7 +8447,7 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={onClose}
-              className={`flex-1 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+              className={`flex-1 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
             >
               Cancel
             </button>
@@ -9199,20 +9199,20 @@ const DayPlanner = () => {
   const currentTimeTop = minutesToPosition(currentTimeMinutes);
   const showCurrentTimeLine = isToday;
 
-  const bgClass = darkMode ? 'bg-gray-900' : 'bg-gray-50';
+  const bgClass = darkMode ? 'bg-gray-900' : 'bg-stone-100';
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
-  const borderClass = darkMode ? 'border-gray-700' : 'border-gray-200';
-  const textPrimary = darkMode ? 'text-gray-100' : 'text-gray-900';
-  const textSecondary = darkMode ? 'text-gray-400' : 'text-gray-600';
-  const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
+  const borderClass = darkMode ? 'border-gray-700' : 'border-stone-300';
+  const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
+  const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-600';
+  const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
   return (
     <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Landscape blocker overlay for phones only (not tablets or narrow desktop windows) */}
       {isPhone && isLandscape && (
         <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 ${bgClass}`}>
-          <Smartphone className={`w-12 h-12 ${darkMode ? 'text-gray-500' : 'text-gray-400'} -rotate-90`} />
-          <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center px-8`}>
+          <Smartphone className={`w-12 h-12 ${darkMode ? 'text-stone-500' : 'text-stone-400'} -rotate-90`} />
+          <p className={`${darkMode ? 'text-gray-400' : 'text-stone-500'} text-center px-8`}>
             Please rotate your device to portrait mode
           </p>
         </div>
@@ -9298,7 +9298,7 @@ const DayPlanner = () => {
                               ${!day ? 'invisible' : ''}
                               ${isSelected ? 'bg-blue-600 text-white font-bold' : ''}
                               ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''}
-                              ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''}
+                              ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-stone-100 dark:hover:bg-gray-700` : ''}
                               ${!day ? '' : 'cursor-pointer'}
                             `}
                           >
@@ -9330,7 +9330,7 @@ const DayPlanner = () => {
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                       title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                     >
-                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-stone-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                     </button>
                     <button
                       onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -9342,7 +9342,7 @@ const DayPlanner = () => {
                           key={i}
                           className={`w-2.5 h-1 rounded-full ${
                             inboxPriorityFilter === 0
-                              ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                              ? `${darkMode ? 'bg-stone-500' : 'bg-gray-400'}`
                               : i < inboxPriorityFilter
                                 ? 'bg-blue-500'
                                 : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
@@ -9407,7 +9407,7 @@ const DayPlanner = () => {
                       return (
                         <div
                           key={dateStr}
-                          className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${mobileDragPreviewTime === 'all-day' ? (darkMode ? 'bg-blue-900/40' : 'bg-blue-100') : isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : (darkMode ? 'bg-gray-700/50' : 'bg-gray-50')}`}
+                          className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${mobileDragPreviewTime === 'all-day' ? (darkMode ? 'bg-blue-900/40' : 'bg-blue-100') : isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : (darkMode ? 'bg-gray-700/50' : 'bg-stone-50')}`}
                           onClick={() => {
                             setNewTask({
                               title: '',
@@ -9700,8 +9700,8 @@ const DayPlanner = () => {
                   <div ref={timeGridRef} className="relative">
                     {hours.map((hour, index) => (
                       <div key={hour} className="relative">
-                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass}`}>
-                          <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center`}>
+                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${!darkMode && index % 2 === 1 ? 'bg-stone-50/60' : ''}`}>
+                          <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`}>
                             {use24HourClock
                               ? `${hour.toString().padStart(2, '0')}:00`
                               : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[9px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>
@@ -9970,7 +9970,7 @@ const DayPlanner = () => {
                                       >
                                         <MoreHorizontal size={14} />
                                         {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-stone-300 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
                                             <MobileActionButtons inMenu={true} />
                                           </div>
                                         )}
@@ -10175,7 +10175,7 @@ const DayPlanner = () => {
                 <div className="flex items-center gap-2 mb-4">
                   <button
                     onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                    className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors`}
+                    className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors`}
                   >
                     <Search size={16} />
                     <span className="text-sm">Search tasks...</span>
@@ -10186,7 +10186,7 @@ const DayPlanner = () => {
                       className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
                         !allTags.every(tag => selectedTags.includes(tag))
                           ? 'bg-blue-500 text-white'
-                          : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                          : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
                       }`}
                     >
                       <Filter size={16} />
@@ -10266,14 +10266,14 @@ const DayPlanner = () => {
                                       setUndoToast({ message: 'Deadline cleared', actionable: true });
                                     }
                                   }}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                   title="Move to inbox"
                                 >
                                   <Inbox size={14} />
                                 </button>
                                 <button
                                   onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                   title="Move to Recycle Bin"
                                 >
                                   <Trash2 size={14} />
@@ -10412,7 +10412,7 @@ const DayPlanner = () => {
                                       setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
                                     }
                                   }}
-                                  className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}
+                                  className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-stone-500'}`}
                                   title={isLinkOnlyTask(task) ? getLinkUrl(task) : "Notes & subtasks"}
                                 >
                                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
@@ -10445,7 +10445,7 @@ const DayPlanner = () => {
                                     playUISound('slide');
                                     setUndoToast({ message: 'Moved to inbox', actionable: true });
                                   }}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                   title="Move to Inbox"
                                 >
                                   <Inbox size={14} />
@@ -10453,7 +10453,7 @@ const DayPlanner = () => {
                               )}
                               <button
                                 onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                 title="Mark complete"
                               >
                                 <CheckCircle size={14} />
@@ -10783,7 +10783,7 @@ const DayPlanner = () => {
                   return (
                     <div className="space-y-3">
                       {/* Today's selected routine */}
-                      <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-gray-300'} p-4`}>
+                      <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-stone-300'} p-4`}>
                         <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary} text-center`}>Today's Routine</div>
                         {dashboardSelectedChips.filter(c => !String(c.id).startsWith('example-')).length > 0 ? (
                           <div className="flex flex-wrap gap-1.5 justify-center">
@@ -10827,7 +10827,7 @@ const DayPlanner = () => {
                                 </span>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
-                                  className={`absolute -top-1.5 -right-1.5 transition-opacity ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center ${
+                                  className={`absolute -top-1.5 -right-1.5 transition-opacity ${darkMode ? 'bg-stone-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center ${
                                     (isPhone || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                                   }`}
                                 >
@@ -10853,7 +10853,7 @@ const DayPlanner = () => {
                         return (
                           <div
                             key={bucket}
-                            className={`${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-lg p-3 ${isHighlighted(bucket) ? (darkMode ? 'ring-2 ring-teal-400 bg-teal-900/20' : 'ring-2 ring-teal-500 bg-teal-50') : ''}`}
+                            className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3 ${isHighlighted(bucket) ? (darkMode ? 'ring-2 ring-teal-400 bg-teal-900/20' : 'ring-2 ring-teal-500 bg-teal-50') : ''}`}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className={`text-xs font-semibold uppercase tracking-wide ${isHighlighted(bucket) ? 'text-teal-500' : textSecondary}`}>
@@ -10880,7 +10880,7 @@ const DayPlanner = () => {
                                     if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
                                   }}
                                   placeholder="Name..."
-                                  className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-gray-900 placeholder-gray-400 border border-gray-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
+                                  className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-gray-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
                                 />
                                 <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
                               </div>
@@ -10906,7 +10906,7 @@ const DayPlanner = () => {
                                     }}
                                     className={`group relative rounded-full px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors ${
                                       isSelected
-                                        ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
+                                        ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-stone-200 text-stone-400')
                                         : (darkMode ? 'bg-teal-700/80 text-teal-100 hover:bg-teal-600/80' : 'bg-teal-600/80 text-white hover:bg-teal-500/80')
                                     }`}
                                   >
@@ -11232,7 +11232,7 @@ const DayPlanner = () => {
                         <Upload size={16} className={textSecondary} />
                         iCal Import
                       </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}>
                         <Upload size={14} className={textSecondary} />
                         Choose .ics file
                         <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
@@ -11315,7 +11315,7 @@ const DayPlanner = () => {
                                 key={key}
                                 onClick={() => applyReminderPreset(key)}
                                 className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                                  reminderSettings.preset === key ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                                  reminderSettings.preset === key ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
                                 }`}
                               >
                                 {label}
@@ -11342,7 +11342,7 @@ const DayPlanner = () => {
                                   key={field}
                                   onClick={() => updateCategoryReminder(catKey, field, !reminderSettings.categories[catKey]?.[field])}
                                   className={`px-2.5 py-1 text-xs rounded transition-colors ${
-                                    reminderSettings.categories[catKey]?.[field] ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} ${hoverBg}`
+                                    reminderSettings.categories[catKey]?.[field] ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'} ${hoverBg}`
                                   }`}
                                 >
                                   {label}
@@ -11361,14 +11361,14 @@ const DayPlanner = () => {
                                 type="checkbox"
                                 checked={reminderSettings.categories.allDayTasks?.morningReminder ?? true}
                                 onChange={(e) => updateCategoryReminder('allDayTasks', 'morningReminder', e.target.checked)}
-                                className="rounded border-gray-300"
+                                className="rounded border-stone-300"
                               />
                               <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
                             </label>
                             <button
                               type="button"
                               onClick={() => setShowMorningTimePicker(true)}
-                              className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                              className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
                             >
                               {formatTime(reminderSettings.morningReminderTime)}
                             </button>
@@ -11400,7 +11400,7 @@ const DayPlanner = () => {
                                       key={label}
                                       onClick={() => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, day: i } }))}
                                       className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                                        reminderSettings.weeklyReview.day === i ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
+                                        reminderSettings.weeklyReview.day === i ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'
                                       }`}
                                     >
                                       {label}
@@ -11413,7 +11413,7 @@ const DayPlanner = () => {
                                 <button
                                   type="button"
                                   onClick={() => setShowWeeklyReviewTimePicker(true)}
-                                  className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                                  className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
                                 >
                                   {formatTime(reminderSettings.weeklyReview.time)}
                                 </button>
@@ -11441,7 +11441,7 @@ const DayPlanner = () => {
                     <div className="space-y-3">
                       <button
                         onClick={() => exportBackup()}
-                        className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                        className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
                       >
                         <div className="font-medium flex items-center gap-2">
                           <Upload size={16} className="rotate-180" />
@@ -11449,7 +11449,7 @@ const DayPlanner = () => {
                         </div>
                         <div className={`text-sm ${textSecondary}`}>Download all tasks and settings as JSON</div>
                       </button>
-                      <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
+                      <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
                         <div className="font-medium flex items-center gap-2">
                           <Upload size={16} />
                           Restore Backup
@@ -11489,7 +11489,7 @@ const DayPlanner = () => {
                     <div className="space-y-3">
                       <button
                         onClick={() => { loadAutoBackupHistory(); }}
-                        className={`px-4 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                        className={`px-4 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
                       >
                         Load Backup History
                       </button>
@@ -11498,7 +11498,7 @@ const DayPlanner = () => {
                           <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>Local ({autoBackupHistory.local.length})</h4>
                           <div className="space-y-1">
                             {autoBackupHistory.local.map(b => (
-                              <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                              <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                                 <div className="min-w-0 flex-1">
                                   <p className={`text-sm ${textPrimary} truncate`}>{new Date(b.timestamp).toLocaleString()}</p>
                                   <p className={`text-xs ${textSecondary}`}>{b.frequency}</p>
@@ -11517,7 +11517,7 @@ const DayPlanner = () => {
                           <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>Remote ({autoBackupHistory.remote.length})</h4>
                           <div className="space-y-1">
                             {autoBackupHistory.remote.map(b => (
-                              <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                              <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                                 <div className="min-w-0 flex-1">
                                   <p className={`text-sm ${textPrimary} truncate`}>{b.lastModified ? new Date(b.lastModified).toLocaleString() : b.filename}</p>
                                 </div>
@@ -11558,7 +11558,7 @@ const DayPlanner = () => {
                 return (
                   <button
                     onClick={() => setShowMobileDailySummary(true)}
-                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
+                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-stone-100'} border ${borderClass}`}
                     style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
                   >
                     <div className="relative w-11 h-11">
@@ -11585,7 +11585,7 @@ const DayPlanner = () => {
                   }
                   setShowWeeklyReview(true);
                 }}
-                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
                 style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
               >
                 <BarChart3 size={22} />
@@ -11594,7 +11594,7 @@ const DayPlanner = () => {
               {recycleBin.filter(t => !t.isExample).length > 0 && (
                 <button
                   onClick={() => setShowMobileRecycleBin(true)}
-                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
                   style={{ bottom: 'calc(12.5rem + env(safe-area-inset-bottom, 0px))' }}
                 >
                   <div className="relative">
@@ -11626,7 +11626,7 @@ const DayPlanner = () => {
                   <div className="flex items-center gap-2">
                     <Trash2 size={18} className={textSecondary} />
                     <span className={`font-semibold ${textPrimary}`}>Recycle Bin</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>
                       {recycleBin.filter(t => !t.isExample).length}
                     </span>
                   </div>
@@ -11641,7 +11641,7 @@ const DayPlanner = () => {
                     )}
                     <button
                       onClick={() => setShowMobileRecycleBin(false)}
-                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
                       aria-label="Close recycle bin"
                     >
                       <X size={16} className={textSecondary} />
@@ -11726,7 +11726,7 @@ const DayPlanner = () => {
                     )}
                     <button
                       onClick={() => setShowMobileTagFilter(false)}
-                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
                       aria-label="Close tag filter"
                     >
                       <X size={16} className={textSecondary} />
@@ -11748,13 +11748,13 @@ const DayPlanner = () => {
                         className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
                           selectedTags.includes(tag)
                             ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                            : darkMode ? 'active:bg-white/5' : 'active:bg-gray-50'
+                            : darkMode ? 'active:bg-white/5' : 'active:bg-stone-50'
                         }`}
                       >
                         <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
                           selectedTags.includes(tag)
                             ? 'bg-blue-500 border-blue-500'
-                            : darkMode ? 'border-gray-600' : 'border-gray-300'
+                            : darkMode ? 'border-gray-600' : 'border-stone-300'
                         }`}>
                           {selectedTags.includes(tag) && <Check size={14} className="text-white" />}
                         </div>
@@ -11790,7 +11790,7 @@ const DayPlanner = () => {
                   </div>
                   <button
                     onClick={() => setShowMobileDailySummary(false)}
-                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
                     aria-label="Close daily summary"
                   >
                     <X size={16} className={textSecondary} />
@@ -12066,7 +12066,7 @@ const DayPlanner = () => {
                         key={index}
                         onClick={() => day && goToDate(day)}
                         disabled={!day}
-                        className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-gray-100 dark:hover:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
+                        className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-stone-100 dark:hover:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
                       >
                         {day && day.getDate()}
                         {hasDots && (
@@ -12090,7 +12090,7 @@ const DayPlanner = () => {
           {weather && (
             <>
               {/* Current weather */}
-              <div className={`flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg flex-shrink-0`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg flex-shrink-0`}>
                 <div className="text-xl">{weather.icon}</div>
                 <div>
                   <div className={`text-sm font-bold ${textPrimary}`}>{weather.temp}°F</div>
@@ -12102,7 +12102,7 @@ const DayPlanner = () => {
               {visibleDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {weather.forecast.slice(0, visibleDays === 3 ? 5 : 2).map((day, index) => (
-                    <div key={index} className={`px-2 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg text-center`}>
+                    <div key={index} className={`px-2 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg text-center`}>
                       <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
                       <div className="text-base">{day.icon}</div>
                       <div className={`text-[10px] ${textPrimary}`}>
@@ -12131,7 +12131,7 @@ const DayPlanner = () => {
             const item = contentItems[idx1];
 
             return (
-              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500`}>
+              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500`}>
                 <div className={`text-[10px] font-semibold ${textSecondary} mb-0.5`}>{item.icon} {item.label}</div>
                 <div className={`text-xs ${textPrimary} leading-snug line-clamp-2`}>{item.content}</div>
               </div>
@@ -12151,7 +12151,7 @@ const DayPlanner = () => {
               }
             }}
             disabled={isSyncing}
-            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
             title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
           >
             <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
@@ -12172,7 +12172,7 @@ const DayPlanner = () => {
                 setShowSettings(true);
               }
             }}
-            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title={cloudSyncConfig?.enabled
               ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
               : 'Set up cloud sync'}
@@ -12188,14 +12188,14 @@ const DayPlanner = () => {
           </button>
           <button
             onClick={() => setShowSettings(true)}
-            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title="Settings"
           >
             <Settings size={18} className={textSecondary} />
           </button>
           <button
             onClick={() => setShowRemindersSettings(true)}
-            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title="Reminders"
           >
             <Bell size={18} className={textSecondary} />
@@ -12205,14 +12205,14 @@ const DayPlanner = () => {
           </button>
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
           >
             {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
           </button>
           <button
             onClick={() => setShowBackupMenu(true)}
-            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg}`}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title="Backup or restore data"
           >
             <Save size={18} className={textSecondary} />
@@ -12265,7 +12265,7 @@ const DayPlanner = () => {
                 }
               }}
               disabled={isSyncing}
-              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${isSyncing ? 'opacity-70' : ''}`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${isSyncing ? 'opacity-70' : ''}`}
               title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
               aria-label={isSyncing ? "Syncing" : "Sync calendars"}
             >
@@ -12287,7 +12287,7 @@ const DayPlanner = () => {
                   setShowSettings(true);
                 }
               }}
-              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title={cloudSyncConfig?.enabled
                 ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
                 : 'Set up cloud sync'}
@@ -12304,7 +12304,7 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={() => setShowSettings(true)}
-              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title="Settings"
               aria-label="Settings"
             >
@@ -12312,7 +12312,7 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={() => setShowRemindersSettings(true)}
-              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title="Reminders"
               aria-label="Reminders"
             >
@@ -12323,7 +12323,7 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
               aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
@@ -12331,7 +12331,7 @@ const DayPlanner = () => {
             </button>
             <button
               onClick={() => setShowBackupMenu(true)}
-              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title="Backup or restore data"
               aria-label="Backup or restore data"
             >
@@ -12368,7 +12368,7 @@ const DayPlanner = () => {
                       key={index}
                       onClick={() => day && goToDate(day)}
                       disabled={!day}
-                      className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} active:bg-gray-100 dark:active:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
+                      className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} active:bg-stone-100 dark:active:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
                     >
                       {day && day.getDate()}
                       {hasDots && (
@@ -12431,7 +12431,7 @@ const DayPlanner = () => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                          className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors active:opacity-70`}
+                          className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors active:opacity-70`}
                         >
                           <Search size={16} />
                           <span className="text-sm">Search tasks...</span>
@@ -12443,7 +12443,7 @@ const DayPlanner = () => {
                               className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
                                 !allTags.every(tag => selectedTags.includes(tag))
                                   ? 'bg-blue-500 text-white'
-                                  : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                                  : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
                               } active:opacity-80`}
                             >
                               <Filter size={16} />
@@ -12484,11 +12484,11 @@ const DayPlanner = () => {
                                           className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
                                             selectedTags.includes(tag)
                                               ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                                              : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                                              : darkMode ? 'hover:bg-white/5' : 'hover:bg-stone-50'
                                           }`}
                                         >
                                           <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                                            selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                            selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-stone-300'
                                           }`}>
                                             {selectedTags.includes(tag) && <Check size={12} className="text-white" />}
                                           </div>
@@ -12573,14 +12573,14 @@ const DayPlanner = () => {
                                             setUndoToast({ message: 'Deadline cleared', actionable: true });
                                           }
                                         }}
-                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                         title="Move to inbox"
                                       >
                                         <Inbox size={14} />
                                       </button>
                                       <button
                                         onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
-                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                         title="Move to Recycle Bin"
                                       >
                                         <Trash2 size={14} />
@@ -12712,7 +12712,7 @@ const DayPlanner = () => {
                                           playUISound('slide');
                                           setUndoToast({ message: 'Moved to inbox', actionable: true });
                                         }}
-                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                         title="Move to Inbox"
                                       >
                                         <Inbox size={14} />
@@ -12720,7 +12720,7 @@ const DayPlanner = () => {
                                     )}
                                     <button
                                       onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} active:scale-95 transition-transform`}
+                                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                       title="Mark complete"
                                     >
                                       <CheckCircle size={14} />
@@ -12813,7 +12813,7 @@ const DayPlanner = () => {
                           className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                           title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                         >
-                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-stone-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                         </button>
                         <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -12825,7 +12825,7 @@ const DayPlanner = () => {
                               key={i}
                               className={`w-2.5 h-1 rounded-full ${
                                 inboxPriorityFilter === 0
-                                  ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                                  ? `${darkMode ? 'bg-stone-500' : 'bg-gray-400'}`
                                   : i < inboxPriorityFilter
                                     ? 'bg-blue-500'
                                     : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
@@ -13036,7 +13036,7 @@ const DayPlanner = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
-                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'} transition-colors hover:opacity-80`}
+                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors hover:opacity-80`}
                     >
                       <Search size={16} />
                       <span className="text-sm">Search tasks...</span>
@@ -13049,7 +13049,7 @@ const DayPlanner = () => {
                           className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
                             !allTags.every(tag => selectedTags.includes(tag))
                               ? 'bg-blue-500 text-white'
-                              : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-gray-400'
+                              : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
                           } hover:opacity-80`}
                         >
                           <Filter size={16} />
@@ -13090,11 +13090,11 @@ const DayPlanner = () => {
                                       className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
                                         selectedTags.includes(tag)
                                           ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
-                                          : darkMode ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                                          : darkMode ? 'hover:bg-white/5' : 'hover:bg-stone-50'
                                       }`}
                                     >
                                       <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                                        selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-gray-300'
+                                        selectedTags.includes(tag) ? 'bg-blue-500 border-blue-500' : darkMode ? 'border-gray-600' : 'border-stone-300'
                                       }`}>
                                         {selectedTags.includes(tag) && <Check size={12} className="text-white" />}
                                       </div>
@@ -13179,14 +13179,14 @@ const DayPlanner = () => {
                                         setUndoToast({ message: 'Deadline cleared', actionable: true });
                                       }
                                     }}
-                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} hover:scale-95 transition-transform`}
+                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
                                     title="Move to inbox"
                                   >
                                     <Inbox size={14} />
                                   </button>
                                   <button
                                     onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
-                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} hover:scale-95 transition-transform`}
+                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
                                     title="Move to Recycle Bin"
                                   >
                                     <Trash2 size={14} />
@@ -13318,7 +13318,7 @@ const DayPlanner = () => {
                                       playUISound('slide');
                                       setUndoToast({ message: 'Moved to inbox', actionable: true });
                                     }}
-                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} hover:scale-95 transition-transform`}
+                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
                                     title="Move to Inbox"
                                   >
                                     <Inbox size={14} />
@@ -13326,7 +13326,7 @@ const DayPlanner = () => {
                                 )}
                                 <button
                                   onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'} hover:scale-95 transition-transform`}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
                                   title="Mark complete"
                                 >
                                   <CheckCircle size={14} />
@@ -13429,7 +13429,7 @@ const DayPlanner = () => {
                             className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                             title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                           >
-                            <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-gray-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                            <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-stone-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                           </button>
                           <button
                             onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -13441,7 +13441,7 @@ const DayPlanner = () => {
                                 key={i}
                                 className={`w-2.5 h-1 rounded-full ${
                                   inboxPriorityFilter === 0
-                                    ? `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                                    ? `${darkMode ? 'bg-stone-500' : 'bg-gray-400'}`
                                     : i < inboxPriorityFilter
                                       ? 'bg-blue-500'
                                       : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
@@ -13658,7 +13658,7 @@ const DayPlanner = () => {
                   return (
                     <div
                       key={dateStr}
-                      className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`} ${isDragOverThis ? (darkMode ? 'bg-green-700 ring-2 ring-inset ring-green-400' : 'bg-green-200 ring-2 ring-inset ring-green-500') : ''}`}
+                      className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`} ${isDragOverThis ? (darkMode ? 'bg-green-700 ring-2 ring-inset ring-green-400' : 'bg-green-200 ring-2 ring-inset ring-green-500') : ''}`}
                       onClick={() => {
                         setNewTask({
                           title: '',
@@ -13947,7 +13947,7 @@ const DayPlanner = () => {
                                       >
                                         <MoreHorizontal size={14} />
                                         {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-2 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                          <div className="task-menu-container absolute top-full right-2 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-stone-300 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
                                             <AllDayActionButtons inMenu={true} />
                                           </div>
                                         )}
@@ -14446,7 +14446,7 @@ const DayPlanner = () => {
                                       >
                                         <MoreHorizontal size={14} />
                                         {expandedTaskMenu === task.id && (
-                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-gray-200 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
+                                          <div className="task-menu-container absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-stone-300 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
                                             <ActionButtons inMenu={true} />
                                           </div>
                                         )}
@@ -14888,7 +14888,7 @@ const DayPlanner = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}
-                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
                 Cancel
               </button>
@@ -14933,7 +14933,7 @@ const DayPlanner = () => {
                 Total: {formatBytes(totalBytes)} / ~5 MB ({(totalBytes / (5 * 1024 * 1024) * 100).toFixed(0)}%)
               </div>
               {/* Progress bar */}
-              <div className={`w-full h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} mb-4`}>
+              <div className={`w-full h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} mb-4`}>
                 <div className={`h-full rounded-full transition-all ${warn ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, totalBytes / (5 * 1024 * 1024) * 100)}%` }} />
               </div>
               <div className="space-y-1.5">
@@ -14970,14 +14970,14 @@ const DayPlanner = () => {
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => deleteRecurringInstance('this')}
-                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary}`}
+                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary}`}
               >
                 <div className="font-medium">This occurrence</div>
                 <div className={`text-xs ${textSecondary}`}>Only skip {recurringDeleteConfirm.dateStr}</div>
               </button>
               <button
                 onClick={() => deleteRecurringInstance('future')}
-                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary}`}
+                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary}`}
               >
                 <div className="font-medium">This and all future</div>
                 <div className={`text-xs ${textSecondary}`}>Stop recurring from {recurringDeleteConfirm.dateStr} onward</div>
@@ -14991,7 +14991,7 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => setRecurringDeleteConfirm(null)}
-                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg} mt-1`}
+                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg} mt-1`}
               >
                 Cancel
               </button>
@@ -15046,7 +15046,7 @@ const DayPlanner = () => {
                     setRecurringTasks(prev => prev.filter(t => t.id !== templateId));
                     setEditingRecurrenceTaskId(null);
                   }}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${textPrimary}`}
+                  className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${textPrimary}`}
                 >
                   None (convert to regular task)
                 </button>
@@ -15063,7 +15063,7 @@ const DayPlanner = () => {
                         if (currentRecurrence.maxOccurrences) endFields.maxOccurrences = currentRecurrence.maxOccurrences;
                         updateRecurrencePattern(templateId, dateStr, { ...preset.value, ...endFields });
                       }}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                      className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
                         isActive ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
                       }`}
                     >
@@ -15080,7 +15080,7 @@ const DayPlanner = () => {
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => updateRecurrenceEndCondition(templateId, {})}
-                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
                       !currentRecurrence.endDate && !currentRecurrence.maxOccurrences ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
                     }`}
                   >
@@ -15091,7 +15091,7 @@ const DayPlanner = () => {
                   </button>
                   <button
                     onClick={() => setShowRecurrenceEndDatePicker({ source: 'edit', templateId })}
-                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
                       currentRecurrence.endDate ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
                     }`}
                   >
@@ -15110,7 +15110,7 @@ const DayPlanner = () => {
                           updateRecurrenceEndCondition(templateId, { maxOccurrences: 10 });
                         }
                       }}
-                      className={`flex-1 text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                      className={`flex-1 text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
                         currentRecurrence.maxOccurrences ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
                       }`}
                     >
@@ -15141,7 +15141,7 @@ const DayPlanner = () => {
               </div>
               <button
                 onClick={() => setEditingRecurrenceTaskId(null)}
-                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg} mt-3`}
+                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg} mt-3`}
               >
                 Done
               </button>
@@ -15181,14 +15181,14 @@ const DayPlanner = () => {
             <div className="space-y-3">
               <button
                 onClick={() => processImportFile(false)}
-                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium">As Calendar Events</div>
                 <div className={`text-sm ${textSecondary}`}>Read-only events shown in selected color</div>
               </button>
               <button
                 onClick={() => processImportFile(true)}
-                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium">As Task Calendar</div>
                 <div className={`text-sm ${textSecondary}`}>Checkable tasks (striped pattern)</div>
@@ -15197,7 +15197,7 @@ const DayPlanner = () => {
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => { setShowImportModal(false); setPendingImportFile(null); }}
-                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-stone-500' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
               >
                 Cancel
               </button>
@@ -15262,7 +15262,7 @@ const DayPlanner = () => {
                   setCloudSyncStatus('success');
                   setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
                 }}
-                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium">Use server data</div>
                 <div className={`text-sm ${textSecondary}`}>Replace local data with what's on the server</div>
@@ -15277,7 +15277,7 @@ const DayPlanner = () => {
                   setCloudSyncLastSynced(now);
                   await cloudSyncUpload();
                 }}
-                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium">Use local data</div>
                 <div className={`text-sm ${textSecondary}`}>Upload current data to the server, replacing what's there</div>
@@ -15305,7 +15305,7 @@ const DayPlanner = () => {
             <div className="space-y-3">
               <button
                 onClick={() => { exportBackup(); setShowBackupMenu(false); }}
-                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium flex items-center gap-2">
                   <Upload size={16} className="rotate-180" />
@@ -15313,7 +15313,7 @@ const DayPlanner = () => {
                 </div>
                 <div className={`text-sm ${textSecondary}`}>Download all tasks and settings as JSON</div>
               </button>
-              <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
+              <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
                 <div className="font-medium flex items-center gap-2">
                   <Upload size={16} />
                   Restore Backup
@@ -15323,7 +15323,7 @@ const DayPlanner = () => {
               </label>
               <button
                 onClick={() => { setShowBackupMenu(false); setAutoBackupManagerTab('settings'); setShowAutoBackupManager(true); }}
-                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${textPrimary} rounded-lg text-left transition-colors`}
+                className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
                 <div className="font-medium flex items-center gap-2">
                   <Clock size={16} />
@@ -15338,7 +15338,7 @@ const DayPlanner = () => {
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => setShowBackupMenu(false)}
-                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-stone-500' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
               >
                 Cancel
               </button>
@@ -15368,7 +15368,7 @@ const DayPlanner = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowRestoreConfirm(false); setPendingBackupFile(null); }}
-                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
                 Cancel
               </button>
@@ -15452,7 +15452,7 @@ const DayPlanner = () => {
                       <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => setAutoBackupRestoreConfirm(null)}
-                          className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+                          className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
                         >
                           Cancel
                         </button>
@@ -15483,7 +15483,7 @@ const DayPlanner = () => {
                     ) : (
                       <div className="space-y-1">
                         {autoBackupHistory.local.map(b => (
-                          <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                          <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                             <div className="min-w-0 flex-1">
                               <p className={`text-sm ${textPrimary} truncate`}>
                                 {new Date(b.timestamp).toLocaleString()}
@@ -15524,7 +15524,7 @@ const DayPlanner = () => {
                       ) : (
                         <div className="space-y-1">
                           {autoBackupHistory.remote.map(b => (
-                            <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                            <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                               <div className="min-w-0 flex-1">
                                 <p className={`text-sm ${textPrimary} truncate`}>
                                   {b.lastModified ? new Date(b.lastModified).toLocaleString() : b.filename}
@@ -15652,7 +15652,7 @@ const DayPlanner = () => {
             return (
               <button
                 onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-gray-100'} border ${borderClass}`}
+                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-stone-100'} border ${borderClass}`}
                 style={{ left: '248px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
@@ -15679,7 +15679,7 @@ const DayPlanner = () => {
               }
               setShowWeeklyReview(true);
             }}
-            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
             style={{ left: '248px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
@@ -15688,7 +15688,7 @@ const DayPlanner = () => {
           {recycleBin.filter(t => !t.isExample).length > 0 && (
             <button
               onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-gray-200 text-gray-600 active:bg-gray-300'}`}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
               style={{ left: '248px', bottom: '9.5rem' }}
             >
               <div className="relative">
@@ -15731,7 +15731,7 @@ const DayPlanner = () => {
             return (
               <button
                 onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} border ${borderClass}`}
+                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-stone-100'} border ${borderClass}`}
                 style={{ left: '248px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
@@ -15758,7 +15758,7 @@ const DayPlanner = () => {
               }
               setShowWeeklyReview(true);
             }}
-            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-gray-300'}`}
             style={{ left: '248px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
@@ -15767,7 +15767,7 @@ const DayPlanner = () => {
           {recycleBin.filter(t => !t.isExample).length > 0 && (
             <button
               onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-gray-300'}`}
               style={{ left: '248px', bottom: '9.5rem' }}
             >
               <div className="relative">
@@ -15798,7 +15798,7 @@ const DayPlanner = () => {
               <div className="flex items-center gap-2">
                 <Trash2 size={18} className={textSecondary} />
                 <span className={`font-semibold ${textPrimary}`}>Recycle Bin</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>
                   {recycleBin.filter(t => !t.isExample).length}
                 </span>
               </div>
@@ -15806,7 +15806,7 @@ const DayPlanner = () => {
                 {recycleBin.filter(t => !t.isExample).length > 0 && (
                   <button onClick={emptyRecycleBin} className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors">Empty All</button>
                 )}
-                <button onClick={() => setShowMobileRecycleBin(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`} aria-label="Close recycle bin">
+                <button onClick={() => setShowMobileRecycleBin(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label="Close recycle bin">
                   <X size={16} className={textSecondary} />
                 </button>
               </div>
@@ -15855,7 +15855,7 @@ const DayPlanner = () => {
                 <BarChart3 size={18} className={textSecondary} />
                 <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
               </div>
-              <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`} aria-label="Close">
+              <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label="Close">
                 <X size={16} className={textSecondary} />
               </button>
             </div>
@@ -16005,7 +16005,7 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); }}
-                className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'}`}
               >
                 Dismiss
               </button>
@@ -16059,7 +16059,7 @@ const DayPlanner = () => {
                 )}
                 <button
                   onClick={() => dismissReminder(reminder.id)}
-                  className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   Dismiss
                 </button>
@@ -16238,7 +16238,7 @@ const DayPlanner = () => {
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
                     <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
-                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-gray-300'}`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                         {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
                       </div>
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
@@ -16269,7 +16269,7 @@ const DayPlanner = () => {
                                   setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value, ...endFields } : null });
                                   setShowRecurrencePicker(false);
                                 }}
-                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${textPrimary}`}
+                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${textPrimary}`}
                               >
                                 {preset.label}
                               </button>
@@ -16647,7 +16647,7 @@ const DayPlanner = () => {
                                   setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value, ...endFields } : null });
                                   setShowRecurrencePicker(false);
                                 }}
-                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${
+                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
                                   JSON.stringify(newTask.recurrence) === JSON.stringify(preset.value) ? (darkMode ? 'bg-gray-700' : 'bg-blue-50 text-blue-700') : textPrimary
                                 } ${i === 0 ? 'rounded-t-lg' : ''} ${i === presets.length - 1 ? 'rounded-b-lg' : ''}`}
                               >
@@ -16757,7 +16757,7 @@ const DayPlanner = () => {
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
                       <div className="flex items-center h-10 cursor-pointer" onClick={() => setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay }))}>
-                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-gray-300'}`}>
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                           {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
                         </div>
                         <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
@@ -16790,15 +16790,15 @@ const DayPlanner = () => {
                 <button
                   type="button"
                   onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); }}
-                  className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                  className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
                 >
                   Cancel
                 </button>
               </div>
               {!mobileEditingTask && (
               <div className={`text-xs ${textSecondary} text-center`}>
-                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Enter</kbd> add to {newTask.openInInbox ? 'inbox' : 'schedule'}
-                {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded`}>Esc</kbd> cancel
+                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Enter</kbd> add to {newTask.openInInbox ? 'inbox' : 'schedule'}
+                {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Esc</kbd> cancel
               </div>
               )}
             </div>
@@ -16847,7 +16847,7 @@ const DayPlanner = () => {
                   return (
                     <div
                       key={bucket}
-                      className={`${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-lg p-3 ${isHighlighted(bucket) ? (darkMode ? 'ring-2 ring-teal-400 bg-teal-900/20' : 'ring-2 ring-teal-500 bg-teal-50') : ''}`}
+                      className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3 ${isHighlighted(bucket) ? (darkMode ? 'ring-2 ring-teal-400 bg-teal-900/20' : 'ring-2 ring-teal-500 bg-teal-50') : ''}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className={`text-xs font-semibold uppercase tracking-wide ${isHighlighted(bucket) ? 'text-teal-500' : textSecondary}`}>
@@ -16875,7 +16875,7 @@ const DayPlanner = () => {
                               if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
                             }}
                             placeholder="Name..."
-                            className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-gray-900 placeholder-gray-400 border border-gray-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
+                            className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-gray-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
                           />
                           <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
                         </div>
@@ -16901,7 +16901,7 @@ const DayPlanner = () => {
                               }}
                               className={`group relative rounded-full ${isTablet ? 'px-3.5 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'} font-medium cursor-pointer transition-colors ${
                                 isSelected
-                                  ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
+                                  ? (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-stone-200 text-stone-400')
                                   : (darkMode ? 'bg-teal-700/80 text-teal-100 hover:bg-teal-600/80' : 'bg-teal-600/80 text-white hover:bg-teal-500/80')
                               }`}
                             >
@@ -16936,7 +16936,7 @@ const DayPlanner = () => {
                     </div>
 
                     {/* Center: selected chips */}
-                    <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-gray-300'} p-4 flex flex-col items-center justify-start min-h-[300px]`}>
+                    <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-stone-300'} p-4 flex flex-col items-center justify-start min-h-[300px]`}>
                       <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary}`}>Today's Routine</div>
                       {dashboardSelectedChips.length > 0 ? (
                         <div className={`flex flex-wrap ${isTablet ? 'gap-2' : 'gap-1.5'} justify-center`}>
@@ -16981,7 +16981,7 @@ const DayPlanner = () => {
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
-                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-gray-400 text-white'} ${
+                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-stone-500 text-white' : 'bg-gray-400 text-white'} ${
                                   isTablet ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                                 }`}
                                 title="Remove from today"
@@ -17056,7 +17056,7 @@ const DayPlanner = () => {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setRoutineDeleteConfirm(null)}
-                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} ${textPrimary} ${hoverBg}`}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
                 Cancel
               </button>
@@ -17113,7 +17113,7 @@ const DayPlanner = () => {
                   <div key={task.id} className="flex items-center gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
                     <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0`} />
                     <span className="text-gray-200 text-sm truncate flex-1">{task.title}</span>
-                    <span className="text-gray-500 text-xs">{task.duration}m</span>
+                    <span className="text-stone-500 text-xs">{task.duration}m</span>
                   </div>
                 ))}
               </div>
@@ -17139,7 +17139,7 @@ const DayPlanner = () => {
                 }`}>
                   {focusPhase === 'work' ? 'Work' : focusPhase === 'shortBreak' ? 'Short Break' : 'Long Break'}
                 </span>
-                <span className="text-gray-500 text-sm">Cycle {Math.floor(focusCycleCount / 1) + (focusPhase === 'work' ? 1 : 0)} of 4</span>
+                <span className="text-stone-500 text-sm">Cycle {Math.floor(focusCycleCount / 1) + (focusPhase === 'work' ? 1 : 0)} of 4</span>
               </div>
 
               {/* Countdown */}
@@ -17177,8 +17177,8 @@ const DayPlanner = () => {
                     <div key={task.id} className={`bg-gray-800 rounded-lg p-3 flex items-start gap-3 transition-opacity ${isDone ? 'opacity-40' : ''}`}>
                       <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{task.title}</div>
-                        <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
+                        <div className={`text-sm font-medium ${isDone ? 'text-stone-500 line-through' : 'text-gray-200'}`}>{task.title}</div>
+                        <div className="text-xs text-stone-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
                         {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
                           <div className="mt-2">
                             <NotesSubtasksPanel
@@ -17214,7 +17214,7 @@ const DayPlanner = () => {
 
               {/* Session elapsed time */}
               {focusSessionStart && (
-                <div className="text-gray-500 text-sm mt-4">
+                <div className="text-stone-500 text-sm mt-4">
                   Session: {Math.floor((currentTime - focusSessionStart) / 60000)}m elapsed
                 </div>
               )}
@@ -17289,7 +17289,7 @@ const DayPlanner = () => {
                   <X size={16} />
                 </button>
               )}
-              {!isMobile && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>Esc</kbd>}
+              {!isMobile && <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>Esc</kbd>}
             </div>
 
             {/* Results */}
@@ -17315,7 +17315,7 @@ const DayPlanner = () => {
                   return (
                     <div
                       key={`${result.source}-${result.task.id}-${idx}`}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50')}`}
+                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-stone-50')}`}
                       onClick={() => handleSpotlightSelect(result)}
                       onMouseEnter={() => setSpotlightSelectedIndex(idx)}
                       ref={el => {
@@ -17357,8 +17357,8 @@ const DayPlanner = () => {
               <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
                 {!isMobile ? (
                   <div className="flex items-center gap-3">
-                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↑↓</kbd> navigate</span>
-                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>↵</kbd> open</span>
+                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>↑↓</kbd> navigate</span>
+                    <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>↵</kbd> open</span>
                   </div>
                 ) : <div />}
                 <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}</span>
@@ -17403,7 +17403,7 @@ const DayPlanner = () => {
                           className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                             use24HourClock
                               ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
                           }`}
                         >
                           24-hour
@@ -17413,7 +17413,7 @@ const DayPlanner = () => {
                           className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                             !use24HourClock
                               ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
                           }`}
                         >
                           12-hour
@@ -17554,7 +17554,7 @@ const DayPlanner = () => {
                         <Upload size={16} className={textSecondary} />
                         iCal Import
                       </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
                         <Upload size={14} className={textSecondary} />
                         Choose .ics file
                         <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
@@ -17603,7 +17603,7 @@ const DayPlanner = () => {
                 </div>
                 <button
                   onClick={() => setShowSettings(false)}
-                  className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                  className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                 >
                   Close
                 </button>
@@ -17703,7 +17703,7 @@ const DayPlanner = () => {
                         className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                           reminderSettings.preset === key
                             ? 'bg-blue-600 text-white'
-                            : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'} ${hoverBg}`
+                            : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
                         }`}
                       >
                         {label}
@@ -17738,7 +17738,7 @@ const DayPlanner = () => {
                           className={`px-2.5 py-1 text-xs rounded transition-colors ${
                             reminderSettings.categories[catKey]?.[field]
                               ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} ${hoverBg}`
+                              : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'} ${hoverBg}`
                           }`}
                         >
                           {label}
@@ -17757,14 +17757,14 @@ const DayPlanner = () => {
                         type="checkbox"
                         checked={reminderSettings.categories.allDayTasks?.morningReminder ?? true}
                         onChange={(e) => updateCategoryReminder('allDayTasks', 'morningReminder', e.target.checked)}
-                        className="rounded border-gray-300"
+                        className="rounded border-stone-300"
                       />
                       <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowMorningTimePicker(true)}
-                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
                     >
                       {formatTime(reminderSettings.morningReminderTime)}
                     </button>
@@ -17805,7 +17805,7 @@ const DayPlanner = () => {
                           className={`px-2 py-1 text-xs rounded-full transition-colors ${
                             reminderSettings.weeklyReview.day === i
                               ? 'bg-blue-600 text-white'
-                              : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'
                           }`}
                         >
                           {label}
@@ -17818,7 +17818,7 @@ const DayPlanner = () => {
                     <button
                       type="button"
                       onClick={() => setShowWeeklyReviewTimePicker(true)}
-                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-700'}`}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
                     >
                       {formatTime(reminderSettings.weeklyReview.time)}
                     </button>
@@ -17829,7 +17829,7 @@ const DayPlanner = () => {
 
             <button
               onClick={() => setShowRemindersSettings(false)}
-              className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
+              className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
             >
               Close
             </button>
@@ -17881,7 +17881,7 @@ const DayPlanner = () => {
                     {items.map(task => (
                       <button
                         key={task.id}
-                        className={`w-full flex items-center gap-3 p-2 rounded text-left cursor-pointer ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}
+                        className={`w-full flex items-center gap-3 p-2 rounded text-left cursor-pointer ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-50'} transition-colors`}
                         onClick={() => {
                           if (isMobile) {
                             if (task.date) {
@@ -17932,7 +17932,7 @@ const DayPlanner = () => {
               <div className={`p-4 border-t ${borderClass}`}>
                 <button
                   onClick={() => setShowIncompleteTasks(null)}
-                  className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
+                  className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
                 >
                   Close
                 </button>
@@ -17964,7 +17964,7 @@ const DayPlanner = () => {
                   ['M', 'Toggle month view'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -17975,7 +17975,7 @@ const DayPlanner = () => {
                   ['R', 'Routines dashboard'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -17988,7 +17988,7 @@ const DayPlanner = () => {
                   ];
                 })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -18007,7 +18007,7 @@ const DayPlanner = () => {
                   ];
                 })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -18025,7 +18025,7 @@ const DayPlanner = () => {
                   ['$', 'Deadline (inbox)'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -18038,14 +18038,14 @@ const DayPlanner = () => {
                   ['Esc', 'Close / cancel'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
               </div>
             </div>
             <div className={`mt-4 pt-3 border-t ${borderClass} text-center`}>
-              <span className={`text-xs ${textSecondary}`}>Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>Esc</kbd> to close</span>
+              <span className={`text-xs ${textSecondary}`}>Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>Esc</kbd> to close</span>
             </div>
           </div>
         </div>
@@ -18250,7 +18250,7 @@ const DayPlanner = () => {
         };
 
         const StatCard = ({ value, label, icon }) => (
-          <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-lg p-3`}>
+          <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3`}>
             <div className={`text-xl font-bold ${textPrimary} flex items-center gap-1.5`}>
               {icon}
               {value}
@@ -18286,7 +18286,7 @@ const DayPlanner = () => {
                           reviewScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
                         }}
                         disabled={mobileReviewPage === 0}
-                        className={`p-1 rounded-lg transition-colors ${mobileReviewPage === 0 ? 'opacity-30 cursor-default' : darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                        className={`p-1 rounded-lg transition-colors ${mobileReviewPage === 0 ? 'opacity-30 cursor-default' : darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'}`}
                         aria-label="Previous page"
                       >
                         <ChevronLeft size={16} className={textSecondary} />
@@ -18296,7 +18296,7 @@ const DayPlanner = () => {
                           reviewScrollRef.current?.scrollTo({ left: reviewScrollRef.current.clientWidth, behavior: 'smooth' });
                         }}
                         disabled={mobileReviewPage === 1}
-                        className={`p-1 rounded-lg transition-colors ${mobileReviewPage === 1 ? 'opacity-30 cursor-default' : darkMode ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                        className={`p-1 rounded-lg transition-colors ${mobileReviewPage === 1 ? 'opacity-30 cursor-default' : darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'}`}
                         aria-label="Next page"
                       >
                         <ChevronRight size={16} className={textSecondary} />
@@ -18305,7 +18305,7 @@ const DayPlanner = () => {
                   )}
                   <button
                     onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}
-                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
                     aria-label="Close weekly review"
                   >
                     <X size={16} className={textSecondary} />
@@ -18528,7 +18528,7 @@ const DayPlanner = () => {
             )}
             {mobileWelcomeStep === 5 && (
               <div className="text-center">
-                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-16 h-16 bg-stone-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Settings size={32} className={textSecondary} />
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Settings</h2>
@@ -18557,7 +18557,7 @@ const DayPlanner = () => {
                   </button>
                   <button
                     onClick={() => { setShowWelcome(false); setShowSettings(true); }}
-                    className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                    className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
                   >
                     <Cloud size={18} /> Set Up Cloud Sync
                   </button>
@@ -18578,7 +18578,7 @@ const DayPlanner = () => {
               {mobileWelcomeStep > 0 && (
                 <button
                   onClick={() => setMobileWelcomeStep(s => s - 1)}
-                  className={`p-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}
+                  className={`p-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}
                 >
                   <ChevronLeft size={20} className={textSecondary} />
                 </button>
@@ -18684,7 +18684,7 @@ const DayPlanner = () => {
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Search size={16} />
                       </span>
-                      <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded text-xs font-mono`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
+                      <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded text-xs font-mono`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
                     </div>
                     <div className="flex items-start gap-3">
                       <span className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -18702,26 +18702,26 @@ const DayPlanner = () => {
                   </div>
                   <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Keyboard Shortcuts</h2>
                   <div className={`text-sm ${textSecondary} space-y-2`}>
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
                       <span>New scheduled task</span>
-                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>N</kbd>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>N</kbd>
                     </div>
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
                       <span>New inbox task</span>
-                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>I</kbd>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>I</kbd>
                     </div>
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
                       <span>Jump to today</span>
-                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
+                      <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
                     </div>
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
                       <span>Undo / Redo</span>
                       <span className="flex gap-1">
-                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
-                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Shift+Z</kbd>
+                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
+                        <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Shift+Z</kbd>
                       </span>
                     </div>
-                    <p className={`text-xs ${textSecondary} mt-3`}>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded text-xs font-mono`}>?</kbd> at any time to see all available shortcuts.</p>
+                    <p className={`text-xs ${textSecondary} mt-3`}>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono`}>?</kbd> at any time to see all available shortcuts.</p>
                   </div>
                 </div>
               )}
@@ -18741,37 +18741,37 @@ const DayPlanner = () => {
               )}
               {desktopWelcomeStep === 6 && (
                 <div className="text-center w-full max-w-sm">
-                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                  <div className="w-16 h-16 bg-stone-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <Settings size={32} className={textSecondary} />
                   </div>
                   <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>App Settings</h2>
                   <div className={`text-sm ${textSecondary} space-y-2 text-left`}>
                     <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                         <Settings size={16} className={textPrimary} />
                       </span>
                       <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                         {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
                       </span>
                       <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                         <Cloud size={16} className={textPrimary} />
                       </span>
                       <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                         <Bell size={16} className={textPrimary} />
                       </span>
                       <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                         <Save size={16} className={textPrimary} />
                       </span>
                       <span><strong className={textPrimary}>Backup & Restore</strong> — export or import as JSON</span>
@@ -18797,7 +18797,7 @@ const DayPlanner = () => {
                     </button>
                     <button
                       onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); setShowSettings(true); }}
-                      className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                      className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
                     >
                       <Cloud size={18} /> Set Up Cloud Sync
                     </button>
@@ -18818,7 +18818,7 @@ const DayPlanner = () => {
                 {desktopWelcomeStep > 0 && (
                   <button
                     onClick={() => setDesktopWelcomeStep(s => s - 1)}
-                    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+                    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} transition-colors`}
                   >
                     <ChevronLeft size={20} className={textSecondary} />
                   </button>
