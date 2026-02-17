@@ -1,6 +1,6 @@
 # dayGLANCE
 
-**Your day, at a glance.** A privacy-first, self-hosted day planner with visual time-blocking, task management, and calendar sync -- all in a beautiful Progressive Web App.
+**Your day, at a glance.** A beautiful, feature-rich day planner with visual time-blocking, task management, and calendar sync. Use it instantly at [dayglance.app](https://dayglance.app) or self-host it on your own server -- your choice, your data.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/krelltunez/day-planner)
@@ -14,7 +14,7 @@
 
 ## Why dayGLANCE?
 
-Most planners either live in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** that runs entirely on your own infrastructure. Your data never leaves your server, syncs across devices through your own Nextcloud instance, and works offline as a full PWA.
+Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure for full data ownership. Either way, it works offline as a PWA and syncs across devices through Nextcloud.
 
 ---
 
