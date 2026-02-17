@@ -11206,54 +11206,6 @@ const DayPlanner = () => {
                       <span className="text-sm font-medium">App Settings</span>
                     </button>
 
-                    {/* Weather Location */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <MapPin size={16} className={textSecondary} />
-                        Weather Location
-                      </h4>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>ZIP code or city name</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 90210 or Seattle"
-                          value={weatherZip}
-                          onChange={(e) => setWeatherZip(e.target.value)}
-                          onBlur={() => fetchWeather()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>Leave empty to hide weather</p>
-                      </div>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>Temperature unit</label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'fahrenheit'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`
-                            }`}
-                          >
-                            °F
-                          </button>
-                          <button
-                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'celsius'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`
-                            }`}
-                          >
-                            °C
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <hr className={borderClass} />
-
                     {/* Calendar Sync */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
@@ -17537,9 +17489,10 @@ const DayPlanner = () => {
                       </div>
                     </div>
 
+                    {!isMobile && !isTablet && (<>
                     <hr className={borderClass} />
 
-                    {/* Weather Location Section */}
+                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <MapPin size={16} className={textSecondary} />
@@ -17590,6 +17543,7 @@ const DayPlanner = () => {
                         </div>
                       </div>
                     </div>
+                    </>)}
 
                     <hr className={borderClass} />
 
