@@ -2233,6 +2233,21 @@ const DayPlanner = () => {
     localStorage.setItem('onboardingProgress', JSON.stringify(onboardingProgress));
   }, [onboardingProgress]);
 
+  // Android back button: navigate from settings sub-screen back to main settings
+  useEffect(() => {
+    if (!isMobile) return;
+    if (mobileSettingsView !== 'main') {
+      window.history.pushState({ settingsSubView: true }, '');
+      const onPopState = (e) => {
+        if (e.state?.settingsSubView || mobileSettingsView !== 'main') {
+          setMobileSettingsView('main');
+        }
+      };
+      window.addEventListener('popstate', onPopState);
+      return () => window.removeEventListener('popstate', onPopState);
+    }
+  }, [mobileSettingsView, isMobile]);
+
   // Persist dailyNotes to localStorage and trigger cloud sync upload
   useEffect(() => {
     localStorage.setItem('day-planner-daily-notes', JSON.stringify(dailyNotes));
@@ -9423,7 +9438,14 @@ const DayPlanner = () => {
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
                     <Inbox size={20} /> Inbox
                   </h2>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={openNewInboxTask}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
+                    >
+                      <Plus size={14} />
+                      New Inbox Task
+                    </button>
                     <button
                       onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
@@ -9450,15 +9472,6 @@ const DayPlanner = () => {
                       ))}
                     </button>
                   </div>
-                </div>
-                <div className="px-4 pb-3">
-                  <button
-                    onClick={openNewInboxTask}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium active:bg-blue-700 transition-colors"
-                  >
-                    <Plus size={16} />
-                    New Inbox Task
-                  </button>
                 </div>
               </div>
             )}
@@ -11885,6 +11898,58 @@ const DayPlanner = () => {
                         )}
                       </div>
 
+                      {/* All-Time Summary */}
+                      <div className={`mt-4 pt-4 border-t ${borderClass}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <TrendingUp size={18} className={textSecondary} />
+                          <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
+                        </div>
+                        <div className={`space-y-2 text-sm ${textSecondary}`}>
+                          <div className="flex items-center justify-between">
+                            <span>Tasks scheduled</span>
+                            <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Tasks completed</span>
+                            <span className={`font-medium ${textPrimary}`}>
+                              {allTimeCompletedCount}
+                              {allTimeIncompleteTasks.length > 0 && (
+                                <button
+                                  onClick={() => { setShowIncompleteTasks('allTime'); setShowMobileDailySummary(false); }}
+                                  className="ml-1 text-blue-500 active:text-blue-400"
+                                >
+                                  ({allTimeIncompleteTasks.length} incomplete)
+                                </button>
+                              )}
+                            </span>
+                          </div>
+                          {allTimeInboxCompletedCount > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span>Inbox done</span>
+                              <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span>Time spent</span>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Time planned</span>
+                            <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                          </div>
+                          {allTimeFocusMinutes > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span>Focus time</span>
+                              <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                            </div>
+                          )}
+                          {allTimeScheduledCount > 0 && (
+                            <div className={`pt-1 font-semibold ${textPrimary}`}>
+                              {Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </>
                     );
                   })()}
