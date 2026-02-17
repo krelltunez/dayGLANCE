@@ -239,6 +239,20 @@ npm run test
 
 ---
 
+## Planned Improvements
+
+- **PWA shortcuts** — Quick actions from the app icon (new task, open inbox, etc.)
+- **Actionable browser notifications** — Complete or snooze tasks directly from notifications
+- **IndexedDB storage** — Optional self-hosted database backend for persistent server-side storage
+- **Habit tracking** — Track daily habits and streaks alongside your tasks
+- **Native apps** — Dedicated iOS and Android apps
+- **Obsidian integration** — Sync tasks and daily notes with your Obsidian vault
+- **TRMNL support** — Display your daily agenda on a TRMNL e-ink dashboard
+- **DAVx5 support** — Sync with Android calendars and task apps via DAVx5
+- **Widgets** — Home screen widgets for mobile and desktop
+
+---
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/krelltunez/day-planner).
