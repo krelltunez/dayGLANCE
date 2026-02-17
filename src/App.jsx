@@ -9252,15 +9252,6 @@ const DayPlanner = () => {
   const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-600';
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
-  // Tablet info bar: compute content items for weather + daily content (reuses desktop logic)
-  const tabletDailyContentItems = [
-    { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
-    { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
-    { key: 'quote', icon: '💬', label: 'Quote', content: dailyContent.quote ? `"${dailyContent.quote.text}" — ${dailyContent.quote.author}` : null },
-    { key: 'history', icon: '📜', label: 'This Day in History', content: dailyContent.history ? `${dailyContent.history.year}: ${dailyContent.history.text}` : null }
-  ].filter(item => item.content);
-  const tabletInfoBarVisible = isTablet && (weather || tabletDailyContentItems.length > 0);
-
   return (
     <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Landscape blocker overlay for phones only (not tablets or narrow desktop windows) */}
@@ -12442,30 +12433,8 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet info bar: weather + rotating daily content */}
-      {tabletInfoBarVisible && (
-        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center gap-3 overflow-hidden`} style={{ height: '36px' }}>
-          {weather && (
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-md flex-shrink-0`}>
-              <span className="text-sm">{weather.icon}</span>
-              <span className={`text-xs font-bold ${textPrimary}`}>{weather.temp}°F</span>
-              <span className={`text-[10px] ${textSecondary}`}>H:{weather.high}° L:{weather.low}°</span>
-            </div>
-          )}
-          {tabletDailyContentItems.length > 0 && (() => {
-            const item = tabletDailyContentItems[contentRotation % tabletDailyContentItems.length];
-            return (
-              <div className={`flex-1 flex items-center gap-1.5 min-w-0 px-2 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-md overflow-hidden transition-opacity duration-500`}>
-                <span className="text-xs flex-shrink-0">{item.icon}</span>
-                <span className={`text-xs ${textPrimary} truncate`}>{item.content}</span>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
       {/* Content area: side panel + calendar */}
-      <div className="flex" style={{ height: isTablet ? (tabletInfoBarVisible ? 'calc(100vh - 56px - 36px - env(safe-area-inset-top, 0px))' : 'calc(100vh - 56px - env(safe-area-inset-top, 0px))') : 'calc(100vh - 80px - env(safe-area-inset-top, 0px))' }}>
+      <div className="flex" style={{ height: isTablet ? 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' : 'calc(100vh - 80px - env(safe-area-inset-top, 0px))' }}>
 
         <div className="contents">
 
