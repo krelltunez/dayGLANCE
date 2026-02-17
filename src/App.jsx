@@ -517,7 +517,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
                 placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
-                className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-stone-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
+                className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
                 rows={8}
                 autoFocus
               />
@@ -559,7 +559,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile })
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
-            className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-stone-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
+            className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
             rows={10}
             autoFocus
           />
@@ -712,7 +712,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         <button
           onClick={handleTest}
           disabled={testing || !formData.nextcloudUrl || !formData.username || !formData.appPassword}
-          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
+          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
         >
           {testing ? 'Testing...' : 'Test Connection'}
         </button>
@@ -732,7 +732,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
       <div className="flex justify-end gap-2 pt-2">
         <button
           onClick={onClose}
-          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
         >
           Cancel
         </button>
@@ -1064,7 +1064,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                 <button
                   onClick={handleTest}
                   disabled={testing || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
-                  className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
+                  className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
                   {testing ? 'Testing...' : 'Test Connection'}
                 </button>
@@ -2622,7 +2622,7 @@ const DayPlanner = () => {
           {
             id: 'example-deleted-1',
             title: 'Example: Restore me!',
-            color: 'bg-stone-500',
+            color: 'bg-gray-500',
             completed: false,
             deletedAt: new Date().toISOString(),
             _deletedFrom: 'inbox',
@@ -8045,7 +8045,7 @@ const DayPlanner = () => {
                           ? darkMode ? 'bg-blue-900 text-blue-200 font-semibold' : 'bg-blue-100 text-blue-900 font-semibold'
                           : darkMode
                             ? 'hover:bg-gray-700 text-gray-300'
-                            : 'hover:bg-stone-100 text-gray-700'
+                            : 'hover:bg-stone-100 text-stone-700'
                     }`}
                   >
                     {day.getDate()}
@@ -8249,7 +8249,7 @@ const DayPlanner = () => {
                     ? 'bg-blue-600 text-white'
                     : darkMode
                       ? 'hover:bg-gray-700 text-gray-300'
-                      : 'hover:bg-stone-200 text-gray-700'
+                      : 'hover:bg-stone-200 text-stone-700'
                 }`}
                 style={{
                   width: `${btnSize}px`,
@@ -8301,7 +8301,7 @@ const DayPlanner = () => {
               {!use24HourClock && (
                 <button
                   onClick={toggleAMPM}
-                  className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'}`}
+                  className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
                 >
                   {isAM ? 'AM' : 'PM'}
                 </button>
@@ -8426,7 +8426,7 @@ const DayPlanner = () => {
                         ? darkMode ? 'bg-blue-900 text-blue-200 font-semibold' : 'bg-blue-100 text-blue-900 font-semibold'
                         : darkMode 
                           ? 'hover:bg-gray-700 text-gray-300' 
-                          : 'hover:bg-stone-100 text-gray-700'
+                          : 'hover:bg-stone-100 text-stone-700'
                   }`}
                 >
                   {day.getDate()}
@@ -9211,7 +9211,7 @@ const DayPlanner = () => {
       {/* Landscape blocker overlay for phones only (not tablets or narrow desktop windows) */}
       {isPhone && isLandscape && (
         <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 ${bgClass}`}>
-          <Smartphone className={`w-12 h-12 ${darkMode ? 'text-stone-500' : 'text-stone-400'} -rotate-90`} />
+          <Smartphone className={`w-12 h-12 ${darkMode ? 'text-gray-500' : 'text-stone-400'} -rotate-90`} />
           <p className={`${darkMode ? 'text-gray-400' : 'text-stone-500'} text-center px-8`}>
             Please rotate your device to portrait mode
           </p>
@@ -9306,7 +9306,7 @@ const DayPlanner = () => {
                             {hasDots && (
                               <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
                                 {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
-                                {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />}
+                                {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-stone-400'}`} />}
                                 {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
                               </div>
                             )}
@@ -9330,7 +9330,7 @@ const DayPlanner = () => {
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                       title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                     >
-                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-stone-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                     </button>
                     <button
                       onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -9342,10 +9342,10 @@ const DayPlanner = () => {
                           key={i}
                           className={`w-2.5 h-1 rounded-full ${
                             inboxPriorityFilter === 0
-                              ? `${darkMode ? 'bg-stone-500' : 'bg-gray-400'}`
+                              ? `${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`
                               : i < inboxPriorityFilter
                                 ? 'bg-blue-500'
-                                : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                                : `${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`
                           }`}
                         />
                       ))}
@@ -9700,7 +9700,7 @@ const DayPlanner = () => {
                   <div ref={timeGridRef} className="relative">
                     {hours.map((hour, index) => (
                       <div key={hour} className="relative">
-                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${!darkMode && index % 2 === 1 ? 'bg-stone-50/60' : ''}`}>
+                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.02]' : 'bg-stone-50/60') : ''}`}>
                           <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`}>
                             {use24HourClock
                               ? `${hour.toString().padStart(2, '0')}:00`
@@ -10827,7 +10827,7 @@ const DayPlanner = () => {
                                 </span>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
-                                  className={`absolute -top-1.5 -right-1.5 transition-opacity ${darkMode ? 'bg-stone-500 text-white' : 'bg-gray-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center ${
+                                  className={`absolute -top-1.5 -right-1.5 transition-opacity ${darkMode ? 'bg-gray-500 text-white' : 'bg-stone-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center ${
                                     (isPhone || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                                   }`}
                                 >
@@ -10880,7 +10880,7 @@ const DayPlanner = () => {
                                     if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
                                   }}
                                   placeholder="Name..."
-                                  className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-gray-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
+                                  className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-stone-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
                                 />
                                 <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
                               </div>
@@ -11232,7 +11232,7 @@ const DayPlanner = () => {
                         <Upload size={16} className={textSecondary} />
                         iCal Import
                       </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors text-sm`}>
                         <Upload size={14} className={textSecondary} />
                         Choose .ics file
                         <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
@@ -11262,7 +11262,7 @@ const DayPlanner = () => {
                           onChange={(e) => setReminderSettings(prev => ({ ...prev, enabled: e.target.checked }))}
                           className="sr-only"
                         />
-                        <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                        <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                         </div>
                       </div>
@@ -11275,7 +11275,7 @@ const DayPlanner = () => {
                         <label className="flex items-center gap-3 cursor-pointer">
                           <div className="relative">
                             <input type="checkbox" checked={reminderSettings.inAppToasts !== false} onChange={(e) => setReminderSettings(prev => ({ ...prev, inAppToasts: e.target.checked }))} className="sr-only" />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.inAppToasts !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.inAppToasts !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.inAppToasts !== false ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
@@ -11290,7 +11290,7 @@ const DayPlanner = () => {
                               if (val && typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
                               setReminderSettings(prev => ({ ...prev, browserNotifications: val }));
                             }} className="sr-only" />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.browserNotifications ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.browserNotifications ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.browserNotifications ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
@@ -11315,7 +11315,7 @@ const DayPlanner = () => {
                                 key={key}
                                 onClick={() => applyReminderPreset(key)}
                                 className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                                  reminderSettings.preset === key ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
+                                  reminderSettings.preset === key ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                                 }`}
                               >
                                 {label}
@@ -11368,7 +11368,7 @@ const DayPlanner = () => {
                             <button
                               type="button"
                               onClick={() => setShowMorningTimePicker(true)}
-                              className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
+                              className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
                             >
                               {formatTime(reminderSettings.morningReminderTime)}
                             </button>
@@ -11384,7 +11384,7 @@ const DayPlanner = () => {
                           <label className="flex items-center gap-3 cursor-pointer mb-3">
                             <div className="relative">
                               <input type="checkbox" checked={reminderSettings.weeklyReview?.enabled ?? true} onChange={(e) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, enabled: e.target.checked } }))} className="sr-only" />
-                              <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.weeklyReview?.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                              <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.weeklyReview?.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.weeklyReview?.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                               </div>
                             </div>
@@ -11400,7 +11400,7 @@ const DayPlanner = () => {
                                       key={label}
                                       onClick={() => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, day: i } }))}
                                       className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                                        reminderSettings.weeklyReview.day === i ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'
+                                        reminderSettings.weeklyReview.day === i ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'
                                       }`}
                                     >
                                       {label}
@@ -11413,7 +11413,7 @@ const DayPlanner = () => {
                                 <button
                                   type="button"
                                   onClick={() => setShowWeeklyReviewTimePicker(true)}
-                                  className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
+                                  className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
                                 >
                                   {formatTime(reminderSettings.weeklyReview.time)}
                                 </button>
@@ -11489,7 +11489,7 @@ const DayPlanner = () => {
                     <div className="space-y-3">
                       <button
                         onClick={() => { loadAutoBackupHistory(); }}
-                        className={`px-4 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                        className={`px-4 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
                       >
                         Load Backup History
                       </button>
@@ -11585,7 +11585,7 @@ const DayPlanner = () => {
                   }
                   setShowWeeklyReview(true);
                 }}
-                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
+                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
                 style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
               >
                 <BarChart3 size={22} />
@@ -11594,7 +11594,7 @@ const DayPlanner = () => {
               {recycleBin.filter(t => !t.isExample).length > 0 && (
                 <button
                   onClick={() => setShowMobileRecycleBin(true)}
-                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
                   style={{ bottom: 'calc(12.5rem + env(safe-area-inset-bottom, 0px))' }}
                 >
                   <div className="relative">
@@ -11619,7 +11619,7 @@ const DayPlanner = () => {
               >
                 {/* Handle */}
                 <div className="flex justify-center pt-3 pb-1">
-                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
                 </div>
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3">
@@ -11700,7 +11700,7 @@ const DayPlanner = () => {
               >
                 {/* Handle */}
                 <div className="flex justify-center pt-3 pb-1">
-                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
                 </div>
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3">
@@ -11780,7 +11780,7 @@ const DayPlanner = () => {
               >
                 {/* Handle */}
                 <div className="flex justify-center pt-3 pb-1">
-                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                  <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
                 </div>
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3">
@@ -12072,7 +12072,7 @@ const DayPlanner = () => {
                         {hasDots && (
                           <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
                             {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
-                            {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />}
+                            {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-stone-400'}`} />}
                             {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
                           </div>
                         )}
@@ -12374,7 +12374,7 @@ const DayPlanner = () => {
                       {hasDots && (
                         <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
                           {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
-                          {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-gray-400'}`} />}
+                          {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-stone-400'}`} />}
                           {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
                         </div>
                       )}
@@ -12813,7 +12813,7 @@ const DayPlanner = () => {
                           className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                           title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                         >
-                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-stone-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                         </button>
                         <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -12825,10 +12825,10 @@ const DayPlanner = () => {
                               key={i}
                               className={`w-2.5 h-1 rounded-full ${
                                 inboxPriorityFilter === 0
-                                  ? `${darkMode ? 'bg-stone-500' : 'bg-gray-400'}`
+                                  ? `${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`
                                   : i < inboxPriorityFilter
                                     ? 'bg-blue-500'
-                                    : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                                    : `${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`
                               }`}
                             />
                           ))}
@@ -13429,7 +13429,7 @@ const DayPlanner = () => {
                             className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
                             title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                           >
-                            <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-stone-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                            <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                           </button>
                           <button
                             onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
@@ -13441,10 +13441,10 @@ const DayPlanner = () => {
                                 key={i}
                                 className={`w-2.5 h-1 rounded-full ${
                                   inboxPriorityFilter === 0
-                                    ? `${darkMode ? 'bg-stone-500' : 'bg-gray-400'}`
+                                    ? `${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`
                                     : i < inboxPriorityFilter
                                       ? 'bg-blue-500'
-                                      : `${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`
+                                      : `${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`
                                 }`}
                               />
                             ))}
@@ -15197,7 +15197,7 @@ const DayPlanner = () => {
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => { setShowImportModal(false); setPendingImportFile(null); }}
-                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-stone-500' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
               >
                 Cancel
               </button>
@@ -15338,7 +15338,7 @@ const DayPlanner = () => {
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => setShowBackupMenu(false)}
-                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-stone-500' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                className={`px-4 py-2 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
               >
                 Cancel
               </button>
@@ -15679,7 +15679,7 @@ const DayPlanner = () => {
               }
               setShowWeeklyReview(true);
             }}
-            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
             style={{ left: '248px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
@@ -15688,7 +15688,7 @@ const DayPlanner = () => {
           {recycleBin.filter(t => !t.isExample).length > 0 && (
             <button
               onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-gray-300'}`}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
               style={{ left: '248px', bottom: '9.5rem' }}
             >
               <div className="relative">
@@ -15758,7 +15758,7 @@ const DayPlanner = () => {
               }
               setShowWeeklyReview(true);
             }}
-            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-gray-300'}`}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
             style={{ left: '248px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
@@ -15767,7 +15767,7 @@ const DayPlanner = () => {
           {recycleBin.filter(t => !t.isExample).length > 0 && (
             <button
               onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-gray-300'}`}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
               style={{ left: '248px', bottom: '9.5rem' }}
             >
               <div className="relative">
@@ -15792,7 +15792,7 @@ const DayPlanner = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-center pt-3 pb-1">
-              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
             </div>
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
@@ -15847,7 +15847,7 @@ const DayPlanner = () => {
           >
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
-              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+              <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
             </div>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3">
@@ -16005,7 +16005,7 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); }}
-                className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'}`}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
               >
                 Dismiss
               </button>
@@ -16059,7 +16059,7 @@ const DayPlanner = () => {
                 )}
                 <button
                   onClick={() => dismissReminder(reminder.id)}
-                  className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'}`}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
                 >
                   Dismiss
                 </button>
@@ -16151,7 +16151,7 @@ const DayPlanner = () => {
                       {[1, 2, 3].map((level) => (
                         <div
                           key={level}
-                          className={`w-4 h-1 rounded-full ${(newTask.priority || 0) >= level ? 'bg-orange-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                          className={`w-4 h-1 rounded-full ${(newTask.priority || 0) >= level ? 'bg-orange-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
                         />
                       ))}
                     </button>
@@ -16489,7 +16489,7 @@ const DayPlanner = () => {
                         {[1, 2, 3].map((level) => (
                           <div
                             key={level}
-                            className={`w-4 h-1 rounded-full ${(newTask.priority || 0) >= level ? 'bg-orange-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                            className={`w-4 h-1 rounded-full ${(newTask.priority || 0) >= level ? 'bg-orange-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
                           />
                         ))}
                       </button>
@@ -16790,7 +16790,7 @@ const DayPlanner = () => {
                 <button
                   type="button"
                   onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); }}
-                  className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors`}
+                  className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
                 >
                   Cancel
                 </button>
@@ -16875,7 +16875,7 @@ const DayPlanner = () => {
                               if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
                             }}
                             placeholder="Name..."
-                            className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-gray-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
+                            className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-stone-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
                           />
                           <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
                         </div>
@@ -16981,7 +16981,7 @@ const DayPlanner = () => {
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
-                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-stone-500 text-white' : 'bg-gray-400 text-white'} ${
+                                className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-stone-400 text-white'} ${
                                   isTablet ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                                 }`}
                                 title="Remove from today"
@@ -17113,7 +17113,7 @@ const DayPlanner = () => {
                   <div key={task.id} className="flex items-center gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
                     <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0`} />
                     <span className="text-gray-200 text-sm truncate flex-1">{task.title}</span>
-                    <span className="text-stone-500 text-xs">{task.duration}m</span>
+                    <span className="text-gray-500 text-xs">{task.duration}m</span>
                   </div>
                 ))}
               </div>
@@ -17139,7 +17139,7 @@ const DayPlanner = () => {
                 }`}>
                   {focusPhase === 'work' ? 'Work' : focusPhase === 'shortBreak' ? 'Short Break' : 'Long Break'}
                 </span>
-                <span className="text-stone-500 text-sm">Cycle {Math.floor(focusCycleCount / 1) + (focusPhase === 'work' ? 1 : 0)} of 4</span>
+                <span className="text-gray-500 text-sm">Cycle {Math.floor(focusCycleCount / 1) + (focusPhase === 'work' ? 1 : 0)} of 4</span>
               </div>
 
               {/* Countdown */}
@@ -17177,8 +17177,8 @@ const DayPlanner = () => {
                     <div key={task.id} className={`bg-gray-800 rounded-lg p-3 flex items-start gap-3 transition-opacity ${isDone ? 'opacity-40' : ''}`}>
                       <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${isDone ? 'text-stone-500 line-through' : 'text-gray-200'}`}>{task.title}</div>
-                        <div className="text-xs text-stone-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
+                        <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{task.title}</div>
+                        <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
                         {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
                           <div className="mt-2">
                             <NotesSubtasksPanel
@@ -17214,7 +17214,7 @@ const DayPlanner = () => {
 
               {/* Session elapsed time */}
               {focusSessionStart && (
-                <div className="text-stone-500 text-sm mt-4">
+                <div className="text-gray-500 text-sm mt-4">
                   Session: {Math.floor((currentTime - focusSessionStart) / 60000)}m elapsed
                 </div>
               )}
@@ -17403,7 +17403,7 @@ const DayPlanner = () => {
                           className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                             use24HourClock
                               ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                           }`}
                         >
                           24-hour
@@ -17413,7 +17413,7 @@ const DayPlanner = () => {
                           className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                             !use24HourClock
                               ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                           }`}
                         >
                           12-hour
@@ -17437,7 +17437,7 @@ const DayPlanner = () => {
                             onChange={(e) => setSoundEnabled(e.target.checked)}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
@@ -17603,7 +17603,7 @@ const DayPlanner = () => {
                 </div>
                 <button
                   onClick={() => setShowSettings(false)}
-                  className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                  className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                 >
                   Close
                 </button>
@@ -17636,7 +17636,7 @@ const DayPlanner = () => {
                   onChange={(e) => setReminderSettings(prev => ({ ...prev, enabled: e.target.checked }))}
                   className="sr-only"
                 />
-                <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                   <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                 </div>
               </div>
@@ -17654,7 +17654,7 @@ const DayPlanner = () => {
                       onChange={(e) => setReminderSettings(prev => ({ ...prev, inAppToasts: e.target.checked }))}
                       className="sr-only"
                     />
-                    <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.inAppToasts !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                    <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.inAppToasts !== false ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.inAppToasts !== false ? 'translate-x-5' : 'translate-x-1'}`} />
                     </div>
                   </div>
@@ -17676,7 +17676,7 @@ const DayPlanner = () => {
                       }}
                       className="sr-only"
                     />
-                    <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.browserNotifications ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                    <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.browserNotifications ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.browserNotifications ? 'translate-x-5' : 'translate-x-1'}`} />
                     </div>
                   </div>
@@ -17703,7 +17703,7 @@ const DayPlanner = () => {
                         className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
                           reminderSettings.preset === key
                             ? 'bg-blue-600 text-white'
-                            : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'} ${hoverBg}`
+                            : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                         }`}
                       >
                         {label}
@@ -17764,7 +17764,7 @@ const DayPlanner = () => {
                     <button
                       type="button"
                       onClick={() => setShowMorningTimePicker(true)}
-                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
                     >
                       {formatTime(reminderSettings.morningReminderTime)}
                     </button>
@@ -17787,7 +17787,7 @@ const DayPlanner = () => {
                     onChange={(e) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, enabled: e.target.checked } }))}
                     className="sr-only"
                   />
-                  <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.weeklyReview?.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}>
+                  <div className={`w-10 h-6 rounded-full transition-colors ${reminderSettings.weeklyReview?.enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.weeklyReview?.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
                 </div>
@@ -17805,7 +17805,7 @@ const DayPlanner = () => {
                           className={`px-2 py-1 text-xs rounded-full transition-colors ${
                             reminderSettings.weeklyReview.day === i
                               ? 'bg-blue-600 text-white'
-                              : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-gray-700 hover:bg-gray-300'
+                              : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
                           }`}
                         >
                           {label}
@@ -17818,7 +17818,7 @@ const DayPlanner = () => {
                     <button
                       type="button"
                       onClick={() => setShowWeeklyReviewTimePicker(true)}
-                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-gray-700'}`}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
                     >
                       {formatTime(reminderSettings.weeklyReview.time)}
                     </button>
@@ -17829,7 +17829,7 @@ const DayPlanner = () => {
 
             <button
               onClick={() => setShowRemindersSettings(false)}
-              className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
+              className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
             >
               Close
             </button>
@@ -17932,7 +17932,7 @@ const DayPlanner = () => {
               <div className={`p-4 border-t ${borderClass}`}>
                 <button
                   onClick={() => setShowIncompleteTasks(null)}
-                  className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
+                  className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
                 >
                   Close
                 </button>
@@ -17964,7 +17964,7 @@ const DayPlanner = () => {
                   ['M', 'Toggle month view'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -17975,7 +17975,7 @@ const DayPlanner = () => {
                   ['R', 'Routines dashboard'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -17988,7 +17988,7 @@ const DayPlanner = () => {
                   ];
                 })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -18007,7 +18007,7 @@ const DayPlanner = () => {
                   ];
                 })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -18025,7 +18025,7 @@ const DayPlanner = () => {
                   ['$', 'Deadline (inbox)'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
@@ -18038,14 +18038,14 @@ const DayPlanner = () => {
                   ['Esc', 'Close / cancel'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>{key}</kbd>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm ml-2 text-right flex-1">{desc}</span>
                   </div>
                 ))}
               </div>
             </div>
             <div className={`mt-4 pt-3 border-t ${borderClass} text-center`}>
-              <span className={`text-xs ${textSecondary}`}>Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-gray-700'}`}>Esc</kbd> to close</span>
+              <span className={`text-xs ${textSecondary}`}>Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>Esc</kbd> to close</span>
             </div>
           </div>
         </div>
@@ -18269,7 +18269,7 @@ const DayPlanner = () => {
             >
               {/* Handle */}
               <div className="flex justify-center pt-3 pb-1">
-                <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                <div className={`w-10 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} />
               </div>
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3">
@@ -18417,7 +18417,7 @@ const DayPlanner = () => {
                   [0, 1].map(i => (
                     <button
                       key={i}
-                      className={`w-2.5 h-2.5 rounded-full transition-colors ${mobileReviewPage === i ? 'bg-blue-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}
+                      className={`w-2.5 h-2.5 rounded-full transition-colors ${mobileReviewPage === i ? 'bg-blue-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
                       onClick={() => {
                         reviewScrollRef.current?.scrollTo({ left: i * reviewScrollRef.current.clientWidth, behavior: 'smooth' });
                       }}
@@ -18452,7 +18452,7 @@ const DayPlanner = () => {
             {[0, 1, 2, 3, 4, 5, 6].map(i => (
               <div
                 key={i}
-                className={`w-2 h-2 rounded-full transition-colors ${i === mobileWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                className={`w-2 h-2 rounded-full transition-colors ${i === mobileWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-stone-300')}`}
               />
             ))}
           </div>
@@ -18557,7 +18557,7 @@ const DayPlanner = () => {
                   </button>
                   <button
                     onClick={() => { setShowWelcome(false); setShowSettings(true); }}
-                    className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                    className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
                   >
                     <Cloud size={18} /> Set Up Cloud Sync
                   </button>
@@ -18608,7 +18608,7 @@ const DayPlanner = () => {
                 <button
                   key={i}
                   onClick={() => setDesktopWelcomeStep(i)}
-                  className={`w-2 h-2 rounded-full transition-colors ${i === desktopWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-300')}`}
+                  className={`w-2 h-2 rounded-full transition-colors ${i === desktopWelcomeStep ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-stone-300')}`}
                 />
               ))}
             </div>
@@ -18797,7 +18797,7 @@ const DayPlanner = () => {
                     </button>
                     <button
                       onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); setShowSettings(true); }}
-                      className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
+                      className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
                     >
                       <Cloud size={18} /> Set Up Cloud Sync
                     </button>
@@ -18818,7 +18818,7 @@ const DayPlanner = () => {
                 {desktopWelcomeStep > 0 && (
                   <button
                     onClick={() => setDesktopWelcomeStep(s => s - 1)}
-                    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-gray-300'} transition-colors`}
+                    className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} transition-colors`}
                   >
                     <ChevronLeft size={20} className={textSecondary} />
                   </button>
