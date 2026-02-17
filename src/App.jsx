@@ -12054,9 +12054,9 @@ const DayPlanner = () => {
       <>
       {/* Desktop & Tablet Layout */}
       {!isTablet && (
-      <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between`} style={{ height: '80px' }}>
+      <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between relative`} style={{ height: '80px' }}>
         {/* Left: Weather + Daily Content */}
-        <div className="flex items-center gap-4 flex-1 min-w-0">
+        <div className="flex items-center gap-4 min-w-0">
           {weather && (
             <>
               {/* Current weather */}
@@ -12110,7 +12110,8 @@ const DayPlanner = () => {
         </div>
 
         {/* Center: Logo + Date Nav */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="flex items-center gap-3 pointer-events-auto">
           <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
           <div className="flex items-center gap-1 relative">
             <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
@@ -12183,6 +12184,7 @@ const DayPlanner = () => {
               </div>
             )}
           </div>
+        </div>
         </div>
 
         {/* Right: Action buttons */}
