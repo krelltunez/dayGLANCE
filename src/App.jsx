@@ -2825,11 +2825,37 @@ const DayPlanner = () => {
         return;
       }
 
-      // Geocode ZIP/postal code using Open-Meteo geocoding API (free, no key needed)
-      const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(zip)}&count=1&language=en&format=json`);
-      const geoData = await geoResponse.json();
+      let latitude, longitude, tz;
+      const query = zip.trim();
 
-      if (!geoData.results || geoData.results.length === 0) {
+      // Try US ZIP code via zippopotam.us (free, no key needed)
+      if (/^\d{5}(-\d{4})?$/.test(query)) {
+        try {
+          const geoResponse = await fetch(`https://api.zippopotam.us/us/${query.slice(0, 5)}`);
+          if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            if (geoData.places && geoData.places.length > 0) {
+              latitude = parseFloat(geoData.places[0].latitude);
+              longitude = parseFloat(geoData.places[0].longitude);
+            }
+          }
+        } catch (e) { /* fall through to city name search */ }
+      }
+
+      // Fall back to Open-Meteo geocoding for city/place names
+      if (latitude === undefined) {
+        try {
+          const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
+          const geoData = await geoResponse.json();
+          if (geoData.results && geoData.results.length > 0) {
+            latitude = geoData.results[0].latitude;
+            longitude = geoData.results[0].longitude;
+            tz = geoData.results[0].timezone;
+          }
+        } catch (e) { /* no results */ }
+      }
+
+      if (latitude === undefined) {
         setWeather({
           temp: '--',
           condition: 'Location not found',
@@ -2841,8 +2867,7 @@ const DayPlanner = () => {
         return;
       }
 
-      const { latitude, longitude, timezone } = geoData.results[0];
-      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+      tz = tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
       const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=${tempUnit}&timezone=${encodeURIComponent(tz)}&forecast_days=6`);
       const data = await response.json();
@@ -11268,6 +11293,54 @@ const DayPlanner = () => {
                       <span className="text-sm font-medium">App Settings</span>
                     </button>
 
+                    {/* Weather Location */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <MapPin size={16} className={textSecondary} />
+                        Weather Location
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>ZIP code or city name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 90210 or Seattle"
+                          value={weatherZip}
+                          onChange={(e) => setWeatherZip(e.target.value)}
+                          onBlur={() => fetchWeather()}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>Leave empty to hide weather</p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>Temperature unit</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'fahrenheit'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`
+                            }`}
+                          >
+                            °F
+                          </button>
+                          <button
+                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'celsius'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`
+                            }`}
+                          >
+                            °C
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <hr className={borderClass} />
+
                     {/* Calendar Sync */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
@@ -17561,16 +17634,16 @@ const DayPlanner = () => {
                       </h4>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
-                          ZIP / Postal code
+                          ZIP code or city name
                         </label>
                         <input
                           type="text"
-                          placeholder="e.g. 90210"
+                          placeholder="e.g. 90210 or Seattle"
                           value={weatherZip}
                           onChange={(e) => setWeatherZip(e.target.value)}
                           onBlur={() => fetchWeather()}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-32 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
                           Leave empty to hide weather
