@@ -12055,84 +12055,8 @@ const DayPlanner = () => {
       {/* Desktop & Tablet Layout */}
       {!isTablet && (
       <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between`} style={{ height: '80px' }}>
-        {/* Left: Logo + Date Nav */}
-        <div className="flex items-center gap-3">
-          <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
-          <div className="flex items-center gap-1 relative">
-            <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
-              <ChevronLeft size={20} className={textSecondary} />
-            </button>
-            <button
-              onClick={() => {
-                if (!showMonthView) setViewedMonth(new Date(selectedDate));
-                setShowMonthView(!showMonthView);
-              }}
-              className={`month-view-toggle ${textPrimary} font-semibold text-base px-2 py-1 rounded-lg ${hoverBg} transition-colors cursor-pointer`}
-            >
-              {formatDateRange(visibleDates)}
-            </button>
-            <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Next day">
-              <ChevronRight size={20} className={textSecondary} />
-            </button>
-            {dateToString(selectedDate) !== dateToString(new Date()) && (
-              <button
-                onClick={goToToday}
-                className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
-              >
-                Today
-              </button>
-            )}
-            {/* Month View Popup */}
-            {showMonthView && (
-              <div className={`month-view-container absolute top-full left-0 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
-                <div className="flex items-center justify-between mb-3">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-1 rounded ${hoverBg}`}>
-                    <ChevronLeft size={18} className={textSecondary} />
-                  </button>
-                  <div className={`font-bold ${textPrimary}`}>
-                    {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </div>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-1 rounded ${hoverBg}`}>
-                    <ChevronRight size={18} className={textSecondary} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                    <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {getMonthDays().map((day, index) => {
-                    const isDayToday = day && day.toDateString() === new Date().toDateString();
-                    const isSelected = day && day.toDateString() === selectedDate.toDateString();
-                    const { hasNote, hasImported, hasAppTask } = getDateIndicators(day);
-                    const hasDots = hasNote || hasImported || hasAppTask;
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => day && goToDate(day)}
-                        disabled={!day}
-                        className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-stone-100 dark:hover:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
-                      >
-                        {day && day.getDate()}
-                        {hasDots && (
-                          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
-                            {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
-                            {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-stone-400'}`} />}
-                            {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Center: Weather + Daily Content (1 item rotating) */}
-        <div className="flex-1 flex items-center justify-center gap-4 mx-4 min-w-0">
+        {/* Left: Weather + Daily Content */}
+        <div className="flex items-center gap-4 flex-1 min-w-0">
           {weather && (
             <>
               {/* Current weather */}
@@ -12183,6 +12107,82 @@ const DayPlanner = () => {
               </div>
             );
           })()}
+        </div>
+
+        {/* Center: Logo + Date Nav */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
+          <div className="flex items-center gap-1 relative">
+            <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
+              <ChevronLeft size={20} className={textSecondary} />
+            </button>
+            <button
+              onClick={() => {
+                if (!showMonthView) setViewedMonth(new Date(selectedDate));
+                setShowMonthView(!showMonthView);
+              }}
+              className={`month-view-toggle ${textPrimary} font-semibold text-base px-2 py-1 rounded-lg ${hoverBg} transition-colors cursor-pointer`}
+            >
+              {formatDateRange(visibleDates)}
+            </button>
+            <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Next day">
+              <ChevronRight size={20} className={textSecondary} />
+            </button>
+            {dateToString(selectedDate) !== dateToString(new Date()) && (
+              <button
+                onClick={goToToday}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
+              >
+                Today
+              </button>
+            )}
+            {/* Month View Popup */}
+            {showMonthView && (
+              <div className={`month-view-container absolute top-full left-1/2 -translate-x-1/2 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
+                <div className="flex items-center justify-between mb-3">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-1 rounded ${hoverBg}`}>
+                    <ChevronLeft size={18} className={textSecondary} />
+                  </button>
+                  <div className={`font-bold ${textPrimary}`}>
+                    {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </div>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-1 rounded ${hoverBg}`}>
+                    <ChevronRight size={18} className={textSecondary} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {getMonthDays().map((day, index) => {
+                    const isDayToday = day && day.toDateString() === new Date().toDateString();
+                    const isSelected = day && day.toDateString() === selectedDate.toDateString();
+                    const { hasNote, hasImported, hasAppTask } = getDateIndicators(day);
+                    const hasDots = hasNote || hasImported || hasAppTask;
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => day && goToDate(day)}
+                        disabled={!day}
+                        className={`h-10 rounded text-sm relative ${!day ? 'invisible' : ''} ${isSelected ? 'bg-blue-600 text-white font-bold' : ''} ${!isSelected && isDayToday ? 'bg-blue-100 dark:bg-blue-900 font-semibold' : ''} ${!isSelected && !isDayToday ? `${textPrimary} hover:bg-stone-100 dark:hover:bg-gray-700` : ''} ${!day ? '' : 'cursor-pointer'}`}
+                      >
+                        {day && day.getDate()}
+                        {hasDots && (
+                          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                            {hasNote && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-yellow-500'}`} />}
+                            {hasImported && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-stone-400'}`} />}
+                            {hasAppTask && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`} />}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right: Action buttons */}
