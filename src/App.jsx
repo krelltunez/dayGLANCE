@@ -5376,7 +5376,7 @@ const DayPlanner = () => {
     const chipId = Date.now();
     setRoutineDefinitions(prev => ({
       ...prev,
-      [bucket]: [...prev[bucket], { id: chipId, name }]
+      [bucket]: [...prev[bucket], { id: chipId, name, lastModified: new Date().toISOString() }]
     }));
     setRoutineNewChipName('');
     setRoutineAddingToBucket(null);
@@ -5393,6 +5393,11 @@ const DayPlanner = () => {
     // Record tombstone so deletion syncs across devices
     const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}');
     tombstones[String(chipId)] = new Date().toISOString();
+    // Prune tombstones older than 90 days
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    for (const id in tombstones) {
+      if (new Date(tombstones[id]).getTime() < cutoff) delete tombstones[id];
+    }
     localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(tombstones));
   };
 

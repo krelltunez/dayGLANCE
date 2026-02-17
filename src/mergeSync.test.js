@@ -233,18 +233,19 @@ describe('mergeSyncData', () => {
   });
 
   it('keeps the later tombstone when both devices deleted the same task', () => {
+    const recentDeletion = ts(2);
     const local = {
       ...emptyData(),
       deletedTaskIds: { '1': ts(10) },
     };
     const remote = {
       ...emptyData(),
-      deletedTaskIds: { '1': ts(2) }, // deleted more recently
+      deletedTaskIds: { '1': recentDeletion }, // deleted more recently
     };
 
     const { data } = mergeSyncData(local, remote);
     expect(new Date(data.deletedTaskIds['1']).getTime())
-      .toBe(new Date(ts(2)).getTime());
+      .toBe(new Date(recentDeletion).getTime());
   });
 
   // ── Completed UIDs union ───────────────────────────────────────
@@ -643,6 +644,44 @@ describe('mergeRoutineDefinitions', () => {
     const { merged } = mergeRoutineDefinitions(local, remote, tombstones);
     expect(merged.monday).toHaveLength(2);
     expect(merged.monday.map(c => c.id)).toEqual([1, 3]);
+  });
+
+  it('chip with lastModified newer than tombstone resurrects (local)', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Recreated', lastModified: ts(1) }] };
+    const remote = emptyDefs();
+    const tombstones = { '1': ts(10) }; // deleted 10 min ago, chip modified 1 min ago
+    const { merged, remoteChanged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(1);
+    expect(merged.monday[0].name).toBe('Recreated');
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('chip with lastModified newer than tombstone resurrects (remote)', () => {
+    const local = emptyDefs();
+    const remote = { ...emptyDefs(), monday: [{ id: 1, name: 'Recreated', lastModified: ts(1) }] };
+    const tombstones = { '1': ts(10) }; // deleted 10 min ago, chip modified 1 min ago
+    const { merged, localChanged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(1);
+    expect(merged.monday[0].name).toBe('Recreated');
+    expect(localChanged).toBe(true);
+  });
+
+  it('chip with lastModified older than tombstone is still deleted', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Old', lastModified: ts(10) }] };
+    const remote = emptyDefs();
+    const tombstones = { '1': ts(1) }; // deleted 1 min ago, chip modified 10 min ago
+    const { merged, localChanged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(0);
+    expect(localChanged).toBe(true);
+  });
+
+  it('chip without lastModified (legacy) is still deleted by tombstone', () => {
+    const local = { ...emptyDefs(), monday: [{ id: 1, name: 'Legacy' }] };
+    const remote = emptyDefs();
+    const tombstones = { '1': ts(100) }; // any tombstone beats missing lastModified
+    const { merged, localChanged } = mergeRoutineDefinitions(local, remote, tombstones);
+    expect(merged.monday).toHaveLength(0);
+    expect(localChanged).toBe(true);
   });
 });
 

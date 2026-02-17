@@ -85,6 +85,15 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
   let localChanged = false;
   let remoteChanged = false;
 
+  // Check if a chip is suppressed by its tombstone (deletion must be newer than chip)
+  const isTombstoned = (chip) => {
+    const deleteTime = deletedChipIds[String(chip.id)];
+    if (!deleteTime) return false;
+    // If chip has lastModified and it's newer than the deletion, chip wins (resurrects)
+    if (chip.lastModified && new Date(chip.lastModified) > new Date(deleteTime)) return false;
+    return true;
+  };
+
   for (const bucket of allBuckets) {
     const localChips = localDefs[bucket] || [];
     const remoteChips = remoteDefs[bucket] || [];
@@ -94,7 +103,7 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
     // Start with local chips in order, filtering out tombstoned chips
     const bucketMerged = [];
     for (const chip of localChips) {
-      if (deletedChipIds[String(chip.id)]) {
+      if (isTombstoned(chip)) {
         localChanged = true; // chip removed locally
         continue;
       }
@@ -105,7 +114,7 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
     for (const remoteChip of remoteChips) {
       const id = String(remoteChip.id);
       if (localIds.has(id)) continue;
-      if (deletedChipIds[id]) {
+      if (isTombstoned(remoteChip)) {
         remoteChanged = true; // tell remote this was deleted
         continue;
       }
@@ -116,7 +125,7 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
     // Check for local-only chips (remote needs them)
     for (const localChip of localChips) {
       const id = String(localChip.id);
-      if (deletedChipIds[id]) continue; // don't flag deleted chips as needing push
+      if (isTombstoned(localChip)) continue; // don't flag deleted chips as needing push
       if (!remoteMap.has(id)) {
         remoteChanged = true;
       }
@@ -129,7 +138,7 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
   for (const bucket of Object.keys(remoteDefs)) {
     if (!localDefs[bucket] && remoteDefs[bucket]?.length > 0) {
       // Only flag if there are non-tombstoned chips
-      if (remoteDefs[bucket].some(c => !deletedChipIds[String(c.id)])) {
+      if (remoteDefs[bucket].some(c => !isTombstoned(c))) {
         localChanged = true;
       }
     }
@@ -137,7 +146,7 @@ export const mergeRoutineDefinitions = (localDefs, remoteDefs, deletedChipIds = 
   // Bucket only on local → remote needs it
   for (const bucket of Object.keys(localDefs)) {
     if (!remoteDefs[bucket] && localDefs[bucket]?.length > 0) {
-      if (localDefs[bucket].some(c => !deletedChipIds[String(c.id)])) {
+      if (localDefs[bucket].some(c => !isTombstoned(c))) {
         remoteChanged = true;
       }
     }
