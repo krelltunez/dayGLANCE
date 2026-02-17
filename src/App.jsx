@@ -1342,6 +1342,7 @@ const DayPlanner = () => {
   const [focusBlockTasks, setFocusBlockTasks] = useState([]);
   const wakeLockSentinel = useRef(null);
   const focusTimerRef = useRef(null);
+  const handleFocusTimerEndRef = useRef(null);
   const focusModeAvailableRef = useRef(false);
 
   // Cloud Sync state
@@ -2290,11 +2291,11 @@ const DayPlanner = () => {
     }
   }, [showFocusMode, focusTimerRunning, focusTimerSeconds > 0]);
 
-  // Focus Mode timer end detection
+  // Focus Mode timer end detection (reads from ref to avoid stale closure)
   useEffect(() => {
     if (showFocusMode && focusTimerRunning && focusTimerSeconds === 0 && !focusShowSettings) {
       setFocusTimerRunning(false);
-      handleFocusTimerEnd();
+      handleFocusTimerEndRef.current?.();
     }
   }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings]);
 
@@ -5152,34 +5153,43 @@ const DayPlanner = () => {
     return false;
   };
 
+  // Pre-compute date indicator sets for the viewed month (avoids O(tasks * 42) per render)
+  const dateIndicatorData = useMemo(() => {
+    const importedDates = new Set();
+    const appTaskDates = new Set();
+    for (const task of tasks) {
+      if (!task.date) continue;
+      if (task.imported) importedDates.add(task.date);
+      else appTaskDates.add(task.date);
+    }
+    // Recurring task occurrences for the viewed month range
+    const year = viewedMonth.getFullYear();
+    const month = viewedMonth.getMonth();
+    const rangeStart = dateToString(new Date(year, month, 1));
+    const rangeEnd = dateToString(new Date(year, month + 1, 0));
+    const recurringDates = new Set();
+    for (const template of recurringTasks) {
+      const occs = getOccurrencesInRange(template, rangeStart, rangeEnd);
+      for (const dateStr of occs) recurringDates.add(dateStr);
+    }
+    // Inbox tasks with deadlines
+    const deadlineDates = new Set();
+    for (const task of unscheduledTasks) {
+      if (task.deadline) deadlineDates.add(task.deadline);
+    }
+    return { importedDates, appTaskDates, recurringDates, deadlineDates };
+  }, [tasks, recurringTasks, unscheduledTasks, viewedMonth]);
+
   // Returns which indicator dots to show for a date: { hasNote, hasImported, hasAppTask }
   const getDateIndicators = (date) => {
     if (!date) return { hasNote: false, hasImported: false, hasAppTask: false };
     const dateStr = dateToString(date);
     const note = dailyNotes[dateStr];
     const hasNote = !!(note && note.text && note.text.trim() && !note.deleted);
-    let hasImported = false;
-    let hasAppTask = false;
-    for (const task of tasks) {
-      if (task.date !== dateStr) continue;
-      if (task.imported) {
-        hasImported = true;
-      } else {
-        hasAppTask = true;
-      }
-      if (hasImported && hasAppTask) break;
-    }
-    // Check recurring tasks
-    if (!hasAppTask) {
-      for (const template of recurringTasks) {
-        const occs = getOccurrencesInRange(template, dateStr, dateStr);
-        if (occs.length > 0) { hasAppTask = true; break; }
-      }
-    }
-    // Check inbox tasks with deadlines on this date
-    if (!hasAppTask) {
-      hasAppTask = unscheduledTasks.some(t => t.deadline === dateStr);
-    }
+    const hasImported = dateIndicatorData.importedDates.has(dateStr);
+    const hasAppTask = dateIndicatorData.appTaskDates.has(dateStr)
+      || dateIndicatorData.recurringDates.has(dateStr)
+      || dateIndicatorData.deadlineDates.has(dateStr);
     return { hasNote, hasImported, hasAppTask };
   };
 
@@ -5693,15 +5703,15 @@ const DayPlanner = () => {
     } catch (e) { /* Audio API not available */ }
   };
 
-  // Undo/redo: snapshot all 4 state arrays
+  // Undo/redo: snapshot all 4 state arrays (read from refs for latest state)
   const pushUndo = () => {
     undoStackRef.current = [
       ...undoStackRef.current.slice(-49),
       {
-        tasks: JSON.parse(JSON.stringify(tasks)),
-        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasks)),
-        recycleBin: JSON.parse(JSON.stringify(recycleBin)),
-        recurringTasks: JSON.parse(JSON.stringify(recurringTasks)),
+        tasks: JSON.parse(JSON.stringify(tasksRef.current)),
+        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasksRef.current)),
+        recycleBin: JSON.parse(JSON.stringify(recycleBinRef.current)),
+        recurringTasks: JSON.parse(JSON.stringify(recurringTasksRef.current)),
       }
     ];
     redoStackRef.current = [];
@@ -5977,6 +5987,7 @@ const DayPlanner = () => {
     }
     setFocusTimerRunning(true);
   };
+  handleFocusTimerEndRef.current = handleFocusTimerEnd;
 
   const handleRoutineResizeStart = (routine, e) => {
     e.stopPropagation();
@@ -9089,11 +9100,26 @@ const DayPlanner = () => {
     return { insertAfterIndex, nowTimeStr, showNudge, inboxCount: incompleteInbox.length, gapMinutes, insideTask };
   }, [todayAgenda, currentTime, unscheduledTasks]);
 
+  // Group tasks + recurring by date for O(1) lookups (avoids repeated O(n) scans)
+  const tasksByDate = useMemo(() => {
+    const map = {};
+    for (const task of tasks) {
+      if (!task.date) continue;
+      if (!map[task.date]) map[task.date] = [];
+      map[task.date].push(task);
+    }
+    for (const task of expandedRecurringTasks) {
+      if (!task.date) continue;
+      if (!map[task.date]) map[task.date] = [];
+      map[task.date].push(task);
+    }
+    return map;
+  }, [tasks, expandedRecurringTasks]);
+
   // Helper to get tasks for a specific date (must be after filterByTags)
   const getTasksForDate = (date) => {
     const dateStr = dateToString(date);
-    const recurring = expandedRecurringTasks.filter(t => t.date === dateStr);
-    return filterByTags([...tasks.filter(t => t.date === dateStr), ...recurring]);
+    return filterByTags(tasksByDate[dateStr] || []);
   };
 
   // Focus mode availability: current task or back-to-back block >= 45 min remaining

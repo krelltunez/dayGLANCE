@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTaskArrays, mergeRoutineDefinitions, mergeSyncData } from './mergeSync.js';
+import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeSyncData } from './mergeSync.js';
 
 // Helpers to create task fixtures with timestamps
 const T = (id, title, lastModified, extra = {}) => ({
@@ -968,5 +968,196 @@ describe('mergeSyncData — todayRoutines sync', () => {
     // ...but definition should still exist
     expect(data.routineDefinitions.everyday).toHaveLength(1);
     expect(data.routineDefinitions.everyday[0].id).toBe('shower');
+  });
+});
+
+// ─── mergeDailyNotes ─────────────────────────────────────────────────
+
+describe('mergeDailyNotes', () => {
+  it('returns empty merged for two empty objects', () => {
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes({}, {});
+    expect(merged).toEqual({});
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('keeps local-only notes and flags remoteChanged', () => {
+    const local = {
+      '2026-02-10': { text: 'local note', lastModified: ts(5) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, {});
+    expect(merged['2026-02-10'].text).toBe('local note');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('keeps remote-only notes and flags localChanged', () => {
+    const remote = {
+      '2026-02-11': { text: 'remote note', lastModified: ts(5) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes({}, remote);
+    expect(merged['2026-02-11'].text).toBe('remote note');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('newer local note wins over older remote', () => {
+    const local = {
+      '2026-02-12': { text: 'updated local', lastModified: ts(1) }
+    };
+    const remote = {
+      '2026-02-12': { text: 'old remote', lastModified: ts(10) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, remote);
+    expect(merged['2026-02-12'].text).toBe('updated local');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('newer remote note wins over older local', () => {
+    const local = {
+      '2026-02-12': { text: 'old local', lastModified: ts(10) }
+    };
+    const remote = {
+      '2026-02-12': { text: 'updated remote', lastModified: ts(1) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, remote);
+    expect(merged['2026-02-12'].text).toBe('updated remote');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('equal timestamps keep local (tie-break)', () => {
+    const stamp = ts(5);
+    const local = {
+      '2026-02-12': { text: 'local version', lastModified: stamp }
+    };
+    const remote = {
+      '2026-02-12': { text: 'remote version', lastModified: stamp }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, remote);
+    expect(merged['2026-02-12'].text).toBe('local version');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('newer tombstone (deleted) wins over older text', () => {
+    const local = {
+      '2026-02-13': { text: 'some note', lastModified: ts(10) }
+    };
+    const remote = {
+      '2026-02-13': { text: '', deleted: true, lastModified: ts(1) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, remote);
+    expect(merged['2026-02-13'].deleted).toBe(true);
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('newer text wins over older tombstone', () => {
+    const local = {
+      '2026-02-13': { text: '', deleted: true, lastModified: ts(10) }
+    };
+    const remote = {
+      '2026-02-13': { text: 're-created note', lastModified: ts(1) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, remote);
+    expect(merged['2026-02-13'].text).toBe('re-created note');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('local-only tombstone is preserved (synced to remote)', () => {
+    const local = {
+      '2026-02-14': { text: '', deleted: true, lastModified: ts(1) }
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, {});
+    expect(merged['2026-02-14'].deleted).toBe(true);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('merges notes across multiple dates independently', () => {
+    const local = {
+      '2026-02-10': { text: 'local only', lastModified: ts(5) },
+      '2026-02-11': { text: 'old local', lastModified: ts(20) },
+      '2026-02-12': { text: 'shared', lastModified: ts(5) },
+    };
+    const remote = {
+      '2026-02-11': { text: 'new remote', lastModified: ts(1) },
+      '2026-02-12': { text: 'shared', lastModified: ts(5) },
+      '2026-02-13': { text: 'remote only', lastModified: ts(5) },
+    };
+    const { merged, localChanged, remoteChanged } = mergeDailyNotes(local, remote);
+    expect(Object.keys(merged)).toHaveLength(4);
+    expect(merged['2026-02-10'].text).toBe('local only');
+    expect(merged['2026-02-11'].text).toBe('new remote');
+    expect(merged['2026-02-12'].text).toBe('shared');
+    expect(merged['2026-02-13'].text).toBe('remote only');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('handles missing lastModified as epoch zero', () => {
+    const local = {
+      '2026-02-15': { text: 'no timestamp' }
+    };
+    const remote = {
+      '2026-02-15': { text: 'has timestamp', lastModified: ts(100) }
+    };
+    const { merged } = mergeDailyNotes(local, remote);
+    // remote has a real timestamp vs epoch 0, so remote wins
+    expect(merged['2026-02-15'].text).toBe('has timestamp');
+  });
+});
+
+// ─── mergeSyncData — dailyNotes integration ──────────────────────────
+
+describe('mergeSyncData — dailyNotes integration', () => {
+  const base = {
+    tasks: [], unscheduledTasks: [], recycleBin: [],
+    recurringTasks: [], routineDefinitions: {},
+    todayRoutines: [], routinesDate: '',
+    deletedTaskIds: {}, deletedRoutineChipIds: {},
+    removedTodayRoutineIds: {},
+  };
+
+  it('merges dailyNotes from both devices', () => {
+    const deviceA = {
+      ...base,
+      dailyNotes: { '2026-02-10': { text: 'A note', lastModified: ts(5) } },
+    };
+    const deviceB = {
+      ...base,
+      dailyNotes: { '2026-02-11': { text: 'B note', lastModified: ts(5) } },
+    };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.dailyNotes['2026-02-10'].text).toBe('A note');
+    expect(data.dailyNotes['2026-02-11'].text).toBe('B note');
+  });
+
+  it('newer dailyNote wins in conflict', () => {
+    const deviceA = {
+      ...base,
+      dailyNotes: { '2026-02-10': { text: 'old', lastModified: ts(10) } },
+    };
+    const deviceB = {
+      ...base,
+      dailyNotes: { '2026-02-10': { text: 'new', lastModified: ts(1) } },
+    };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.dailyNotes['2026-02-10'].text).toBe('new');
+  });
+
+  it('dailyNotes tombstone propagates via sync', () => {
+    const deviceA = {
+      ...base,
+      dailyNotes: { '2026-02-10': { text: 'some text', lastModified: ts(10) } },
+    };
+    const deviceB = {
+      ...base,
+      dailyNotes: { '2026-02-10': { text: '', deleted: true, lastModified: ts(1) } },
+    };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.dailyNotes['2026-02-10'].deleted).toBe(true);
   });
 });
