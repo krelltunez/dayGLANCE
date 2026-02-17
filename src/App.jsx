@@ -9700,7 +9700,7 @@ const DayPlanner = () => {
                   <div ref={timeGridRef} className="relative">
                     {hours.map((hour, index) => (
                       <div key={hour} className="relative">
-                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.02]' : 'bg-stone-50/60') : ''}`}>
+                        <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.04]' : 'bg-stone-50/60') : ''}`}>
                           <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`}>
                             {use24HourClock
                               ? `${hour.toString().padStart(2, '0')}:00`
@@ -11558,7 +11558,7 @@ const DayPlanner = () => {
                 return (
                   <button
                     onClick={() => setShowMobileDailySummary(true)}
-                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-stone-100'} border ${borderClass}`}
+                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300'}`}
                     style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
                   >
                     <div className="relative w-11 h-11">
@@ -15652,7 +15652,7 @@ const DayPlanner = () => {
             return (
               <button
                 onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-white active:bg-stone-100'} border ${borderClass}`}
+                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300'}`}
                 style={{ left: '248px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
@@ -15731,7 +15731,7 @@ const DayPlanner = () => {
             return (
               <button
                 onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-stone-100'} border ${borderClass}`}
+                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'}`}
                 style={{ left: '248px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
