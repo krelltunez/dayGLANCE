@@ -14,7 +14,7 @@
 
 ## Why dayGLANCE?
 
-Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure. Even on the hosted version, your data never leaves your machine — everything is stored locally in your browser. Optionally sync across devices through your own Nextcloud instance, and work offline as a full PWA.
+Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure. Even on the hosted version, your data never leaves your machine — everything is stored locally in your browser. Optionally sync across devices through your own Nextcloud instance (more sync providers coming soon), and work offline as a full PWA.
 
 ---
 
@@ -60,9 +60,9 @@ End each week with a guided review. See your weekly stats, reflect with built-in
 
 Import events from **iCal, Google Calendar, or Nextcloud** calendar URLs. Imported events appear color-coded on your timeline alongside your tasks, refreshing automatically every 15 minutes.
 
-### Cloud Sync with Nextcloud
+### Cloud Sync
 
-Sync your entire planner across devices through your own Nextcloud instance via WebDAV. The smart merge engine resolves conflicts at the task level using timestamps — not last-write-wins — so simultaneous edits from two devices won't clobber each other.
+Sync your entire planner across devices through your own Nextcloud instance via WebDAV, with additional sync providers planned for future releases. The smart merge engine resolves conflicts at the task level using timestamps — not last-write-wins — so simultaneous edits from two devices won't clobber each other.
 
 ### Auto-Backup
 
@@ -187,7 +187,7 @@ For detailed deployment instructions, see the [Documentation](https://docs.daygl
 
 ## Cloud Sync Setup
 
-dayGLANCE syncs through your own **Nextcloud** instance via WebDAV. To configure:
+dayGLANCE currently syncs through **Nextcloud** via WebDAV, with more sync providers on the roadmap. To configure:
 
 1. Open **Settings** in dayGLANCE.
 2. Enter your Nextcloud WebDAV URL and credentials.
