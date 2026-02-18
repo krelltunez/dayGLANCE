@@ -7315,19 +7315,13 @@ const DayPlanner = () => {
         if (eq !== -1) rule[part.substring(0, eq)] = part.substring(eq + 1);
       });
 
-      if (rule.FREQ !== 'YEARLY') {
-        expandedEvents.push(event);
-        continue;
-      }
-
+      // Common setup for all frequencies
       const dtstr = event.dtstart;
       const sYear = parseInt(dtstr.substring(0, 4));
       const sMonth = parseInt(dtstr.substring(4, 6)) - 1;
       const sDay = parseInt(dtstr.substring(6, 8));
       const interval = parseInt(rule.INTERVAL || '1');
       const count = rule.COUNT ? parseInt(rule.COUNT) : null;
-      const byMonth = rule.BYMONTH ? parseInt(rule.BYMONTH) - 1 : sMonth;
-      const byDay = rule.BYDAY || null;
       const untilDate = rule.UNTIL ? new Date(
         parseInt(rule.UNTIL.substring(0, 4)),
         parseInt(rule.UNTIL.substring(4, 6)) - 1,
@@ -7342,36 +7336,19 @@ const DayPlanner = () => {
         durDays = Math.max(1, Math.round((e - s) / 86400000));
       }
 
-      const maxYear = untilDate ? Math.min(untilDate.getFullYear(), curYear + 3) : curYear + 3;
-      let occ = 0;
+      const eventStart = new Date(sYear, sMonth, sDay);
+      const now = new Date();
+      // Expansion window for non-yearly: 1 year back to 1 year ahead
+      const windowStart = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      const windowEnd = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
 
-      for (let year = sYear; year <= maxYear; year += interval) {
-        if (count && occ >= count) break;
+      const isExcluded = (d) => {
+        const s = fmt(d);
+        return event.exdates && event.exdates.includes(s);
+      };
 
-        let occDate;
-        if (byDay) {
-          const m = byDay.match(/^(-?\d*)([A-Z]{2})$/);
-          if (m && dayMap[m[2]] !== undefined) {
-            const nth = m[1] ? parseInt(m[1]) : 1;
-            const target = dayMap[m[2]];
-            if (nth > 0) {
-              const firstDow = new Date(year, byMonth, 1).getDay();
-              occDate = new Date(year, byMonth, 1 + ((target - firstDow + 7) % 7) + (nth - 1) * 7);
-            } else {
-              const last = new Date(year, byMonth + 1, 0);
-              occDate = new Date(year, byMonth, last.getDate() - ((last.getDay() - target + 7) % 7) + (nth + 1) * 7);
-            }
-          }
-        } else {
-          occDate = new Date(year, byMonth, sDay);
-        }
-
-        if (!occDate) continue;
-        if (untilDate && occDate > untilDate) break;
-
+      const pushOcc = (occDate) => {
         const occStr = fmt(occDate);
-        if (event.exdates && event.exdates.includes(occStr)) continue;
-
         const newDtstart = event.isAllDay ? occStr : occStr + 'T' + dtstr.substring(9);
         let newDtend = event.dtend;
         if (event.dtend && event.isAllDay) {
@@ -7379,14 +7356,129 @@ const DayPlanner = () => {
           endD.setDate(endD.getDate() + durDays);
           newDtend = fmt(endD);
         }
+        expandedEvents.push({ ...event, dtstart: newDtstart, dtend: newDtend, rrule: undefined });
+      };
 
-        expandedEvents.push({
-          ...event,
-          dtstart: newDtstart,
-          dtend: newDtend,
-          rrule: undefined
-        });
-        occ++;
+      if (rule.FREQ === 'YEARLY') {
+        const byMonth = rule.BYMONTH ? parseInt(rule.BYMONTH) - 1 : sMonth;
+        const byDay = rule.BYDAY || null;
+        const maxYear = untilDate ? Math.min(untilDate.getFullYear(), curYear + 3) : curYear + 3;
+        let occ = 0;
+
+        for (let year = sYear; year <= maxYear; year += interval) {
+          if (count && occ >= count) break;
+
+          let occDate;
+          if (byDay) {
+            const m = byDay.match(/^(-?\d*)([A-Z]{2})$/);
+            if (m && dayMap[m[2]] !== undefined) {
+              const nth = m[1] ? parseInt(m[1]) : 1;
+              const target = dayMap[m[2]];
+              if (nth > 0) {
+                const firstDow = new Date(year, byMonth, 1).getDay();
+                occDate = new Date(year, byMonth, 1 + ((target - firstDow + 7) % 7) + (nth - 1) * 7);
+              } else {
+                const last = new Date(year, byMonth + 1, 0);
+                occDate = new Date(year, byMonth, last.getDate() - ((last.getDay() - target + 7) % 7) + (nth + 1) * 7);
+              }
+            }
+          } else {
+            occDate = new Date(year, byMonth, sDay);
+          }
+
+          if (!occDate) continue;
+          if (untilDate && occDate > untilDate) break;
+          if (isExcluded(occDate)) continue;
+
+          pushOcc(occDate);
+          occ++;
+        }
+      } else if (rule.FREQ === 'MONTHLY') {
+        const byDay = rule.BYDAY || null;
+        const byMonthDay = rule.BYMONTHDAY ? parseInt(rule.BYMONTHDAY) : null;
+        let occ = 0;
+        let mDate = new Date(sYear, sMonth, 1);
+
+        while (mDate <= windowEnd) {
+          if (count && occ >= count) break;
+          let occDate;
+
+          if (byDay) {
+            const m = byDay.match(/^(-?\d*)([A-Z]{2})$/);
+            if (m && dayMap[m[2]] !== undefined) {
+              const nth = m[1] ? parseInt(m[1]) : 1;
+              const target = dayMap[m[2]];
+              if (nth > 0) {
+                const firstDow = new Date(mDate.getFullYear(), mDate.getMonth(), 1).getDay();
+                occDate = new Date(mDate.getFullYear(), mDate.getMonth(), 1 + ((target - firstDow + 7) % 7) + (nth - 1) * 7);
+              } else {
+                const last = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0);
+                occDate = new Date(mDate.getFullYear(), mDate.getMonth(), last.getDate() - ((last.getDay() - target + 7) % 7) + (nth + 1) * 7);
+              }
+            }
+          } else {
+            const day = byMonthDay || sDay;
+            occDate = new Date(mDate.getFullYear(), mDate.getMonth(), day);
+            // Handle months with fewer days (e.g., Jan 31 in Feb -> Feb 28)
+            if (occDate.getMonth() !== mDate.getMonth()) {
+              occDate = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0);
+            }
+          }
+
+          if (occDate && occDate >= eventStart) {
+            if (untilDate && occDate > untilDate) break;
+            if (!isExcluded(occDate)) {
+              if (occDate >= windowStart) pushOcc(occDate);
+              occ++;
+            }
+          }
+          mDate.setMonth(mDate.getMonth() + interval);
+        }
+      } else if (rule.FREQ === 'WEEKLY') {
+        const byDays = rule.BYDAY
+          ? rule.BYDAY.split(',').map(d => dayMap[d.trim()]).filter(d => d !== undefined)
+          : [eventStart.getDay()];
+        let occ = 0;
+        // Start from the Sunday of the week containing eventStart
+        let weekStart = new Date(eventStart);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+        while (weekStart <= windowEnd) {
+          for (const targetDay of byDays) {
+            if (count && occ >= count) break;
+            const d = new Date(weekStart);
+            d.setDate(d.getDate() + targetDay);
+            if (d < eventStart) continue;
+            if (d > windowEnd) continue;
+            if (untilDate && d > untilDate) break;
+            if (!isExcluded(d)) {
+              if (d >= windowStart) pushOcc(d);
+              occ++;
+            }
+          }
+          if (count && occ >= count) break;
+          weekStart.setDate(weekStart.getDate() + 7 * interval);
+        }
+      } else if (rule.FREQ === 'DAILY') {
+        let occ = 0;
+        let d = new Date(eventStart);
+        // Skip ahead efficiently when no COUNT limit
+        if (!count && d < windowStart) {
+          const intervalsToSkip = Math.floor((windowStart - d) / (86400000 * interval));
+          d.setDate(d.getDate() + intervalsToSkip * interval);
+        }
+        while (d <= windowEnd) {
+          if (count && occ >= count) break;
+          if (untilDate && d > untilDate) break;
+          if (d >= eventStart && !isExcluded(d)) {
+            if (d >= windowStart) pushOcc(d);
+            occ++;
+          }
+          d.setDate(d.getDate() + interval);
+        }
+      } else {
+        // Unsupported frequency — keep the original event
+        expandedEvents.push(event);
       }
     }
 
