@@ -8778,6 +8778,29 @@ const DayPlanner = () => {
             </div>
           ))}
         </div>
+        <div className="px-3 pb-3">
+          <button
+            onClick={() => {
+              setTasks(prev => prev.filter(t => !t.isExample));
+              setUnscheduledTasks(prev => prev.filter(t => !t.isExample));
+              setRecycleBin(prev => prev.filter(t => !t.isExample));
+              setRecurringTasks(prev => prev.filter(t => !t.isExample));
+              setRoutineDefinitions(prev => {
+                const cleaned = {};
+                for (const key of Object.keys(prev)) {
+                  cleaned[key] = prev[key].filter(c => !String(c.id).startsWith('example-'));
+                }
+                return cleaned;
+              });
+              setTodayRoutines(prev => prev.filter(r => !String(r.id).startsWith('example-')));
+              setOnboardingComplete(true);
+              setGettingStartedDismissed(true);
+            }}
+            className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+          >
+            I'm Good to Go
+          </button>
+        </div>
       </div>
     );
   };
