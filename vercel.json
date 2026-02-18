@@ -3,6 +3,8 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api/calendar-proxy/(.*)", "destination": "/api/calendar-proxy" },
+    { "source": "/api/webdav-proxy/(.*)", "destination": "/api/webdav-proxy" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
