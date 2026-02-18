@@ -1,6 +1,6 @@
 services:
   dayglance:
-    build: .
+    image: ghcr.io/krelltunez/dayglance:latest
     container_name: dayglance
     restart: unless-stopped
     ports:
