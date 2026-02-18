@@ -12236,8 +12236,10 @@ const DayPlanner = () => {
 
         {/* Center: Logo + Date Nav */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-3 pointer-events-auto">
-          <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pointer-events-auto">
+          <div className="flex justify-end">
+            <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
+          </div>
           <div className="flex items-center gap-1 relative">
             <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
               <ChevronLeft size={20} className={textSecondary} />
@@ -12301,12 +12303,14 @@ const DayPlanner = () => {
               </div>
             )}
           </div>
-          <button
-            onClick={goToToday}
-            className={`px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
-          >
-            Today
-          </button>
+          <div className="flex justify-start">
+            <button
+              onClick={goToToday}
+              className={`px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
+            >
+              Today
+            </button>
+          </div>
         </div>
         </div>
 
