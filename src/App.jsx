@@ -683,7 +683,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         <select
           value={currentProvider}
           disabled
-          className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100'}`}
+          className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100 text-stone-900'}`}
         >
           {Object.entries(cloudSyncProviders).map(([key, p]) => (
             <option key={key} value={key}>{p.name}</option>
@@ -699,7 +699,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             placeholder={field.placeholder}
             value={formData[field.key] || ''}
             onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
           />
         </div>
       ))}
@@ -11347,7 +11347,7 @@ const DayPlanner = () => {
                           placeholder="https://..."
                           value={syncUrl}
                           onChange={(e) => setSyncUrl(e.target.value)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                       </div>
                       <div>
@@ -11357,7 +11357,7 @@ const DayPlanner = () => {
                           placeholder="https://..."
                           value={taskCalendarUrl}
                           onChange={(e) => setTaskCalendarUrl(e.target.value)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                       </div>
                       <div>
@@ -11365,7 +11365,7 @@ const DayPlanner = () => {
                         <select
                           value={syncRetentionDays}
                           onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
-                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         >
                           <option value={7}>7 days</option>
                           <option value={14}>14 days</option>
@@ -16393,7 +16393,7 @@ const DayPlanner = () => {
                     <select
                       value={newTask.duration}
                       onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                     >
                       {durationOptions.map(minutes => (
                         <option key={minutes} value={minutes}>{minutes} min</option>
@@ -16639,7 +16639,7 @@ const DayPlanner = () => {
                   onChange={handleNewTaskInputChange}
                   onKeyDown={handleNewTaskInputKeyDown}
                   autoFocus={!(isTablet && mobileEditingTask)}
-                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                 />
                 {showSuggestions && suggestionContext === 'newTask' && (
                   <SuggestionAutocomplete
@@ -17643,7 +17643,7 @@ const DayPlanner = () => {
                           onChange={(e) => setWeatherZip(e.target.value)}
                           onBlur={() => fetchWeather()}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
                           Leave empty to hide weather
@@ -17746,7 +17746,7 @@ const DayPlanner = () => {
                           placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
                           value={syncUrl}
                           onChange={(e) => setSyncUrl(e.target.value)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
                           For Nextcloud: Go to Calendar → Settings → Copy the public link
@@ -17761,7 +17761,7 @@ const DayPlanner = () => {
                           placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
                           value={taskCalendarUrl}
                           onChange={(e) => setTaskCalendarUrl(e.target.value)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
                           Tasks appear with striped pattern; completion state persists across syncs
@@ -17774,7 +17774,7 @@ const DayPlanner = () => {
                         <select
                           value={syncRetentionDays}
                           onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
-                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm`}
+                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         >
                           <option value={7}>7 days</option>
                           <option value={14}>14 days</option>
