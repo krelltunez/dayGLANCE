@@ -14123,7 +14123,7 @@ const DayPlanner = () => {
                                     <Calendar size={14} className="flex-shrink-0" />
                                     {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                                     <div
-                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''}`}
+                                      className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''} flex-1 min-w-0`}
                                       onDoubleClick={!isTablet ? (e) => {
                                         if (!isImported) {
                                           e.stopPropagation();
@@ -14132,7 +14132,35 @@ const DayPlanner = () => {
                                       } : undefined}
                                       title={task.title}
                                     >
-                                      {renderTitle(task.title)}
+                                      {!isTablet && editingTaskId === task.id ? (
+                                        <div className="relative tag-autocomplete-container">
+                                          <input
+                                            type="text"
+                                            value={editingTaskText}
+                                            onChange={(e) => handleEditInputChange(e, false)}
+                                            onKeyDown={(e) => handleEditKeyDown(e, false)}
+                                            onBlur={() => {
+                                              setTimeout(() => {
+                                                if (!showSuggestions) {
+                                                  saveTaskTitle(false);
+                                                }
+                                              }, 100);
+                                            }}
+                                            autoFocus
+                                            className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                          {showSuggestions && suggestionContext === 'editing' && (
+                                            <SuggestionAutocomplete
+                                              suggestions={suggestions}
+                                              selectedIndex={selectedSuggestionIndex}
+                                              onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
+                                            />
+                                          )}
+                                        </div>
+                                      ) : (
+                                        renderTitle(task.title)
+                                      )}
                                     </div>
                                   </div>
                                   {!isImported && (
