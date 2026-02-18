@@ -2687,7 +2687,7 @@ const DayPlanner = () => {
 
         const exampleRecurringTasks = [
           {
-            id: 'example-recurring-1',
+            id: 99999,
             title: 'Example: TPS reports #work',
             startTime: toTime(baseHour, 30),
             duration: 30,
