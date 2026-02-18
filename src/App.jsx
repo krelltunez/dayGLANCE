@@ -12237,7 +12237,7 @@ const DayPlanner = () => {
         {/* Center: Logo + Date Nav */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center pointer-events-auto">
-          <div className="flex justify-end pr-3">
+          <div className="flex justify-end pr-2">
             <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
           </div>
           <div className="flex items-center gap-1 relative">
@@ -12303,7 +12303,7 @@ const DayPlanner = () => {
               </div>
             )}
           </div>
-          <div className="flex justify-start pl-4">
+          <div className="flex justify-start pl-5">
             <button
               onClick={goToToday}
               className={`px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
