@@ -12254,12 +12254,6 @@ const DayPlanner = () => {
             <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Next day">
               <ChevronRight size={20} className={textSecondary} />
             </button>
-            <button
-              onClick={goToToday}
-              className={`px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
-            >
-              Today
-            </button>
             {/* Month View Popup */}
             {showMonthView && (
               <div className={`month-view-container absolute top-full left-1/2 -translate-x-1/2 mt-2 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
@@ -12307,6 +12301,12 @@ const DayPlanner = () => {
               </div>
             )}
           </div>
+          <button
+            onClick={goToToday}
+            className={`px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
+          >
+            Today
+          </button>
         </div>
         </div>
 
