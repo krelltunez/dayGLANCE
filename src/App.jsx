@@ -2687,7 +2687,7 @@ const DayPlanner = () => {
 
         const exampleRecurringTasks = [
           {
-            id: 99999,
+            id: 'example-recurring-1',
             title: 'Example: TPS reports #work',
             startTime: toTime(baseHour, 30),
             duration: 30,
@@ -3776,10 +3776,12 @@ const DayPlanner = () => {
     pushUndo();
     // Handle recurring task instances - update the template
     if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      const templateId = Number(taskId.split('-')[1]);
-      setRecurringTasks(prev => prev.map(t =>
-        t.id === templateId ? { ...t, color: newColor } : t
-      ));
+      const parsed = parseRecurringId(taskId);
+      if (parsed) {
+        setRecurringTasks(prev => prev.map(t =>
+          t.id === parsed.templateId ? { ...t, color: newColor } : t
+        ));
+      }
       setShowColorPicker(null);
       return;
     }
@@ -3987,10 +3989,12 @@ const DayPlanner = () => {
 
     // Handle recurring task instances - update the template title
     if (typeof editingTaskId === 'string' && editingTaskId.startsWith('recurring-')) {
-      const templateId = Number(editingTaskId.split('-')[1]);
-      setRecurringTasks(prev => prev.map(t =>
-        t.id === templateId ? { ...t, title: cleanedTitle } : t
-      ));
+      const parsed = parseRecurringId(editingTaskId);
+      if (parsed) {
+        setRecurringTasks(prev => prev.map(t =>
+          t.id === parsed.templateId ? { ...t, title: cleanedTitle } : t
+        ));
+      }
     } else if (isInbox) {
       setUnscheduledTasks(prev => prev.map(t =>
         t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
@@ -4024,10 +4028,12 @@ const DayPlanner = () => {
   // Notes & Subtasks CRUD functions
   const updateTaskNotes = (taskId, notes, isInbox) => {
     if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      const templateId = Number(taskId.split('-')[1]);
-      setRecurringTasks(prev => prev.map(t =>
-        t.id === templateId ? { ...t, notes } : t
-      ));
+      const parsed = parseRecurringId(taskId);
+      if (parsed) {
+        setRecurringTasks(prev => prev.map(t =>
+          t.id === parsed.templateId ? { ...t, notes } : t
+        ));
+      }
     } else if (isInbox) {
       setUnscheduledTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, notes } : t
@@ -4058,8 +4064,10 @@ const DayPlanner = () => {
 
   // Helper to update a recurring task template by ID
   const updateRecurringTemplate = (taskId, updater) => {
-    const templateId = Number(taskId.split('-')[1]);
-    setRecurringTasks(prev => prev.map(t => t.id === templateId ? updater(t) : t));
+    const parsed = parseRecurringId(taskId);
+    if (parsed) {
+      setRecurringTasks(prev => prev.map(t => t.id === parsed.templateId ? updater(t) : t));
+    }
   };
 
   const updateRecurrencePattern = (templateId, dateStr, newRecurrence) => {
@@ -4949,10 +4957,10 @@ const DayPlanner = () => {
   const moveToRecycleBin = (id, fromInbox = false) => {
     // Handle recurring task instances - show confirmation dialog
     if (typeof id === 'string' && id.startsWith('recurring-')) {
-      const parts = id.split('-');
-      const templateId = Number(parts[1]);
-      const dateStr = parts.slice(2).join('-');
-      setRecurringDeleteConfirm({ taskId: templateId, dateStr });
+      const parsed = parseRecurringId(id);
+      if (parsed) {
+        setRecurringDeleteConfirm({ taskId: parsed.templateId, dateStr: parsed.dateStr });
+      }
       return;
     }
 
@@ -15231,9 +15239,9 @@ const DayPlanner = () => {
       )}
 
       {editingRecurrenceTaskId && (() => {
-        const parts = editingRecurrenceTaskId.split('-');
-        const templateId = Number(parts[1]);
-        const dateStr = parts.slice(2).join('-');
+        const parsed = parseRecurringId(editingRecurrenceTaskId);
+        if (!parsed) return null;
+        const { templateId, dateStr } = parsed;
         const template = recurringTasks.find(t => t.id === templateId);
         if (!template) return null;
         const presets = getRecurrencePresets(dateStr);
