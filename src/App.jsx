@@ -12236,7 +12236,7 @@ const DayPlanner = () => {
 
         {/* Center: Logo + Date Nav */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pointer-events-auto">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 pointer-events-auto">
           <div className="flex justify-end">
             <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
           </div>
