@@ -7,7 +7,7 @@
 
 [Live App](https://dayglance.app) | [Documentation](https://docs.dayglance.app)
 
-![dayGLANCE Desktop Overview](screenshots/desktop-3col.png)
+![dayGLANCE Desktop Overview](screenshots/hero-light.png)
 
 ---
 
@@ -23,7 +23,7 @@ Most planners either lock your data in someone else's cloud or lack the polish o
 
 The heart of the app. The Glance panel gives you an intelligent, real-time snapshot of your day — no scrolling through a calendar required. It shows your full agenda with color-coded tasks, a "now" marker that tracks where you are in the day and how much free time you have, overdue tasks that need attention, and today's routines.
 
-![The Glance Panel](screenshots/desktop-1col.png)
+![The Glance Panel](screenshots/glance.png)
 
 ### Visual Time-Blocking
 
