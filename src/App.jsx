@@ -6060,6 +6060,10 @@ const DayPlanner = () => {
     const startY = e.clientY;
     const startDuration = routine.duration;
 
+    // Prevent the browser from initiating a native drag on the parent draggable element
+    const preventDrag = (de) => de.preventDefault();
+    document.addEventListener('dragstart', preventDrag);
+
     const handleMouseMove = (moveEvent) => {
       const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
@@ -6070,6 +6074,7 @@ const DayPlanner = () => {
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('dragstart', preventDrag);
       setIsResizing(false);
     };
 
@@ -7154,6 +7159,10 @@ const DayPlanner = () => {
     const isRecurringTask = task.isRecurring;
     const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
 
+    // Prevent the browser from initiating a native drag on the parent draggable element
+    const preventDrag = (de) => de.preventDefault();
+    document.addEventListener('dragstart', preventDrag);
+
     const handleMouseMove = (moveEvent) => {
       const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
@@ -7176,6 +7185,7 @@ const DayPlanner = () => {
       playUISound('tick');
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('dragstart', preventDrag);
       setIsResizing(false);
     };
 
