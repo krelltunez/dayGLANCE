@@ -7,8 +7,7 @@
 
 [Live App](https://dayglance.app) | [Documentation](https://docs.dayglance.app)
 
-<!-- SCREENSHOT: Hero — Desktop full-width view showing the timeline with several color-coded tasks, the sidebar with inbox and daily summary, and the header with weather and daily content. Capture in light mode with a realistic day planned out. -->
-![dayGLANCE Desktop Overview](screenshots/hero-desktop.png)
+![dayGLANCE Desktop Overview](screenshots/desktop-3col.png)
 
 ---
 
@@ -24,21 +23,18 @@ Most planners either lock your data in someone else's cloud or lack the polish o
 
 The heart of the app. The Glance panel gives you an intelligent, real-time snapshot of your day — no scrolling through a calendar required. It shows your full agenda with color-coded tasks, a "now" marker that tracks where you are in the day and how much free time you have, overdue tasks that need attention, and today's routines.
 
-<!-- SCREENSHOT: The Glance panel showing a populated agenda with the "now" marker between tasks, an overdue section at the top, and the routines row at the bottom. -->
-![The Glance Panel](screenshots/glance-panel.png)
+![The Glance Panel](screenshots/desktop-1col.png)
 
 ### Visual Time-Blocking
 
 Drag and drop tasks onto a 24-hour timeline to plan your day. Resize tasks by dragging their edges and move them between time slots. Filter the timeline by `#tags` to focus on what matters. Supports multi-day views (1, 2, or 3 days) depending on screen size.
 
-<!-- SCREENSHOT: Timeline close-up showing 3-4 color-coded tasks at various times, with one being dragged to a new slot. -->
-![Time-Blocking on the Timeline](screenshots/timeline-timeblocking.png)
+![Time-Blocking on the Timeline](screenshots/timeline.png)
 
 ### Smart Inbox
 
 Capture tasks as they come to mind without worrying about when to do them. Prioritize with three priority levels, filter by priority, and drag tasks to the timeline when you're ready to commit.
 
-<!-- SCREENSHOT: Sidebar showing the Inbox section with several tasks at different priorities, one task being dragged toward the timeline area. -->
 ![Inbox with Priorities and Tags](screenshots/inbox.png)
 
 ### Recurring Tasks & Routines
@@ -49,14 +45,12 @@ Set tasks to repeat daily, weekly on specific days, monthly, or on custom interv
 
 A built-in Pomodoro-style timer with customizable work, short break, and long break durations. Associate a timer session with a specific task and mark it complete when you're done. Keeps your screen awake during focus sessions.
 
-<!-- SCREENSHOT: Focus Mode overlay/modal showing the timer countdown, current task name, cycle count, and start/pause/reset controls. -->
 ![Focus Mode Timer](screenshots/focus-mode.png)
 
 ### Daily Summary & Statistics
 
 Track your productivity with a daily dashboard: tasks completed, completion rate ring, time planned vs. time spent, and focus time logged. An all-time statistics view shows lifetime trends, averages, and streaks.
 
-<!-- SCREENSHOT: Daily Summary card showing the completion rate ring, task counts, and time stats. Ideally show both the daily and all-time cards side by side. -->
 ![Daily Summary & All-Time Statistics](screenshots/daily-summary.png)
 
 ### Weekly Review
@@ -83,7 +77,6 @@ Attach freeform notes to any day for journaling, reflections, or quick reference
 
 A full dark theme that respects your preference across sessions. Every component is theme-aware, including the custom scrollbars and mobile status bar.
 
-<!-- SCREENSHOT: Same desktop view as the hero but in dark mode, showing the dark theme applied consistently across the timeline, sidebar, and header. -->
 ![Dark Mode](screenshots/dark-mode.png)
 
 ### Spotlight Search
@@ -114,8 +107,9 @@ dayGLANCE adapts its layout and interactions per device:
 - **Tablet**: Tabbed side panel (Glance | Inbox), floating action buttons, touch-optimized spacing
 - **Phone**: Tab-based navigation, swipe gestures to schedule tasks, long-press to drag on the timeline, bottom sheets for modals
 
-<!-- SCREENSHOT: Side-by-side composite of dayGLANCE on a phone (portrait), tablet (landscape), and desktop, showing how the layout adapts. -->
-![Responsive Design — Phone, Tablet, and Desktop](screenshots/responsive-devices.png)
+| 3-Column (Wide Desktop) | 2-Column (Medium) | 1-Column (Narrow) |
+|:-:|:-:|:-:|
+| ![3-Column Layout](screenshots/desktop-3col.png) | ![2-Column Layout](screenshots/desktop-2col.png) | ![1-Column Layout](screenshots/desktop-1col.png) |
 
 ### Progressive Web App
 
