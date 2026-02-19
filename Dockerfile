@@ -2,6 +2,7 @@
 FROM node:18-alpine AS builder
 
 WORKDIR /app
+LABEL org.opencontainers.image.source=https://github.com/krelltunez/dayglance
 
 # Copy package files
 COPY package*.json ./
