@@ -11700,7 +11700,6 @@ const DayPlanner = () => {
                       </label>
                     </div>
 
-                    {isFileSystemAccessSupported() && (<>
                     <hr className={borderClass} />
 
                     {/* Obsidian Integration */}
@@ -11767,6 +11766,10 @@ const DayPlanner = () => {
                       ) : (
                         <button
                           onClick={async () => {
+                            if (!isFileSystemAccessSupported()) {
+                              alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
+                              return;
+                            }
                             const handle = await requestVaultAccess();
                             if (handle) {
                               obsidianVaultHandleRef.current = handle;
@@ -11780,7 +11783,6 @@ const DayPlanner = () => {
                         </button>
                       )}
                     </div>
-                    </>)}
                   </div>
                   );
                 })()}
@@ -18202,7 +18204,6 @@ const DayPlanner = () => {
                       </p>
                     </div>
 
-                    {isFileSystemAccessSupported() && (<>
                     <hr className={borderClass} />
 
                     {/* Obsidian Integration Section */}
@@ -18276,6 +18277,10 @@ const DayPlanner = () => {
                       ) : (
                         <button
                           onClick={async () => {
+                            if (!isFileSystemAccessSupported()) {
+                              alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
+                              return;
+                            }
                             const handle = await requestVaultAccess();
                             if (handle) {
                               obsidianVaultHandleRef.current = handle;
@@ -18289,7 +18294,6 @@ const DayPlanner = () => {
                         </button>
                       )}
                     </div>
-                    </>)}
                   </div>
 
                   {/* Right column - wide screens only */}
