@@ -18185,118 +18185,7 @@ const DayPlanner = () => {
                 <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
                   {/* Left column */}
                   <div className="space-y-6">
-                    {/* Clock Format Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Clock size={16} className={textSecondary} />
-                        Clock Format
-                      </h4>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setUse24HourClock(true)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          24-hour
-                        </button>
-                        <button
-                          onClick={() => setUse24HourClock(false)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            !use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          12-hour
-                        </button>
-                      </div>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Sound Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Bell size={16} className={textSecondary} />
-                        Sound
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={soundEnabled}
-                            onChange={(e) => setSoundEnabled(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
-                      </label>
-                    </div>
-
-                    {!isMobile && !isTablet && (<>
-                    <hr className={borderClass} />
-
-                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <MapPin size={16} className={textSecondary} />
-                        Weather Location
-                      </h4>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          ZIP code or city name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 90210 or Seattle"
-                          value={weatherZip}
-                          onChange={(e) => setWeatherZip(e.target.value)}
-                          onBlur={() => fetchWeather()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          Leave empty to hide weather
-                        </p>
-                      </div>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Temperature unit
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'fahrenheit'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °F
-                          </button>
-                          <button
-                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'celsius'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °C
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    </>)}
-
                     {/* Cloud Sync Section - narrow screens only */}
-                    <hr className={`${borderClass} lg:hidden`} />
                     <div className="space-y-3 lg:hidden">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Cloud size={16} className={textSecondary} />
@@ -18439,9 +18328,122 @@ const DayPlanner = () => {
                       )}
                     </div>
 
+                    <hr className={`${borderClass} lg:hidden`} />
+
+                    {/* Clock Format Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Clock size={16} className={textSecondary} />
+                        Clock Format
+                      </h4>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setUse24HourClock(true)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                          }`}
+                        >
+                          24-hour
+                        </button>
+                        <button
+                          onClick={() => setUse24HourClock(false)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            !use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                          }`}
+                        >
+                          12-hour
+                        </button>
+                      </div>
+                    </div>
+
                     <hr className={borderClass} />
 
-                    {/* Obsidian Integration Section */}
+                    {/* Sound Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Bell size={16} className={textSecondary} />
+                        Sound
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={soundEnabled}
+                            onChange={(e) => setSoundEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+
+                    {!isMobile && !isTablet && (<>
+                    <hr className={borderClass} />
+
+                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <MapPin size={16} className={textSecondary} />
+                        Weather Location
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          ZIP code or city name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 90210 or Seattle"
+                          value={weatherZip}
+                          onChange={(e) => setWeatherZip(e.target.value)}
+                          onBlur={() => fetchWeather()}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Leave empty to hide weather
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Temperature unit
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'fahrenheit'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            °F
+                          </button>
+                          <button
+                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'celsius'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            °C
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    </>)}
+
+                    {!isMobile && !isTablet && (<>
+                    <hr className={borderClass} />
+
+                    {/* Obsidian Integration Section — desktop only (requires File System Access API) */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <BookOpen size={16} className={textSecondary} />
@@ -18529,6 +18531,7 @@ const DayPlanner = () => {
                         </button>
                       )}
                     </div>
+                    </>)}
 
                     <hr className={borderClass} />
 
