@@ -11618,7 +11618,7 @@ const DayPlanner = () => {
                   </div>
 
                   {/* Sync buttons */}
-                  {(syncUrl || taskCalendarUrl || cloudSyncConfig?.enabled) && (
+                  {(syncUrl || taskCalendarUrl || cloudSyncConfig?.enabled || obsidianConfig?.enabled) && (
                     <div className="space-y-2">
                       <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
                       {(syncUrl || taskCalendarUrl) && (
@@ -11648,6 +11648,21 @@ const DayPlanner = () => {
                             }`} />
                           </div>
                           <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+                        </button>
+                      )}
+                      {obsidianConfig?.enabled && (
+                        <button
+                          onClick={() => performObsidianSync()}
+                          disabled={obsidianSyncStatus === 'syncing'}
+                          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${obsidianSyncStatus === 'syncing' ? 'opacity-70' : ''}`}
+                        >
+                          <div className="relative">
+                            <BookOpen size={20} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
+                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                              obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+                            }`} />
+                          </div>
+                          <span className={`font-medium ${textPrimary}`}>Obsidian Sync</span>
                         </button>
                       )}
                     </div>
@@ -12888,6 +12903,21 @@ const DayPlanner = () => {
               }`} />
             )}
           </button>
+          {obsidianConfig?.enabled && (
+            <button
+              onClick={() => performObsidianSync()}
+              disabled={obsidianSyncStatus === 'syncing'}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} ${obsidianSyncStatus === 'syncing' ? 'opacity-70 cursor-not-allowed' : ''}`}
+              title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
+            >
+              <BookOpen size={18} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' :
+                obsidianSyncStatus === 'error' ? 'bg-red-500' :
+                'bg-green-500'
+              }`} />
+            </button>
+          )}
           <button
             onClick={() => setShowSettings(true)}
             className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
@@ -13004,6 +13034,22 @@ const DayPlanner = () => {
                 }`} />
               )}
             </button>
+            {obsidianConfig?.enabled && (
+              <button
+                onClick={() => performObsidianSync()}
+                disabled={obsidianSyncStatus === 'syncing'}
+                className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${obsidianSyncStatus === 'syncing' ? 'opacity-70 cursor-not-allowed' : ''}`}
+                title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
+                aria-label="Obsidian sync"
+              >
+                <BookOpen size={18} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                  obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' :
+                  obsidianSyncStatus === 'error' ? 'bg-red-500' :
+                  'bg-green-500'
+                }`} />
+              </button>
+            )}
             <button
               onClick={() => setShowSettings(true)}
               className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
