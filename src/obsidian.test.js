@@ -129,4 +129,32 @@ describe('parseTasksFromMarkdown', () => {
     expect(scheduledTasks[0].startTime).toBe('00:00');
     expect(scheduledTasks[1].startTime).toBe('12:00');
   });
+
+  it('stores obsidianRawTitle on inbox tasks (title without #obsidian, without time)', () => {
+    const md = '- [ ] Buy groceries';
+    const { inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(inboxTasks[0].obsidianRawTitle).toBe('Buy groceries');
+    expect(inboxTasks[0].title).toBe('Buy groceries #obsidian');
+  });
+
+  it('stores obsidianRawTitle on scheduled tasks (time stripped)', () => {
+    const md = '- [ ] 09:00 Stand-up meeting';
+    const { scheduledTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(scheduledTasks[0].obsidianRawTitle).toBe('Stand-up meeting');
+    expect(scheduledTasks[0].startTime).toBe('09:00');
+  });
+
+  it('obsidianRawTitle preserves existing tags but not our #obsidian', () => {
+    const md = '- [ ] Fix bug #urgent';
+    const { inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(inboxTasks[0].obsidianRawTitle).toBe('Fix bug #urgent');
+    expect(inboxTasks[0].title).toBe('Fix bug #urgent #obsidian');
+  });
+
+  it('obsidianRawTitle for task already tagged with #obsidian', () => {
+    const md = '- [ ] Task with #obsidian';
+    const { inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(inboxTasks[0].obsidianRawTitle).toBe('Task with #obsidian');
+    expect(inboxTasks[0].title).toBe('Task with #obsidian');
+  });
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh } from './obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -1471,6 +1471,7 @@ const DayPlanner = () => {
   );
   const obsidianVaultHandleRef = useRef(null);
   const obsidianSyncInProgressRef = useRef(false);
+  const obsidianPrevTaskStateRef = useRef({}); // tracks {id: {completed, startTime, date}} for change detection
 
   // Auto-Backup state
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
@@ -2634,6 +2635,41 @@ const DayPlanner = () => {
     }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [obsidianConfig?.enabled]);
+
+  // Obsidian writeback: detect completion/scheduling changes and write back to vault
+  useEffect(() => {
+    if (!obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
+    // Skip writeback while a sync is replacing the task arrays
+    if (obsidianSyncInProgressRef.current) return;
+
+    const allObsidian = [...tasks, ...unscheduledTasks].filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle);
+    const prev = obsidianPrevTaskStateRef.current;
+
+    for (const task of allObsidian) {
+      const p = prev[task.id];
+      if (p && (p.completed !== task.completed || p.startTime !== (task.startTime || null))) {
+        // Extract source date from task ID (obsidian-YYYY-MM-DD-hash)
+        const sourceDate = task.date || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1];
+        if (sourceDate) {
+          writeTaskStateToFile(
+            obsidianVaultHandleRef.current,
+            obsidianConfig.dailyNotesPath || '',
+            sourceDate,
+            task.obsidianRawTitle,
+            task.completed,
+            task.startTime || null,
+          ).catch(err => console.error('Obsidian: failed to write task state back', err));
+        }
+      }
+    }
+
+    // Update previous-state snapshot
+    const next = {};
+    for (const task of allObsidian) {
+      next[task.id] = { completed: task.completed, startTime: task.startTime || null };
+    }
+    obsidianPrevTaskStateRef.current = next;
+  }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
 
   // Persist auto-backup config
   useEffect(() => {
@@ -4253,6 +4289,13 @@ const DayPlanner = () => {
         const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
         return [...nonObsidian, ...result.inboxTasks];
       });
+
+      // Snapshot the fresh task state so the writeback effect doesn't re-trigger
+      const snapshot = {};
+      for (const t of [...result.scheduledTasks, ...result.inboxTasks]) {
+        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null };
+      }
+      obsidianPrevTaskStateRef.current = snapshot;
 
       const now = new Date().toISOString();
       setObsidianLastSynced(now);

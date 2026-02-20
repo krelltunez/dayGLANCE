@@ -164,6 +164,53 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
   return readDailyNoteFile(dirHandle, dateStr);
 }
 
+/**
+ * Write a task's completion and scheduling state back to its Obsidian file.
+ *
+ * Finds the task line by matching `obsidianRawTitle` (the title text as it
+ * originally appeared, without #obsidian tag or time prefix). Reconstructs
+ * the line with updated checkbox and optional time.
+ */
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime) {
+  const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
+  let fileHandle, text;
+  try {
+    fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
+    const file = await fileHandle.getFile();
+    text = await file.text();
+  } catch (err) {
+    if (err.name === 'NotFoundError') return; // file gone, nothing to update
+    throw err;
+  }
+
+  const lines = text.split('\n');
+  let updated = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
+    if (!m) continue;
+
+    // Strip time prefix from the line to get the core title
+    let lineTitle = m[3].trim();
+    const tm = lineTitle.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
+    if (tm) lineTitle = tm[4];
+
+    if (lineTitle === obsidianRawTitle) {
+      const indent = m[1];
+      const timeStr = startTime ? `${startTime} ` : '';
+      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
+      updated = true;
+      break; // first match only
+    }
+  }
+
+  if (updated) {
+    const writable = await fileHandle.createWritable();
+    await writable.write(lines.join('\n'));
+    await writable.close();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Markdown task parser
 // ---------------------------------------------------------------------------
@@ -245,6 +292,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         subtasks: [],
         imported: true,
         importSource: 'obsidian',
+        obsidianRawTitle: rawTitle,
       });
     } else {
       inbox.push({
@@ -256,6 +304,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         subtasks: [],
         color: 'bg-purple-600',
         importSource: 'obsidian',
+        obsidianRawTitle: rawTitle,
       });
     }
   }
