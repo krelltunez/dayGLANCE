@@ -18321,10 +18321,10 @@ const DayPlanner = () => {
                       />
                     </div>
 
-                    <hr className={borderClass} />
+                    <hr className={`${borderClass} lg:hidden`} />
 
-                    {/* Calendar Sync Section */}
-                    <div className="space-y-3">
+                    {/* Calendar Sync Section - narrow screens only (shown in right column on desktop) */}
+                    <div className="space-y-3 lg:hidden">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
@@ -18439,10 +18439,10 @@ const DayPlanner = () => {
                       )}
                     </div>
 
-                    <hr className={borderClass} />
+                    <hr className={`${borderClass} lg:hidden`} />
 
-                    {/* iCal Import Section */}
-                    <div className="space-y-3">
+                    {/* iCal Import Section - narrow screens only (shown in right column on desktop) */}
+                    <div className="space-y-3 lg:hidden">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Upload size={16} className={textSecondary} />
                         iCal Import
@@ -18574,6 +18574,142 @@ const DayPlanner = () => {
                         onClose={() => setShowSettings(false)}
                         cloudSyncLastSynced={cloudSyncLastSynced}
                       />
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Calendar Sync Section - wide screens */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <RefreshCw size={16} className={textSecondary} />
+                        Calendar Sync
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Calendar URL (iCal/CalDAV)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
+                          value={syncUrl}
+                          onChange={(e) => setSyncUrl(e.target.value)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          For Nextcloud: Go to Calendar → Settings → Copy the public link
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Task Calendar URL (iCal/CalDAV)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
+                          value={taskCalendarUrl}
+                          onChange={(e) => setTaskCalendarUrl(e.target.value)}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Tasks appear with striped pattern; completion state persists across syncs
+                        </p>
+                      </div>
+                      {taskCalendarUrl && (
+                        <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
+                          <p className={`text-xs font-medium ${textSecondary}`}>Sync completions back (optional)</p>
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
+                            <input
+                              type="url"
+                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/personal/"
+                              value={taskCalendarAuth.caldavBaseUrl}
+                              onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, caldavBaseUrl: e.target.value }))}
+                              className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-0.5`}>
+                              The CalDAV collection URL (without ?export). In Nextcloud, the calendar ID in the URL may differ from the display name.
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
+                              <input
+                                type="text"
+                                placeholder="username"
+                                value={taskCalendarAuth.username}
+                                onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, username: e.target.value }))}
+                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className={`block text-xs ${textSecondary} mb-1`}>App Password</label>
+                              <input
+                                type="password"
+                                placeholder="app-password"
+                                value={taskCalendarAuth.appPassword}
+                                onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, appPassword: e.target.value }))}
+                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                              />
+                            </div>
+                          </div>
+                          <p className={`text-xs ${textSecondary}`}>
+                            When set, completing a task syncs the status back to your CalDAV server
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Keep past events
+                        </label>
+                        <select
+                          value={syncRetentionDays}
+                          onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
+                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        >
+                          <option value={7}>7 days</option>
+                          <option value={14}>14 days</option>
+                          <option value={30}>30 days</option>
+                          <option value={60}>60 days</option>
+                          <option value={90}>90 days</option>
+                          <option value={180}>6 months</option>
+                          <option value={365}>1 year</option>
+                          <option value={0}>All (no limit)</option>
+                        </select>
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Older imported events are dropped to save storage. Future events are always kept.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => syncAll()}
+                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+                        {isSyncing ? 'Syncing...' : 'Sync Now'}
+                      </button>
+                      {calSyncLastSynced && (
+                        <p className={`text-xs ${textSecondary}`}>
+                          Last synced: {new Date(calSyncLastSynced).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* iCal Import Section - wide screens */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Upload size={16} className={textSecondary} />
+                        iCal Import
+                      </h4>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                        <Upload size={14} className={textSecondary} />
+                        Choose .ics file
+                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
+                      </label>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Import events from an iCal (.ics) file
+                      </p>
                     </div>
 
                     <hr className={borderClass} />
