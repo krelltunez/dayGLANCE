@@ -302,6 +302,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         completed,
         notes: '',
         subtasks: [],
+        duration: 30,
         color: 'bg-purple-600',
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,

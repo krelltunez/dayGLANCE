@@ -112,6 +112,12 @@ describe('parseTasksFromMarkdown', () => {
     expect(inboxTasks[0].color).toBe('bg-purple-600');
   });
 
+  it('defaults inbox tasks to 30 minute duration', () => {
+    const md = '- [ ] Buy groceries';
+    const { inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(inboxTasks[0].duration).toBe(30);
+  });
+
   it('mixes scheduled and inbox tasks', () => {
     const md = '- [ ] 09:00 Morning standup\n- [ ] Buy milk\n- [x] 14:00 Review\n- [ ] Read chapter 3';
     const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(md, dateStr);
