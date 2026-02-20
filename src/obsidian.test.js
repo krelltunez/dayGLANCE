@@ -163,4 +163,90 @@ describe('parseTasksFromMarkdown', () => {
     expect(inboxTasks[0].obsidianRawTitle).toBe('Task with #obsidian');
     expect(inboxTasks[0].title).toBe('Task with #obsidian');
   });
+
+  // --- Inline date support ---
+
+  it('parses inline date-only task as all-day on that date', () => {
+    const md = '- [ ] 2026-02-21 Do the thing tomorrow';
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(inboxTasks).toHaveLength(0);
+    expect(scheduledTasks).toHaveLength(1);
+    expect(scheduledTasks[0].date).toBe('2026-02-21');
+    expect(scheduledTasks[0].isAllDay).toBe(true);
+    expect(scheduledTasks[0].title).toContain('Do the thing tomorrow');
+    expect(scheduledTasks[0].title).toContain('#obsidian');
+    expect(scheduledTasks[0].obsidianRawTitle).toBe('Do the thing tomorrow');
+  });
+
+  it('parses inline date + time task as scheduled on that date/time', () => {
+    const md = '- [ ] 2026-02-21 14:00 Meeting with team';
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(inboxTasks).toHaveLength(0);
+    expect(scheduledTasks).toHaveLength(1);
+    expect(scheduledTasks[0].date).toBe('2026-02-21');
+    expect(scheduledTasks[0].startTime).toBe('14:00');
+    expect(scheduledTasks[0].isAllDay).toBe(false);
+    expect(scheduledTasks[0].title).toContain('Meeting with team');
+    expect(scheduledTasks[0].obsidianRawTitle).toBe('Meeting with team');
+  });
+
+  it('parses inline date + AM/PM time', () => {
+    const md = '- [ ] 2026-03-01 9:00 AM Breakfast with client';
+    const { scheduledTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(scheduledTasks).toHaveLength(1);
+    expect(scheduledTasks[0].date).toBe('2026-03-01');
+    expect(scheduledTasks[0].startTime).toBe('09:00');
+    expect(scheduledTasks[0].title).toContain('Breakfast with client');
+  });
+
+  it('inline date task uses inline date for ID, not file date', () => {
+    const md = '- [ ] 2026-02-25 Future task';
+    const { scheduledTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(scheduledTasks[0].id).toContain('2026-02-25');
+    expect(scheduledTasks[0].id).not.toContain(dateStr);
+  });
+
+  it('completed inline date task', () => {
+    const md = '- [x] 2026-02-21 Done thing';
+    const { scheduledTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(scheduledTasks).toHaveLength(1);
+    expect(scheduledTasks[0].completed).toBe(true);
+    expect(scheduledTasks[0].isAllDay).toBe(true);
+    expect(scheduledTasks[0].date).toBe('2026-02-21');
+  });
+
+  it('mixes inline-date, time-only, and plain tasks', () => {
+    const md = [
+      '- [ ] 2026-02-25 Future all-day',
+      '- [ ] 2026-02-25 10:00 Future timed',
+      '- [ ] 09:00 Today timed',
+      '- [ ] Plain inbox',
+    ].join('\n');
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(scheduledTasks).toHaveLength(3);
+    expect(inboxTasks).toHaveLength(1);
+
+    // Future all-day
+    expect(scheduledTasks[0].date).toBe('2026-02-25');
+    expect(scheduledTasks[0].isAllDay).toBe(true);
+
+    // Future timed
+    expect(scheduledTasks[1].date).toBe('2026-02-25');
+    expect(scheduledTasks[1].startTime).toBe('10:00');
+    expect(scheduledTasks[1].isAllDay).toBe(false);
+
+    // Today timed (uses file date)
+    expect(scheduledTasks[2].date).toBe(dateStr);
+    expect(scheduledTasks[2].startTime).toBe('09:00');
+
+    // Inbox
+    expect(inboxTasks[0].title).toContain('Plain inbox');
+  });
+
+  it('inline date task has purple color and 30 min duration', () => {
+    const md = '- [ ] 2026-02-21 Some task';
+    const { scheduledTasks } = parseTasksFromMarkdown(md, dateStr);
+    expect(scheduledTasks[0].color).toBe('bg-purple-600');
+    expect(scheduledTasks[0].duration).toBe(30);
+  });
 });

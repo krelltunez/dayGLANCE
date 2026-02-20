@@ -225,14 +225,39 @@ function simpleHash(str) {
 }
 
 /**
+ * Try to parse a time string from the beginning of text.
+ * Returns { hours, minutes, rest } or null.
+ */
+function parseLeadingTime(text) {
+  const timeMatch = text.match(
+    /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/
+  );
+  if (!timeMatch) return null;
+  let hours = parseInt(timeMatch[1], 10);
+  const minutes = timeMatch[2];
+  const ampm = timeMatch[3];
+  if (ampm) {
+    const upper = ampm.toUpperCase();
+    if (upper === 'PM' && hours < 12) hours += 12;
+    if (upper === 'AM' && hours === 12) hours = 0;
+  }
+  if (hours < 0 || hours > 23) return null;
+  return {
+    startTime: `${hours.toString().padStart(2, '0')}:${minutes}`,
+    rest: timeMatch[4],
+  };
+}
+
+/**
  * Parse tasks from Obsidian markdown content.
  *
- * Recognised patterns:
- *   - [ ] Simple task
- *   - [x] Completed task
- *   - [ ] 09:00 Timed task
- *   - [ ] 9:00 AM Timed task
- *   - [ ] 14:30 Timed task
+ * Recognised patterns (in priority order):
+ *   - [ ] 2026-02-21 09:00 Date+time task  → scheduled on that date/time
+ *   - [ ] 2026-02-21 Date-only task         → all-day task on that date
+ *   - [ ] 09:00 Timed task                  → scheduled on the file's date
+ *   - [ ] 9:00 AM Timed task                → scheduled on the file's date
+ *   - [ ] Simple task                        → inbox task
+ *   - [x] Completed task                     → completed (any of the above)
  *
  * Returns { scheduledTasks: [...], inboxTasks: [...] }
  */
@@ -251,38 +276,47 @@ export function parseTasksFromMarkdown(content, dateStr) {
     const completed = match[1] !== ' ';
     let rawTitle = match[2].trim();
 
-    // Try to extract time from the beginning of the title
-    // Patterns: "09:00 Title", "9:00 Title", "9:00 AM Title", "9:00am Title"
+    let taskDate = dateStr;
     let startTime = null;
-    const timeMatch = rawTitle.match(
-      /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/
-    );
-    if (timeMatch) {
-      let hours = parseInt(timeMatch[1], 10);
-      const minutes = timeMatch[2];
-      const ampm = timeMatch[3];
-      if (ampm) {
-        const upper = ampm.toUpperCase();
-        if (upper === 'PM' && hours < 12) hours += 12;
-        if (upper === 'AM' && hours === 12) hours = 0;
+    let isAllDay = false;
+
+    // 1) Try inline date: "YYYY-MM-DD ..." at the beginning
+    const dateMatch = rawTitle.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
+    if (dateMatch) {
+      taskDate = dateMatch[1];
+      const afterDate = dateMatch[2];
+
+      // 1a) Try date + time: "YYYY-MM-DD HH:MM[am/pm] Title"
+      const timePart = parseLeadingTime(afterDate);
+      if (timePart) {
+        startTime = timePart.startTime;
+        rawTitle = timePart.rest;
+      } else {
+        // 1b) Date only → all-day task
+        isAllDay = true;
+        rawTitle = afterDate;
       }
-      if (hours >= 0 && hours <= 23) {
-        startTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
-        rawTitle = timeMatch[4];
+    } else {
+      // 2) Try time only: "HH:MM[am/pm] Title"
+      const timePart = parseLeadingTime(rawTitle);
+      if (timePart) {
+        startTime = timePart.startTime;
+        rawTitle = timePart.rest;
       }
     }
 
     // Add #obsidian tag if not already present
     const title = rawTitle.includes('#obsidian') ? rawTitle : `${rawTitle} #obsidian`;
 
-    // Stable ID: based on date + hash of raw title (before our tag addition)
-    const id = `obsidian-${dateStr}-${simpleHash(rawTitle)}`;
+    // Stable ID: based on task's effective date + hash of raw title
+    const id = `obsidian-${taskDate}-${simpleHash(rawTitle)}`;
 
     if (startTime) {
+      // Timed task (with or without inline date)
       scheduled.push({
         id,
         title,
-        date: dateStr,
+        date: taskDate,
         startTime,
         duration: 30,
         color: 'bg-purple-600',
@@ -294,7 +328,25 @@ export function parseTasksFromMarkdown(content, dateStr) {
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
       });
+    } else if (isAllDay) {
+      // Date-only task → all-day scheduled task
+      scheduled.push({
+        id,
+        title,
+        date: taskDate,
+        startTime: '00:00',
+        duration: 30,
+        color: 'bg-purple-600',
+        completed,
+        isAllDay: true,
+        notes: '',
+        subtasks: [],
+        imported: true,
+        importSource: 'obsidian',
+        obsidianRawTitle: rawTitle,
+      });
     } else {
+      // No date, no time → inbox
       inbox.push({
         id,
         title,
