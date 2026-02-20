@@ -139,54 +139,114 @@ const isOnlyUrl = (text) => {
 const renderFormattedText = (text) => {
   if (!text) return null;
 
-  const elements = [];
-  let lastIndex = 0;
-  let key = 0;
+  let gk = 0; // global key counter
 
-  // Combined regex for all formatting: **bold**, *italic*, __underline__, URLs
-  const formatRegex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(__(.+?)__)|(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
-  let match;
-
-  while ((match = formatRegex.exec(text)) !== null) {
-    // Add text before match
-    if (match.index > lastIndex) {
-      elements.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+  // Inline formatting: `code`, **bold**, *italic*, __underline__, URLs
+  const renderInline = (str) => {
+    if (!str) return null;
+    const parts = [];
+    let last = 0;
+    const re = /(`([^`]+)`)|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      if (m.index > last) parts.push(str.slice(last, m.index));
+      if (m[1]) {
+        // `inline code`
+        parts.push(<code key={gk++} className="px-1 py-0.5 rounded text-[0.85em] font-mono" style={{ background: 'rgba(128,128,128,0.18)' }}>{m[2]}</code>);
+      } else if (m[3]) {
+        parts.push(<strong key={gk++}>{m[3]}</strong>);
+      } else if (m[4]) {
+        parts.push(<em key={gk++}>{m[4]}</em>);
+      } else if (m[5]) {
+        parts.push(<span key={gk++} className="underline">{m[5]}</span>);
+      } else if (m[6]) {
+        parts.push(
+          <a key={gk++} href={m[6]} target="_blank" rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline break-all"
+            onClick={(e) => e.stopPropagation()}
+          >{m[6]}</a>
+        );
+      }
+      last = m.index + m[0].length;
     }
+    if (last < str.length) parts.push(str.slice(last));
+    return parts;
+  };
 
-    if (match[1]) {
-      // **bold**
-      elements.push(<strong key={key++}>{match[2]}</strong>);
-    } else if (match[3]) {
-      // *italic*
-      elements.push(<em key={key++}>{match[4]}</em>);
-    } else if (match[5]) {
-      // __underline__
-      elements.push(<span key={key++} className="underline">{match[6]}</span>);
-    } else if (match[7]) {
-      // URL
-      elements.push(
-        <a
-          key={key++}
-          href={match[7]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-400 hover:text-blue-300 underline break-all"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {match[7]}
-        </a>
+  const out = [];
+
+  // Split fenced code blocks from regular text
+  const cbRe = /```(?:\w*)\n?([\s\S]*?)```/g;
+  let cbLast = 0;
+  const segments = [];
+  let cbm;
+  while ((cbm = cbRe.exec(text)) !== null) {
+    if (cbm.index > cbLast) segments.push({ type: 't', c: text.slice(cbLast, cbm.index) });
+    segments.push({ type: 'cb', c: cbm[1] });
+    cbLast = cbm.index + cbm[0].length;
+  }
+  if (cbLast < text.length) segments.push({ type: 't', c: text.slice(cbLast) });
+
+  for (const seg of segments) {
+    if (seg.type === 'cb') {
+      out.push(
+        <pre key={gk++} className="rounded px-2.5 py-2 text-xs font-mono overflow-x-auto my-1" style={{ background: 'rgba(128,128,128,0.18)' }}>
+          <code>{seg.c}</code>
+        </pre>
       );
+      continue;
     }
 
-    lastIndex = match.index + match[0].length;
+    const lines = seg.c.split('\n');
+    for (const line of lines) {
+      // Header: # through ######
+      const hm = line.match(/^(#{1,6})\s+(.+)$/);
+      if (hm) {
+        const lvl = hm[1].length;
+        const cls = lvl === 1 ? 'text-lg font-bold' : lvl === 2 ? 'text-base font-semibold' : lvl === 3 ? 'font-semibold' : 'font-medium opacity-80';
+        out.push(<div key={gk++} className={`${cls} mt-1.5 mb-0.5`}>{renderInline(hm[2])}</div>);
+        continue;
+      }
+
+      // Checkbox: - [ ] or - [x]
+      const ckm = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
+      if (ckm) {
+        const checked = ckm[1] !== ' ';
+        out.push(
+          <div key={gk++} className="flex items-start gap-1.5 py-px">
+            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 mt-[3px] rounded-sm border flex-shrink-0 text-[10px] leading-none ${checked ? 'bg-purple-500/30 border-purple-400' : 'border-current opacity-40'}`}>
+              {checked && '✓'}
+            </span>
+            <span className={checked ? 'line-through opacity-60' : ''}>{renderInline(ckm[2])}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Bullet: - or * followed by space and text
+      const bm = line.match(/^\s*[-*]\s+(.+)$/);
+      if (bm) {
+        out.push(
+          <div key={gk++} className="flex items-start gap-1.5 py-px">
+            <span className="mt-[7px] w-1 h-1 rounded-full bg-current opacity-40 flex-shrink-0" />
+            <span>{renderInline(bm[1])}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Blank line
+      if (!line.trim()) {
+        out.push(<div key={gk++} className="h-1.5" />);
+        continue;
+      }
+
+      // Regular text line
+      out.push(<div key={gk++}>{renderInline(line)}</div>);
+    }
   }
 
-  // Add remaining text
-  if (lastIndex < text.length) {
-    elements.push(<span key={key++}>{text.slice(lastIndex)}</span>);
-  }
-
-  return elements;
+  return out;
 };
 
 // Check if task has any notes or subtasks
