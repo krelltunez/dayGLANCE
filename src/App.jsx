@@ -8194,20 +8194,24 @@ const DayPlanner = () => {
     if (!caldavBaseUrl || !username || !appPassword) return;
 
     const baseUrl = caldavBaseUrl.replace(/\/+$/, '');
-    const resourceUrl = `${baseUrl}/${encodeURIComponent(icalUid)}.ics`;
+    // Use encodeURI (not encodeURIComponent) for the UID — CalDAV UIDs often contain
+    // @ and other characters that are valid in URL paths but encodeURIComponent would escape
+    const resourceUrl = `${baseUrl}/${encodeURI(icalUid)}.ics`;
     const authHeaders = {
       'X-WebDAV-Auth': 'Basic ' + btoa(username + ':' + appPassword)
     };
 
     try {
       // GET the existing VTODO resource
+      console.log('CalDAV sync-back: GET', resourceUrl);
       const getRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
         method: 'GET',
         headers: authHeaders
       });
 
       if (!getRes.ok) {
-        console.error('CalDAV GET failed:', getRes.status);
+        console.error('CalDAV GET failed:', getRes.status, resourceUrl);
+        setSyncNotification({ type: 'error', title: 'CalDAV Sync', message: `Failed to fetch task from server (HTTP ${getRes.status}). Check CalDAV Base URL.` });
         return;
       }
 
@@ -8255,6 +8259,7 @@ const DayPlanner = () => {
       }
 
       // PUT the updated resource back
+      console.log('CalDAV sync-back: PUT', resourceUrl);
       const putRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
         method: 'PUT',
         headers: { ...authHeaders, 'Content-Type': 'text/calendar; charset=utf-8' },
@@ -8262,10 +8267,14 @@ const DayPlanner = () => {
       });
 
       if (!putRes.ok) {
-        console.error('CalDAV PUT failed:', putRes.status);
+        console.error('CalDAV PUT failed:', putRes.status, resourceUrl);
+        setSyncNotification({ type: 'error', title: 'CalDAV Sync', message: `Failed to update task on server (HTTP ${putRes.status})` });
+      } else {
+        console.log('CalDAV sync-back: success', icalUid, completed ? 'completed' : 'uncompleted');
       }
     } catch (err) {
       console.error('CalDAV completion sync error:', err);
+      setSyncNotification({ type: 'error', title: 'CalDAV Sync', message: `Sync error: ${err.message}` });
     }
   };
 
