@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh } from './obsidian.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -430,9 +431,33 @@ const NotesSubtasksPanel = ({
 };
 
 // Daily Notes Modal — popover for adding/editing notes on a specific date
-const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile }) => {
+const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, loadFresh }) => {
   const [localText, setLocalText] = useState(note?.text || '');
   const [isEditing, setIsEditing] = useState(!note?.text);
+  const [loading, setLoading] = useState(!!loadFresh);
+
+  // If an async loadFresh callback is provided (Obsidian), read fresh content on mount
+  useEffect(() => {
+    if (!loadFresh) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await loadFresh(dateStr);
+        if (cancelled) return;
+        if (fresh && fresh.text) {
+          setLocalText(fresh.text);
+          setIsEditing(false);
+        } else {
+          setIsEditing(true);
+        }
+      } catch (err) {
+        console.error('Failed to load fresh note from vault:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const localTextRef = useRef(localText);
   const onSaveRef = useRef(onSave);
   const dateStrRef = useRef(dateStr);
@@ -1372,6 +1397,20 @@ const DayPlanner = () => {
     } catch { return {}; }
   });
   const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
+
+  // Obsidian Integration state
+  const [obsidianConfig, setObsidianConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-obsidian-config');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [obsidianSyncStatus, setObsidianSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
+  const [obsidianLastSynced, setObsidianLastSynced] = useState(() =>
+    localStorage.getItem('day-planner-obsidian-last-synced') || null
+  );
+  const obsidianVaultHandleRef = useRef(null);
+  const obsidianSyncInProgressRef = useRef(false);
 
   // Auto-Backup state
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
@@ -2489,6 +2528,52 @@ const DayPlanner = () => {
       localStorage.removeItem('day-planner-cloud-sync-config');
     }
   }, [cloudSyncConfig]);
+
+  // Persist Obsidian config
+  useEffect(() => {
+    if (obsidianConfig) {
+      localStorage.setItem('day-planner-obsidian-config', JSON.stringify(obsidianConfig));
+    } else {
+      localStorage.removeItem('day-planner-obsidian-config');
+    }
+  }, [obsidianConfig]);
+
+  // Obsidian sync: restore vault handle on mount and do initial sync
+  useEffect(() => {
+    if (!obsidianConfig?.enabled || !dataLoaded) return;
+    (async () => {
+      try {
+        const handle = await getVaultAccess();
+        if (handle) {
+          obsidianVaultHandleRef.current = handle;
+          performObsidianSync();
+        }
+      } catch (err) {
+        console.error('Obsidian: failed to restore vault access', err);
+      }
+    })();
+  }, [dataLoaded, obsidianConfig?.enabled]);
+
+  // Obsidian sync: on visibility change (user switches back from Obsidian)
+  useEffect(() => {
+    if (!obsidianConfig?.enabled) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && obsidianVaultHandleRef.current) {
+        performObsidianSync();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [obsidianConfig?.enabled]);
+
+  // Obsidian sync: poll every 5 minutes while open
+  useEffect(() => {
+    if (!obsidianConfig?.enabled) return;
+    const timer = setInterval(() => {
+      if (obsidianVaultHandleRef.current) performObsidianSync();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [obsidianConfig?.enabled]);
 
   // Persist auto-backup config
   useEffect(() => {
@@ -4060,6 +4145,67 @@ const DayPlanner = () => {
       }
       return next;
     });
+    // If Obsidian integration is enabled, write the note to the vault
+    if (obsidianConfig?.enabled && obsidianVaultHandleRef.current) {
+      writeDailyNoteFile(
+        obsidianVaultHandleRef.current,
+        obsidianConfig.dailyNotesPath || '',
+        dateStr,
+        text || ''
+      ).catch(err => console.error('Obsidian: failed to write daily note', err));
+    }
+  };
+
+  // Obsidian vault sync — reads daily notes + imports tasks
+  const performObsidianSync = async () => {
+    if (obsidianSyncInProgressRef.current || !obsidianVaultHandleRef.current) return;
+    obsidianSyncInProgressRef.current = true;
+    setObsidianSyncStatus('syncing');
+
+    try {
+      const result = await syncObsidianVault(
+        obsidianVaultHandleRef.current,
+        obsidianConfig?.dailyNotesPath || '',
+        syncRetentionDays,
+        tasks,
+        unscheduledTasks,
+      );
+
+      // Update daily notes — replace with Obsidian-sourced notes
+      setDailyNotes(prev => {
+        const next = {};
+        // Keep non-Obsidian notes (from dates without Obsidian files, if integration was just enabled)
+        // Actually when Obsidian is enabled, Obsidian is the ONLY source — so just use the result
+        for (const [dateStr, note] of Object.entries(result.dailyNotes)) {
+          next[dateStr] = note;
+        }
+        return next;
+      });
+
+      // Update tasks — remove old Obsidian imports, add fresh ones
+      setTasks(prev => {
+        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
+        return [...nonObsidian, ...result.scheduledTasks];
+      });
+
+      // Update inbox — remove old Obsidian imports, add fresh ones
+      setUnscheduledTasks(prev => {
+        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
+        return [...nonObsidian, ...result.inboxTasks];
+      });
+
+      const now = new Date().toISOString();
+      setObsidianLastSynced(now);
+      localStorage.setItem('day-planner-obsidian-last-synced', now);
+      setObsidianSyncStatus('success');
+      setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
+    } catch (err) {
+      console.error('Obsidian sync error:', err);
+      setObsidianSyncStatus('error');
+      setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
+    } finally {
+      obsidianSyncInProgressRef.current = false;
+    }
   };
 
   // Helper to update a recurring task template by ID
@@ -11450,6 +11596,88 @@ const DayPlanner = () => {
                         <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
                       </label>
                     </div>
+
+                    {isFileSystemAccessSupported() && (<>
+                    <hr className={borderClass} />
+
+                    {/* Obsidian Integration */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <BookOpen size={16} className={textSecondary} />
+                        Obsidian Integration
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Import tasks and sync daily notes with your Obsidian vault.
+                      </p>
+                      {obsidianConfig?.enabled ? (
+                        <div className="space-y-3">
+                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
+                            <FolderOpen size={14} className={textSecondary} />
+                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
+                            <input
+                              type="text"
+                              placeholder="(vault root)"
+                              value={obsidianConfig.dailyNotesPath || ''}
+                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => performObsidianSync()}
+                              disabled={obsidianSyncStatus === 'syncing'}
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                            >
+                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await disconnectVault();
+                                obsidianVaultHandleRef.current = null;
+                                setObsidianConfig(null);
+                                setObsidianLastSynced(null);
+                                localStorage.removeItem('day-planner-obsidian-last-synced');
+                                setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                                setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                              }}
+                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                          {obsidianSyncStatus === 'success' && (
+                            <p className="text-xs text-green-500">Sync complete</p>
+                          )}
+                          {obsidianSyncStatus === 'error' && (
+                            <p className="text-xs text-red-500">Sync failed — check console</p>
+                          )}
+                          {obsidianLastSynced && (
+                            <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            const handle = await requestVaultAccess();
+                            if (handle) {
+                              obsidianVaultHandleRef.current = handle;
+                              setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
+                            }
+                          }}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                        >
+                          <FolderOpen size={14} />
+                          Select Vault Folder
+                        </button>
+                      )}
+                    </div>
+                    </>)}
                   </div>
                   );
                 })()}
@@ -15115,6 +15343,9 @@ const DayPlanner = () => {
           onClose={() => setDailyNotesModalDate(null)}
           darkMode={darkMode}
           isMobile={isMobile}
+          loadFresh={obsidianConfig?.enabled && obsidianVaultHandleRef.current
+            ? (d) => readDailyNoteFresh(obsidianVaultHandleRef.current, obsidianConfig.dailyNotesPath || '', d)
+            : null}
         />
       )}
 
@@ -17867,6 +18098,95 @@ const DayPlanner = () => {
                         Import events from an iCal (.ics) file
                       </p>
                     </div>
+
+                    {isFileSystemAccessSupported() && (<>
+                    <hr className={borderClass} />
+
+                    {/* Obsidian Integration Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <BookOpen size={16} className={textSecondary} />
+                        Obsidian Integration
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Import tasks and sync daily notes with your Obsidian vault.
+                      </p>
+                      {obsidianConfig?.enabled ? (
+                        <div className="space-y-3">
+                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
+                            <FolderOpen size={14} className={textSecondary} />
+                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>
+                              Daily notes folder
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="(vault root)"
+                              value={obsidianConfig.dailyNotesPath || ''}
+                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>
+                              Leave empty for vault root. Common: "Daily Notes" or "journals"
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => performObsidianSync()}
+                              disabled={obsidianSyncStatus === 'syncing'}
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                            >
+                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await disconnectVault();
+                                obsidianVaultHandleRef.current = null;
+                                setObsidianConfig(null);
+                                setObsidianLastSynced(null);
+                                localStorage.removeItem('day-planner-obsidian-last-synced');
+                                // Remove Obsidian-imported tasks
+                                setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                                setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                              }}
+                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                          {obsidianSyncStatus === 'success' && (
+                            <p className={`text-xs text-green-500`}>Sync complete</p>
+                          )}
+                          {obsidianSyncStatus === 'error' && (
+                            <p className={`text-xs text-red-500`}>Sync failed — check console for details</p>
+                          )}
+                          {obsidianLastSynced && (
+                            <p className={`text-xs ${textSecondary}`}>
+                              Last synced: {new Date(obsidianLastSynced).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            const handle = await requestVaultAccess();
+                            if (handle) {
+                              obsidianVaultHandleRef.current = handle;
+                              setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
+                            }
+                          }}
+                          className={`px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm`}
+                        >
+                          <FolderOpen size={14} />
+                          Select Vault Folder
+                        </button>
+                      )}
+                    </div>
+                    </>)}
                   </div>
 
                   {/* Right column - wide screens only */}
