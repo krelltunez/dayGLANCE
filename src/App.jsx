@@ -11746,11 +11746,14 @@ const DayPlanner = () => {
                             <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
                             <input
                               type="url"
-                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/tasks/"
+                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/personal/"
                               value={taskCalendarAuth.caldavBaseUrl}
                               onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, caldavBaseUrl: e.target.value }))}
                               className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
                             />
+                            <p className={`text-xs ${textSecondary} mt-0.5`}>
+                              The CalDAV collection URL (without ?export). In Nextcloud, find the internal calendar ID via CalDAV settings — it may differ from the display name.
+                            </p>
                           </div>
                           <div>
                             <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
@@ -18363,13 +18366,13 @@ const DayPlanner = () => {
                             <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
                             <input
                               type="url"
-                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/tasks/"
+                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/personal/"
                               value={taskCalendarAuth.caldavBaseUrl}
                               onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, caldavBaseUrl: e.target.value }))}
                               className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
                             />
                             <p className={`text-xs ${textSecondary} mt-0.5`}>
-                              The CalDAV collection URL (without ?export)
+                              The CalDAV collection URL (without ?export). In Nextcloud, the calendar ID in the URL may differ from the display name.
                             </p>
                           </div>
                           <div className="flex gap-2">
