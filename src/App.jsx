@@ -7564,6 +7564,15 @@ const DayPlanner = () => {
           if (colonIdx !== -1) {
             currentEvent.uid = line.substring(colonIdx + 1);
           }
+        } else if (line.startsWith('DESCRIPTION')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            currentEvent.description = line.substring(colonIdx + 1)
+              .replace(/\\,/g, ',')
+              .replace(/\\;/g, ';')
+              .replace(/\\n/gi, '\n')
+              .replace(/\\\\/g, '\\');
+          }
         } else if (line.startsWith('RRULE:')) {
           currentEvent.rrule = line.substring(6);
         } else if (line.startsWith('EXDATE')) {
@@ -7835,7 +7844,8 @@ const DayPlanner = () => {
         imported: true,
         isTaskCalendar: asTaskCalendar,
         isAllDay: isAllDay,
-        importSource: importSource
+        importSource: importSource,
+        ...(event.description ? { notes: event.description } : {})
       });
     }
 
@@ -14645,7 +14655,7 @@ const DayPlanner = () => {
                                       )}
                                     </div>
                                   </div>
-                                  {!isImported && (
+                                  {!isImported ? (
                                     useFullLayout ? (
                                       // Full layout: show action buttons inline
                                       <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -14665,7 +14675,18 @@ const DayPlanner = () => {
                                         )}
                                       </button>
                                     )
-                                  )}
+                                  ) : task.notes ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      }}
+                                      className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                      title="View description"
+                                    >
+                                      <FileText size={14} />
+                                    </button>
+                                  ) : null}
                                 </div>
                               </div>
                               {/* Notes panel for all-day tasks */}
@@ -14682,6 +14703,17 @@ const DayPlanner = () => {
                                     updateSubtaskTitle={updateSubtaskTitle}
                                     compact={false}
                                   />
+                                </div>
+                              )}
+                              {/* Read-only notes panel for imported events with descriptions */}
+                              {expandedNotesTaskId === task.id && isImported && task.notes && (
+                                <div className="notes-panel-container p-2">
+                                  <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
+                                    <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
+                                    <div className="text-sm whitespace-pre-wrap p-2 rounded bg-white/10">
+                                      {renderFormattedText(task.notes)}
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -15143,9 +15175,23 @@ const DayPlanner = () => {
                                     >
                                       {renderTitleWithoutTags(task.title)}
                                     </div>
-                                    <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
-                                      <Clock size={10} />
-                                      {formatTime(task.startTime)} • {task.duration}m
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      {task.notes && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                          }}
+                                          className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
+                                          title="View description"
+                                        >
+                                          <FileText size={12} />
+                                        </button>
+                                      )}
+                                      <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
+                                        <Clock size={10} />
+                                        {formatTime(task.startTime)} • {task.duration}m
+                                      </div>
                                     </div>
                                   </div>
                                 ) : isNarrowWidth ? (
@@ -15335,6 +15381,27 @@ const DayPlanner = () => {
                                           updateSubtaskTitle={updateSubtaskTitle}
                                           compact={false}
                                         />
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                                {/* Read-only notes panel for imported events with descriptions */}
+                                {expandedNotesTaskId === task.id && isImported && task.notes && (() => {
+                                  const startMin = timeToMinutes(task.startTime || '0:00');
+                                  const endMin = startMin + (task.duration || 0);
+                                  const showAbove = endMin >= 22 * 60;
+                                  return (
+                                    <div
+                                      className="notes-panel-container absolute left-0 right-0 z-40"
+                                      style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+                                    >
+                                      <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
+                                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
+                                          <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
+                                          <div className="text-sm whitespace-pre-wrap p-2 rounded bg-white/10">
+                                            {renderFormattedText(task.notes)}
+                                          </div>
+                                        </div>
                                       </div>
                                     </div>
                                   );
