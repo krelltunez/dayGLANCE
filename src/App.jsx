@@ -18215,6 +18215,30 @@ const DayPlanner = () => {
                       </div>
                     </div>
 
+                    <hr className={borderClass} />
+
+                    {/* Sound Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Bell size={16} className={textSecondary} />
+                        Sound
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={soundEnabled}
+                            onChange={(e) => setSoundEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+
                     {!isMobile && !isTablet && (<>
                     <hr className={borderClass} />
 
@@ -18270,30 +18294,6 @@ const DayPlanner = () => {
                       </div>
                     </div>
                     </>)}
-
-                    <hr className={borderClass} />
-
-                    {/* Sound Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Bell size={16} className={textSecondary} />
-                        Sound
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={soundEnabled}
-                            onChange={(e) => setSoundEnabled(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
-                      </label>
-                    </div>
 
                     {/* Cloud Sync Section - narrow screens only */}
                     <hr className={`${borderClass} lg:hidden`} />
@@ -18439,28 +18439,10 @@ const DayPlanner = () => {
                       )}
                     </div>
 
-                    <hr className={`${borderClass} lg:hidden`} />
+                    <hr className={borderClass} />
 
-                    {/* iCal Import Section - narrow screens only (shown in right column on desktop) */}
-                    <div className="space-y-3 lg:hidden">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Upload size={16} className={textSecondary} />
-                        iCal Import
-                      </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
-                        <Upload size={14} className={textSecondary} />
-                        Choose .ics file
-                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
-                      </label>
-                      <p className={`text-xs ${textSecondary}`}>
-                        Import events from an iCal (.ics) file
-                      </p>
-                    </div>
-
-                    <hr className={`${borderClass} lg:hidden`} />
-
-                    {/* Obsidian Integration Section - narrow screens only */}
-                    <div className="space-y-3 lg:hidden">
+                    {/* Obsidian Integration Section */}
+                    <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <BookOpen size={16} className={textSecondary} />
                         Obsidian Integration
@@ -18546,6 +18528,24 @@ const DayPlanner = () => {
                           Select Vault Folder
                         </button>
                       )}
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* iCal Import Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Upload size={16} className={textSecondary} />
+                        iCal Import
+                      </h4>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                        <Upload size={14} className={textSecondary} />
+                        Choose .ics file
+                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
+                      </label>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Import events from an iCal (.ics) file
+                      </p>
                     </div>
                   </div>
 
@@ -18694,114 +18694,6 @@ const DayPlanner = () => {
                       )}
                     </div>
 
-                    <hr className={borderClass} />
-
-                    {/* iCal Import Section - wide screens */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Upload size={16} className={textSecondary} />
-                        iCal Import
-                      </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
-                        <Upload size={14} className={textSecondary} />
-                        Choose .ics file
-                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
-                      </label>
-                      <p className={`text-xs ${textSecondary}`}>
-                        Import events from an iCal (.ics) file
-                      </p>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Obsidian Integration Section - wide screens */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <BookOpen size={16} className={textSecondary} />
-                        Obsidian Integration
-                      </h4>
-                      <p className={`${textSecondary} text-xs`}>
-                        Import tasks and sync daily notes with your Obsidian vault.
-                      </p>
-                      {obsidianConfig?.enabled ? (
-                        <div className="space-y-3">
-                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
-                            <FolderOpen size={14} className={textSecondary} />
-                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                          </div>
-                          <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>
-                              Daily notes folder
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="(vault root)"
-                              value={obsidianConfig.dailyNotesPath || ''}
-                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
-                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                            />
-                            <p className={`text-xs ${textSecondary} mt-1`}>
-                              Leave empty for vault root. Common: "Daily Notes" or "journals"
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => performObsidianSync()}
-                              disabled={obsidianSyncStatus === 'syncing'}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
-                            >
-                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
-                            </button>
-                            <button
-                              onClick={async () => {
-                                await disconnectVault();
-                                obsidianVaultHandleRef.current = null;
-                                setObsidianConfig(null);
-                                setObsidianLastSynced(null);
-                                localStorage.removeItem('day-planner-obsidian-last-synced');
-                                // Remove Obsidian-imported tasks
-                                setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
-                                setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
-                              }}
-                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
-                            >
-                              Disconnect
-                            </button>
-                          </div>
-                          {obsidianSyncStatus === 'success' && (
-                            <p className={`text-xs text-green-500`}>Sync complete</p>
-                          )}
-                          {obsidianSyncStatus === 'error' && (
-                            <p className={`text-xs text-red-500`}>Sync failed — check console for details</p>
-                          )}
-                          {obsidianLastSynced && (
-                            <p className={`text-xs ${textSecondary}`}>
-                              Last synced: {new Date(obsidianLastSynced).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={async () => {
-                            if (!isFileSystemAccessSupported()) {
-                              alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
-                              return;
-                            }
-                            const handle = await requestVaultAccess();
-                            if (handle) {
-                              obsidianVaultHandleRef.current = handle;
-                              setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
-                            }
-                          }}
-                          className={`px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm`}
-                        >
-                          <FolderOpen size={14} />
-                          Select Vault Folder
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </div>
 
