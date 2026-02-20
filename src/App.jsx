@@ -1272,6 +1272,10 @@ const DayPlanner = () => {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
   const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
+  const [taskCalendarAuth, setTaskCalendarAuth] = useState(() => {
+    const saved = localStorage.getItem('day-planner-task-calendar-auth');
+    return saved ? JSON.parse(saved) : { username: '', appPassword: '', caldavBaseUrl: '' };
+  });
   const [syncRetentionDays, setSyncRetentionDays] = useState(() => {
     const saved = localStorage.getItem('day-planner-sync-retention-days');
     return saved ? JSON.parse(saved) : 30;
@@ -2374,6 +2378,11 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
     }
   }, [dailyNotes]);
+
+  // Persist task calendar auth to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(taskCalendarAuth));
+  }, [taskCalendarAuth]);
 
   // Track for onboarding when sync is set up
   useEffect(() => {
@@ -4064,6 +4073,7 @@ const DayPlanner = () => {
       const task = tasks.find(t => t.id === id);
       if (task?.isTaskCalendar && task?.icalUid) {
         // Persist completion state for task calendar items
+        const newCompleted = !task.completed;
         setCompletedTaskUids(prev => {
           const newSet = new Set(prev);
           if (task.completed) {
@@ -4073,6 +4083,8 @@ const DayPlanner = () => {
           }
           return newSet;
         });
+        // Sync completion back to CalDAV server (fire-and-forget)
+        syncTaskCompletionToCalDAV(task.icalUid, newCompleted);
       }
       setTasks(prev => prev.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
@@ -8166,6 +8178,87 @@ const DayPlanner = () => {
     }
   };
 
+  // Sync task completion status back to CalDAV server
+  const syncTaskCompletionToCalDAV = async (icalUid, completed) => {
+    const { username, appPassword, caldavBaseUrl } = taskCalendarAuth;
+    if (!caldavBaseUrl || !username || !appPassword) return;
+
+    const baseUrl = caldavBaseUrl.replace(/\/+$/, '');
+    const resourceUrl = `${baseUrl}/${encodeURIComponent(icalUid)}.ics`;
+    const authHeaders = {
+      'X-WebDAV-Auth': 'Basic ' + btoa(username + ':' + appPassword)
+    };
+
+    try {
+      // GET the existing VTODO resource
+      const getRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+
+      if (!getRes.ok) {
+        console.error('CalDAV GET failed:', getRes.status);
+        return;
+      }
+
+      let icsContent = await getRes.text();
+
+      // Update the VTODO completion properties
+      if (completed) {
+        const now = new Date();
+        const completedStamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        // Set STATUS to COMPLETED
+        if (/^STATUS:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
+        } else {
+          icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
+        }
+        // Add or update COMPLETED timestamp
+        if (/^COMPLETED:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${completedStamp}`);
+        } else {
+          icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${completedStamp}\r\n$1`);
+        }
+        // Set PERCENT-COMPLETE to 100
+        if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
+        } else {
+          icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
+        }
+      } else {
+        // Revert to incomplete
+        if (/^STATUS:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
+        }
+        // Remove COMPLETED timestamp
+        icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
+        // Reset PERCENT-COMPLETE to 0
+        if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
+        }
+      }
+
+      // Update LAST-MODIFIED
+      const lastMod = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      if (/^LAST-MODIFIED:/m.test(icsContent)) {
+        icsContent = icsContent.replace(/^LAST-MODIFIED:.*$/m, `LAST-MODIFIED:${lastMod}`);
+      }
+
+      // PUT the updated resource back
+      const putRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
+        method: 'PUT',
+        headers: { ...authHeaders, 'Content-Type': 'text/calendar; charset=utf-8' },
+        body: icsContent
+      });
+
+      if (!putRes.ok) {
+        console.error('CalDAV PUT failed:', putRes.status);
+      }
+    } catch (err) {
+      console.error('CalDAV completion sync error:', err);
+    }
+  };
+
   // Combined sync function that shows a single notification
   const syncAll = async ({ silent = false } = {}) => {
     if (!syncUrl && !taskCalendarUrl) {
@@ -11627,6 +11720,44 @@ const DayPlanner = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                       </div>
+                      {taskCalendarUrl && (
+                        <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
+                          <p className={`text-xs font-medium ${textSecondary}`}>Sync completions back (optional)</p>
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
+                            <input
+                              type="url"
+                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/tasks/"
+                              value={taskCalendarAuth.caldavBaseUrl}
+                              onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, caldavBaseUrl: e.target.value }))}
+                              className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
+                            <input
+                              type="text"
+                              placeholder="username"
+                              value={taskCalendarAuth.username}
+                              onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, username: e.target.value }))}
+                              className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1`}>App Password</label>
+                            <input
+                              type="password"
+                              placeholder="app-password"
+                              value={taskCalendarAuth.appPassword}
+                              onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, appPassword: e.target.value }))}
+                              className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                            />
+                          </div>
+                          <p className={`text-xs ${textSecondary}`}>
+                            When set, completing a task syncs the status back to your CalDAV server
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>Keep past events</label>
                         <select
@@ -18149,6 +18280,49 @@ const DayPlanner = () => {
                           Tasks appear with striped pattern; completion state persists across syncs
                         </p>
                       </div>
+                      {taskCalendarUrl && (
+                        <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
+                          <p className={`text-xs font-medium ${textSecondary}`}>Sync completions back (optional)</p>
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
+                            <input
+                              type="url"
+                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/tasks/"
+                              value={taskCalendarAuth.caldavBaseUrl}
+                              onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, caldavBaseUrl: e.target.value }))}
+                              className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-0.5`}>
+                              The CalDAV collection URL (without ?export)
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
+                              <input
+                                type="text"
+                                placeholder="username"
+                                value={taskCalendarAuth.username}
+                                onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, username: e.target.value }))}
+                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className={`block text-xs ${textSecondary} mb-1`}>App Password</label>
+                              <input
+                                type="password"
+                                placeholder="app-password"
+                                value={taskCalendarAuth.appPassword}
+                                onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, appPassword: e.target.value }))}
+                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
+                              />
+                            </div>
+                          </div>
+                          <p className={`text-xs ${textSecondary}`}>
+                            When set, completing a task syncs the status back to your CalDAV server
+                          </p>
+                        </div>
+                      )}
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           Keep past events
@@ -19556,7 +19730,7 @@ const DayPlanner = () => {
                     <li>Click <Settings size={14} className="inline mx-0.5" /> in the top bar to open <strong className={textPrimary}>Settings</strong></li>
                     <li>Add <strong className={textPrimary}>CalDAV</strong> calendar URLs to sync events and reminders</li>
                     <li>Import <strong className={textPrimary}>iCal (.ics)</strong> files to bring in existing events</li>
-                    <li>Calendar sync is <strong className={textPrimary}>one-way</strong> — events are imported into dayGLANCE for viewing but changes are not pushed back to the source calendar</li>
+                    <li>Calendar events are imported <strong className={textPrimary}>one-way</strong> for viewing. Task completions can optionally be synced back to your CalDAV server</li>
                   </ul>
                 </div>
               )}
