@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -138,54 +139,114 @@ const isOnlyUrl = (text) => {
 const renderFormattedText = (text) => {
   if (!text) return null;
 
-  const elements = [];
-  let lastIndex = 0;
-  let key = 0;
+  let gk = 0; // global key counter
 
-  // Combined regex for all formatting: **bold**, *italic*, __underline__, URLs
-  const formatRegex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(__(.+?)__)|(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
-  let match;
-
-  while ((match = formatRegex.exec(text)) !== null) {
-    // Add text before match
-    if (match.index > lastIndex) {
-      elements.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+  // Inline formatting: `code`, **bold**, *italic*, __underline__, URLs
+  const renderInline = (str) => {
+    if (!str) return null;
+    const parts = [];
+    let last = 0;
+    const re = /(`([^`]+)`)|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      if (m.index > last) parts.push(str.slice(last, m.index));
+      if (m[1]) {
+        // `inline code`
+        parts.push(<code key={gk++} className="px-1 py-0.5 rounded text-[0.85em] font-mono" style={{ background: 'rgba(128,128,128,0.18)' }}>{m[2]}</code>);
+      } else if (m[3]) {
+        parts.push(<strong key={gk++}>{m[3]}</strong>);
+      } else if (m[4]) {
+        parts.push(<em key={gk++}>{m[4]}</em>);
+      } else if (m[5]) {
+        parts.push(<span key={gk++} className="underline">{m[5]}</span>);
+      } else if (m[6]) {
+        parts.push(
+          <a key={gk++} href={m[6]} target="_blank" rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline break-all"
+            onClick={(e) => e.stopPropagation()}
+          >{m[6]}</a>
+        );
+      }
+      last = m.index + m[0].length;
     }
+    if (last < str.length) parts.push(str.slice(last));
+    return parts;
+  };
 
-    if (match[1]) {
-      // **bold**
-      elements.push(<strong key={key++}>{match[2]}</strong>);
-    } else if (match[3]) {
-      // *italic*
-      elements.push(<em key={key++}>{match[4]}</em>);
-    } else if (match[5]) {
-      // __underline__
-      elements.push(<span key={key++} className="underline">{match[6]}</span>);
-    } else if (match[7]) {
-      // URL
-      elements.push(
-        <a
-          key={key++}
-          href={match[7]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-400 hover:text-blue-300 underline break-all"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {match[7]}
-        </a>
+  const out = [];
+
+  // Split fenced code blocks from regular text
+  const cbRe = /```(?:\w*)\n?([\s\S]*?)```/g;
+  let cbLast = 0;
+  const segments = [];
+  let cbm;
+  while ((cbm = cbRe.exec(text)) !== null) {
+    if (cbm.index > cbLast) segments.push({ type: 't', c: text.slice(cbLast, cbm.index) });
+    segments.push({ type: 'cb', c: cbm[1] });
+    cbLast = cbm.index + cbm[0].length;
+  }
+  if (cbLast < text.length) segments.push({ type: 't', c: text.slice(cbLast) });
+
+  for (const seg of segments) {
+    if (seg.type === 'cb') {
+      out.push(
+        <pre key={gk++} className="rounded px-2.5 py-2 text-xs font-mono overflow-x-auto my-1" style={{ background: 'rgba(128,128,128,0.18)' }}>
+          <code>{seg.c}</code>
+        </pre>
       );
+      continue;
     }
 
-    lastIndex = match.index + match[0].length;
+    const lines = seg.c.split('\n');
+    for (const line of lines) {
+      // Header: # through ######
+      const hm = line.match(/^(#{1,6})\s+(.+)$/);
+      if (hm) {
+        const lvl = hm[1].length;
+        const cls = lvl === 1 ? 'text-lg font-bold' : lvl === 2 ? 'text-base font-semibold' : lvl === 3 ? 'font-semibold' : 'font-medium opacity-80';
+        out.push(<div key={gk++} className={`${cls} mt-1.5 mb-0.5`}>{renderInline(hm[2])}</div>);
+        continue;
+      }
+
+      // Checkbox: - [ ] or - [x]
+      const ckm = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
+      if (ckm) {
+        const checked = ckm[1] !== ' ';
+        out.push(
+          <div key={gk++} className="flex items-start gap-1.5 py-px">
+            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 mt-[3px] rounded-sm border flex-shrink-0 text-[10px] leading-none ${checked ? 'bg-purple-500/30 border-purple-400' : 'border-current opacity-40'}`}>
+              {checked && '✓'}
+            </span>
+            <span className={checked ? 'line-through opacity-60' : ''}>{renderInline(ckm[2])}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Bullet: - or * followed by space and text
+      const bm = line.match(/^\s*[-*]\s+(.+)$/);
+      if (bm) {
+        out.push(
+          <div key={gk++} className="flex items-start gap-1.5 py-px">
+            <span className="mt-[7px] w-1 h-1 rounded-full bg-current opacity-40 flex-shrink-0" />
+            <span>{renderInline(bm[1])}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Blank line
+      if (!line.trim()) {
+        out.push(<div key={gk++} className="h-1.5" />);
+        continue;
+      }
+
+      // Regular text line
+      out.push(<div key={gk++}>{renderInline(line)}</div>);
+    }
   }
 
-  // Add remaining text
-  if (lastIndex < text.length) {
-    elements.push(<span key={key++}>{text.slice(lastIndex)}</span>);
-  }
-
-  return elements;
+  return out;
 };
 
 // Check if task has any notes or subtasks
@@ -430,9 +491,33 @@ const NotesSubtasksPanel = ({
 };
 
 // Daily Notes Modal — popover for adding/editing notes on a specific date
-const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile }) => {
+const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, loadFresh }) => {
   const [localText, setLocalText] = useState(note?.text || '');
   const [isEditing, setIsEditing] = useState(!note?.text);
+  const [loading, setLoading] = useState(!!loadFresh);
+
+  // If an async loadFresh callback is provided (Obsidian), read fresh content on mount
+  useEffect(() => {
+    if (!loadFresh) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await loadFresh(dateStr);
+        if (cancelled) return;
+        if (fresh && fresh.text) {
+          setLocalText(fresh.text);
+          setIsEditing(false);
+        } else {
+          setIsEditing(true);
+        }
+      } catch (err) {
+        console.error('Failed to load fresh note from vault:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const localTextRef = useRef(localText);
   const onSaveRef = useRef(onSave);
   const dateStrRef = useRef(dateStr);
@@ -1372,6 +1457,21 @@ const DayPlanner = () => {
     } catch { return {}; }
   });
   const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
+
+  // Obsidian Integration state
+  const [obsidianConfig, setObsidianConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-obsidian-config');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [obsidianSyncStatus, setObsidianSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
+  const [obsidianLastSynced, setObsidianLastSynced] = useState(() =>
+    localStorage.getItem('day-planner-obsidian-last-synced') || null
+  );
+  const obsidianVaultHandleRef = useRef(null);
+  const obsidianSyncInProgressRef = useRef(false);
+  const obsidianPrevTaskStateRef = useRef({}); // tracks {id: {completed, startTime, date}} for change detection
 
   // Auto-Backup state
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
@@ -2489,6 +2589,87 @@ const DayPlanner = () => {
       localStorage.removeItem('day-planner-cloud-sync-config');
     }
   }, [cloudSyncConfig]);
+
+  // Persist Obsidian config
+  useEffect(() => {
+    if (obsidianConfig) {
+      localStorage.setItem('day-planner-obsidian-config', JSON.stringify(obsidianConfig));
+    } else {
+      localStorage.removeItem('day-planner-obsidian-config');
+    }
+  }, [obsidianConfig]);
+
+  // Obsidian sync: restore vault handle on mount and do initial sync
+  useEffect(() => {
+    if (!obsidianConfig?.enabled || !dataLoaded) return;
+    (async () => {
+      try {
+        const handle = await getVaultAccess();
+        if (handle) {
+          obsidianVaultHandleRef.current = handle;
+          performObsidianSync();
+        }
+      } catch (err) {
+        console.error('Obsidian: failed to restore vault access', err);
+      }
+    })();
+  }, [dataLoaded, obsidianConfig?.enabled]);
+
+  // Obsidian sync: on visibility change (user switches back from Obsidian)
+  useEffect(() => {
+    if (!obsidianConfig?.enabled) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && obsidianVaultHandleRef.current) {
+        performObsidianSync();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [obsidianConfig?.enabled]);
+
+  // Obsidian sync: poll every 5 minutes while open
+  useEffect(() => {
+    if (!obsidianConfig?.enabled) return;
+    const timer = setInterval(() => {
+      if (obsidianVaultHandleRef.current) performObsidianSync();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [obsidianConfig?.enabled]);
+
+  // Obsidian writeback: detect completion/scheduling changes and write back to vault
+  useEffect(() => {
+    if (!obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
+    // Skip writeback while a sync is replacing the task arrays
+    if (obsidianSyncInProgressRef.current) return;
+
+    const allObsidian = [...tasks, ...unscheduledTasks].filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle);
+    const prev = obsidianPrevTaskStateRef.current;
+
+    for (const task of allObsidian) {
+      const p = prev[task.id];
+      if (p && (p.completed !== task.completed || p.startTime !== (task.startTime || null))) {
+        // Extract source date from task ID (obsidian-YYYY-MM-DD-hash)
+        const sourceDate = task.date || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1];
+        if (sourceDate) {
+          writeTaskStateToFile(
+            obsidianVaultHandleRef.current,
+            obsidianConfig.dailyNotesPath || '',
+            sourceDate,
+            task.obsidianRawTitle,
+            task.completed,
+            task.startTime || null,
+          ).catch(err => console.error('Obsidian: failed to write task state back', err));
+        }
+      }
+    }
+
+    // Update previous-state snapshot
+    const next = {};
+    for (const task of allObsidian) {
+      next[task.id] = { completed: task.completed, startTime: task.startTime || null };
+    }
+    obsidianPrevTaskStateRef.current = next;
+  }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
 
   // Persist auto-backup config
   useEffect(() => {
@@ -4060,6 +4241,74 @@ const DayPlanner = () => {
       }
       return next;
     });
+    // If Obsidian integration is enabled, write the note to the vault
+    if (obsidianConfig?.enabled && obsidianVaultHandleRef.current) {
+      writeDailyNoteFile(
+        obsidianVaultHandleRef.current,
+        obsidianConfig.dailyNotesPath || '',
+        dateStr,
+        text || ''
+      ).catch(err => console.error('Obsidian: failed to write daily note', err));
+    }
+  };
+
+  // Obsidian vault sync — reads daily notes + imports tasks
+  const performObsidianSync = async () => {
+    if (obsidianSyncInProgressRef.current || !obsidianVaultHandleRef.current) return;
+    obsidianSyncInProgressRef.current = true;
+    setObsidianSyncStatus('syncing');
+
+    try {
+      const result = await syncObsidianVault(
+        obsidianVaultHandleRef.current,
+        obsidianConfig?.dailyNotesPath || '',
+        syncRetentionDays,
+        tasks,
+        unscheduledTasks,
+      );
+
+      // Update daily notes — replace with Obsidian-sourced notes
+      setDailyNotes(prev => {
+        const next = {};
+        // Keep non-Obsidian notes (from dates without Obsidian files, if integration was just enabled)
+        // Actually when Obsidian is enabled, Obsidian is the ONLY source — so just use the result
+        for (const [dateStr, note] of Object.entries(result.dailyNotes)) {
+          next[dateStr] = note;
+        }
+        return next;
+      });
+
+      // Update tasks — remove old Obsidian imports, add fresh ones
+      setTasks(prev => {
+        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
+        return [...nonObsidian, ...result.scheduledTasks];
+      });
+
+      // Update inbox — remove old Obsidian imports, add fresh ones
+      setUnscheduledTasks(prev => {
+        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
+        return [...nonObsidian, ...result.inboxTasks];
+      });
+
+      // Snapshot the fresh task state so the writeback effect doesn't re-trigger
+      const snapshot = {};
+      for (const t of [...result.scheduledTasks, ...result.inboxTasks]) {
+        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null };
+      }
+      obsidianPrevTaskStateRef.current = snapshot;
+
+      const now = new Date().toISOString();
+      setObsidianLastSynced(now);
+      localStorage.setItem('day-planner-obsidian-last-synced', now);
+      setObsidianSyncStatus('success');
+      setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
+    } catch (err) {
+      console.error('Obsidian sync error:', err);
+      setObsidianSyncStatus('error');
+      setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
+    } finally {
+      obsidianSyncInProgressRef.current = false;
+    }
   };
 
   // Helper to update a recurring task template by ID
@@ -11450,6 +11699,88 @@ const DayPlanner = () => {
                         <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
                       </label>
                     </div>
+
+                    {isFileSystemAccessSupported() && (<>
+                    <hr className={borderClass} />
+
+                    {/* Obsidian Integration */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <BookOpen size={16} className={textSecondary} />
+                        Obsidian Integration
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Import tasks and sync daily notes with your Obsidian vault.
+                      </p>
+                      {obsidianConfig?.enabled ? (
+                        <div className="space-y-3">
+                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
+                            <FolderOpen size={14} className={textSecondary} />
+                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
+                            <input
+                              type="text"
+                              placeholder="(vault root)"
+                              value={obsidianConfig.dailyNotesPath || ''}
+                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => performObsidianSync()}
+                              disabled={obsidianSyncStatus === 'syncing'}
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                            >
+                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await disconnectVault();
+                                obsidianVaultHandleRef.current = null;
+                                setObsidianConfig(null);
+                                setObsidianLastSynced(null);
+                                localStorage.removeItem('day-planner-obsidian-last-synced');
+                                setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                                setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                              }}
+                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                          {obsidianSyncStatus === 'success' && (
+                            <p className="text-xs text-green-500">Sync complete</p>
+                          )}
+                          {obsidianSyncStatus === 'error' && (
+                            <p className="text-xs text-red-500">Sync failed — check console</p>
+                          )}
+                          {obsidianLastSynced && (
+                            <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            const handle = await requestVaultAccess();
+                            if (handle) {
+                              obsidianVaultHandleRef.current = handle;
+                              setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
+                            }
+                          }}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                        >
+                          <FolderOpen size={14} />
+                          Select Vault Folder
+                        </button>
+                      )}
+                    </div>
+                    </>)}
                   </div>
                   );
                 })()}
@@ -15115,6 +15446,9 @@ const DayPlanner = () => {
           onClose={() => setDailyNotesModalDate(null)}
           darkMode={darkMode}
           isMobile={isMobile}
+          loadFresh={obsidianConfig?.enabled && obsidianVaultHandleRef.current
+            ? (d) => readDailyNoteFresh(obsidianVaultHandleRef.current, obsidianConfig.dailyNotesPath || '', d)
+            : null}
         />
       )}
 
@@ -17867,6 +18201,95 @@ const DayPlanner = () => {
                         Import events from an iCal (.ics) file
                       </p>
                     </div>
+
+                    {isFileSystemAccessSupported() && (<>
+                    <hr className={borderClass} />
+
+                    {/* Obsidian Integration Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <BookOpen size={16} className={textSecondary} />
+                        Obsidian Integration
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Import tasks and sync daily notes with your Obsidian vault.
+                      </p>
+                      {obsidianConfig?.enabled ? (
+                        <div className="space-y-3">
+                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
+                            <FolderOpen size={14} className={textSecondary} />
+                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>
+                              Daily notes folder
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="(vault root)"
+                              value={obsidianConfig.dailyNotesPath || ''}
+                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>
+                              Leave empty for vault root. Common: "Daily Notes" or "journals"
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => performObsidianSync()}
+                              disabled={obsidianSyncStatus === 'syncing'}
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                            >
+                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await disconnectVault();
+                                obsidianVaultHandleRef.current = null;
+                                setObsidianConfig(null);
+                                setObsidianLastSynced(null);
+                                localStorage.removeItem('day-planner-obsidian-last-synced');
+                                // Remove Obsidian-imported tasks
+                                setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                                setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                              }}
+                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                          {obsidianSyncStatus === 'success' && (
+                            <p className={`text-xs text-green-500`}>Sync complete</p>
+                          )}
+                          {obsidianSyncStatus === 'error' && (
+                            <p className={`text-xs text-red-500`}>Sync failed — check console for details</p>
+                          )}
+                          {obsidianLastSynced && (
+                            <p className={`text-xs ${textSecondary}`}>
+                              Last synced: {new Date(obsidianLastSynced).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            const handle = await requestVaultAccess();
+                            if (handle) {
+                              obsidianVaultHandleRef.current = handle;
+                              setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
+                            }
+                          }}
+                          className={`px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm`}
+                        >
+                          <FolderOpen size={14} />
+                          Select Vault Folder
+                        </button>
+                      )}
+                    </div>
+                    </>)}
                   </div>
 
                   {/* Right column - wide screens only */}
