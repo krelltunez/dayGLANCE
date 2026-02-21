@@ -1476,7 +1476,7 @@ const DayPlanner = () => {
   const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
   const [dailyNoteTemplate, setDailyNoteTemplate] = useState(() => {
     const saved = localStorage.getItem('day-planner-daily-note-template');
-    return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks';
+    return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks\n';
   });
 
   // Obsidian Integration state
