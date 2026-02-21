@@ -3002,6 +3002,11 @@ const DayPlanner = () => {
           return { ...t, lastModified: prevTask.lastModified };
         }
       }
+      // If the task is new to localStorage but already carries a lastModified
+      // (e.g. a fresh Obsidian import stamped with epoch, or a task arriving
+      // via cloud sync), preserve it so cloud merge doesn't treat a passive
+      // re-import as a newer edit than real user changes on other devices.
+      if (!prevTask && t.lastModified) return t;
       // Task is new or changed — stamp it now so other devices see the update
       return { ...t, lastModified: now };
     });

@@ -463,12 +463,20 @@ export async function syncObsidianVault(
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
         if (existing.title !== undefined) task.title = existing.title;
+        // Preserve lastModified so cloud merge keeps recognising the
+        // version the user actually edited rather than treating re-imports
+        // as brand-new tasks with a fresh timestamp.
+        if (existing.lastModified) task.lastModified = existing.lastModified;
 
         // User moved this to inbox — respect the cross-array move
         if (userInboxIds.has(task.id)) {
           allInbox.push(task);
           continue;
         }
+      } else {
+        // Fresh import with no local match — use epoch so cloud merge
+        // correctly prefers real user edits from other devices.
+        task.lastModified = new Date(0).toISOString();
       }
       allScheduled.push(task);
     }
@@ -482,6 +490,7 @@ export async function syncObsidianVault(
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         if (existing.title !== undefined) task.title = existing.title;
+        if (existing.lastModified) task.lastModified = existing.lastModified;
 
         // User scheduled this from inbox — respect the cross-array move
         if (userScheduledIds.has(task.id)) {
@@ -491,6 +500,8 @@ export async function syncObsidianVault(
           allScheduled.push(task);
           continue;
         }
+      } else {
+        task.lastModified = new Date(0).toISOString();
       }
       allInbox.push(task);
     }
