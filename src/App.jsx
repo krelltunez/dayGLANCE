@@ -491,8 +491,9 @@ const NotesSubtasksPanel = ({
 };
 
 // Daily Notes Modal — popover for adding/editing notes on a specific date
-const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, loadFresh }) => {
-  const [localText, setLocalText] = useState(note?.text || '');
+const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, template, loadFresh }) => {
+  const defaultText = note?.text || '';
+  const [localText, setLocalText] = useState(defaultText);
   const [isEditing, setIsEditing] = useState(!note?.text);
   const [loading, setLoading] = useState(!!loadFresh);
 
@@ -508,6 +509,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, l
           setLocalText(fresh.text);
           setIsEditing(false);
         } else {
+          // No existing note — apply template if available
+          if (template) {
+            setLocalText(template);
+          }
           setIsEditing(true);
         }
       } catch (err) {
@@ -517,6 +522,14 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, l
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // For non-Obsidian: apply template on mount when note is empty
+  useEffect(() => {
+    if (loadFresh) return; // Obsidian path handles this above
+    if (!defaultText && template) {
+      setLocalText(template);
+    }
   }, []);
   const localTextRef = useRef(localText);
   const onSaveRef = useRef(onSave);
@@ -1461,6 +1474,10 @@ const DayPlanner = () => {
     } catch { return {}; }
   });
   const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
+  const [dailyNoteTemplate, setDailyNoteTemplate] = useState(() => {
+    const saved = localStorage.getItem('day-planner-daily-note-template');
+    return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks';
+  });
 
   // Obsidian Integration state
   const [obsidianConfig, setObsidianConfig] = useState(() => {
@@ -2378,6 +2395,11 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
     }
   }, [dailyNotes]);
+
+  // Persist daily note template
+  useEffect(() => {
+    localStorage.setItem('day-planner-daily-note-template', dailyNoteTemplate);
+  }, [dailyNoteTemplate]);
 
   // Persist task calendar auth to localStorage
   useEffect(() => {
@@ -11900,6 +11922,17 @@ const DayPlanner = () => {
                             />
                             <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root</p>
                           </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Daily note template</label>
+                            <textarea
+                              value={dailyNoteTemplate}
+                              onChange={(e) => setDailyNoteTemplate(e.target.value)}
+                              placeholder="Template for new daily notes..."
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
+                              rows={4}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>Pre-filled when creating a new daily note</p>
+                          </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => performObsidianSync()}
@@ -15707,6 +15740,7 @@ const DayPlanner = () => {
           onClose={() => setDailyNotesModalDate(null)}
           darkMode={darkMode}
           isMobile={isMobile}
+          template={dailyNoteTemplate}
           loadFresh={obsidianConfig?.enabled && obsidianVaultHandleRef.current
             ? (d) => readDailyNoteFresh(obsidianVaultHandleRef.current, obsidianConfig.dailyNotesPath || '', d)
             : null}
@@ -18521,6 +18555,21 @@ const DayPlanner = () => {
                             />
                             <p className={`text-xs ${textSecondary} mt-1`}>
                               Leave empty for vault root. Common: "Daily Notes" or "journals"
+                            </p>
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>
+                              Daily note template
+                            </label>
+                            <textarea
+                              value={dailyNoteTemplate}
+                              onChange={(e) => setDailyNoteTemplate(e.target.value)}
+                              placeholder="Template for new daily notes..."
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
+                              rows={4}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>
+                              Pre-filled when creating a new daily note
                             </p>
                           </div>
                           <div className="flex gap-2">
