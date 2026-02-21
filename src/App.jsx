@@ -4313,6 +4313,28 @@ const DayPlanner = () => {
         return next;
       });
 
+      // Collect IDs of Obsidian tasks that existed before this sync
+      const oldObsidianIds = new Set(
+        [...tasks, ...unscheduledTasks]
+          .filter(t => t.importSource === 'obsidian')
+          .map(t => String(t.id))
+      );
+
+      // IDs that came back from the vault
+      const freshIds = new Set(
+        [...result.scheduledTasks, ...result.inboxTasks].map(t => String(t.id))
+      );
+
+      // Tombstone any Obsidian tasks that no longer exist in the vault
+      // so cloud sync won't resurrect them from other devices
+      const removedIds = [...oldObsidianIds].filter(id => !freshIds.has(id));
+      if (removedIds.length > 0) {
+        const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
+        const now = new Date().toISOString();
+        removedIds.forEach(id => { tombstones[id] = now; });
+        localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+      }
+
       // Update tasks — remove old Obsidian imports, add fresh ones
       setTasks(prev => {
         const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
