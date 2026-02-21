@@ -324,7 +324,6 @@ export function parseTasksFromMarkdown(content, dateStr) {
         isAllDay: false,
         notes: '',
         subtasks: [],
-        imported: true,
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
       });
@@ -341,7 +340,6 @@ export function parseTasksFromMarkdown(content, dateStr) {
         isAllDay: true,
         notes: '',
         subtasks: [],
-        imported: true,
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
       });
