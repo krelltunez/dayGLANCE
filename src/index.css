@@ -104,6 +104,14 @@ body.using-pointer a:focus-visible {
 /* Hide scrollbar on review carousel */
 .review-carousel::-webkit-scrollbar { display: none; }
 
+/* Mobile timeline flex layout — prevents body scroll & gap above tab bar */
+.mobile-timeline-layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+
 /* Mobile tab switch animation */
 @keyframes mobile-tab-fade-in {
   from { opacity: 0; }

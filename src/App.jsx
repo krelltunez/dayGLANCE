@@ -9905,10 +9905,10 @@ const DayPlanner = () => {
       {isMobile ? (
         <>
           {/* Mobile Layout */}
-          <div style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}>
+          <div className={mobileActiveTab === 'timeline' ? 'mobile-timeline-layout' : ''} style={mobileActiveTab !== 'timeline' ? { paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
             {/* Mobile Header */}
             {mobileActiveTab === 'timeline' && (
-              <div className={`${cardBg} border-b ${borderClass} sticky top-0 ${showMonthView ? 'z-50' : 'z-30'}`}>
+              <div className={`${cardBg} border-b ${borderClass} flex-shrink-0 relative ${showMonthView ? 'z-50' : 'z-30'}`}>
                 <div className="flex items-center justify-between px-4 py-3">
                   <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Previous day">
                     <ChevronLeft size={20} className={textSecondary} />
@@ -10080,12 +10080,11 @@ const DayPlanner = () => {
 
             {/* Mobile Tab Content */}
             {mobileActiveTab === 'timeline' && (
-              <div className="px-0">
+              <div className="px-0 flex-1 min-h-0">
                 {/* Reuse existing calendar grid for single day */}
                 <div
                   ref={calendarRef}
-                  className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
-                  style={{ height: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}
+                  className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative h-full`}
                 >
                   {/* Sticky header group: date header + all-day section */}
                   <div ref={mobileDateHeaderRef} className={`sticky top-0 z-40 ${cardBg}`}>
