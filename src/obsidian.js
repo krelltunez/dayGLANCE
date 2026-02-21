@@ -403,13 +403,15 @@ export async function syncObsidianVault(
   const allScheduled = [];
   const allInbox = [];
 
-  // Build a lookup of existing Obsidian task completion states
-  const existingCompletionMap = {};
+  // Build a lookup of ALL existing Obsidian task properties so we can
+  // preserve app-controlled fields (priority, notes, subtasks, color, duration)
+  // through sync — Obsidian only controls title, date, startTime, and checkbox.
+  const existingTaskMap = {};
   for (const t of existingTasks) {
-    if (t.importSource === 'obsidian') existingCompletionMap[t.id] = t.completed;
+    if (t.importSource === 'obsidian') existingTaskMap[t.id] = t;
   }
   for (const t of existingInbox) {
-    if (t.importSource === 'obsidian') existingCompletionMap[t.id] = t.completed;
+    if (t.importSource === 'obsidian') existingTaskMap[t.id] = t;
   }
 
   // Iterate files in the daily notes directory
@@ -432,13 +434,31 @@ export async function syncObsidianVault(
     // Parse tasks
     const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr);
 
-    // Merge completion state: completed in DG OR in Obsidian → completed
+    // Merge: preserve app-controlled properties from existing tasks
     for (const task of scheduledTasks) {
-      if (existingCompletionMap[task.id]) task.completed = true;
+      const existing = existingTaskMap[task.id];
+      if (existing) {
+        // Completed: OR logic — completed in DG OR in Obsidian → completed
+        if (existing.completed) task.completed = true;
+        // Preserve app-controlled properties the user may have changed in DG
+        if (existing.notes !== undefined) task.notes = existing.notes;
+        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
+        if (existing.color !== undefined) task.color = existing.color;
+        if (existing.duration !== undefined) task.duration = existing.duration;
+        if (existing.priority !== undefined) task.priority = existing.priority;
+      }
       allScheduled.push(task);
     }
     for (const task of inboxTasks) {
-      if (existingCompletionMap[task.id]) task.completed = true;
+      const existing = existingTaskMap[task.id];
+      if (existing) {
+        if (existing.completed) task.completed = true;
+        if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.notes !== undefined) task.notes = existing.notes;
+        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
+        if (existing.color !== undefined) task.color = existing.color;
+        if (existing.duration !== undefined) task.duration = existing.duration;
+      }
       allInbox.push(task);
     }
   }
