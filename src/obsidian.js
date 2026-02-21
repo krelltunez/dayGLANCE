@@ -432,7 +432,8 @@ export async function syncObsidianVault(
     // Parse tasks
     const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr);
 
-    // Merge: preserve app-controlled properties from existing tasks
+    // Merge: once imported, DG owns scheduling, title, and app-controlled
+    // properties.  Obsidian only controls task *existence* and initial values.
     for (const task of scheduledTasks) {
       const existing = existingTaskMap[task.id];
       if (existing) {
@@ -444,6 +445,12 @@ export async function syncObsidianVault(
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         if (existing.priority !== undefined) task.priority = existing.priority;
+        // Preserve scheduling & title changes made in DG so sync never
+        // overwrites moves/renames the user made inside the app.
+        if (existing.date !== undefined) task.date = existing.date;
+        if (existing.startTime !== undefined) task.startTime = existing.startTime;
+        if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+        if (existing.title !== undefined) task.title = existing.title;
       }
       allScheduled.push(task);
     }
@@ -456,6 +463,7 @@ export async function syncObsidianVault(
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
+        if (existing.title !== undefined) task.title = existing.title;
       }
       allInbox.push(task);
     }
