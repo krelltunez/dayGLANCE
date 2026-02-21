@@ -402,14 +402,23 @@ export async function syncObsidianVault(
   const allInbox = [];
 
   // Build a lookup of ALL existing Obsidian task properties so we can
-  // preserve app-controlled fields (priority, notes, subtasks, color, duration)
-  // through sync — Obsidian only controls title, date, startTime, and checkbox.
+  // preserve app-controlled fields through sync.  Also track which array
+  // (scheduled vs inbox) each task currently lives in so we honour
+  // cross-array moves the user made inside DG.
   const existingTaskMap = {};
+  const userScheduledIds = new Set();
+  const userInboxIds = new Set();
   for (const t of existingTasks) {
-    if (t.importSource === 'obsidian') existingTaskMap[t.id] = t;
+    if (t.importSource === 'obsidian') {
+      existingTaskMap[t.id] = t;
+      userScheduledIds.add(t.id);
+    }
   }
   for (const t of existingInbox) {
-    if (t.importSource === 'obsidian') existingTaskMap[t.id] = t;
+    if (t.importSource === 'obsidian') {
+      existingTaskMap[t.id] = t;
+      userInboxIds.add(t.id);
+    }
   }
 
   // Iterate files in the daily notes directory
@@ -434,6 +443,9 @@ export async function syncObsidianVault(
 
     // Merge: once imported, DG owns scheduling, title, and app-controlled
     // properties.  Obsidian only controls task *existence* and initial values.
+    // We also honour cross-array moves: if the user moved a vault-scheduled
+    // task into the inbox (or vice versa), the task goes into the array the
+    // user chose, not the one the vault dictates.
     for (const task of scheduledTasks) {
       const existing = existingTaskMap[task.id];
       if (existing) {
@@ -451,6 +463,12 @@ export async function syncObsidianVault(
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
         if (existing.title !== undefined) task.title = existing.title;
+
+        // User moved this to inbox — respect the cross-array move
+        if (userInboxIds.has(task.id)) {
+          allInbox.push(task);
+          continue;
+        }
       }
       allScheduled.push(task);
     }
@@ -464,6 +482,15 @@ export async function syncObsidianVault(
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         if (existing.title !== undefined) task.title = existing.title;
+
+        // User scheduled this from inbox — respect the cross-array move
+        if (userScheduledIds.has(task.id)) {
+          if (existing.date !== undefined) task.date = existing.date;
+          if (existing.startTime !== undefined) task.startTime = existing.startTime;
+          if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+          allScheduled.push(task);
+          continue;
+        }
       }
       allInbox.push(task);
     }
