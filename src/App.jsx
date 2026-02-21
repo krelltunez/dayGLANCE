@@ -4268,6 +4268,7 @@ const DayPlanner = () => {
   const performObsidianSync = async () => {
     if (obsidianSyncInProgressRef.current || !obsidianVaultHandleRef.current) return;
     obsidianSyncInProgressRef.current = true;
+    const syncStart = Date.now();
     setObsidianSyncStatus('syncing');
 
     try {
@@ -4309,6 +4310,8 @@ const DayPlanner = () => {
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
+      const elapsed = Date.now() - syncStart;
+      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
       setObsidianLastSynced(now);
       localStorage.setItem('day-planner-obsidian-last-synced', now);
