@@ -1588,6 +1588,20 @@ const DayPlanner = () => {
   const [habitOverflowOpen, setHabitOverflowOpen] = useState(false);
   const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
   const habitLongPressTimer = useRef(null);
+  const editingHabitRef = useRef(editingHabit);
+  editingHabitRef.current = editingHabit;
+  useEffect(() => {
+    if (!showHabitModal) return;
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (editingHabitRef.current) setEditingHabit(null);
+        else { setShowHabitModal(false); setEditingHabit(null); }
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showHabitModal]);
 
   // Cloud Sync state
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
@@ -18316,7 +18330,7 @@ const DayPlanner = () => {
 
       {/* Habit Management Modal */}
       {showHabitModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); if (editingHabit) setEditingHabit(null); else { setShowHabitModal(false); setEditingHabit(null); } } }} tabIndex={-1} ref={(el) => { if (el) el.focus(); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
           <div className={`${cardBg} rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className={`px-5 py-4 border-b ${borderClass} flex items-center justify-between`}>
