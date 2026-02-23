@@ -22,7 +22,7 @@ export default defineConfig({
         name: 'dayGLANCE',
         short_name: 'dayGLANCE',
         description: 'A beautiful time-blocking day planner with task management',
-        theme_color: '#2563eb',
+        theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'any',
