@@ -6320,10 +6320,10 @@ const DayPlanner = () => {
         d.setDate(d.getDate() - i);
         const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const count = habitLogs[ds]?.[habit.id] || 0;
+        // Don't count days before the habit was created
+        const createdDate = (habit.createdAt || '').slice(0, 10);
+        if (createdDate && ds < createdDate) break;
         const met = habit.type === 'doMore' ? count >= habit.target : count <= habit.target;
-        // For limit habits, a day with no log entry counts as met (0 <= target)
-        // For doMore habits, a day with no log AND before the habit was created doesn't count
-        if (habit.type === 'doMore' && count === 0 && ds < (habit.createdAt || '').slice(0, 10)) break;
         if (met) {
           streak++;
           best = Math.max(best, streak);
