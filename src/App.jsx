@@ -13037,25 +13037,40 @@ const DayPlanner = () => {
                             <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
                           </div>
                           <div className="space-y-2">
-                            {activeHabits.map(habit => {
-                              const s = habitStreaks[habit.id] || { current: 0, best: 0 };
-                              const IconComp = HABIT_ICONS[habit.icon] || Target;
-                              const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                            {(() => {
+                              const overflow = activeHabits.length > 5;
+                              const visible = overflow ? activeHabits.slice(0, 4) : activeHabits;
+                              const remaining = activeHabits.length - 4;
                               return (
-                                <div key={habit.id} className="flex items-center gap-2">
-                                  <IconComp size={16} style={{ color: colorObj.ring }} className="flex-shrink-0" />
-                                  <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
-                                  <div className="flex items-center gap-3 flex-shrink-0">
-                                    <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
-                                      {s.current}d
-                                    </span>
-                                    <span className={`text-xs ${textSecondary}`}>
-                                      best {s.best}d
-                                    </span>
-                                  </div>
-                                </div>
+                                <>
+                                  {visible.map(habit => {
+                                    const s = habitStreaks[habit.id] || { current: 0, best: 0 };
+                                    const IconComp = HABIT_ICONS[habit.icon] || Target;
+                                    const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                                    return (
+                                      <div key={habit.id} className="flex items-center gap-2">
+                                        <IconComp size={16} style={{ color: colorObj.ring }} className="flex-shrink-0" />
+                                        <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
+                                        <div className="flex items-center gap-3 flex-shrink-0">
+                                          <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
+                                            {s.current}d
+                                          </span>
+                                          <span className={`text-xs ${textSecondary}`}>
+                                            best {s.best}d
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {overflow && (
+                                    <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>
+                                      <MoreHorizontal size={16} className="flex-shrink-0" />
+                                      <span>+{remaining} more habits</span>
+                                    </div>
+                                  )}
+                                </>
                               );
-                            })}
+                            })()}
                           </div>
                         </div>
                       )}
@@ -17416,25 +17431,40 @@ const DayPlanner = () => {
                     <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
                   </div>
                   <div className="space-y-2">
-                    {activeHabits.map(habit => {
-                      const s = habitStreaks[habit.id] || { current: 0, best: 0 };
-                      const IconComp = HABIT_ICONS[habit.icon] || Target;
-                      const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                    {(() => {
+                      const overflow = activeHabits.length > 5;
+                      const visible = overflow ? activeHabits.slice(0, 4) : activeHabits;
+                      const remaining = activeHabits.length - 4;
                       return (
-                        <div key={habit.id} className="flex items-center gap-2">
-                          <IconComp size={16} style={{ color: colorObj.ring }} className="flex-shrink-0" />
-                          <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
-                              {s.current}d
-                            </span>
-                            <span className={`text-xs ${textSecondary}`}>
-                              best {s.best}d
-                            </span>
-                          </div>
-                        </div>
+                        <>
+                          {visible.map(habit => {
+                            const s = habitStreaks[habit.id] || { current: 0, best: 0 };
+                            const IconComp = HABIT_ICONS[habit.icon] || Target;
+                            const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                            return (
+                              <div key={habit.id} className="flex items-center gap-2">
+                                <IconComp size={16} style={{ color: colorObj.ring }} className="flex-shrink-0" />
+                                <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
+                                    {s.current}d
+                                  </span>
+                                  <span className={`text-xs ${textSecondary}`}>
+                                    best {s.best}d
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {overflow && (
+                            <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>
+                              <MoreHorizontal size={16} className="flex-shrink-0" />
+                              <span>+{remaining} more habits</span>
+                            </div>
+                          )}
+                        </>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
               )}
