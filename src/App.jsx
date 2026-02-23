@@ -1584,6 +1584,7 @@ const DayPlanner = () => {
   const [habitsEnabled, setHabitsEnabled] = useState(true);
   const [showHabitModal, setShowHabitModal] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null); // null = adding new, object = editing
+  const [draggedHabitIdx, setDraggedHabitIdx] = useState(null);
   const [habitOverflowOpen, setHabitOverflowOpen] = useState(false);
   const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
   const habitLongPressTimer = useRef(null);
@@ -18315,7 +18316,7 @@ const DayPlanner = () => {
 
       {/* Habit Management Modal */}
       {showHabitModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); if (editingHabit) setEditingHabit(null); else { setShowHabitModal(false); setEditingHabit(null); } } }} tabIndex={-1} ref={(el) => { if (el) el.focus(); }}>
           <div className={`${cardBg} rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className={`px-5 py-4 border-b ${borderClass} flex items-center justify-between`}>
@@ -18485,8 +18486,16 @@ const DayPlanner = () => {
                         return (
                           <div
                             key={habit.id}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800' : 'bg-white'}`}
+                            draggable
+                            onDragStart={(e) => { setDraggedHabitIdx(idx); e.dataTransfer.effectAllowed = 'move'; }}
+                            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                            onDrop={(e) => { e.preventDefault(); if (draggedHabitIdx !== null && draggedHabitIdx !== idx) reorderHabits(draggedHabitIdx, idx); setDraggedHabitIdx(null); }}
+                            onDragEnd={() => setDraggedHabitIdx(null)}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800' : 'bg-white'} ${draggedHabitIdx === idx ? 'opacity-40' : ''} transition-opacity`}
                           >
+                            <div className={`cursor-grab active:cursor-grabbing ${textSecondary}`}>
+                              <GripVertical size={16} />
+                            </div>
                             <IconComp size={20} style={{ color: colorObj.ring }} className="flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-medium ${textPrimary} truncate`}>{habit.name}</div>
@@ -18495,16 +18504,6 @@ const DayPlanner = () => {
                               </div>
                             </div>
                             <div className="flex items-center gap-1">
-                              {idx > 0 && (
-                                <button onClick={() => reorderHabits(idx, idx - 1)} className={`p-1 rounded ${hoverBg}`}>
-                                  <ChevronUp size={14} className={textSecondary} />
-                                </button>
-                              )}
-                              {idx < activeHabits.length - 1 && (
-                                <button onClick={() => reorderHabits(idx, idx + 1)} className={`p-1 rounded ${hoverBg}`}>
-                                  <ChevronDown size={14} className={textSecondary} />
-                                </button>
-                              )}
                               <button onClick={() => setEditingHabit({ ...habit })} className={`p-1 rounded ${hoverBg}`}>
                                 <Pencil size={14} className={textSecondary} />
                               </button>
