@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 
@@ -1193,6 +1193,136 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
   );
 };
 
+// Habit tracking: icon lookup map for habit definitions
+const HABIT_ICONS = {
+  Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart,
+  Target, TrendingUp, Zap, Wine, Candy, Pill, Activity, BookOpen, Trophy
+};
+const HABIT_ICON_NAMES = Object.keys(HABIT_ICONS);
+
+// Habit tracking: color palette for habits
+const HABIT_COLORS = [
+  { name: 'blue', ring: '#3b82f6', bg: 'bg-blue-500', text: 'text-blue-500' },
+  { name: 'green', ring: '#22c55e', bg: 'bg-green-500', text: 'text-green-500' },
+  { name: 'red', ring: '#ef4444', bg: 'bg-red-500', text: 'text-red-500' },
+  { name: 'amber', ring: '#f59e0b', bg: 'bg-amber-500', text: 'text-amber-500' },
+  { name: 'purple', ring: '#a855f7', bg: 'bg-purple-500', text: 'text-purple-500' },
+  { name: 'pink', ring: '#ec4899', bg: 'bg-pink-500', text: 'text-pink-500' },
+  { name: 'cyan', ring: '#06b6d4', bg: 'bg-cyan-500', text: 'text-cyan-500' },
+  { name: 'orange', ring: '#f97316', bg: 'bg-orange-500', text: 'text-orange-500' },
+];
+
+// HabitRing — SVG circular progress ring component
+const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, darkMode }) => {
+  const { type, target, color, icon } = habit;
+  const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
+  const IconComponent = HABIT_ICONS[icon] || Target;
+  const radius = size * 0.38;
+  const circumference = 2 * Math.PI * radius;
+  const center = size / 2;
+  const strokeWidth = size >= 30 ? 3 : 2;
+  const iconSize = size >= 30 ? size * 0.4 : size * 0.45;
+
+  let ringColor, progress, showCheck, showX;
+  if (type === 'doMore') {
+    progress = target > 0 ? Math.min(count / target, 1) : 0;
+    ringColor = count === 0 ? (darkMode ? '#4b5563' : '#d1d5db') : colorObj.ring;
+    showCheck = count >= target && target > 0;
+    showX = false;
+  } else {
+    // Limit type: ring is always full, color shifts green → yellow → red
+    progress = 1;
+    if (count === 0) {
+      ringColor = '#22c55e'; // green
+    } else if (count <= target) {
+      // Graduated yellow/amber
+      const ratio = count / target;
+      if (ratio <= 0.5) ringColor = '#eab308'; // yellow
+      else ringColor = '#f59e0b'; // amber
+    } else {
+      ringColor = '#ef4444'; // red
+    }
+    showCheck = false;
+    showX = count > target;
+  }
+
+  const dashOffset = circumference * (1 - progress);
+
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className="flex flex-col items-center gap-0.5 select-none active:scale-95 transition-transform"
+      style={{ width: size + 8 }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={center} cy={center} r={radius}
+          fill="none" strokeWidth={strokeWidth}
+          stroke={darkMode ? '#374151' : '#e5e7eb'}
+        />
+        {/* Progress arc */}
+        <circle
+          cx={center} cy={center} r={radius}
+          fill="none" strokeWidth={strokeWidth}
+          stroke={ringColor}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          className="transition-all duration-300"
+        />
+      </svg>
+      {/* Icon overlay */}
+      <div className="absolute flex items-center justify-center" style={{ width: size, height: size }}>
+        {showCheck ? (
+          <Check size={iconSize} strokeWidth={3} style={{ color: '#22c55e' }} />
+        ) : showX ? (
+          <X size={iconSize} strokeWidth={3} style={{ color: '#ef4444' }} />
+        ) : (
+          <IconComponent size={iconSize} style={{ color: ringColor === (darkMode ? '#4b5563' : '#d1d5db') ? (darkMode ? '#9ca3af' : '#9ca3af') : ringColor }} />
+        )}
+      </div>
+      {/* Count label */}
+      {size >= 30 && (
+        <span className={`text-[10px] font-semibold leading-none ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>
+          {count}/{target}
+        </span>
+      )}
+    </button>
+  );
+};
+
+// MiniHabitRing — tiny display-only ring for date headers
+const MiniHabitRing = ({ habit, count = 0, darkMode }) => {
+  const size = 16;
+  const { type, target, color } = habit;
+  const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
+  const radius = 5.5;
+  const circumference = 2 * Math.PI * radius;
+  const strokeWidth = 2;
+
+  let ringColor, progress;
+  if (type === 'doMore') {
+    progress = target > 0 ? Math.min(count / target, 1) : 0;
+    ringColor = count === 0 ? (darkMode ? '#4b5563' : '#d1d5db') : colorObj.ring;
+  } else {
+    progress = 1;
+    if (count === 0) ringColor = '#22c55e';
+    else if (count <= target) ringColor = '#f59e0b';
+    else ringColor = '#ef4444';
+  }
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90 flex-shrink-0">
+      <circle cx={8} cy={8} r={radius} fill="none" strokeWidth={strokeWidth} stroke={darkMode ? '#374151' : '#e5e7eb'} />
+      <circle cx={8} cy={8} r={radius} fill="none" strokeWidth={strokeWidth} stroke={ringColor} strokeLinecap="round"
+        strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)}
+      />
+    </svg>
+  );
+};
+
 const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
@@ -1446,6 +1576,16 @@ const DayPlanner = () => {
   const focusTimerRef = useRef(null);
   const handleFocusTimerEndRef = useRef(null);
   const focusModeAvailableRef = useRef(false);
+
+  // Habit tracking state
+  const [habits, setHabits] = useState([]);
+  const [habitLogs, setHabitLogs] = useState({});
+  const [habitsEnabled, setHabitsEnabled] = useState(true);
+  const [showHabitModal, setShowHabitModal] = useState(false);
+  const [editingHabit, setEditingHabit] = useState(null); // null = adding new, object = editing
+  const [habitOverflowOpen, setHabitOverflowOpen] = useState(false);
+  const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
+  const habitLongPressTimer = useRef(null);
 
   // Cloud Sync state
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
@@ -2581,7 +2721,7 @@ const DayPlanner = () => {
         suppressTimestampRef.current = false;
       });
     }
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
@@ -2979,6 +3119,14 @@ const DayPlanner = () => {
           localStorage.removeItem('day-planner-removed-today-routine-ids');
         }
       }
+
+      // Load habit tracking data
+      const habitsData = localStorage.getItem('day-planner-habits');
+      if (habitsData) setHabits(JSON.parse(habitsData));
+      const habitLogsData = localStorage.getItem('day-planner-habit-logs');
+      if (habitLogsData) setHabitLogs(JSON.parse(habitLogsData));
+      const habitsEnabledData = localStorage.getItem('day-planner-habits-enabled');
+      if (habitsEnabledData !== null) setHabitsEnabled(JSON.parse(habitsEnabledData));
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
@@ -3032,6 +3180,9 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-today-routines', JSON.stringify(stampedTodayRoutines));
       localStorage.setItem('day-planner-routines-date', routinesDate);
       localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(removedTodayRoutineIds));
+      localStorage.setItem('day-planner-habits', JSON.stringify(habits));
+      localStorage.setItem('day-planner-habit-logs', JSON.stringify(habitLogs));
+      localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabled));
       // Only update local-modified after initial cloud sync has run,
       // otherwise the initial loadData() sets it to "now" and overwrites remote
       if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
@@ -6135,6 +6286,56 @@ const DayPlanner = () => {
     setUndoToast({ message: 'Redone', actionable: false });
   };
 
+  // Habit tracking helpers
+  const activeHabits = useMemo(() => habits.filter(h => !h.archived), [habits]);
+  const getTodayHabitCount = (habitId) => {
+    const todayStr = dateToString(new Date());
+    return habitLogs[todayStr]?.[habitId] || 0;
+  };
+  const incrementHabit = (habitId) => {
+    const todayStr = dateToString(new Date());
+    playUISound('click');
+    setHabitLogs(prev => ({
+      ...prev,
+      [todayStr]: {
+        ...prev[todayStr],
+        [habitId]: (prev[todayStr]?.[habitId] || 0) + 1
+      }
+    }));
+  };
+  const setHabitCount = (habitId, count) => {
+    const todayStr = dateToString(new Date());
+    setHabitLogs(prev => ({
+      ...prev,
+      [todayStr]: {
+        ...prev[todayStr],
+        [habitId]: Math.max(0, count)
+      }
+    }));
+  };
+  const addHabit = (habit) => {
+    setHabits(prev => [...prev, { ...habit, id: Date.now().toString(), createdAt: new Date().toISOString(), archived: false }]);
+  };
+  const updateHabit = (id, updates) => {
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, ...updates } : h));
+  };
+  const archiveHabit = (id) => {
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, archived: true } : h));
+  };
+  const deleteHabit = (id) => {
+    setHabits(prev => prev.filter(h => h.id !== id));
+  };
+  const reorderHabits = (fromIndex, toIndex) => {
+    setHabits(prev => {
+      const updated = [...prev];
+      const active = updated.filter(h => !h.archived);
+      const [moved] = active.splice(fromIndex, 1);
+      active.splice(toIndex, 0, moved);
+      const archived = updated.filter(h => h.archived);
+      return [...active, ...archived];
+    });
+  };
+
   // Reminder snooze: push task start time forward 15 minutes
   const snoozeReminder = (reminder) => {
     pushUndo();
@@ -7976,7 +8177,10 @@ const DayPlanner = () => {
         reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null'),
         use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
         weatherZip: localStorage.getItem('day-planner-weather-zip') || '',
-        weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit'
+        weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit',
+        habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
+        habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
+        habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true')
       }
     };
 
@@ -8006,7 +8210,9 @@ const DayPlanner = () => {
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
       minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
       cloudSyncConfig: JSON.parse(localStorage.getItem('day-planner-cloud-sync-config') || 'null'),
-      reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null')
+      reminderSettings: JSON.parse(localStorage.getItem('day-planner-reminder-settings') || 'null'),
+      habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
+      habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}')
     }
   });
 
@@ -8157,6 +8363,9 @@ const DayPlanner = () => {
         if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
         if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
         if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
+        if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
+        if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
+        if (data.habitsEnabled !== undefined) localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
 
         // Reload app to reflect changes
         window.location.reload();
@@ -8407,7 +8616,10 @@ const DayPlanner = () => {
       deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
       deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
       removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}'),
-      dailyNotes: JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}')
+      dailyNotes: JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}'),
+      habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
+      habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
+      habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true')
     }
   });
 
@@ -8478,6 +8690,18 @@ const DayPlanner = () => {
     if (data.dailyNotes) {
       localStorage.setItem('day-planner-daily-notes', JSON.stringify(data.dailyNotes));
       setDailyNotes(data.dailyNotes);
+    }
+    if (data.habits) {
+      localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
+      setHabits(data.habits);
+    }
+    if (data.habitLogs) {
+      localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
+      setHabitLogs(data.habitLogs);
+    }
+    if (data.habitsEnabled !== undefined) {
+      localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
+      setHabitsEnabled(data.habitsEnabled);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
@@ -10128,6 +10352,13 @@ const DayPlanner = () => {
                               <NotebookPen size={14} />
                             </button>
                           </div>
+                          {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
+                            <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                              {activeHabits.slice(0, 6).map(habit => (
+                                <MiniHabitRing key={habit.id} habit={habit} count={habitLogs[dateStr]?.[habit.id] || 0} darkMode={darkMode} />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -10891,6 +11122,72 @@ const DayPlanner = () => {
                     </button>
                   )}
                 </div>
+                {/* Habit rings row */}
+                {habitsEnabled && activeHabits.length > 0 && (
+                  <div className="mb-4 relative">
+                    <div className="flex items-start gap-1 justify-center">
+                      {activeHabits.slice(0, 4).map(habit => (
+                        <div key={habit.id} className="relative">
+                          <HabitRing
+                            size={44}
+                            habit={habit}
+                            count={getTodayHabitCount(habit.id)}
+                            darkMode={darkMode}
+                            onClick={() => incrementHabit(habit.id)}
+                            onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); }}
+                          />
+                          {habitLongPressId === habit.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setHabitLongPressId(null)} />
+                              <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
+                                <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
+                                <div className="flex items-center justify-center gap-3">
+                                  <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
+                                  <span className={`text-lg font-bold min-w-[2ch] text-center ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                  <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
+                                </div>
+                                <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {activeHabits.length > 4 && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setHabitOverflowOpen(prev => !prev)}
+                            className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
+                          >
+                            +{activeHabits.length - 4}
+                          </button>
+                          {habitOverflowOpen && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
+                              <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
+                                {activeHabits.slice(4).map(habit => {
+                                  const count = getTodayHabitCount(habit.id);
+                                  const IconComp = HABIT_ICONS[habit.icon] || Target;
+                                  const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                                  return (
+                                    <button
+                                      key={habit.id}
+                                      onClick={() => { incrementHabit(habit.id); }}
+                                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'} transition-colors`}
+                                    >
+                                      <IconComp size={16} style={{ color: colorObj.ring }} />
+                                      <span className={`text-sm flex-1 text-left ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</span>
+                                      <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{count}/{habit.target}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {/* Getting Started checklist */}
                 {showGettingStarted && renderGettingStartedChecklist()}
                 {/* Overdue tasks from past days */}
@@ -11666,6 +11963,13 @@ const DayPlanner = () => {
                       <Clock size={24} className={textSecondary} />
                       <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
                     </button>
+                    <button
+                      onClick={() => setHabitsEnabled(!habitsEnabled)}
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                    >
+                      {habitsEnabled ? <Activity size={24} className="text-green-500" /> : <Activity size={24} className={textSecondary} />}
+                      <span className={`text-xs font-medium ${textPrimary}`}>Habits {habitsEnabled ? 'On' : 'Off'}</span>
+                    </button>
                   </div>
 
                   {/* Sync buttons */}
@@ -12378,6 +12682,16 @@ const DayPlanner = () => {
                       {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
                     </span>
                   </div>
+                </button>
+              )}
+              {/* Habit management FAB */}
+              {habitsEnabled && (
+                <button
+                  onClick={() => setShowHabitModal(true)}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
+                  style={{ bottom: `calc(${recycleBin.filter(t => !t.isExample).length > 0 ? '16.5rem' : '12.5rem'} + env(safe-area-inset-bottom, 0px))` }}
+                >
+                  <Activity size={22} />
                 </button>
               )}
             </>
@@ -13316,6 +13630,72 @@ const DayPlanner = () => {
                         )}
                       </div>
 
+                      {/* Habit rings row */}
+                      {habitsEnabled && activeHabits.length > 0 && (
+                        <div className="relative">
+                          <div className="flex items-start gap-1 justify-center">
+                            {activeHabits.slice(0, 4).map(habit => (
+                              <div key={habit.id} className="relative">
+                                <HabitRing
+                                  size={44}
+                                  habit={habit}
+                                  count={getTodayHabitCount(habit.id)}
+                                  darkMode={darkMode}
+                                  onClick={() => incrementHabit(habit.id)}
+                                  onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); }}
+                                />
+                                {habitLongPressId === habit.id && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setHabitLongPressId(null)} />
+                                    <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
+                                      <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
+                                      <div className="flex items-center justify-center gap-3">
+                                        <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
+                                        <span className={`text-lg font-bold min-w-[2ch] text-center ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                        <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
+                                      </div>
+                                      <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                            {activeHabits.length > 4 && (
+                              <div className="relative">
+                                <button
+                                  onClick={() => setHabitOverflowOpen(prev => !prev)}
+                                  className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
+                                >
+                                  +{activeHabits.length - 4}
+                                </button>
+                                {habitOverflowOpen && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
+                                    <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
+                                      {activeHabits.slice(4).map(habit => {
+                                        const count = getTodayHabitCount(habit.id);
+                                        const IconComp = HABIT_ICONS[habit.icon] || Target;
+                                        const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                                        return (
+                                          <button
+                                            key={habit.id}
+                                            onClick={() => { incrementHabit(habit.id); }}
+                                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'} transition-colors`}
+                                          >
+                                            <IconComp size={16} style={{ color: colorObj.ring }} />
+                                            <span className={`text-sm flex-1 text-left ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</span>
+                                            <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{count}/{habit.target}</span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {/* Getting Started checklist */}
                       {showGettingStarted && renderGettingStartedChecklist()}
                       {/* Overdue tasks from past days */}
@@ -13924,6 +14304,72 @@ const DayPlanner = () => {
                     )}
                   </div>
 
+                  {/* Habit rings row */}
+                  {habitsEnabled && activeHabits.length > 0 && (
+                    <div className="relative">
+                      <div className="flex items-start gap-1 justify-center">
+                        {activeHabits.slice(0, 4).map(habit => (
+                          <div key={habit.id} className="relative">
+                            <HabitRing
+                              size={44}
+                              habit={habit}
+                              count={getTodayHabitCount(habit.id)}
+                              darkMode={darkMode}
+                              onClick={() => incrementHabit(habit.id)}
+                              onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); }}
+                            />
+                            {habitLongPressId === habit.id && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setHabitLongPressId(null)} />
+                                <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
+                                  <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
+                                  <div className="flex items-center justify-center gap-3">
+                                    <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
+                                    <span className={`text-lg font-bold min-w-[2ch] text-center ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                    <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
+                                  </div>
+                                  <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {activeHabits.length > 4 && (
+                          <div className="relative">
+                            <button
+                              onClick={() => setHabitOverflowOpen(prev => !prev)}
+                              className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
+                            >
+                              +{activeHabits.length - 4}
+                            </button>
+                            {habitOverflowOpen && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
+                                <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
+                                  {activeHabits.slice(4).map(habit => {
+                                    const count = getTodayHabitCount(habit.id);
+                                    const IconComp = HABIT_ICONS[habit.icon] || Target;
+                                    const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                                    return (
+                                      <button
+                                        key={habit.id}
+                                        onClick={() => { incrementHabit(habit.id); }}
+                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'} transition-colors`}
+                                      >
+                                        <IconComp size={16} style={{ color: colorObj.ring }} />
+                                        <span className={`text-sm flex-1 text-left ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</span>
+                                        <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{count}/{habit.target}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {/* Getting Started checklist */}
                   {showGettingStarted && renderGettingStartedChecklist()}
                   {/* Overdue tasks from past days — matching tablet landscape */}
@@ -14507,6 +14953,13 @@ const DayPlanner = () => {
                           <NotebookPen size={14} />
                         </button>
                       </div>
+                      {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
+                        <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                          {activeHabits.slice(0, 6).map(habit => (
+                            <MiniHabitRing key={habit.id} habit={habit} count={habitLogs[dateStr]?.[habit.id] || 0} darkMode={darkMode} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -15823,6 +16276,9 @@ const DayPlanner = () => {
           'day-planner-cloud-sync-config': 'Cloud sync config',
           'day-planner-deleted-task-ids': 'Deletion tombstones',
           'day-planner-auto-backup-config': 'Backup config',
+          'day-planner-habits': 'Habit definitions',
+          'day-planner-habit-logs': 'Habit logs',
+          'day-planner-habits-enabled': 'Habits toggle',
         };
         return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setShowStorageBreakdown(false)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setShowStorageBreakdown(false); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
@@ -16602,6 +17058,16 @@ const DayPlanner = () => {
               </div>
             </button>
           )}
+          {/* Habit management FAB */}
+          {habitsEnabled && (
+            <button
+              onClick={() => setShowHabitModal(true)}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
+              style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
+            >
+              <Activity size={22} />
+            </button>
+          )}
           </>)}
         </>
       )}
@@ -16679,6 +17145,16 @@ const DayPlanner = () => {
                   {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
                 </span>
               </div>
+            </button>
+          )}
+          {/* Habit management FAB */}
+          {habitsEnabled && (
+            <button
+              onClick={() => setShowHabitModal(true)}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
+              style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
+            >
+              <Activity size={22} />
             </button>
           )}
           </>)}
@@ -17709,6 +18185,249 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Habit Management Modal */}
+      {showHabitModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
+          <div className={`${cardBg} rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={`px-5 py-4 border-b ${borderClass} flex items-center justify-between`}>
+              <h2 className={`text-lg font-bold ${textPrimary}`}>
+                {editingHabit ? 'Edit Habit' : 'Manage Habits'}
+              </h2>
+              <button onClick={() => { setShowHabitModal(false); setEditingHabit(null); }} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+                <X size={20} className={textSecondary} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {editingHabit ? (
+                /* Edit/Add form */
+                (() => {
+                  const isNew = !editingHabit.id;
+                  return (
+                    <div className="space-y-4">
+                      {/* Name */}
+                      <div>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Drink water"
+                          value={editingHabit.name || ''}
+                          onChange={(e) => setEditingHabit(prev => ({ ...prev, name: e.target.value }))}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          autoFocus
+                        />
+                      </div>
+
+                      {/* Type toggle */}
+                      <div>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Type</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingHabit(prev => ({ ...prev, type: 'doMore' }))}
+                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                              editingHabit.type === 'doMore'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700'}`
+                            }`}
+                          >
+                            Do More
+                          </button>
+                          <button
+                            onClick={() => setEditingHabit(prev => ({ ...prev, type: 'limit' }))}
+                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                              editingHabit.type === 'limit'
+                                ? 'bg-red-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700'}`
+                            }`}
+                          >
+                            Limit
+                          </button>
+                        </div>
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          {editingHabit.type === 'doMore' ? 'Track progress toward a daily goal' : 'Track consumption against a daily ceiling'}
+                        </p>
+                      </div>
+
+                      {/* Target + Unit */}
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{editingHabit.type === 'doMore' ? 'Daily Goal' : 'Daily Limit'}</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={editingHabit.target || ''}
+                            onChange={(e) => setEditingHabit(prev => ({ ...prev, target: parseInt(e.target.value) || 0 }))}
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Unit</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., glasses"
+                            value={editingHabit.unit || ''}
+                            onChange={(e) => setEditingHabit(prev => ({ ...prev, unit: e.target.value }))}
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Icon picker */}
+                      <div>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Icon</label>
+                        <div className="flex flex-wrap gap-2">
+                          {HABIT_ICON_NAMES.map(name => {
+                            const Icon = HABIT_ICONS[name];
+                            return (
+                              <button
+                                key={name}
+                                onClick={() => setEditingHabit(prev => ({ ...prev, icon: name }))}
+                                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                                  editingHabit.icon === name
+                                    ? 'bg-blue-600 text-white'
+                                    : `${darkMode ? 'bg-gray-700 text-gray-400 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`
+                                }`}
+                              >
+                                <Icon size={18} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Color picker */}
+                      <div>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Color</label>
+                        <div className="flex flex-wrap gap-2">
+                          {HABIT_COLORS.map(c => (
+                            <button
+                              key={c.name}
+                              onClick={() => setEditingHabit(prev => ({ ...prev, color: c.name }))}
+                              className={`w-9 h-9 rounded-full ${c.bg} transition-all ${
+                                editingHabit.color === c.name ? 'ring-2 ring-offset-2 ring-blue-500' : 'opacity-70 hover:opacity-100'
+                              }`}
+                              style={editingHabit.color === c.name && darkMode ? { ringOffsetColor: '#1f2937' } : undefined}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Save / Cancel */}
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => setEditingHabit(null)}
+                          className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'} transition-colors`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!editingHabit.name?.trim()) return;
+                            if (isNew) {
+                              addHabit(editingHabit);
+                            } else {
+                              updateHabit(editingHabit.id, editingHabit);
+                            }
+                            setEditingHabit(null);
+                          }}
+                          disabled={!editingHabit.name?.trim() || !editingHabit.target}
+                          className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isNew ? 'Add Habit' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                /* Habit list view */
+                <>
+                  {activeHabits.length === 0 ? (
+                    <div className={`text-center py-8 ${textSecondary}`}>
+                      <Activity size={40} className="mx-auto mb-3 opacity-30" />
+                      <p className="text-sm">No habits yet</p>
+                      <p className="text-xs mt-1">Add a habit to start tracking</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeHabits.map((habit, idx) => {
+                        const IconComp = HABIT_ICONS[habit.icon] || Target;
+                        const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                        return (
+                          <div
+                            key={habit.id}
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800' : 'bg-white'}`}
+                          >
+                            <IconComp size={20} style={{ color: colorObj.ring }} className="flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-medium ${textPrimary} truncate`}>{habit.name}</div>
+                              <div className={`text-xs ${textSecondary}`}>
+                                {habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {idx > 0 && (
+                                <button onClick={() => reorderHabits(idx, idx - 1)} className={`p-1 rounded ${hoverBg}`}>
+                                  <ChevronUp size={14} className={textSecondary} />
+                                </button>
+                              )}
+                              {idx < activeHabits.length - 1 && (
+                                <button onClick={() => reorderHabits(idx, idx + 1)} className={`p-1 rounded ${hoverBg}`}>
+                                  <ChevronDown size={14} className={textSecondary} />
+                                </button>
+                              )}
+                              <button onClick={() => setEditingHabit({ ...habit })} className={`p-1 rounded ${hoverBg}`}>
+                                <Pencil size={14} className={textSecondary} />
+                              </button>
+                              <button onClick={() => archiveHabit(habit.id)} className={`p-1 rounded ${hoverBg}`}>
+                                <Trash2 size={14} className="text-red-500" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add button */}
+                  {activeHabits.length < 8 && (
+                    <button
+                      onClick={() => setEditingHabit({ name: '', icon: 'Droplets', color: 'blue', type: 'doMore', target: 8, unit: '' })}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-blue-500/30 text-blue-500 text-sm font-medium hover:bg-blue-500/5 transition-colors"
+                    >
+                      <Plus size={16} />
+                      Add Habit
+                    </button>
+                  )}
+
+                  {/* Archived habits */}
+                  {habits.filter(h => h.archived).length > 0 && (
+                    <div className="pt-2">
+                      <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Archived</h4>
+                      <div className="space-y-1">
+                        {habits.filter(h => h.archived).map(habit => {
+                          const IconComp = HABIT_ICONS[habit.icon] || Target;
+                          const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                          return (
+                            <div key={habit.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-stone-50'} opacity-60`}>
+                              <IconComp size={16} style={{ color: colorObj.ring }} />
+                              <span className={`text-sm flex-1 ${textPrimary}`}>{habit.name}</span>
+                              <button onClick={() => updateHabit(habit.id, { archived: false })} className={`text-xs text-blue-500 font-medium px-2 py-1 rounded hover:bg-blue-500/10`}>Restore</button>
+                              <button onClick={() => deleteHabit(habit.id)} className={`text-xs text-red-500 font-medium px-2 py-1 rounded hover:bg-red-500/10`}>Delete</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Routines Dashboard Modal */}
       {showRoutinesDashboard && (<>
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => handleRoutinesDone()} onKeyDown={(e) => { if ((e.key === 'Escape' || e.key === 'Enter') && !routineAddingToBucket) { e.preventDefault(); handleRoutinesDone(); } }} tabIndex={-1} ref={(el) => { if (el && !routineAddingToBucket) el.focus(); }}>
@@ -18490,6 +19209,30 @@ const DayPlanner = () => {
                           </div>
                         </div>
                         <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Habit Tracking Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Activity size={16} className={textSecondary} />
+                        Habit Tracking
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={habitsEnabled}
+                            onChange={(e) => setHabitsEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
                       </label>
                     </div>
 
