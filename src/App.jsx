@@ -6288,6 +6288,41 @@ const DayPlanner = () => {
 
   // Habit tracking helpers
   const activeHabits = useMemo(() => habits.filter(h => !h.archived), [habits]);
+  // Compute habit streaks: { habitId: { current, best } }
+  const habitStreaks = useMemo(() => {
+    const streaks = {};
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    for (const habit of activeHabits) {
+      let current = 0;
+      let best = 0;
+      let streak = 0;
+      let foundGap = false;
+      // Walk backwards from today up to 365 days
+      for (let i = 0; i < 365; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const count = habitLogs[ds]?.[habit.id] || 0;
+        const met = habit.type === 'doMore' ? count >= habit.target : count <= habit.target;
+        // For limit habits, a day with no log entry counts as met (0 <= target)
+        // For doMore habits, a day with no log AND before the habit was created doesn't count
+        if (habit.type === 'doMore' && count === 0 && ds < (habit.createdAt || '').slice(0, 10)) break;
+        if (met) {
+          streak++;
+          best = Math.max(best, streak);
+        } else {
+          if (!foundGap) current = streak;
+          foundGap = true;
+          streak = 0;
+        }
+      }
+      if (!foundGap) current = streak;
+      best = Math.max(best, streak);
+      streaks[habit.id] = { current, best };
+    }
+    return streaks;
+  }, [activeHabits, habitLogs]);
   const getTodayHabitCount = (habitId) => {
     const todayStr = dateToString(new Date());
     return habitLogs[todayStr]?.[habitId] || 0;
@@ -12992,6 +13027,37 @@ const DayPlanner = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* Habit Streaks */}
+                      {habitsEnabled && activeHabits.length > 0 && (
+                        <div className={`mt-4 pt-4 border-t ${borderClass}`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Flame size={18} className="text-orange-500" />
+                            <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
+                          </div>
+                          <div className="space-y-2">
+                            {activeHabits.map(habit => {
+                              const s = habitStreaks[habit.id] || { current: 0, best: 0 };
+                              const IconComp = HABIT_ICONS[habit.icon] || Target;
+                              const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                              return (
+                                <div key={habit.id} className="flex items-center gap-2">
+                                  <IconComp size={16} style={{ color: colorObj.ring }} className="flex-shrink-0" />
+                                  <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
+                                  <div className="flex items-center gap-3 flex-shrink-0">
+                                    <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
+                                      {s.current}d
+                                    </span>
+                                    <span className={`text-xs ${textSecondary}`}>
+                                      best {s.best}d
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </>
                     );
                   })()}
@@ -17340,6 +17406,37 @@ const DayPlanner = () => {
                   )}
                 </div>
               </div>
+
+              {/* Habit Streaks */}
+              {habitsEnabled && activeHabits.length > 0 && (
+                <div className={`mt-4 pt-4 border-t ${borderClass}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Flame size={18} className="text-orange-500" />
+                    <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
+                  </div>
+                  <div className="space-y-2">
+                    {activeHabits.map(habit => {
+                      const s = habitStreaks[habit.id] || { current: 0, best: 0 };
+                      const IconComp = HABIT_ICONS[habit.icon] || Target;
+                      const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                      return (
+                        <div key={habit.id} className="flex items-center gap-2">
+                          <IconComp size={16} style={{ color: colorObj.ring }} className="flex-shrink-0" />
+                          <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
+                              {s.current}d
+                            </span>
+                            <span className={`text-xs ${textSecondary}`}>
+                              best {s.best}d
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
