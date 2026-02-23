@@ -2747,7 +2747,7 @@ const DayPlanner = () => {
       cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, cloudSyncConfig?.enabled]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, dailyNotes, cloudSyncConfig?.enabled]);
 
   // Cloud sync: download on app load or when sync is first enabled
   useEffect(() => {
