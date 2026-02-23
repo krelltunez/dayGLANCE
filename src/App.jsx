@@ -11177,7 +11177,7 @@ const DayPlanner = () => {
                 {habitsEnabled && activeHabits.length > 0 && (
                   <div className="mb-4 relative">
                     <div className="flex items-start gap-1 justify-center">
-                      {activeHabits.slice(0, 4).map(habit => (
+                      {activeHabits.slice(0, 5).map(habit => (
                         <div key={habit.id} className="relative">
                           <HabitRing
                             size={44}
@@ -11203,19 +11203,19 @@ const DayPlanner = () => {
                           )}
                         </div>
                       ))}
-                      {activeHabits.length > 4 && (
+                      {activeHabits.length > 5 && (
                         <div className="relative">
                           <button
                             onClick={() => setHabitOverflowOpen(prev => !prev)}
                             className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
                           >
-                            +{activeHabits.length - 4}
+                            +{activeHabits.length - 5}
                           </button>
                           {habitOverflowOpen && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
                               <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
-                                {activeHabits.slice(4).map(habit => {
+                                {activeHabits.slice(5).map(habit => {
                                   const count = getTodayHabitCount(habit.id);
                                   const IconComp = HABIT_ICONS[habit.icon] || Target;
                                   const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
@@ -13054,8 +13054,8 @@ const DayPlanner = () => {
                           <div className="space-y-2">
                             {(() => {
                               const overflow = activeHabits.length > 5;
-                              const visible = overflow ? activeHabits.slice(0, 4) : activeHabits;
-                              const remaining = activeHabits.length - 4;
+                              const visible = overflow ? activeHabits.slice(0, 5) : activeHabits;
+                              const remaining = activeHabits.length - 5;
                               return (
                                 <>
                                   {visible.map(habit => {
@@ -13731,7 +13731,7 @@ const DayPlanner = () => {
                       {habitsEnabled && activeHabits.length > 0 && (
                         <div className="relative">
                           <div className="flex items-start gap-1 justify-center">
-                            {activeHabits.slice(0, 4).map(habit => (
+                            {activeHabits.slice(0, 5).map(habit => (
                               <div key={habit.id} className="relative">
                                 <HabitRing
                                   size={44}
@@ -13757,19 +13757,19 @@ const DayPlanner = () => {
                                 )}
                               </div>
                             ))}
-                            {activeHabits.length > 4 && (
+                            {activeHabits.length > 5 && (
                               <div className="relative">
                                 <button
                                   onClick={() => setHabitOverflowOpen(prev => !prev)}
                                   className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
                                 >
-                                  +{activeHabits.length - 4}
+                                  +{activeHabits.length - 5}
                                 </button>
                                 {habitOverflowOpen && (
                                   <>
                                     <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
                                     <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
-                                      {activeHabits.slice(4).map(habit => {
+                                      {activeHabits.slice(5).map(habit => {
                                         const count = getTodayHabitCount(habit.id);
                                         const IconComp = HABIT_ICONS[habit.icon] || Target;
                                         const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
@@ -14405,7 +14405,7 @@ const DayPlanner = () => {
                   {habitsEnabled && activeHabits.length > 0 && (
                     <div className="relative">
                       <div className="flex items-start gap-1 justify-center">
-                        {activeHabits.slice(0, 4).map(habit => (
+                        {activeHabits.slice(0, 5).map(habit => (
                           <div key={habit.id} className="relative">
                             <HabitRing
                               size={44}
@@ -14431,19 +14431,19 @@ const DayPlanner = () => {
                             )}
                           </div>
                         ))}
-                        {activeHabits.length > 4 && (
+                        {activeHabits.length > 5 && (
                           <div className="relative">
                             <button
                               onClick={() => setHabitOverflowOpen(prev => !prev)}
                               className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
                             >
-                              +{activeHabits.length - 4}
+                              +{activeHabits.length - 5}
                             </button>
                             {habitOverflowOpen && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
                                 <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
-                                  {activeHabits.slice(4).map(habit => {
+                                  {activeHabits.slice(5).map(habit => {
                                     const count = getTodayHabitCount(habit.id);
                                     const IconComp = HABIT_ICONS[habit.icon] || Target;
                                     const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
@@ -17448,8 +17448,8 @@ const DayPlanner = () => {
                   <div className="space-y-2">
                     {(() => {
                       const overflow = activeHabits.length > 5;
-                      const visible = overflow ? activeHabits.slice(0, 4) : activeHabits;
-                      const remaining = activeHabits.length - 4;
+                      const visible = overflow ? activeHabits.slice(0, 5) : activeHabits;
+                      const remaining = activeHabits.length - 5;
                       return (
                         <>
                           {visible.map(habit => {
