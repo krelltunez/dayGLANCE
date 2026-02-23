@@ -12047,6 +12047,13 @@ const DayPlanner = () => {
                       {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
                       <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
                     </button>
+                    <div
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2 opacity-50`}
+                    >
+                      <BrainCircuit size={24} className={textSecondary} />
+                      <span className={`text-xs font-medium ${textSecondary}`}>AI</span>
+                      <span className={`text-[9px] ${textSecondary}`}>Coming Soon</span>
+                    </div>
                   </div>
 
                   {/* Sync buttons */}
@@ -19452,6 +19459,17 @@ const DayPlanner = () => {
                         </div>
                         <span className={`text-sm ${textPrimary}`}>Enable routines</span>
                       </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* AI Section */}
+                    <div className="space-y-3 opacity-50">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <BrainCircuit size={16} className={textSecondary} />
+                        AI
+                      </h4>
+                      <span className={`text-sm ${textSecondary}`}>Coming soon</span>
                     </div>
 
                     {!isMobile && !isTablet && (<>
