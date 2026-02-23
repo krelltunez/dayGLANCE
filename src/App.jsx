@@ -13045,11 +13045,11 @@ const DayPlanner = () => {
                         </div>
                         <div className={`space-y-2 text-sm ${textSecondary}`}>
                           <div className="flex items-center justify-between">
-                            <span>Tasks scheduled</span>
+                            <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> Tasks scheduled</div>
                             <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span>Tasks completed</span>
+                            <div className="flex items-center gap-2"><CheckCircle size={14} className="text-green-400" /> Tasks completed</div>
                             <span className={`font-medium ${textPrimary}`}>
                               {allTimeCompletedCount}
                               {allTimeIncompleteTasks.length > 0 && (
@@ -13064,27 +13064,28 @@ const DayPlanner = () => {
                           </div>
                           {allTimeInboxCompletedCount > 0 && (
                             <div className="flex items-center justify-between">
-                              <span>Inbox done</span>
+                              <div className="flex items-center gap-2"><Inbox size={14} className="text-amber-400" /> Inbox done</div>
                               <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
                             </div>
                           )}
                           <div className="flex items-center justify-between">
-                            <span>Time spent</span>
+                            <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
                             <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span>Time planned</span>
+                            <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
                             <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
                           </div>
                           {allTimeFocusMinutes > 0 && (
                             <div className="flex items-center justify-between">
-                              <span>Focus time</span>
+                              <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
                               <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
                             </div>
                           )}
                           {allTimeScheduledCount > 0 && (
-                            <div className={`pt-1 font-semibold ${textPrimary}`}>
-                              {Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate
+                            <div className="flex items-center justify-between pt-1">
+                              <div className="flex items-center gap-2"><Trophy size={14} className="text-amber-400" /> <span className={`font-semibold ${textPrimary}`}>Completion rate</span></div>
+                              <span className={`font-semibold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
                             </div>
                           )}
                         </div>
@@ -17439,11 +17440,11 @@ const DayPlanner = () => {
                 </div>
                 <div className={`space-y-2 text-sm ${textSecondary}`}>
                   <div className="flex items-center justify-between">
-                    <span>Tasks scheduled</span>
+                    <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> Tasks scheduled</div>
                     <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Tasks completed</span>
+                    <div className="flex items-center gap-2"><CheckCircle size={14} className="text-green-400" /> Tasks completed</div>
                     <span className={`font-medium ${textPrimary}`}>
                       {allTimeCompletedCount}
                       {allTimeIncompleteTasks.length > 0 && (
@@ -17458,27 +17459,28 @@ const DayPlanner = () => {
                   </div>
                   {allTimeInboxCompletedCount > 0 && (
                     <div className="flex items-center justify-between">
-                      <span>Inbox done</span>
+                      <div className="flex items-center gap-2"><Inbox size={14} className="text-amber-400" /> Inbox done</div>
                       <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <span>Time spent</span>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
                     <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Time planned</span>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
                     <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
                   </div>
                   {allTimeFocusMinutes > 0 && (
                     <div className="flex items-center justify-between">
-                      <span>Focus time</span>
+                      <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
                       <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
                     </div>
                   )}
                   {allTimeScheduledCount > 0 && (
-                    <div className={`pt-1 font-semibold ${textPrimary}`}>
-                      {Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}% completion rate
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-2"><Trophy size={14} className="text-amber-400" /> <span className={`font-semibold ${textPrimary}`}>Completion rate</span></div>
+                      <span className={`font-semibold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
                     </div>
                   )}
                 </div>
