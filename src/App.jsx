@@ -1582,6 +1582,7 @@ const DayPlanner = () => {
   const [habits, setHabits] = useState([]);
   const [habitLogs, setHabitLogs] = useState({});
   const [habitsEnabled, setHabitsEnabled] = useState(true);
+  const [routinesEnabled, setRoutinesEnabled] = useState(true);
   const [showHabitModal, setShowHabitModal] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null); // null = adding new, object = editing
   const [draggedHabitIdx, setDraggedHabitIdx] = useState(null);
@@ -2525,6 +2526,14 @@ const DayPlanner = () => {
     }
   }, [mobileSettingsView, isMobile]);
 
+  // Redirect away from routines tab if routines are disabled
+  useEffect(() => {
+    if (!routinesEnabled && mobileActiveTab === 'routines') {
+      handleRoutinesDone();
+      setMobileActiveTab('dayglance');
+    }
+  }, [routinesEnabled]);
+
   // Android back button: navigate to dayglance tab from other screens
   useEffect(() => {
     if (!isMobile) return;
@@ -2737,7 +2746,7 @@ const DayPlanner = () => {
         suppressTimestampRef.current = false;
       });
     }
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
@@ -2747,7 +2756,7 @@ const DayPlanner = () => {
       cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, dailyNotes, cloudSyncConfig?.enabled]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, cloudSyncConfig?.enabled]);
 
   // Cloud sync: download on app load or when sync is first enabled
   useEffect(() => {
@@ -3143,6 +3152,8 @@ const DayPlanner = () => {
       if (habitLogsData) setHabitLogs(JSON.parse(habitLogsData));
       const habitsEnabledData = localStorage.getItem('day-planner-habits-enabled');
       if (habitsEnabledData !== null) setHabitsEnabled(JSON.parse(habitsEnabledData));
+      const routinesEnabledData = localStorage.getItem('day-planner-routines-enabled');
+      if (routinesEnabledData !== null) setRoutinesEnabled(JSON.parse(routinesEnabledData));
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
@@ -3199,6 +3210,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-habits', JSON.stringify(habits));
       localStorage.setItem('day-planner-habit-logs', JSON.stringify(habitLogs));
       localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabled));
+      localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabled));
       // Only update local-modified after initial cloud sync has run,
       // otherwise the initial loadData() sets it to "now" and overwrites remote
       if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
@@ -3686,7 +3698,7 @@ const DayPlanner = () => {
 
     // Also treat today's timeline-placed routine chips as obstacles
     const todayStr = dateToString(new Date());
-    if (dateStr === todayStr) {
+    if (routinesEnabled && dateStr === todayStr) {
       todayRoutines.filter(r => !r.isAllDay && r.startTime).forEach(r => {
         importedEvents.push({ startTime: r.startTime, duration: r.duration, title: r.name, id: `routine-${r.id}` });
       });
@@ -5300,7 +5312,7 @@ const DayPlanner = () => {
       }
 
       // 'r' for routines dashboard
-      if (e.key === 'r' && noModifiers) {
+      if (e.key === 'r' && noModifiers && routinesEnabled) {
         e.preventDefault();
         setShowRoutinesDashboard(true);
       }
@@ -8231,7 +8243,8 @@ const DayPlanner = () => {
         weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit',
         habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
         habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
-        habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true')
+        habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
+        routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true')
       }
     };
 
@@ -8417,6 +8430,7 @@ const DayPlanner = () => {
         if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
         if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
         if (data.habitsEnabled !== undefined) localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
+        if (data.routinesEnabled !== undefined) localStorage.setItem('day-planner-routines-enabled', JSON.stringify(data.routinesEnabled));
 
         // Reload app to reflect changes
         window.location.reload();
@@ -8670,7 +8684,8 @@ const DayPlanner = () => {
       dailyNotes: JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}'),
       habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
-      habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true')
+      habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
+      routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true')
     }
   });
 
@@ -8753,6 +8768,10 @@ const DayPlanner = () => {
     if (data.habitsEnabled !== undefined) {
       localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
       setHabitsEnabled(data.habitsEnabled);
+    }
+    if (data.routinesEnabled !== undefined) {
+      localStorage.setItem('day-planner-routines-enabled', JSON.stringify(data.routinesEnabled));
+      setRoutinesEnabled(data.routinesEnabled);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
@@ -10416,7 +10435,7 @@ const DayPlanner = () => {
                   </div>
 
                   {/* All-day tasks - inside sticky header group */}
-                  {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || todayRoutines.some(r => r.isAllDay && !String(r.id).startsWith('example-'))) && (
+                  {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || (routinesEnabled && todayRoutines.some(r => r.isAllDay && !String(r.id).startsWith('example-')))) && (
                     <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                       <div className="flex">
                         <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
@@ -10655,7 +10674,7 @@ const DayPlanner = () => {
                                   </div>
                                 ))}
                                 {/* Routine pills in all-day (today only) */}
-                                {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-')).map((routine) => (
+                                {routinesEnabled && dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-')).map((routine) => (
                                   <div
                                     key={`routine-${routine.id}`}
                                     className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
@@ -11020,7 +11039,7 @@ const DayPlanner = () => {
                               })}
 
                             {/* Timeline routine pills (today only) */}
-                            {dateStr === dateToString(new Date()) && (() => {
+                            {routinesEnabled && dateStr === dateToString(new Date()) && (() => {
                               const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime && !String(r.id).startsWith('example-'));
                               if (timelineRoutines.length === 0) return null;
 
@@ -11531,7 +11550,7 @@ const DayPlanner = () => {
                   </div>
                 ); })()}
                 {/* Routines row */}
-                {todayRoutines.length > 0 && (() => {
+                {routinesEnabled && todayRoutines.length > 0 && (() => {
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                   const visibleRoutines = todayRoutines.filter(r => {
                     if (String(r.id).startsWith('example-')) return false;
@@ -12020,6 +12039,13 @@ const DayPlanner = () => {
                     >
                       {habitsEnabled ? <Activity size={24} className="text-green-500" /> : <Activity size={24} className={textSecondary} />}
                       <span className={`text-xs font-medium ${textPrimary}`}>Habits {habitsEnabled ? 'On' : 'Off'}</span>
+                    </button>
+                    <button
+                      onClick={() => setRoutinesEnabled(!routinesEnabled)}
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+                    >
+                      {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
+                      <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
                     </button>
                   </div>
 
@@ -12745,6 +12771,16 @@ const DayPlanner = () => {
                   <Activity size={22} />
                 </button>
               )}
+              {/* Routines FAB */}
+              {routinesEnabled && (
+                <button
+                  onClick={openRoutinesDashboard}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
+                  style={{ bottom: `calc(${(recycleBin.filter(t => !t.isExample).length > 0 ? 16.5 : 12.5) + (habitsEnabled ? 4 : 0)}rem + env(safe-area-inset-bottom, 0px))` }}
+                >
+                  <Sparkles size={22} />
+                </button>
+              )}
             </>
           )}
 
@@ -13165,6 +13201,7 @@ const DayPlanner = () => {
                 </div>
                 <span className="text-[10px] font-medium">Inbox</span>
               </button>
+              {routinesEnabled && (
               <button
                 onClick={() => {
                   setMobileActiveTab('routines');
@@ -13178,6 +13215,7 @@ const DayPlanner = () => {
                 <Sparkles size={20} />
                 <span className="text-[10px] font-medium">Routines</span>
               </button>
+              )}
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
@@ -14041,7 +14079,7 @@ const DayPlanner = () => {
                       ); })()}
 
                       {/* Routines row */}
-                      {todayRoutines.length > 0 && (() => {
+                      {routinesEnabled && todayRoutines.length > 0 && (() => {
                         const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                         const visibleRoutines = todayRoutines.filter(r => {
                           if (String(r.id).startsWith('example-')) return false;
@@ -14715,7 +14753,7 @@ const DayPlanner = () => {
                   ); })()}
 
                   {/* Routines row */}
-                  {todayRoutines.length > 0 && (() => {
+                  {routinesEnabled && todayRoutines.length > 0 && (() => {
                     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                     const visibleRoutines = todayRoutines.filter(r => {
                       if (!r.startTime || r.isAllDay) return true;
@@ -15064,7 +15102,7 @@ const DayPlanner = () => {
               </div>
 
               {/* All-day tasks section - sticky below date headers */}
-              {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || todayRoutines.some(r => r.isAllDay)) && (
+              {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
                 <div ref={(el) => { stickyHeaderRef.current = el; if (isTablet) mobileAllDaySectionRef.current = el; }} className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
                   <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
                     ALL DAY
@@ -15543,7 +15581,7 @@ const DayPlanner = () => {
                         ))}
 
                         {/* Routine pills in all-day (today only) */}
-                        {dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay).map((routine) => (
+                        {routinesEnabled && dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay).map((routine) => (
                           <div
                             key={`routine-${routine.id}`}
                             draggable={!isTablet}
@@ -16085,7 +16123,7 @@ const DayPlanner = () => {
                         })}
 
                         {/* Timeline routine pills (today only) */}
-                        {dateStr === dateToString(new Date()) && (() => {
+                        {routinesEnabled && dateStr === dateToString(new Date()) && (() => {
                           const timelineRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
                           if (timelineRoutines.length === 0) return null;
 
@@ -17079,18 +17117,9 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet: Timeline FABs — + (new task) and Routines */}
+      {/* Tablet: Timeline FABs — + (new task) */}
       {isTablet && (
         <>
-          {/* Routines FAB — always visible on timeline */}
-          <button
-            onClick={openRoutinesDashboard}
-            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-teal-700 text-teal-100 active:bg-teal-600' : 'bg-teal-600 text-white active:bg-teal-700'}`}
-            style={{ right: '1rem', bottom: '6rem' }}
-            title="Routines"
-          >
-            <Sparkles size={22} />
-          </button>
           {/* + New task FAB */}
           <button
             onClick={openNewTaskForm}
@@ -17166,11 +17195,21 @@ const DayPlanner = () => {
               <Activity size={22} />
             </button>
           )}
+          {/* Routines FAB */}
+          {routinesEnabled && (
+            <button
+              onClick={openRoutinesDashboard}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
+              style={{ left: '248px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
+            >
+              <Sparkles size={22} />
+            </button>
+          )}
           </>)}
         </>
       )}
 
-      {/* Desktop: Timeline FABs — + (new task) and routines */}
+      {/* Desktop: Timeline FABs — + (new task) */}
       {!isTablet && !isMobile && (
         <>
           <button
@@ -17180,14 +17219,6 @@ const DayPlanner = () => {
             title="New Scheduled Task"
           >
             <Plus size={28} />
-          </button>
-          <button
-            onClick={openRoutinesDashboard}
-            className={`fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-teal-700 hover:bg-teal-600 text-teal-100' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
-            style={{ right: '1.75rem', bottom: '6rem' }}
-            title="Routines"
-          >
-            <Sparkles size={20} />
           </button>
           {/* Desktop Glance panel FABs — matching tablet landscape */}
           {tabletActiveTab === 'glance' && (<>
@@ -17253,6 +17284,16 @@ const DayPlanner = () => {
               style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
             >
               <Activity size={22} />
+            </button>
+          )}
+          {/* Routines FAB */}
+          {routinesEnabled && (
+            <button
+              onClick={openRoutinesDashboard}
+              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
+              style={{ left: '248px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
+            >
+              <Sparkles size={22} />
             </button>
           )}
           </>)}
@@ -19386,6 +19427,30 @@ const DayPlanner = () => {
                           </div>
                         </div>
                         <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Routines Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Sparkles size={16} className={textSecondary} />
+                        Routines
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={routinesEnabled}
+                            onChange={(e) => setRoutinesEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${routinesEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable routines</span>
                       </label>
                     </div>
 

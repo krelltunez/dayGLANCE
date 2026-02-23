@@ -1350,6 +1350,21 @@ describe('mergeSyncData — habits integration', () => {
     expect(localChanged).toBe(true);
   });
 
+  it('propagates routinesEnabled from remote', () => {
+    const deviceA = { ...base, routinesEnabled: true };
+    const deviceB = { ...base, routinesEnabled: false };
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.routinesEnabled).toBe(false);
+    expect(localChanged).toBe(true);
+  });
+
+  it('defaults routinesEnabled to true when not present', () => {
+    const deviceA = { ...base };
+    const deviceB = { ...base };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.routinesEnabled).toBe(undefined); // not set, defaults handled in app
+  });
+
   it('flags localChanged when remote has habits that local lacks', () => {
     const deviceA = { ...base, habits: [], habitLogs: {} };
     const deviceB = {

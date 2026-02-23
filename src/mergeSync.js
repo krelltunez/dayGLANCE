@@ -458,6 +458,14 @@ export const mergeSyncData = (localData, remoteData) => {
     remoteChanged = false; // remote already has it
   }
 
+  // Check if routinesEnabled setting differs
+  const localRoutinesEnabled = localData.routinesEnabled !== undefined ? localData.routinesEnabled : true;
+  const remoteRoutinesEnabled = remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : true;
+  if (localRoutinesEnabled !== remoteRoutinesEnabled) {
+    localChanged = true;
+    remoteChanged = false;
+  }
+
   return {
     data: {
       tasks: finalTasks,
@@ -478,6 +486,7 @@ export const mergeSyncData = (localData, remoteData) => {
       habits: habitsMerge.merged,
       habitLogs: habitLogsMerge.merged,
       habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
+      routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },
