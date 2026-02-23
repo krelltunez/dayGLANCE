@@ -4,6 +4,23 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, X-WebDAV-Auth',
 };
 
+// Disable Vercel's default body parser so we can forward raw request bodies
+// (e.g. text/calendar) without them being mangled or rejected as unsupported.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => data += chunk);
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -39,8 +56,11 @@ export default async function handler(req, res) {
       headers,
     };
 
-    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
-      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      const rawBody = await readRawBody(req);
+      if (rawBody) {
+        fetchOptions.body = rawBody;
+      }
     }
 
     const response = await fetch(url, fetchOptions);
