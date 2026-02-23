@@ -18504,6 +18504,16 @@ const DayPlanner = () => {
                               </div>
                             </div>
                             <div className="flex items-center gap-1">
+                              {idx > 0 && (
+                                <button onClick={() => reorderHabits(idx, idx - 1)} className={`p-1 rounded ${hoverBg}`}>
+                                  <ChevronUp size={14} className={textSecondary} />
+                                </button>
+                              )}
+                              {idx < activeHabits.length - 1 && (
+                                <button onClick={() => reorderHabits(idx, idx + 1)} className={`p-1 rounded ${hoverBg}`}>
+                                  <ChevronDown size={14} className={textSecondary} />
+                                </button>
+                              )}
                               <button onClick={() => setEditingHabit({ ...habit })} className={`p-1 rounded ${hoverBg}`}>
                                 <Pencil size={14} className={textSecondary} />
                               </button>
