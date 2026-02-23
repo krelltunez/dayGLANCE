@@ -96,10 +96,15 @@ For limit habits, the ring is always full (not a progress ring) — it acts as a
 
 ### D. Habit Management FAB + Modal
 - A **FAB (Floating Action Button)** is added to the existing FAB array at the bottom of the Glance panel/tab (e.g., a gear or list icon) — tapping it opens the habit management modal
-- Also accessible from Settings tab
 - CRUD operations: add, edit, reorder, archive habits
 - Per habit: name, icon picker (subset of lucide icons), color picker, type toggle (do more / limit), target number, unit label
 - Max ~8 active habits to keep the UI compact
+
+### E. Settings Toggle
+- A **"Habit Tracking" toggle** in the Settings panel allows the user to enable/disable the entire habit system
+- When disabled: habit rings row, overflow menu, date header mini-rings, and the habit management FAB are all hidden
+- Habit data (definitions + logs) is **preserved** when disabled — turning it back on restores everything
+- Defaults to **enabled** (on) so the feature is discoverable out of the box
 
 ---
 
@@ -109,11 +114,13 @@ For limit habits, the ring is always full (not a progress ring) — it acts as a
 ```js
 const [habits, setHabits] = useState([]);
 const [habitLogs, setHabitLogs] = useState({});
+const [habitsEnabled, setHabitsEnabled] = useState(true);
 ```
 
 ### localStorage keys:
 - `day-planner-habits` — habit definitions array
 - `day-planner-habit-logs` — date-keyed log object
+- `day-planner-habits-enabled` — boolean toggle (persisted with other settings)
 
 ### Load in `loadData()` (~line 2759):
 ```js
@@ -182,7 +189,7 @@ All changes are in `src/App.jsx` (monolithic single-file app) plus minor additio
    - Glance panel habit row with overflow menu (mobile + tablet)
    - Date header mini rings (mobile + desktop)
    - Habit logging functions
-   - Settings entry point for habit management
+   - Settings toggle for enabling/disabling habit tracking
    - Undo integration
 
 No new files needed — follows the existing single-file architecture.
@@ -206,10 +213,11 @@ No new files needed — follows the existing single-file architecture.
 
 ### Phase 4: Management
 8. Build habit management modal (add/edit/reorder/archive)
-9. Add habit management FAB to Glance panel FAB array + Settings entry point
+9. Add habit management FAB to Glance panel FAB array
+10. Add "Habit Tracking" on/off toggle to Settings panel (gates all habit UI)
 
 ### Phase 5: Polish
-10. Add undo support for habit logging
-11. Include habits in backup export/import
-12. Add keyboard shortcut for quick habit log (optional)
-13. Test across mobile, tablet, desktop breakpoints
+11. Add undo support for habit logging
+12. Include habits in backup export/import
+13. Add keyboard shortcut for quick habit log (optional)
+14. Test across mobile, tablet, desktop breakpoints
