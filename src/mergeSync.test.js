@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeSyncData } from './mergeSync.js';
+import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeSyncData } from './mergeSync.js';
 
 // Helpers to create task fixtures with timestamps
 const T = (id, title, lastModified, extra = {}) => ({
@@ -1198,5 +1198,168 @@ describe('mergeSyncData — dailyNotes integration', () => {
     };
     const { data } = mergeSyncData(deviceA, deviceB);
     expect(data.dailyNotes['2026-02-10'].deleted).toBe(true);
+  });
+});
+
+// ─── mergeHabits ──────────────────────────────────────────────────────
+
+describe('mergeHabits', () => {
+  const H = (id, name, createdAt, extra = {}) => ({
+    id: String(id), name, createdAt, archived: false, ...extra
+  });
+
+  it('returns empty for two empty arrays', () => {
+    const { merged, localChanged, remoteChanged } = mergeHabits([], []);
+    expect(merged).toEqual([]);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('keeps local-only habits and flags remoteChanged', () => {
+    const local = [H(1, 'Exercise', ts(5))];
+    const { merged, localChanged, remoteChanged } = mergeHabits(local, []);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].name).toBe('Exercise');
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('keeps remote-only habits and flags localChanged', () => {
+    const remote = [H(2, 'Read', ts(5))];
+    const { merged, localChanged, remoteChanged } = mergeHabits([], remote);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].name).toBe('Read');
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('unions habits from both sides', () => {
+    const local = [H(1, 'Exercise', ts(5))];
+    const remote = [H(2, 'Read', ts(5))];
+    const { merged } = mergeHabits(local, remote);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].name).toBe('Exercise');
+    expect(merged[1].name).toBe('Read');
+  });
+
+  it('keeps newer version when both sides have the same habit with lastModified', () => {
+    const local = [H(1, 'Exercise', ts(10), { lastModified: ts(10) })];
+    const remote = [H(1, 'Workout', ts(10), { lastModified: ts(2) })];
+    const { merged } = mergeHabits(local, remote);
+    expect(merged[0].name).toBe('Workout');
+  });
+
+  it('preserves local ordering with remote appended', () => {
+    const local = [H(2, 'Read', ts(5)), H(1, 'Exercise', ts(10))];
+    const remote = [H(1, 'Exercise', ts(10)), H(3, 'Meditate', ts(3))];
+    const { merged } = mergeHabits(local, remote);
+    expect(merged.map(h => h.name)).toEqual(['Read', 'Exercise', 'Meditate']);
+  });
+});
+
+// ─── mergeHabitLogs ───────────────────────────────────────────────────
+
+describe('mergeHabitLogs', () => {
+  it('returns empty for two empty objects', () => {
+    const { merged, localChanged, remoteChanged } = mergeHabitLogs({}, {});
+    expect(merged).toEqual({});
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('keeps local-only date entries', () => {
+    const local = { '2026-02-20': { h1: 3 } };
+    const { merged, remoteChanged } = mergeHabitLogs(local, {});
+    expect(merged['2026-02-20'].h1).toBe(3);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('keeps remote-only date entries', () => {
+    const remote = { '2026-02-20': { h1: 2 } };
+    const { merged, localChanged } = mergeHabitLogs({}, remote);
+    expect(merged['2026-02-20'].h1).toBe(2);
+    expect(localChanged).toBe(true);
+  });
+
+  it('takes max count when both sides have same date and habit', () => {
+    const local = { '2026-02-20': { h1: 3, h2: 1 } };
+    const remote = { '2026-02-20': { h1: 5, h2: 1 } };
+    const { merged, localChanged, remoteChanged } = mergeHabitLogs(local, remote);
+    expect(merged['2026-02-20'].h1).toBe(5);
+    expect(merged['2026-02-20'].h2).toBe(1);
+    expect(localChanged).toBe(true);  // h1 was higher on remote
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('unions habits within same date from both sides', () => {
+    const local = { '2026-02-20': { h1: 2 } };
+    const remote = { '2026-02-20': { h2: 4 } };
+    const { merged } = mergeHabitLogs(local, remote);
+    expect(merged['2026-02-20'].h1).toBe(2);
+    expect(merged['2026-02-20'].h2).toBe(4);
+  });
+});
+
+// ─── mergeSyncData — habits integration ───────────────────────────────
+
+describe('mergeSyncData — habits integration', () => {
+  const base = {
+    tasks: [], unscheduledTasks: [], recycleBin: [],
+    recurringTasks: [], routineDefinitions: {},
+    todayRoutines: [], routinesDate: '',
+    deletedTaskIds: {}, deletedRoutineChipIds: {},
+    removedTodayRoutineIds: {}, dailyNotes: {},
+  };
+
+  it('merges habits from both devices', () => {
+    const deviceA = {
+      ...base,
+      habits: [{ id: '1', name: 'Exercise', createdAt: ts(5), archived: false }],
+      habitLogs: {},
+    };
+    const deviceB = {
+      ...base,
+      habits: [{ id: '2', name: 'Read', createdAt: ts(5), archived: false }],
+      habitLogs: {},
+    };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.habits).toHaveLength(2);
+    expect(data.habits.map(h => h.name).sort()).toEqual(['Exercise', 'Read']);
+  });
+
+  it('merges habit logs taking max counts', () => {
+    const deviceA = {
+      ...base,
+      habits: [{ id: '1', name: 'Exercise', createdAt: ts(10), archived: false }],
+      habitLogs: { '2026-02-20': { '1': 3 } },
+    };
+    const deviceB = {
+      ...base,
+      habits: [{ id: '1', name: 'Exercise', createdAt: ts(10), archived: false }],
+      habitLogs: { '2026-02-20': { '1': 7 } },
+    };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.habitLogs['2026-02-20']['1']).toBe(7);
+  });
+
+  it('propagates habitsEnabled from remote', () => {
+    const deviceA = { ...base, habits: [], habitLogs: {}, habitsEnabled: true };
+    const deviceB = { ...base, habits: [], habitLogs: {}, habitsEnabled: false };
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.habitsEnabled).toBe(false);
+    expect(localChanged).toBe(true);
+  });
+
+  it('flags localChanged when remote has habits that local lacks', () => {
+    const deviceA = { ...base, habits: [], habitLogs: {} };
+    const deviceB = {
+      ...base,
+      habits: [{ id: '1', name: 'Meditate', createdAt: ts(5), archived: false }],
+      habitLogs: { '2026-02-20': { '1': 2 } },
+    };
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(localChanged).toBe(true);
+    expect(data.habits).toHaveLength(1);
+    expect(data.habitLogs['2026-02-20']['1']).toBe(2);
   });
 });

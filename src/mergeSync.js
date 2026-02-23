@@ -204,6 +204,107 @@ export const mergeDailyNotes = (localNotes, remoteNotes) => {
 };
 
 /**
+ * Merges habit arrays by ID, preserving local ordering and appending
+ * remote-only habits at the end.
+ *
+ * Habits don't have lastModified timestamps, so when both sides have the
+ * same habit we keep the version with the most recent `createdAt` (in
+ * practice they'll be identical).  For mutable fields like `archived` and
+ * `name`, the version with a newer `createdAt` wins; if equal, local wins.
+ *
+ * @param {Array} localHabits  - Habits from this device
+ * @param {Array} remoteHabits - Habits from the server
+ * @returns {{ merged: Array, localChanged: boolean, remoteChanged: boolean }}
+ */
+export const mergeHabits = (localHabits, remoteHabits) => {
+  const remoteMap = new Map(remoteHabits.map(h => [String(h.id), h]));
+  const localIds = new Set(localHabits.map(h => String(h.id)));
+  let localChanged = false;
+  let remoteChanged = false;
+  const merged = [];
+
+  for (const localHabit of localHabits) {
+    const id = String(localHabit.id);
+    const remoteHabit = remoteMap.get(id);
+    if (remoteHabit) {
+      const localTime = new Date(localHabit.lastModified || localHabit.createdAt || 0);
+      const remoteTime = new Date(remoteHabit.lastModified || remoteHabit.createdAt || 0);
+      if (remoteTime > localTime) {
+        merged.push(remoteHabit);
+        localChanged = true;
+      } else if (localTime > remoteTime) {
+        merged.push(localHabit);
+        remoteChanged = true;
+      } else {
+        // Equal — check for field-level differences (e.g. archived on one side)
+        if (JSON.stringify(localHabit) !== JSON.stringify(remoteHabit)) {
+          merged.push(localHabit); // keep local
+          remoteChanged = true;
+        } else {
+          merged.push(localHabit);
+        }
+      }
+    } else {
+      merged.push(localHabit);
+      remoteChanged = true;
+    }
+  }
+
+  for (const remoteHabit of remoteHabits) {
+    if (!localIds.has(String(remoteHabit.id))) {
+      merged.push(remoteHabit);
+      localChanged = true;
+    }
+  }
+
+  return { merged, localChanged, remoteChanged };
+};
+
+/**
+ * Merges habit logs by date key.  Within each date, per-habit counts are
+ * merged by taking the maximum value (counts only increase within a day).
+ *
+ * @param {Object} localLogs  - { "YYYY-MM-DD": { habitId: count } }
+ * @param {Object} remoteLogs - { "YYYY-MM-DD": { habitId: count } }
+ * @returns {{ merged: Object, localChanged: boolean, remoteChanged: boolean }}
+ */
+export const mergeHabitLogs = (localLogs, remoteLogs) => {
+  const allDates = new Set([...Object.keys(localLogs), ...Object.keys(remoteLogs)]);
+  const merged = {};
+  let localChanged = false;
+  let remoteChanged = false;
+
+  for (const dateKey of allDates) {
+    const local = localLogs[dateKey];
+    const remote = remoteLogs[dateKey];
+
+    if (local && !remote) {
+      merged[dateKey] = local;
+      remoteChanged = true;
+    } else if (!local && remote) {
+      merged[dateKey] = remote;
+      localChanged = true;
+    } else {
+      // Both have it — merge per habit, taking the max count
+      const allHabitIds = new Set([...Object.keys(local), ...Object.keys(remote)]);
+      const dayMerged = {};
+      for (const habitId of allHabitIds) {
+        const localCount = local[habitId] || 0;
+        const remoteCount = remote[habitId] || 0;
+        dayMerged[habitId] = Math.max(localCount, remoteCount);
+        if (remoteCount > localCount) localChanged = true;
+        if (localCount > remoteCount) remoteChanged = true;
+        if (!local[habitId] && remote[habitId]) localChanged = true;
+        if (local[habitId] && !remote[habitId]) remoteChanged = true;
+      }
+      merged[dateKey] = dayMerged;
+    }
+  }
+
+  return { merged, localChanged, remoteChanged };
+};
+
+/**
  * Full data-level merge: combines local and remote sync snapshots with
  * per-task granularity.
  *
@@ -282,8 +383,12 @@ export const mergeSyncData = (localData, remoteData) => {
   // Merge daily notes by date key
   const dailyNotesMerge = mergeDailyNotes(localData.dailyNotes || {}, remoteData.dailyNotes || {});
 
-  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged || dailyNotesMerge.localChanged;
-  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged || dailyNotesMerge.remoteChanged;
+  // Merge habits and habit logs
+  const habitsMerge = mergeHabits(localData.habits || [], remoteData.habits || []);
+  const habitLogsMerge = mergeHabitLogs(localData.habitLogs || {}, remoteData.habitLogs || {});
+
+  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged || dailyNotesMerge.localChanged || habitsMerge.localChanged || habitLogsMerge.localChanged;
+  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged || dailyNotesMerge.remoteChanged || habitsMerge.remoteChanged || habitLogsMerge.remoteChanged;
 
   // Reconcile cross-list conflicts: task active on one device, in recycle bin on other
   const recycledMap = new Map(binMerge.merged.map(t => [String(t.id), t]));
@@ -344,6 +449,15 @@ export const mergeSyncData = (localData, remoteData) => {
   if (Object.keys(allRemovedTodayIds).length !== Object.keys(localRemovedToday).length) localChanged = true;
   if (Object.keys(allRemovedTodayIds).length !== Object.keys(remoteRemovedToday).length) remoteChanged = true;
 
+  // Check if habitsEnabled setting differs
+  const localHabitsEnabled = localData.habitsEnabled !== undefined ? localData.habitsEnabled : true;
+  const remoteHabitsEnabled = remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : true;
+  if (localHabitsEnabled !== remoteHabitsEnabled) {
+    // Prefer remote (propagates the toggle across devices)
+    localChanged = true;
+    remoteChanged = false; // remote already has it
+  }
+
   return {
     data: {
       tasks: finalTasks,
@@ -361,6 +475,9 @@ export const mergeSyncData = (localData, remoteData) => {
       todayRoutines: todayRoutinesMerge.merged,
       routinesDate: mergedRoutinesDate,
       dailyNotes: dailyNotesMerge.merged,
+      habits: habitsMerge.merged,
+      habitLogs: habitLogsMerge.merged,
+      habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },
