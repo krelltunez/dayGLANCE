@@ -12682,8 +12682,8 @@ const DayPlanner = () => {
           {mobileActiveTab === 'dayglance' && (
             <>
               {/* Daily summary ring FAB */}
-              {actualTodayNonImportedTasks.length > 0 && (() => {
-                const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
+              {(() => {
+                const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
                 const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
                 return (
                   <button
@@ -17103,8 +17103,8 @@ const DayPlanner = () => {
           {/* Glance panel FABs: weekly review (bottom), daily summary (middle), recycle bin (top) — only when glance panel is visible (portrait or landscape glance tab) */}
           {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
-          {actualTodayNonImportedTasks.length > 0 && (() => {
-            const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
+          {(() => {
+            const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
             const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
             return (
               <button
@@ -17192,8 +17192,8 @@ const DayPlanner = () => {
           {/* Desktop Glance panel FABs — matching tablet landscape */}
           {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
-          {actualTodayNonImportedTasks.length > 0 && (() => {
-            const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
+          {(() => {
+            const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
             const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
             return (
               <button
