@@ -10630,7 +10630,7 @@ const DayPlanner = () => {
                                   <div className="flex h-full">
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
-                                    <div className="h-full px-2 py-1.5 flex items-center gap-2 text-white">
+                                    <div className="h-full px-2 py-1.5 flex items-start gap-2 text-white">
                                       <span className="text-sm font-semibold truncate flex-1 min-w-0">
                                         {renderTitle(task.title)}
                                       </span>
@@ -10642,7 +10642,7 @@ const DayPlanner = () => {
                                       )}
                                     </div>
                                   ) : isImported ? (
-                                    <div className="h-full px-2 py-1.5 flex items-center gap-1.5 text-white">
+                                    <div className="h-full px-2 py-1.5 flex items-start gap-1.5 text-white">
                                       <button
                                         onClick={() => toggleComplete(task.id)}
                                         className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
