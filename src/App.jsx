@@ -1588,6 +1588,7 @@ const DayPlanner = () => {
   const [draggedHabitIdx, setDraggedHabitIdx] = useState(null);
   const [habitOverflowOpen, setHabitOverflowOpen] = useState(false);
   const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
+  const [habitEditingCountId, setHabitEditingCountId] = useState(null); // ID of habit with count input open
   const habitLongPressTimer = useRef(null);
   const editingHabitRef = useRef(editingHabit);
   editingHabitRef.current = editingHabit;
@@ -6380,10 +6381,10 @@ const DayPlanner = () => {
     setHabits(prev => [...prev, { ...habit, id: Date.now().toString(), createdAt: new Date().toISOString(), archived: false }]);
   };
   const updateHabit = (id, updates) => {
-    setHabits(prev => prev.map(h => h.id === id ? { ...h, ...updates } : h));
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, ...updates, lastModified: new Date().toISOString() } : h));
   };
   const archiveHabit = (id) => {
-    setHabits(prev => prev.map(h => h.id === id ? { ...h, archived: true } : h));
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, archived: true, lastModified: new Date().toISOString() } : h));
   };
   const deleteHabit = (id) => {
     setHabits(prev => prev.filter(h => h.id !== id));
@@ -11204,19 +11205,32 @@ const DayPlanner = () => {
                             count={getTodayHabitCount(habit.id)}
                             darkMode={darkMode}
                             onClick={() => incrementHabit(habit.id)}
-                            onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); }}
+                            onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
                           />
                           {habitLongPressId === habit.id && (
                             <>
-                              <div className="fixed inset-0 z-40" onClick={() => setHabitLongPressId(null)} />
+                              <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
                               <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
                                 <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                                 <div className="flex items-center justify-center gap-3">
                                   <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
-                                  <span className={`text-lg font-bold min-w-[2ch] text-center ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                  {habitEditingCountId === habit.id ? (
+                                    <input
+                                      type="number"
+                                      autoFocus
+                                      defaultValue={getTodayHabitCount(habit.id)}
+                                      onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                                      onFocus={(e) => e.target.select()}
+                                    />
+                                  ) : (
+                                    <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                  )}
                                   <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
                                 </div>
-                                <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                                <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
                               </div>
                             </>
                           )}
@@ -13785,19 +13799,32 @@ const DayPlanner = () => {
                                   count={getTodayHabitCount(habit.id)}
                                   darkMode={darkMode}
                                   onClick={() => incrementHabit(habit.id)}
-                                  onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); }}
+                                  onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
                                 />
                                 {habitLongPressId === habit.id && (
                                   <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setHabitLongPressId(null)} />
+                                    <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
                                     <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
                                       <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                                       <div className="flex items-center justify-center gap-3">
                                         <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
-                                        <span className={`text-lg font-bold min-w-[2ch] text-center ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                        {habitEditingCountId === habit.id ? (
+                                    <input
+                                      type="number"
+                                      autoFocus
+                                      defaultValue={getTodayHabitCount(habit.id)}
+                                      onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                                      onFocus={(e) => e.target.select()}
+                                    />
+                                  ) : (
+                                    <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                  )}
                                         <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
                                       </div>
-                                      <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                                      <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
                                     </div>
                                   </>
                                 )}
@@ -14459,19 +14486,32 @@ const DayPlanner = () => {
                               count={getTodayHabitCount(habit.id)}
                               darkMode={darkMode}
                               onClick={() => incrementHabit(habit.id)}
-                              onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); }}
+                              onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
                             />
                             {habitLongPressId === habit.id && (
                               <>
-                                <div className="fixed inset-0 z-40" onClick={() => setHabitLongPressId(null)} />
+                                <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
                                 <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
                                   <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                                   <div className="flex items-center justify-center gap-3">
                                     <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
-                                    <span className={`text-lg font-bold min-w-[2ch] text-center ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                    {habitEditingCountId === habit.id ? (
+                                    <input
+                                      type="number"
+                                      autoFocus
+                                      defaultValue={getTodayHabitCount(habit.id)}
+                                      onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                                      onFocus={(e) => e.target.select()}
+                                    />
+                                  ) : (
+                                    <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                                  )}
                                     <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
                                   </div>
-                                  <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                                  <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
                                 </div>
                               </>
                             )}
