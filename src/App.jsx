@@ -2435,7 +2435,7 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
     document.documentElement.classList.toggle('dark', darkMode);
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#2563eb');
+    if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#ffffff');
   }, [darkMode]);
 
   // Persist minimizedSections to localStorage
