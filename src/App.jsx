@@ -2748,7 +2748,12 @@ const DayPlanner = () => {
         suppressTimestampRef.current = false;
       });
     }
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled]);
+
+  // Re-check conflicts when date or tasks change
+  useEffect(() => {
+    if (dataLoaded) checkConflicts();
+  }, [selectedDate, tasks, dataLoaded]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
@@ -4610,6 +4615,7 @@ const DayPlanner = () => {
     if (!onboardingProgress.hasAddedNotes) {
       setOnboardingProgress(prev => ({ ...prev, hasAddedNotes: true }));
     }
+    return newSubtask;
   };
 
   const toggleSubtask = (taskId, subtaskId, isInbox) => {
@@ -6570,8 +6576,8 @@ const DayPlanner = () => {
     setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, notes } : t));
   };
   const focusAddSubtask = (taskId, title, isInbox) => {
-    addSubtask(taskId, title, isInbox);
-    const newSt = { id: crypto.randomUUID(), title, completed: false };
+    const newSt = addSubtask(taskId, title, isInbox);
+    if (!newSt) return;
     setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSt] } : t));
   };
   const focusToggleSubtask = (taskId, subtaskId, isInbox) => {
@@ -7897,7 +7903,8 @@ const DayPlanner = () => {
           const colonIdx = line.indexOf(':');
           if (colonIdx !== -1) {
             if (!currentEvent.exdates) currentEvent.exdates = [];
-            currentEvent.exdates.push(line.substring(colonIdx + 1).substring(0, 8));
+            const values = line.substring(colonIdx + 1).split(',');
+            values.forEach(v => currentEvent.exdates.push(v.trim().substring(0, 8)));
           }
         }
       }
@@ -19009,7 +19016,7 @@ const DayPlanner = () => {
                 }`}>
                   {focusPhase === 'work' ? 'Work' : focusPhase === 'shortBreak' ? 'Short Break' : 'Long Break'}
                 </span>
-                <span className="text-gray-500 text-sm">Cycle {Math.floor(focusCycleCount / 1) + (focusPhase === 'work' ? 1 : 0)} of 4</span>
+                <span className="text-gray-500 text-sm">Cycle {(focusPhase === 'work' ? focusCycleCount % 4 : (focusCycleCount - 1 + 4) % 4) + 1} of 4</span>
               </div>
 
               {/* Countdown */}
