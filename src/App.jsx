@@ -2648,7 +2648,7 @@ const DayPlanner = () => {
     if (!syncUrl && !taskCalendarUrl) return;
 
     const syncTimer = setInterval(() => {
-      syncAll({ silent: true });
+      syncAllRef.current({ silent: true });
     }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(syncTimer);
@@ -6271,10 +6271,10 @@ const DayPlanner = () => {
     undoStackRef.current = [
       ...undoStackRef.current.slice(-49),
       {
-        tasks: JSON.parse(JSON.stringify(tasksRef.current)),
-        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasksRef.current)),
-        recycleBin: JSON.parse(JSON.stringify(recycleBinRef.current)),
-        recurringTasks: JSON.parse(JSON.stringify(recurringTasksRef.current)),
+        tasks: structuredClone(tasksRef.current),
+        unscheduledTasks: structuredClone(unscheduledTasksRef.current),
+        recycleBin: structuredClone(recycleBinRef.current),
+        recurringTasks: structuredClone(recurringTasksRef.current),
       }
     ];
     redoStackRef.current = [];
@@ -6287,10 +6287,10 @@ const DayPlanner = () => {
     redoStackRef.current = [
       ...redoStackRef.current,
       {
-        tasks: JSON.parse(JSON.stringify(tasksRef.current)),
-        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasksRef.current)),
-        recycleBin: JSON.parse(JSON.stringify(recycleBinRef.current)),
-        recurringTasks: JSON.parse(JSON.stringify(recurringTasksRef.current)),
+        tasks: structuredClone(tasksRef.current),
+        unscheduledTasks: structuredClone(unscheduledTasksRef.current),
+        recycleBin: structuredClone(recycleBinRef.current),
+        recurringTasks: structuredClone(recurringTasksRef.current),
       }
     ];
     setTasks(snapshot.tasks);
@@ -6308,10 +6308,10 @@ const DayPlanner = () => {
     undoStackRef.current = [
       ...undoStackRef.current,
       {
-        tasks: JSON.parse(JSON.stringify(tasksRef.current)),
-        unscheduledTasks: JSON.parse(JSON.stringify(unscheduledTasksRef.current)),
-        recycleBin: JSON.parse(JSON.stringify(recycleBinRef.current)),
-        recurringTasks: JSON.parse(JSON.stringify(recurringTasksRef.current)),
+        tasks: structuredClone(tasksRef.current),
+        unscheduledTasks: structuredClone(unscheduledTasksRef.current),
+        recycleBin: structuredClone(recycleBinRef.current),
+        recurringTasks: structuredClone(recurringTasksRef.current),
       }
     ];
     setTasks(snapshot.tasks);
@@ -8667,6 +8667,8 @@ const DayPlanner = () => {
       setIsSyncing(false);
     }
   };
+  const syncAllRef = useRef(syncAll);
+  syncAllRef.current = syncAll;
 
   // Cloud sync functions
   const buildSyncPayload = () => ({
@@ -10084,25 +10086,29 @@ const DayPlanner = () => {
   // Calculate all-time stats (excluding imported events, including recurring)
   // Inbox tasks with deadlines are treated as "scheduled" since they appear on the timeline
   // Only count tasks up through today — future tasks aren't "incomplete" yet
-  const nonImportedTasks = tasks.filter(t => !t.imported && t.date <= todayStr);
-  const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
-  const deadlineInboxTasks = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr);
-  const deadlineInboxCompleted = deadlineInboxTasks.filter(t => t.completed);
-  const recurringAllTimeStats = recurringTasks.reduce((acc, t) => {
-    const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
-    const completedSet = new Set(t.completedDates || []);
-    const completed = occs.filter(d => completedSet.has(d)).length;
+  const { allTimeScheduledCount, allTimeCompletedCount, totalCompletedMinutes, totalScheduledMinutes } = useMemo(() => {
+    const nonImportedTasks = tasks.filter(t => !t.imported && t.date <= todayStr);
+    const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
+    const deadlineInboxTasks = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr);
+    const deadlineInboxCompleted = deadlineInboxTasks.filter(t => t.completed);
+    const recurringAllTimeStats = recurringTasks.reduce((acc, t) => {
+      const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
+      const completedSet = new Set(t.completedDates || []);
+      const completed = occs.filter(d => completedSet.has(d)).length;
+      return {
+        scheduled: acc.scheduled + occs.length,
+        completed: acc.completed + completed,
+        scheduledMinutes: acc.scheduledMinutes + occs.length * (t.duration || 0),
+        completedMinutes: acc.completedMinutes + completed * (t.duration || 0),
+      };
+    }, { scheduled: 0, completed: 0, scheduledMinutes: 0, completedMinutes: 0 });
     return {
-      scheduled: acc.scheduled + occs.length,
-      completed: acc.completed + completed,
-      scheduledMinutes: acc.scheduledMinutes + occs.length * (t.duration || 0),
-      completedMinutes: acc.completedMinutes + completed * (t.duration || 0),
+      allTimeScheduledCount: nonImportedTasks.length + recurringAllTimeStats.scheduled + deadlineInboxTasks.length,
+      allTimeCompletedCount: allCompletedTasks.length + recurringAllTimeStats.completed + deadlineInboxCompleted.length,
+      totalCompletedMinutes: allCompletedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.completedMinutes + deadlineInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0),
+      totalScheduledMinutes: nonImportedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.scheduledMinutes + deadlineInboxTasks.reduce((sum, t) => sum + (t.duration || 0), 0),
     };
-  }, { scheduled: 0, completed: 0, scheduledMinutes: 0, completedMinutes: 0 });
-  const allTimeScheduledCount = nonImportedTasks.length + recurringAllTimeStats.scheduled + deadlineInboxTasks.length;
-  const allTimeCompletedCount = allCompletedTasks.length + recurringAllTimeStats.completed + deadlineInboxCompleted.length;
-  const totalCompletedMinutes = allCompletedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.completedMinutes + deadlineInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0);
-  const totalScheduledMinutes = nonImportedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.scheduledMinutes + deadlineInboxTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
+  }, [tasks, unscheduledTasks, recurringTasks, todayStr]);
 
   // Daily Summary stats - always use actual current date, not selected date
   // Compute today's recurring instances directly from templates (not expandedRecurringTasks
@@ -12950,11 +12956,19 @@ const DayPlanner = () => {
                 </div>
                 {/* Tag list */}
                 <div className="px-4 pb-4 space-y-1 max-h-[50vh] overflow-y-auto">
-                  {allTags.map(tag => {
+                  {(() => {
                     const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
-                    const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                    const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
-                    const tagCount = regularCount + recurringCount;
+                    const tagCounts = {};
+                    for (const t of tasks) {
+                      if (t.imported || !visibleDateStrs.has(t.date)) continue;
+                      for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                    }
+                    for (const t of expandedRecurringTasks) {
+                      if (!visibleDateStrs.has(t.date)) continue;
+                      for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                    }
+                    return allTags.map(tag => {
+                    const tagCount = tagCounts[tag] || 0;
                     if (tagCount === 0) return null;
                     return (
                       <button
@@ -12978,7 +12992,8 @@ const DayPlanner = () => {
                         <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
                       </button>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               </div>
             </div>
@@ -15213,8 +15228,8 @@ const DayPlanner = () => {
                           // Action buttons for all-day tasks
                           const isRecurringAllDay = typeof task.id === 'string' && task.id.startsWith('recurring-');
 
-                          // Notes button for all-day tasks
-                          const AllDayNotesButton = ({ inMenu = false }) => (
+                          // Notes button for all-day tasks (render function, not component, to avoid remount)
+                          const renderAllDayNotesButton = (inMenu = false) => (
                               <button
                                 onMouseDown={() => {
                                   if (isLinkOnlyTask(task)) {
@@ -15247,12 +15262,12 @@ const DayPlanner = () => {
                               </button>
                           );
 
-                          const AllDayActionButtons = ({ inMenu = false }) => {
+                          const renderAllDayActionButtons = (inMenu = false) => {
                             if (isRecurringAllDay) {
                               // Recurring all-day: Notes, Edit + Delete (desktop only)
                               return (
                                 <>
-                                  <AllDayNotesButton inMenu={inMenu} />
+                                  {renderAllDayNotesButton(inMenu)}
                                   {!isTablet && (
                                   <button
                                     onClick={() => openMobileEditTask(task, false)}
@@ -15279,7 +15294,7 @@ const DayPlanner = () => {
                             // Non-recurring all-day: Notes, Postpone (all), Edit + Inbox (desktop only)
                             return (
                               <>
-                                <AllDayNotesButton inMenu={inMenu} />
+                                {renderAllDayNotesButton(inMenu)}
                                 <button
                                   onClick={() => postponeTask(task.id)}
                                   className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
@@ -15437,7 +15452,7 @@ const DayPlanner = () => {
                                     useFullLayout ? (
                                       // Full layout: show action buttons inline
                                       <div className="flex items-center gap-0.5 flex-shrink-0">
-                                        <AllDayActionButtons />
+                                        {renderAllDayActionButtons()}
                                       </div>
                                     ) : (
                                       // Compact layout: show overflow menu
@@ -15448,7 +15463,7 @@ const DayPlanner = () => {
                                         <MoreHorizontal size={14} />
                                         {expandedTaskMenu === task.id && (
                                           <div className="task-menu-container absolute top-full right-2 mt-1 bg-white dark:bg-gray-800 rounded-lg p-1 z-30 shadow-xl border border-stone-300 dark:border-gray-700 min-w-[100px] text-gray-800 dark:text-white">
-                                            <AllDayActionButtons inMenu={true} />
+                                            {renderAllDayActionButtons(true)}
                                           </div>
                                         )}
                                       </button>
