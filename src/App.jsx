@@ -5405,7 +5405,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate, isMobile]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -9621,12 +9621,15 @@ const DayPlanner = () => {
     });
   }, [selectedDate, visibleDays]);
 
-  // Auto-select new tags when they appear
+  // Auto-select new tags when they appear (only truly new tags, not previously deselected ones)
+  const prevAllTagsRef = useRef(new Set(allTags));
   useEffect(() => {
-    const newTags = allTags.filter(tag => !selectedTags.includes(tag));
-    if (newTags.length > 0) {
-      setSelectedTags(prev => [...prev, ...newTags]);
+    const prevTags = prevAllTagsRef.current;
+    const brandNewTags = allTags.filter(tag => !prevTags.has(tag));
+    if (brandNewTags.length > 0) {
+      setSelectedTags(prev => [...prev, ...brandNewTags.filter(t => !prev.includes(t))]);
     }
+    prevAllTagsRef.current = new Set(allTags);
   }, [allTags]);
 
   // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
@@ -9817,7 +9820,7 @@ const DayPlanner = () => {
       }));
     }, 30000);
     return () => clearInterval(timer);
-  }, [activeReminders.length > 0]);
+  }, [activeReminders.length]);
 
 
   // Spotlight search results
@@ -10534,10 +10537,11 @@ const DayPlanner = () => {
                                             <button
                                               onMouseDown={() => {
                                                 if (isLinkOnlyTask(task)) {
+                                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                                                   longPressTriggeredRef.current = false;
                                                   longPressTimerRef.current = setTimeout(() => {
                                                     longPressTriggeredRef.current = true;
-                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                    setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                                   }, 500);
                                                 }
                                               }}
@@ -10546,10 +10550,11 @@ const DayPlanner = () => {
                                               onTouchStart={(e) => {
                                                 e.stopPropagation();
                                                 if (isLinkOnlyTask(task)) {
+                                                  if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                                                   longPressTriggeredRef.current = false;
                                                   longPressTimerRef.current = setTimeout(() => {
                                                     longPressTriggeredRef.current = true;
-                                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                    setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                                   }, 500);
                                                 }
                                               }}
@@ -10562,7 +10567,7 @@ const DayPlanner = () => {
                                                   }
                                                   longPressTriggeredRef.current = false;
                                                 } else {
-                                                  setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                                  setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                                 }
                                               }}
                                               className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -10626,10 +10631,11 @@ const DayPlanner = () => {
                                       <button
                                         onMouseDown={() => {
                                           if (isLinkOnlyTask(task)) {
+                                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                                             longPressTriggeredRef.current = false;
                                             longPressTimerRef.current = setTimeout(() => {
                                               longPressTriggeredRef.current = true;
-                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                              setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                             }, 500);
                                           }
                                         }}
@@ -10638,10 +10644,11 @@ const DayPlanner = () => {
                                         onTouchStart={(e) => {
                                           e.stopPropagation();
                                           if (isLinkOnlyTask(task)) {
+                                            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                                             longPressTriggeredRef.current = false;
                                             longPressTimerRef.current = setTimeout(() => {
                                               longPressTriggeredRef.current = true;
-                                              setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                              setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                             }, 500);
                                           }
                                         }}
@@ -10654,7 +10661,7 @@ const DayPlanner = () => {
                                             }
                                             longPressTriggeredRef.current = false;
                                           } else {
-                                            setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                           }
                                         }}
                                         className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -10837,7 +10844,7 @@ const DayPlanner = () => {
                                         longPressTriggeredRef.current = false;
                                         longPressTimerRef.current = setTimeout(() => {
                                           longPressTriggeredRef.current = true;
-                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                          setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                         }, 500);
                                       }
                                     }}
@@ -10849,7 +10856,7 @@ const DayPlanner = () => {
                                         longPressTriggeredRef.current = false;
                                         longPressTimerRef.current = setTimeout(() => {
                                           longPressTriggeredRef.current = true;
-                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                          setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                         }, 500);
                                       }
                                     }}
@@ -10862,7 +10869,7 @@ const DayPlanner = () => {
                                         }
                                         longPressTriggeredRef.current = false;
                                       } else {
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }
                                     }}
                                     className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -11476,7 +11483,7 @@ const DayPlanner = () => {
                                       longPressTriggeredRef.current = false;
                                       longPressTimerRef.current = setTimeout(() => {
                                         longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }, 500);
                                     }
                                   }}
@@ -11488,7 +11495,7 @@ const DayPlanner = () => {
                                       longPressTriggeredRef.current = false;
                                       longPressTimerRef.current = setTimeout(() => {
                                         longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }, 500);
                                     }
                                   }}
@@ -11501,7 +11508,7 @@ const DayPlanner = () => {
                                       }
                                       longPressTriggeredRef.current = false;
                                     } else {
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }
                                   }}
                                   className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-stone-500'}`}
@@ -11754,7 +11761,7 @@ const DayPlanner = () => {
                                       longPressTriggeredRef.current = false;
                                       longPressTimerRef.current = setTimeout(() => {
                                         longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }, 500);
                                     }
                                   }}
@@ -11768,7 +11775,7 @@ const DayPlanner = () => {
                                       }
                                       longPressTriggeredRef.current = false;
                                     } else {
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }
                                   }}
                                   className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -14300,7 +14307,7 @@ const DayPlanner = () => {
                                           longPressTriggeredRef.current = false;
                                           longPressTimerRef.current = setTimeout(() => {
                                             longPressTriggeredRef.current = true;
-                                            setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                           }, 500);
                                         }
                                       }}
@@ -14314,7 +14321,7 @@ const DayPlanner = () => {
                                           }
                                           longPressTriggeredRef.current = false;
                                         } else {
-                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                          setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                         }
                                       }}
                                       className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -14814,6 +14821,7 @@ const DayPlanner = () => {
                   {routinesEnabled && todayRoutines.length > 0 && (() => {
                     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                     const visibleRoutines = todayRoutines.filter(r => {
+                      if (String(r.id).startsWith('example-')) return false;
                       if (!r.startTime || r.isAllDay) return true;
                       return (timeToMinutes(r.startTime) + r.duration + 60) > nowMin;
                     });
@@ -15001,7 +15009,7 @@ const DayPlanner = () => {
                                       longPressTriggeredRef.current = false;
                                       longPressTimerRef.current = setTimeout(() => {
                                         longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }, 500);
                                     }
                                   }}
@@ -15019,7 +15027,7 @@ const DayPlanner = () => {
                                       }
                                       longPressTriggeredRef.current = false;
                                     } else {
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }
                                   }}
                                   className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -15210,10 +15218,11 @@ const DayPlanner = () => {
                               <button
                                 onMouseDown={() => {
                                   if (isLinkOnlyTask(task)) {
+                                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                                     longPressTriggeredRef.current = false;
                                     longPressTimerRef.current = setTimeout(() => {
                                       longPressTriggeredRef.current = true;
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }, 500);
                                   }
                                 }}
@@ -15227,7 +15236,7 @@ const DayPlanner = () => {
                                     }
                                     longPressTriggeredRef.current = false;
                                   } else {
-                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                   }
                                 }}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -15448,7 +15457,7 @@ const DayPlanner = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }}
                                       className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
                                       title="View description"
@@ -15567,7 +15576,7 @@ const DayPlanner = () => {
                                         longPressTriggeredRef.current = false;
                                         longPressTimerRef.current = setTimeout(() => {
                                           longPressTriggeredRef.current = true;
-                                          setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                          setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                         }, 500);
                                       }
                                     }}
@@ -15581,7 +15590,7 @@ const DayPlanner = () => {
                                         }
                                         longPressTriggeredRef.current = false;
                                       } else {
-                                        setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }
                                     }}
                                     className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -15771,7 +15780,7 @@ const DayPlanner = () => {
                                     longPressTriggeredRef.current = false;
                                     longPressTimerRef.current = setTimeout(() => {
                                       longPressTriggeredRef.current = true;
-                                      setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }, 500);
                                   }
                                 }}
@@ -15785,7 +15794,7 @@ const DayPlanner = () => {
                                     }
                                     longPressTriggeredRef.current = false;
                                   } else {
-                                    setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                    setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                   }
                                 }}
                                 className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
@@ -15950,7 +15959,7 @@ const DayPlanner = () => {
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setExpandedNotesTaskId(expandedNotesTaskId === task.id ? null : task.id);
+                                            setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                           }}
                                           className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
                                           title="View description"
