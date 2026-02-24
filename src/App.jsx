@@ -15095,8 +15095,10 @@ const DayPlanner = () => {
               className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
               style={{ height: '100%', touchAction: isTablet ? 'manipulation' : undefined }}
             >
-              {/* Date headers row - sticky at top */}
-              <div ref={(el) => { stickyHeaderRef.current = el; if (isTablet) mobileDateHeaderRef.current = el; }} className={`flex border-b ${borderClass} sticky top-0 z-20 ${cardBg}`}>
+              {/* Combined sticky header — date headers + all-day section */}
+              <div ref={(el) => { stickyHeaderRef.current = el; }} className={`sticky top-0 z-20 ${cardBg}`}>
+              {/* Date headers row */}
+              <div ref={(el) => { if (isTablet) mobileDateHeaderRef.current = el; }} className={`flex border-b ${borderClass} ${cardBg}`}>
                 <div className={`w-16 flex-shrink-0 border-r ${borderClass}`}></div>
                 {visibleDates.map((date, idx) => {
                   const isDateToday = dateToString(date) === dateToString(new Date());
@@ -15152,9 +15154,9 @@ const DayPlanner = () => {
                 })}
               </div>
 
-              {/* All-day tasks section - sticky below date headers */}
+              {/* All-day tasks section - inside combined sticky header */}
               {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
-                <div ref={(el) => { stickyHeaderRef.current = el; if (isTablet) mobileAllDaySectionRef.current = el; }} className={`flex border-b ${borderClass} sticky top-[41px] z-20 ${cardBg}`}>
+                <div ref={(el) => { if (isTablet) mobileAllDaySectionRef.current = el; }} className={`flex border-b ${borderClass} ${cardBg}`}>
                   <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
                     ALL DAY
                   </div>
@@ -15656,6 +15658,7 @@ const DayPlanner = () => {
                   })}
                 </div>
               )}
+              </div>
 
               {/* Main calendar grid */}
               <div
