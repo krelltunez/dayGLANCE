@@ -1681,6 +1681,7 @@ const DayPlanner = () => {
   const unscheduledTasksRef = useRef(unscheduledTasks);
   const recycleBinRef = useRef(recycleBin);
   const recurringTasksRef = useRef(recurringTasks);
+  const syncAllRef = useRef(null);
 
   // Undo/redo toast notification — { message: string, actionable: boolean }
   const [undoToast, setUndoToast] = useState(null);
@@ -8667,7 +8668,6 @@ const DayPlanner = () => {
       setIsSyncing(false);
     }
   };
-  const syncAllRef = useRef(syncAll);
   syncAllRef.current = syncAll;
 
   // Cloud sync functions
@@ -10086,10 +10086,10 @@ const DayPlanner = () => {
   // Calculate all-time stats (excluding imported events, including recurring)
   // Inbox tasks with deadlines are treated as "scheduled" since they appear on the timeline
   // Only count tasks up through today — future tasks aren't "incomplete" yet
+  const nonImportedTasks = useMemo(() => tasks.filter(t => !t.imported && t.date <= todayStr), [tasks, todayStr]);
+  const deadlineInboxTasks = useMemo(() => unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr), [unscheduledTasks, todayStr]);
   const { allTimeScheduledCount, allTimeCompletedCount, totalCompletedMinutes, totalScheduledMinutes } = useMemo(() => {
-    const nonImportedTasks = tasks.filter(t => !t.imported && t.date <= todayStr);
     const allCompletedTasks = nonImportedTasks.filter(t => t.completed);
-    const deadlineInboxTasks = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr);
     const deadlineInboxCompleted = deadlineInboxTasks.filter(t => t.completed);
     const recurringAllTimeStats = recurringTasks.reduce((acc, t) => {
       const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
@@ -10108,7 +10108,7 @@ const DayPlanner = () => {
       totalCompletedMinutes: allCompletedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.completedMinutes + deadlineInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0),
       totalScheduledMinutes: nonImportedTasks.reduce((sum, task) => sum + task.duration, 0) + recurringAllTimeStats.scheduledMinutes + deadlineInboxTasks.reduce((sum, t) => sum + (t.duration || 0), 0),
     };
-  }, [tasks, unscheduledTasks, recurringTasks, todayStr]);
+  }, [nonImportedTasks, deadlineInboxTasks, recurringTasks, todayStr]);
 
   // Daily Summary stats - always use actual current date, not selected date
   // Compute today's recurring instances directly from templates (not expandedRecurringTasks
