@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
+import { loadAIConfig, saveAIConfig, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt } from './ai-prompts.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -1725,6 +1727,12 @@ const DayPlanner = () => {
   });
   const audioCtxRef = useRef(null);
 
+  // AI configuration state
+  const [aiConfig, setAiConfig] = useState(() => loadAIConfig());
+  const [aiConnectionStatus, setAiConnectionStatus] = useState(null); // null | 'testing' | 'success' | 'error'
+  const [aiConnectionMessage, setAiConnectionMessage] = useState('');
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
 
@@ -2479,6 +2487,11 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-sound-enabled', JSON.stringify(soundEnabled));
   }, [soundEnabled]);
+
+  // Persist AI config to localStorage
+  useEffect(() => {
+    saveAIConfig(aiConfig);
+  }, [aiConfig]);
 
 
   // Persist inboxPriorityFilter to localStorage
@@ -5213,6 +5226,11 @@ const DayPlanner = () => {
         if (showBackupMenu) {
           e.preventDefault();
           setShowBackupMenu(false);
+          return;
+        }
+        if (showVoiceInput) {
+          e.preventDefault();
+          setShowVoiceInput(false);
           return;
         }
         if (showSettings) {
@@ -8254,7 +8272,8 @@ const DayPlanner = () => {
         habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
         habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
         habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
-        routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true')
+        routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
+        aiConfig: JSON.parse(localStorage.getItem('day-planner-ai-config') || 'null')
       }
     };
 
@@ -8441,6 +8460,7 @@ const DayPlanner = () => {
         if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
         if (data.habitsEnabled !== undefined) localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
         if (data.routinesEnabled !== undefined) localStorage.setItem('day-planner-routines-enabled', JSON.stringify(data.routinesEnabled));
+        if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
 
         // Reload app to reflect changes
         window.location.reload();
@@ -12085,13 +12105,13 @@ const DayPlanner = () => {
                       {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
                       <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
                     </button>
-                    <div
-                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2 opacity-50`}
+                    <button
+                      onClick={() => setMobileSettingsView('ai')}
+                      className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
                     >
-                      <BrainCircuit size={24} className={textSecondary} />
-                      <span className={`text-xs font-medium ${textSecondary}`}>AI</span>
-                      <span className={`text-[9px] ${textSecondary}`}>Coming Soon</span>
-                    </div>
+                      {aiConfig.enabled ? <BrainCircuit size={24} className="text-purple-400" /> : <BrainCircuit size={24} className={textSecondary} />}
+                      <span className={`text-xs font-medium ${textPrimary}`}>AI {aiConfig.enabled ? 'On' : 'Off'}</span>
+                    </button>
                   </div>
 
                   {/* Sync buttons */}
@@ -12734,19 +12754,215 @@ const DayPlanner = () => {
                     </div>
                   </div>
                 )}
+
+                {/* AI settings sub-view */}
+                {mobileSettingsView === 'ai' && (
+                  <div className="px-4 py-4 space-y-4">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} mb-2`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">Settings</span>
+                    </button>
+
+                    <div className="space-y-4">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <BrainCircuit size={18} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
+                        AI Features
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        BYO API key — all calls go directly from your browser to your provider.
+                      </p>
+
+                      {/* Master toggle */}
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={aiConfig.enabled}
+                            onChange={(e) => setAiConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${aiConfig.enabled ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${aiConfig.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable AI features</span>
+                      </label>
+
+                      {aiConfig.enabled && (
+                        <div className="space-y-4">
+                          {/* Provider */}
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Provider</label>
+                            <select
+                              value={aiConfig.provider}
+                              onChange={(e) => {
+                                const provider = e.target.value;
+                                const models = PROVIDER_MODELS[provider] || [];
+                                setAiConfig(prev => ({
+                                  ...prev,
+                                  provider,
+                                  model: models[0]?.id || prev.model,
+                                  baseUrl: provider === 'ollama' ? (prev.baseUrl || 'http://localhost:11434') : provider === 'custom' ? prev.baseUrl : '',
+                                }));
+                                setAiConnectionStatus(null);
+                              }}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            >
+                              {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
+                                <option key={key} value={key}>{label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* API Key */}
+                          {aiConfig.provider !== 'ollama' && (
+                            <div>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>API Key</label>
+                              <input
+                                type="password"
+                                placeholder={aiConfig.provider === 'openai' ? 'sk-...' : aiConfig.provider === 'anthropic' ? 'sk-ant-...' : 'API key'}
+                                value={aiConfig.apiKey}
+                                onChange={(e) => {
+                                  setAiConfig(prev => ({ ...prev, apiKey: e.target.value }));
+                                  setAiConnectionStatus(null);
+                                }}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
+                              />
+                            </div>
+                          )}
+
+                          {/* Base URL */}
+                          {(aiConfig.provider === 'ollama' || aiConfig.provider === 'custom') && (
+                            <div>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>
+                                {aiConfig.provider === 'ollama' ? 'Ollama URL' : 'Base URL'}
+                              </label>
+                              <input
+                                type="url"
+                                placeholder={aiConfig.provider === 'ollama' ? 'http://localhost:11434' : 'https://your-endpoint.com/v1'}
+                                value={aiConfig.baseUrl}
+                                onChange={(e) => setAiConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              />
+                            </div>
+                          )}
+
+                          {/* Model */}
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Model</label>
+                            {(PROVIDER_MODELS[aiConfig.provider] || []).length > 0 ? (
+                              <select
+                                value={aiConfig.model}
+                                onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              >
+                                {(PROVIDER_MODELS[aiConfig.provider] || []).map(m => (
+                                  <option key={m.id} value={m.id}>{m.label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder="Model name"
+                                value={aiConfig.model}
+                                onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              />
+                            )}
+                          </div>
+
+                          {/* Test Connection */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={async () => {
+                                setAiConnectionStatus('testing');
+                                setAiConnectionMessage('');
+                                const result = await testConnection(aiConfig);
+                                setAiConnectionStatus(result.success ? 'success' : 'error');
+                                setAiConnectionMessage(result.message);
+                              }}
+                              disabled={aiConnectionStatus === 'testing'}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                            >
+                              {aiConnectionStatus === 'testing' ? (
+                                <Loader size={14} className="animate-spin" />
+                              ) : (
+                                <Wifi size={14} />
+                              )}
+                              {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                            </button>
+                            {aiConnectionStatus === 'success' && (
+                              <span className="text-xs text-green-500">Connected</span>
+                            )}
+                            {aiConnectionStatus === 'error' && (
+                              <span className="text-xs text-red-500">{aiConnectionMessage}</span>
+                            )}
+                          </div>
+
+                          <hr className={borderClass} />
+
+                          {/* Per-feature toggles */}
+                          <div className="space-y-3">
+                            <p className={`text-xs font-medium uppercase ${textSecondary}`}>Features</p>
+                            {[
+                              { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
+                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
+                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
+                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
+                            ].map(f => (
+                              <label key={f.key} className="flex items-center gap-3 cursor-pointer">
+                                <div className="relative">
+                                  <input
+                                    type="checkbox"
+                                    checked={aiConfig.features[f.key]}
+                                    onChange={(e) => setAiConfig(prev => ({
+                                      ...prev,
+                                      features: { ...prev.features, [f.key]: e.target.checked }
+                                    }))}
+                                    className="sr-only"
+                                  />
+                                  <div className={`w-9 h-5 rounded-full transition-colors ${aiConfig.features[f.key] ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${aiConfig.features[f.key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                  </div>
+                                </div>
+                                <span className={`text-sm ${textPrimary} flex items-center gap-1.5`}>
+                                  {f.icon} {f.label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* FAB - Floating Action Button (timeline only) */}
           {mobileActiveTab === 'timeline' && (
-            <button
-              onClick={() => openNewTaskForm()}
-              className="fixed right-4 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:bg-blue-800 flex items-center justify-center transition-colors"
-              style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
-            >
-              <Plus size={28} />
-            </button>
+            <>
+              <button
+                onClick={() => openNewTaskForm()}
+                className="fixed right-4 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:bg-blue-800 flex items-center justify-center transition-colors"
+                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+              >
+                <Plus size={28} />
+              </button>
+              {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+                <button
+                  onClick={() => setShowVoiceInput(true)}
+                  className="fixed right-20 z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:bg-purple-800 flex items-center justify-center transition-colors"
+                  style={{ bottom: 'calc(4.9rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                  <Mic size={20} />
+                </button>
+              )}
+            </>
           )}
 
           {/* Glance tab FABs - stacked on right: Weekly Review (bottom), Daily Stats (above weekly), Recycle Bin (top) */}
@@ -13482,6 +13698,15 @@ const DayPlanner = () => {
                 obsidianSyncStatus === 'error' ? 'bg-red-500' :
                 'bg-green-500'
               }`} />
+            </button>
+          )}
+          {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+            <button
+              onClick={() => setShowVoiceInput(true)}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
+              title="Voice Task Input"
+            >
+              <Mic size={18} className="text-purple-400" />
             </button>
           )}
           <button
@@ -17214,6 +17439,17 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
+          {/* Voice input FAB */}
+          {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+            <button
+              onClick={() => setShowVoiceInput(true)}
+              className="fixed z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg active:bg-purple-700 flex items-center justify-center transition-colors"
+              style={{ right: '1rem', bottom: '5rem' }}
+              title="Voice Task Input"
+            >
+              <Mic size={20} />
+            </button>
+          )}
           {/* Glance panel FABs: weekly review (bottom), daily summary (middle), recycle bin (top) — only when glance panel is visible (portrait or landscape glance tab) */}
           {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
@@ -19541,13 +19777,178 @@ const DayPlanner = () => {
 
                     <hr className={borderClass} />
 
-                    {/* AI Section */}
-                    <div className="space-y-3 opacity-50">
+                    {/* AI Features Section */}
+                    <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <BrainCircuit size={16} className={textSecondary} />
-                        AI
+                        <BrainCircuit size={16} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
+                        AI Features
                       </h4>
-                      <span className={`text-sm ${textSecondary}`}>Coming soon</span>
+                      <p className={`${textSecondary} text-xs`}>
+                        BYO API key — all calls go directly from your browser to your provider. No data leaves your device unless you enable AI.
+                      </p>
+
+                      {/* Master toggle */}
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={aiConfig.enabled}
+                            onChange={(e) => setAiConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${aiConfig.enabled ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${aiConfig.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable AI features</span>
+                      </label>
+
+                      {aiConfig.enabled && (
+                        <div className="space-y-3 mt-2">
+                          {/* Provider selector */}
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Provider</label>
+                            <select
+                              value={aiConfig.provider}
+                              onChange={(e) => {
+                                const provider = e.target.value;
+                                const models = PROVIDER_MODELS[provider] || [];
+                                setAiConfig(prev => ({
+                                  ...prev,
+                                  provider,
+                                  model: models[0]?.id || prev.model,
+                                  baseUrl: provider === 'ollama' ? (prev.baseUrl || 'http://localhost:11434') : provider === 'custom' ? prev.baseUrl : '',
+                                }));
+                                setAiConnectionStatus(null);
+                              }}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            >
+                              {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
+                                <option key={key} value={key}>{label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* API Key */}
+                          {aiConfig.provider !== 'ollama' && (
+                            <div>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>
+                                <Key size={12} className="inline mr-1" />
+                                API Key
+                              </label>
+                              <input
+                                type="password"
+                                placeholder={aiConfig.provider === 'openai' ? 'sk-...' : aiConfig.provider === 'anthropic' ? 'sk-ant-...' : 'API key'}
+                                value={aiConfig.apiKey}
+                                onChange={(e) => {
+                                  setAiConfig(prev => ({ ...prev, apiKey: e.target.value }));
+                                  setAiConnectionStatus(null);
+                                }}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
+                              />
+                            </div>
+                          )}
+
+                          {/* Base URL for Ollama/Custom */}
+                          {(aiConfig.provider === 'ollama' || aiConfig.provider === 'custom') && (
+                            <div>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>
+                                <Server size={12} className="inline mr-1" />
+                                {aiConfig.provider === 'ollama' ? 'Ollama URL' : 'Base URL'}
+                              </label>
+                              <input
+                                type="url"
+                                placeholder={aiConfig.provider === 'ollama' ? 'http://localhost:11434' : 'https://your-endpoint.com/v1'}
+                                value={aiConfig.baseUrl}
+                                onChange={(e) => setAiConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              />
+                            </div>
+                          )}
+
+                          {/* Model selector */}
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Model</label>
+                            {(PROVIDER_MODELS[aiConfig.provider] || []).length > 0 ? (
+                              <select
+                                value={aiConfig.model}
+                                onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              >
+                                {(PROVIDER_MODELS[aiConfig.provider] || []).map(m => (
+                                  <option key={m.id} value={m.id}>{m.label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder="Model name"
+                                value={aiConfig.model}
+                                onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              />
+                            )}
+                          </div>
+
+                          {/* Test Connection */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={async () => {
+                                setAiConnectionStatus('testing');
+                                setAiConnectionMessage('');
+                                const result = await testConnection(aiConfig);
+                                setAiConnectionStatus(result.success ? 'success' : 'error');
+                                setAiConnectionMessage(result.message);
+                              }}
+                              disabled={aiConnectionStatus === 'testing'}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                            >
+                              {aiConnectionStatus === 'testing' ? (
+                                <Loader size={14} className="animate-spin" />
+                              ) : aiConnectionStatus === 'success' ? (
+                                <Wifi size={14} />
+                              ) : aiConnectionStatus === 'error' ? (
+                                <WifiOff size={14} />
+                              ) : (
+                                <Wifi size={14} />
+                              )}
+                              {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                            </button>
+                            {aiConnectionStatus === 'success' && (
+                              <span className="text-xs text-green-500">Connected</span>
+                            )}
+                            {aiConnectionStatus === 'error' && (
+                              <span className="text-xs text-red-500 truncate max-w-[180px]" title={aiConnectionMessage}>{aiConnectionMessage}</span>
+                            )}
+                          </div>
+
+                          {/* Per-feature toggles */}
+                          <div className="space-y-2 mt-2">
+                            <p className={`text-xs font-medium ${textSecondary}`}>Features</p>
+                            {[
+                              { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
+                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
+                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
+                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
+                            ].map(f => (
+                              <label key={f.key} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={aiConfig.features[f.key]}
+                                  onChange={(e) => setAiConfig(prev => ({
+                                    ...prev,
+                                    features: { ...prev.features, [f.key]: e.target.checked }
+                                  }))}
+                                  className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className={`text-xs ${textPrimary} flex items-center gap-1.5`}>
+                                  {f.icon} {f.label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {!isMobile && !isTablet && (<>
@@ -21122,6 +21523,426 @@ const DayPlanner = () => {
           </div>
         </div>
       )}
+
+      {/* Voice Input Modal (Phase 1) */}
+      {showVoiceInput && (() => {
+        const VoiceInputContent = () => {
+          const [isRecording, setIsRecording] = useState(false);
+          const [transcript, setTranscript] = useState('');
+          const [interimTranscript, setInterimTranscript] = useState('');
+          const [parsedTasks, setParsedTasks] = useState(null);
+          const [isParsing, setIsParsing] = useState(false);
+          const [parseError, setParseError] = useState('');
+          const [editingParsed, setEditingParsed] = useState(null); // index of task being edited
+          const [manualMode, setManualMode] = useState(false);
+          const recognitionRef = useRef(null);
+          const textareaRef = useRef(null);
+
+          const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+          const startRecording = useCallback(() => {
+            if (!speechSupported) return;
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = navigator.language || 'en-US';
+
+            recognition.onresult = (event) => {
+              let final = '';
+              let interim = '';
+              for (let i = 0; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                  final += event.results[i][0].transcript + ' ';
+                } else {
+                  interim += event.results[i][0].transcript;
+                }
+              }
+              setTranscript(prev => {
+                // Only append new final results
+                const newFinal = final.trim();
+                if (newFinal && !prev.includes(newFinal)) return (prev + ' ' + newFinal).trim();
+                return prev || newFinal;
+              });
+              setInterimTranscript(interim);
+            };
+
+            recognition.onerror = (event) => {
+              if (event.error !== 'no-speech') {
+                console.error('Speech recognition error:', event.error);
+              }
+              setIsRecording(false);
+            };
+
+            recognition.onend = () => {
+              setIsRecording(false);
+            };
+
+            recognitionRef.current = recognition;
+            recognition.start();
+            setIsRecording(true);
+            setTranscript('');
+            setInterimTranscript('');
+            setParsedTasks(null);
+            setParseError('');
+          }, [speechSupported]);
+
+          const stopRecording = useCallback(() => {
+            if (recognitionRef.current) {
+              recognitionRef.current.stop();
+              recognitionRef.current = null;
+            }
+            setIsRecording(false);
+            setInterimTranscript('');
+          }, []);
+
+          // Cleanup on unmount
+          useEffect(() => {
+            return () => {
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+              }
+            };
+          }, []);
+
+          const parseWithAI = async () => {
+            const text = transcript.trim();
+            if (!text) return;
+
+            if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
+              // No AI — create single task from transcript
+              setParsedTasks([{
+                title: text,
+                tags: [],
+                date: null,
+                time: null,
+                duration: 30,
+                priority: 0,
+                deadline: null,
+                notes: ''
+              }]);
+              return;
+            }
+
+            setIsParsing(true);
+            setParseError('');
+            try {
+              const context = {
+                todayDate: dateToString(new Date()),
+                existingTags: allTags,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              };
+              const systemPrompt = voiceParseSystemPrompt(context);
+              const userPrompt = voiceParseUserPrompt(text);
+              const result = await aiJSON(systemPrompt, userPrompt, aiConfig);
+              const tasks = Array.isArray(result) ? result : [result];
+              setParsedTasks(tasks);
+            } catch (err) {
+              setParseError(err.message);
+              // Fallback: single task
+              setParsedTasks([{
+                title: text,
+                tags: [],
+                date: null,
+                time: null,
+                duration: 30,
+                priority: 0,
+                deadline: null,
+                notes: ''
+              }]);
+            }
+            setIsParsing(false);
+          };
+
+          const addParsedTasks = (tasksToAdd) => {
+            pushUndo();
+            for (const parsed of tasksToAdd) {
+              const taskId = crypto.randomUUID();
+              const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
+              const title = parsed.title + tagStr;
+
+              if (parsed.date && parsed.time) {
+                // Scheduled task
+                setTasks(prev => [...prev, {
+                  id: taskId,
+                  title,
+                  startTime: parsed.time,
+                  duration: parsed.duration || 30,
+                  date: parsed.date,
+                  color: colors[0].class,
+                  completed: false,
+                  isAllDay: false,
+                  notes: parsed.notes || '',
+                  subtasks: [],
+                }]);
+              } else {
+                // Inbox task
+                const inboxTask = {
+                  id: taskId,
+                  title,
+                  duration: parsed.duration || 30,
+                  color: colors[0].class,
+                  completed: false,
+                  isAllDay: false,
+                  notes: parsed.notes || '',
+                  subtasks: [],
+                  priority: parsed.priority || 0,
+                };
+                if (parsed.deadline) inboxTask.deadline = parsed.deadline;
+                if (parsed.date && !parsed.time) {
+                  // Has date but no time — schedule as all-day or early
+                  inboxTask.date = parsed.date;
+                  setTasks(prev => [...prev, {
+                    ...inboxTask,
+                    startTime: '09:00',
+                    date: parsed.date,
+                  }]);
+                } else {
+                  setUnscheduledTasks(prev => [...prev, inboxTask]);
+                }
+              }
+            }
+            setShowVoiceInput(false);
+          };
+
+          const priorityLabels = ['None', 'Low', 'Medium', 'High'];
+          const priorityColors = ['text-gray-400', 'text-blue-400', 'text-yellow-400', 'text-red-400'];
+
+          return (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => { stopRecording(); setShowVoiceInput(false); }}>
+              <div
+                className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-5">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-lg font-semibold ${textPrimary} flex items-center gap-2`}>
+                      <Mic size={20} className="text-purple-400" />
+                      Voice Task Input
+                    </h3>
+                    <button onClick={() => { stopRecording(); setShowVoiceInput(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
+                      <X size={18} className={textSecondary} />
+                    </button>
+                  </div>
+
+                  {!parsedTasks ? (
+                    <>
+                      {/* Recording UI */}
+                      {!manualMode && speechSupported ? (
+                        <div className="text-center space-y-4">
+                          {/* Mic button */}
+                          <button
+                            onClick={isRecording ? stopRecording : startRecording}
+                            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${
+                              isRecording
+                                ? 'bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-500/30'
+                                : 'bg-purple-600 hover:bg-purple-700'
+                            }`}
+                          >
+                            {isRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
+                          </button>
+                          <p className={`text-sm ${textSecondary}`}>
+                            {isRecording ? 'Listening... tap to stop' : 'Tap to start speaking'}
+                          </p>
+
+                          {/* Live transcript */}
+                          {(transcript || interimTranscript) && (
+                            <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'} min-h-[60px]`}>
+                              <p className={`text-sm ${textPrimary}`}>
+                                {transcript}
+                                {interimTranscript && <span className="opacity-50"> {interimTranscript}</span>}
+                              </p>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => setManualMode(true)}
+                            className={`text-xs ${textSecondary} hover:underline`}
+                          >
+                            Or type instead
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Text input fallback */}
+                          {!speechSupported && !manualMode && (
+                            <p className={`text-xs ${textSecondary}`}>
+                              Speech recognition is not supported in this browser. Type your tasks below.
+                            </p>
+                          )}
+                          <textarea
+                            ref={textareaRef}
+                            value={transcript}
+                            onChange={(e) => setTranscript(e.target.value)}
+                            placeholder="Describe your tasks... e.g. &quot;I need to call mom tomorrow at 3pm, and also pick up groceries on the way home&quot;"
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y min-h-[80px]`}
+                            rows={3}
+                            autoFocus
+                          />
+                          {speechSupported && (
+                            <button
+                              onClick={() => { setManualMode(false); setTranscript(''); }}
+                              className={`text-xs ${textSecondary} hover:underline`}
+                            >
+                              Use voice instead
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Parse button */}
+                      {transcript.trim() && !isRecording && (
+                        <div className="mt-4 flex justify-end gap-2">
+                          <button
+                            onClick={parseWithAI}
+                            disabled={isParsing}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                          >
+                            {isParsing ? (
+                              <Loader size={14} className="animate-spin" />
+                            ) : aiConfig.enabled ? (
+                              <BrainCircuit size={14} />
+                            ) : (
+                              <Plus size={14} />
+                            )}
+                            {isParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Add as Task'}
+                          </button>
+                        </div>
+                      )}
+
+                      {parseError && (
+                        <p className="text-xs text-amber-500 mt-2">AI parsing error: {parseError}. Added as plain task.</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Parsed tasks preview */}
+                      <div className="space-y-3">
+                        <p className={`text-sm ${textSecondary}`}>
+                          {parsedTasks.length === 1 ? '1 task parsed' : `${parsedTasks.length} tasks parsed`}
+                          {parseError && <span className="text-amber-500"> (fallback — AI error)</span>}
+                        </p>
+
+                        {parsedTasks.map((task, idx) => (
+                          <div key={idx} className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} space-y-2`}>
+                            {editingParsed === idx ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={task.title}
+                                  onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, title: e.target.value } : t))}
+                                  className={`w-full px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                  autoFocus
+                                />
+                                <div className="flex gap-2 flex-wrap">
+                                  <input
+                                    type="date"
+                                    value={task.date || ''}
+                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, date: e.target.value || null } : t))}
+                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                  />
+                                  <input
+                                    type="time"
+                                    value={task.time || ''}
+                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, time: e.target.value || null } : t))}
+                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                  />
+                                  <select
+                                    value={task.duration}
+                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, duration: Number(e.target.value) } : t))}
+                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                  >
+                                    {[15, 30, 45, 60, 90, 120].map(d => (
+                                      <option key={d} value={d}>{d}min</option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    value={task.priority}
+                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, priority: Number(e.target.value) } : t))}
+                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                  >
+                                    {priorityLabels.map((l, i) => (
+                                      <option key={i} value={i}>{l}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="flex justify-end">
+                                  <button
+                                    onClick={() => setEditingParsed(null)}
+                                    className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-sm font-medium ${textPrimary}`}>{task.title}</p>
+                                  <div className={`flex items-center gap-2 flex-wrap mt-1 text-xs ${textSecondary}`}>
+                                    {task.tags?.length > 0 && task.tags.map(tag => (
+                                      <span key={tag} className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">#{tag}</span>
+                                    ))}
+                                    {task.date && <span>{task.date}</span>}
+                                    {task.time && <span>{task.time}</span>}
+                                    <span>{task.duration}min</span>
+                                    {task.priority > 0 && (
+                                      <span className={priorityColors[task.priority]}>
+                                        {'!'.repeat(task.priority)} {priorityLabels[task.priority]}
+                                      </span>
+                                    )}
+                                    {!task.date && <span className="italic">→ Inbox</span>}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => setEditingParsed(idx)}
+                                    className={`p-1 rounded ${hoverBg}`}
+                                    title="Edit"
+                                  >
+                                    <Pencil size={14} className={textSecondary} />
+                                  </button>
+                                  <button
+                                    onClick={() => setParsedTasks(prev => prev.filter((_, i) => i !== idx))}
+                                    className={`p-1 rounded ${hoverBg}`}
+                                    title="Remove"
+                                  >
+                                    <X size={14} className={textSecondary} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="mt-4 flex justify-between">
+                        <button
+                          onClick={() => { setParsedTasks(null); setParseError(''); }}
+                          className={`px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
+                        >
+                          Back
+                        </button>
+                        <button
+                          onClick={() => addParsedTasks(parsedTasks)}
+                          disabled={parsedTasks.length === 0}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                        >
+                          <Check size={14} />
+                          {parsedTasks.length === 1 ? 'Add Task' : `Add All (${parsedTasks.length})`}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+        return <VoiceInputContent />;
+      })()}
     </div>
   );
 };

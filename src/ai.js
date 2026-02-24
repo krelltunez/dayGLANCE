@@ -1,0 +1,222 @@
+// Unified AI Service Layer — provider-agnostic client-side AI calls
+// All calls go directly from the browser to the user-configured provider endpoint.
+
+const DEFAULT_CONFIG = {
+  enabled: false,
+  provider: 'openai',
+  apiKey: '',
+  model: 'gpt-4o-mini',
+  baseUrl: '',
+  features: {
+    voiceTaskInput: true,
+    morningSummary: true,
+    weeklySummary: true,
+    smartScheduling: true,
+  }
+};
+
+const PROVIDER_MODELS = {
+  openai: [
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'gpt-4o', label: 'GPT-4o' },
+    { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+    { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { id: 'gpt-4.1', label: 'GPT-4.1' },
+  ],
+  anthropic: [
+    { id: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5' },
+    { id: 'claude-haiku-4-5-20250514', label: 'Claude Haiku 4.5' },
+  ],
+  gemini: [
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
+    { id: 'gemini-2.5-flash-preview-05-20', label: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-pro-preview-05-06', label: 'Gemini 2.5 Pro' },
+  ],
+  ollama: [
+    { id: 'llama3.2', label: 'Llama 3.2' },
+    { id: 'mistral', label: 'Mistral' },
+    { id: 'gemma2', label: 'Gemma 2' },
+  ],
+  custom: [],
+};
+
+const PROVIDER_LABELS = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  gemini: 'Google Gemini',
+  ollama: 'Ollama (Local)',
+  custom: 'Custom (OpenAI-compatible)',
+};
+
+// Load config from localStorage
+export function loadAIConfig() {
+  try {
+    const raw = localStorage.getItem('day-planner-ai-config');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_CONFIG, ...parsed, features: { ...DEFAULT_CONFIG.features, ...parsed.features } };
+    }
+  } catch {}
+  return { ...DEFAULT_CONFIG };
+}
+
+// Save config to localStorage
+export function saveAIConfig(config) {
+  localStorage.setItem('day-planner-ai-config', JSON.stringify(config));
+}
+
+// Get base URL for a provider
+function getBaseUrl(config) {
+  switch (config.provider) {
+    case 'openai':
+      return 'https://api.openai.com/v1';
+    case 'anthropic':
+      return 'https://api.anthropic.com/v1';
+    case 'gemini':
+      return `https://generativelanguage.googleapis.com/v1beta/models/${config.model}`;
+    case 'ollama':
+      return config.baseUrl || 'http://localhost:11434';
+    case 'custom':
+      return config.baseUrl || '';
+    default:
+      return '';
+  }
+}
+
+// Make a completion request to the configured provider
+export async function aiComplete(systemPrompt, userMessage, config) {
+  if (!config?.enabled || !config.apiKey && config.provider !== 'ollama') {
+    throw new Error('AI is not configured');
+  }
+
+  const { provider, apiKey, model } = config;
+
+  switch (provider) {
+    case 'openai':
+    case 'custom': {
+      const base = provider === 'custom' ? (config.baseUrl || '') : 'https://api.openai.com/v1';
+      const res = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.3,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `OpenAI API error: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.choices[0].message.content;
+    }
+
+    case 'anthropic': {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [
+            { role: 'user', content: userMessage },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Anthropic API error: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.content[0].text;
+    }
+
+    case 'gemini': {
+      const base = getBaseUrl(config);
+      const res = await fetch(`${base}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ parts: [{ text: userMessage }] }],
+          generationConfig: { temperature: 0.3 },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Gemini API error: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.candidates[0].content.parts[0].text;
+    }
+
+    case 'ollama': {
+      const base = config.baseUrl || 'http://localhost:11434';
+      const res = await fetch(`${base}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          stream: false,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Ollama error: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.message.content;
+    }
+
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+}
+
+// Request JSON-structured output from the AI — parses and validates the response
+export async function aiJSON(systemPrompt, userMessage, config) {
+  const raw = await aiComplete(systemPrompt, userMessage, config);
+  // Extract JSON from the response (handles ```json fences and bare JSON)
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+  if (!jsonMatch) {
+    throw new Error('AI response did not contain valid JSON');
+  }
+  try {
+    return JSON.parse(jsonMatch[1]);
+  } catch {
+    throw new Error('Failed to parse AI JSON response');
+  }
+}
+
+// Test connection to the configured provider
+export async function testConnection(config) {
+  try {
+    const result = await aiComplete(
+      'You are a helpful assistant. Respond with exactly: "Connection successful"',
+      'Test',
+      { ...config, enabled: true }
+    );
+    return { success: true, message: result.trim() };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+}
+
+export { DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS };
