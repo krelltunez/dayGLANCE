@@ -2435,6 +2435,7 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
     document.documentElement.classList.toggle('dark', darkMode);
+    document.documentElement.style.backgroundColor = darkMode ? '#1f2937' : '#ffffff';
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#ffffff');
   }, [darkMode]);
@@ -10193,6 +10194,9 @@ const DayPlanner = () => {
 
   return (
     <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* Safe-area cover: fills the status bar inset with the header color so
+           bg-gray-900 (which has a blue tint) doesn't peek through as a visible line */}
+      <div className={`fixed top-0 left-0 right-0 ${cardBg} z-[60]`} style={{ height: 'env(safe-area-inset-top, 0px)' }} />
       {/* Landscape blocker overlay for phones only (not tablets or narrow desktop windows) */}
       {isPhone && isLandscape && (
         <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 ${bgClass}`}>
