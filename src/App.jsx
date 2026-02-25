@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
-import { loadAIConfig, saveAIConfig, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
+import { loadAIConfig, saveAIConfig, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt } from './ai-prompts.js';
 
 // Hook to determine how many days to show based on window width
@@ -1734,19 +1734,18 @@ const DayPlanner = () => {
   const [aiOllamaHelp, setAiOllamaHelp] = useState(null);
   const [showVoiceInput, setShowVoiceInput] = useState(false);
   const [voiceIsRecording, setVoiceIsRecording] = useState(false);
+  const [voiceIsTranscribing, setVoiceIsTranscribing] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceInterimTranscript, setVoiceInterimTranscript] = useState('');
   const [voiceParsedTasks, setVoiceParsedTasks] = useState(null);
   const [voiceIsParsing, setVoiceIsParsing] = useState(false);
   const [voiceParseError, setVoiceParseError] = useState('');
   const [voiceEditingParsed, setVoiceEditingParsed] = useState(null);
   const [voiceManualMode, setVoiceManualMode] = useState(false);
   const [voiceMicError, setVoiceMicError] = useState(null);
-  const voiceRecognitionRef = useRef(null);
+  const voiceRecorderRef = useRef(null); // { recorder: MediaRecorder, stream: MediaStream }
+  const voiceAudioChunksRef = useRef([]);
   const voiceTextareaRef = useRef(null);
-  const voiceSpeechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
-  const voiceIsBrave = typeof navigator !== 'undefined' && navigator.brave && typeof navigator.brave.isBrave === 'function';
-  const voiceIsEdge = typeof navigator !== 'undefined' && /Edg\//.test(navigator.userAgent);
+  const voiceCanRecord = typeof MediaRecorder !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -5208,89 +5207,98 @@ const DayPlanner = () => {
   }, [showAddTask]);
 
   // Voice input — reset state when modal opens, cleanup recognition on close
+  // Voice input — reset state when modal opens, cleanup on close
   useEffect(() => {
     if (showVoiceInput) {
       setVoiceIsRecording(false);
+      setVoiceIsTranscribing(false);
       setVoiceTranscript('');
-      setVoiceInterimTranscript('');
       setVoiceParsedTasks(null);
       setVoiceIsParsing(false);
       setVoiceParseError('');
       setVoiceEditingParsed(null);
       setVoiceManualMode(false);
-      setVoiceMicError(voiceIsBrave ? 'brave' : voiceIsEdge ? 'edge' : null);
+      setVoiceMicError(null);
     } else {
-      if (voiceRecognitionRef.current) {
-        voiceRecognitionRef.current.stop();
-        voiceRecognitionRef.current = null;
+      // Cleanup MediaRecorder on modal close
+      const ref = voiceRecorderRef.current;
+      if (ref) {
+        if (ref.recorder.state !== 'inactive') ref.recorder.stop();
+        ref.stream.getTracks().forEach(t => t.stop());
+        voiceRecorderRef.current = null;
       }
+      voiceAudioChunksRef.current = [];
     }
   }, [showVoiceInput]);
 
-  const voiceStartRecording = useCallback(() => {
-    if (!voiceSpeechSupported) return;
+  const voiceStartRecording = useCallback(async () => {
+    if (!voiceCanRecord) return;
     setVoiceMicError(null);
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = navigator.language || 'en-US';
-
-    recognition.onresult = (event) => {
-      let final = '';
-      let interim = '';
-      for (let i = 0; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          final += event.results[i][0].transcript + ' ';
-        } else {
-          interim += event.results[i][0].transcript;
-        }
-      }
-      setVoiceTranscript(prev => {
-        const newFinal = final.trim();
-        if (newFinal && !prev.includes(newFinal)) return (prev + ' ' + newFinal).trim();
-        return prev || newFinal;
-      });
-      setVoiceInterimTranscript(interim);
-    };
-
-    recognition.onerror = (event) => {
-      if (event.error !== 'no-speech') {
-        console.error('Speech recognition error:', event.error);
-        const errorMessages = {
-          'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
-          'network': 'Could not reach the speech recognition service. Some browsers (Brave, Edge) block or restrict this feature. Try Chrome or use the text input below.',
-          'audio-capture': 'No microphone found. Please connect a microphone and try again.',
-          'service-not-allowed': 'Speech recognition is not available in this browser. Try Chrome or use the text input below.',
-          'aborted': 'Speech recognition was interrupted.',
-        };
-        setVoiceParseError(errorMessages[event.error] || `Speech recognition error: ${event.error}`);
-        setVoiceMicError('error');
-      }
-      setVoiceIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setVoiceIsRecording(false);
-    };
-
-    voiceRecognitionRef.current = recognition;
-    recognition.start();
-    setVoiceIsRecording(true);
-    setVoiceTranscript('');
-    setVoiceInterimTranscript('');
-    setVoiceParsedTasks(null);
     setVoiceParseError('');
-  }, [voiceSpeechSupported]);
+    setVoiceTranscript('');
+    setVoiceParsedTasks(null);
 
-  const voiceStopRecording = useCallback(() => {
-    if (voiceRecognitionRef.current) {
-      voiceRecognitionRef.current.stop();
-      voiceRecognitionRef.current = null;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      voiceAudioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) voiceAudioChunksRef.current.push(e.data);
+      };
+
+      voiceRecorderRef.current = { recorder, stream };
+      recorder.start();
+      setVoiceIsRecording(true);
+    } catch (err) {
+      console.error('Microphone error:', err);
+      const msg = err.name === 'NotAllowedError'
+        ? 'Microphone access denied. Please allow microphone permissions in your browser settings.'
+        : err.name === 'NotFoundError'
+        ? 'No microphone found. Please connect a microphone and try again.'
+        : `Microphone error: ${err.message}`;
+      setVoiceParseError(msg);
+      setVoiceMicError('error');
     }
+  }, [voiceCanRecord]);
+
+  const voiceStopRecording = useCallback(async () => {
+    const ref = voiceRecorderRef.current;
+    if (!ref) return;
+    const { recorder, stream } = ref;
+
+    // Collect recorded audio
+    const blob = await new Promise((resolve) => {
+      recorder.onstop = () => {
+        const audioBlob = new Blob(voiceAudioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        voiceAudioChunksRef.current = [];
+        resolve(audioBlob);
+      };
+      if (recorder.state !== 'inactive') recorder.stop();
+      else resolve(new Blob([], { type: 'audio/webm' }));
+    });
+
+    stream.getTracks().forEach(t => t.stop());
+    voiceRecorderRef.current = null;
     setVoiceIsRecording(false);
-    setVoiceInterimTranscript('');
-  }, []);
+
+    // Transcribe the audio via AI
+    if (blob.size > 0) {
+      setVoiceIsTranscribing(true);
+      try {
+        const text = await aiTranscribe(blob, aiConfig);
+        setVoiceTranscript(text.trim());
+      } catch (err) {
+        console.error('Transcription error:', err);
+        setVoiceParseError(`Transcription failed: ${err.message}`);
+        setVoiceManualMode(true); // fall back to text input
+      }
+      setVoiceIsTranscribing(false);
+    }
+  }, [aiConfig]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -9632,6 +9640,7 @@ const DayPlanner = () => {
   }, [voiceParsedTasks]);
 
   // Voice input keyboard shortcuts (SPACE to hold-record, T for typing, ENTER to parse/accept)
+  const voiceHasTranscription = aiConfig.enabled && supportsTranscription(aiConfig);
   useEffect(() => {
     if (!showVoiceInput) return;
 
@@ -9650,8 +9659,8 @@ const DayPlanner = () => {
 
       if (isTextInput) return;
 
-      // SPACE hold-to-record (desktop/tablet only, not on parsed screen)
-      if (e.key === ' ' && !isTouchDevice && !voiceParsedTasks && !voiceManualMode && voiceSpeechSupported) {
+      // SPACE hold-to-record (desktop only, not on parsed/transcribing screen)
+      if (e.key === ' ' && !isTouchDevice && !voiceParsedTasks && !voiceManualMode && !voiceIsTranscribing && voiceCanRecord && voiceHasTranscription) {
         e.preventDefault();
         if (!voiceIsRecording && !e.repeat) {
           voiceStartRecording();
@@ -9660,7 +9669,7 @@ const DayPlanner = () => {
       }
 
       // T to switch to typing mode (only on voice recording screen)
-      if ((e.key === 't' || e.key === 'T') && !voiceParsedTasks && !voiceManualMode) {
+      if ((e.key === 't' || e.key === 'T') && !voiceParsedTasks && !voiceManualMode && !voiceIsRecording && !voiceIsTranscribing) {
         e.preventDefault();
         setVoiceManualMode(true);
         return;
@@ -9688,7 +9697,7 @@ const DayPlanner = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [showVoiceInput, voiceIsRecording, voiceParsedTasks, voiceManualMode, voiceSpeechSupported, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceAddAllParsedTasks]);
+  }, [showVoiceInput, voiceIsRecording, voiceIsTranscribing, voiceParsedTasks, voiceManualMode, voiceCanRecord, voiceHasTranscription, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceAddAllParsedTasks]);
 
   // Getting Started checklist - uses persistent progress tracking
   const gettingStartedItems = useMemo(() => {
@@ -21821,72 +21830,69 @@ const DayPlanner = () => {
 
               {!voiceParsedTasks ? (
                 <>
-                  {/* Recording UI */}
-                  {!voiceManualMode && voiceSpeechSupported ? (
+                  {/* Recording UI — uses MediaRecorder + AI transcription (works in all browsers) */}
+                  {!voiceManualMode && voiceCanRecord && voiceHasTranscription ? (
                     <div className="text-center space-y-4">
-                      {/* Brave browser warning */}
-                      {voiceMicError === 'brave' && (
-                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
-                          <p className="text-amber-500 font-medium mb-1">Brave blocks speech recognition by default</p>
-                          <p className={textSecondary}>You can try the mic button, but it may not work. Use the text input below as an alternative.</p>
+                      {/* Transcribing spinner */}
+                      {voiceIsTranscribing ? (
+                        <div className="flex flex-col items-center gap-3 py-4">
+                          <Loader size={32} className="animate-spin text-purple-400" />
+                          <p className={`text-sm ${textSecondary}`}>Transcribing...</p>
                         </div>
-                      )}
-
-                      {/* Edge browser warning */}
-                      {voiceMicError === 'edge' && (
-                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
-                          <p className="text-amber-500 font-medium mb-1">Edge may block speech recognition</p>
-                          <p className={textSecondary}>Edge sometimes blocks the speech service. If the mic doesn't work, use the text input below or try Chrome.</p>
-                        </div>
-                      )}
-
-                      {/* Mic button */}
-                      <button
-                        onClick={voiceIsRecording ? voiceStopRecording : voiceStartRecording}
-                        className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${
-                          voiceIsRecording
-                            ? 'bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-500/30'
-                            : 'bg-purple-600 hover:bg-purple-700'
-                        }`}
-                      >
-                        {voiceIsRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
-                      </button>
-                      <p className={`text-sm ${textSecondary}`}>
-                        {voiceIsRecording ? 'Listening... release Space or tap to stop' : 'Hold Space or tap to speak'}
-                      </p>
-
-                      {/* Live transcript */}
-                      {(voiceTranscript || voiceInterimTranscript) && (
-                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'} min-h-[60px]`}>
-                          <p className={`text-sm ${textPrimary}`}>
-                            {voiceTranscript}
-                            {voiceInterimTranscript && <span className="opacity-50"> {voiceInterimTranscript}</span>}
+                      ) : (
+                        <>
+                          {/* Mic button */}
+                          <button
+                            onClick={voiceIsRecording ? voiceStopRecording : voiceStartRecording}
+                            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${
+                              voiceIsRecording
+                                ? 'bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-500/30'
+                                : 'bg-purple-600 hover:bg-purple-700'
+                            }`}
+                          >
+                            {voiceIsRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
+                          </button>
+                          <p className={`text-sm ${textSecondary}`}>
+                            {voiceIsRecording ? 'Recording... release Space or tap to stop' : 'Hold Space or tap to record'}
                           </p>
+                        </>
+                      )}
+
+                      {/* Transcript (shown after transcription completes) */}
+                      {voiceTranscript && !voiceIsTranscribing && (
+                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'} min-h-[60px]`}>
+                          <p className={`text-sm ${textPrimary}`}>{voiceTranscript}</p>
                         </div>
                       )}
 
-                      {/* Speech recognition error */}
+                      {/* Mic/transcription error */}
                       {voiceMicError === 'error' && voiceParseError && !voiceTranscript && (
                         <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'} text-xs`}>
                           <p className="text-red-400">{voiceParseError}</p>
                         </div>
                       )}
 
-                      <button
-                        onClick={() => setVoiceManualMode(true)}
-                        className={`text-xs ${textSecondary} hover:underline`}
-                      >
-                        Or type instead <kbd className="ml-1 px-1 py-0.5 rounded bg-black/20 text-[10px] font-mono">T</kbd>
-                      </button>
+                      {!voiceIsTranscribing && !voiceIsRecording && (
+                        <button
+                          onClick={() => setVoiceManualMode(true)}
+                          className={`text-xs ${textSecondary} hover:underline`}
+                        >
+                          Or type instead <kbd className="ml-1 px-1 py-0.5 rounded bg-black/20 text-[10px] font-mono">T</kbd>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {/* Text input fallback */}
-                      {!voiceSpeechSupported && !voiceManualMode && (
+                      {/* Text input — shown when voice not available or user chose to type */}
+                      {!voiceCanRecord || !voiceHasTranscription ? (
                         <p className={`text-xs ${textSecondary}`}>
-                          Speech recognition is not supported in this browser. Type your tasks below.
+                          {!aiConfig.enabled
+                            ? 'Configure an AI provider in settings to enable voice recording. Type your tasks below.'
+                            : !supportsTranscription(aiConfig)
+                            ? `${PROVIDER_LABELS[aiConfig.provider] || aiConfig.provider} doesn't support voice transcription. Use OpenAI or Gemini for voice, or type below.`
+                            : 'Voice recording is not available. Type your tasks below.'}
                         </p>
-                      )}
+                      ) : null}
                       <textarea
                         ref={voiceTextareaRef}
                         value={voiceTranscript}
@@ -21896,7 +21902,7 @@ const DayPlanner = () => {
                         rows={3}
                         autoFocus
                       />
-                      {voiceSpeechSupported && (
+                      {voiceCanRecord && voiceHasTranscription && (
                         <button
                           onClick={() => { setVoiceManualMode(false); setVoiceTranscript(''); }}
                           className={`text-xs ${textSecondary} hover:underline`}
@@ -21908,7 +21914,7 @@ const DayPlanner = () => {
                   )}
 
                   {/* Parse button */}
-                  {voiceTranscript.trim() && !voiceIsRecording && (
+                  {voiceTranscript.trim() && !voiceIsRecording && !voiceIsTranscribing && (
                     <div className="mt-4 flex justify-end gap-2">
                       <button
                         onClick={voiceParseWithAI}

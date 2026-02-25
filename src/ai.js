@@ -205,6 +205,75 @@ export async function aiJSON(systemPrompt, userMessage, config) {
   }
 }
 
+// Check if a provider supports audio transcription
+export function supportsTranscription(config) {
+  return ['openai', 'custom', 'gemini'].includes(config?.provider);
+}
+
+// Transcribe audio using the configured AI provider
+// Uses OpenAI Whisper API for openai/custom, Gemini multimodal for gemini
+export async function aiTranscribe(audioBlob, config) {
+  if (!config?.enabled || (!config.apiKey && config.provider !== 'ollama')) {
+    throw new Error('AI is not configured');
+  }
+
+  const { provider, apiKey, model } = config;
+
+  switch (provider) {
+    case 'openai':
+    case 'custom': {
+      const base = provider === 'custom' ? (config.baseUrl || '') : 'https://api.openai.com/v1';
+      const ext = audioBlob.type?.includes('mp4') ? 'mp4' : 'webm';
+      const formData = new FormData();
+      formData.append('file', audioBlob, `recording.${ext}`);
+      formData.append('model', 'whisper-1');
+      const res = await fetch(`${base}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Transcription API error: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.text;
+    }
+
+    case 'gemini': {
+      const buffer = await audioBlob.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const base = `https://generativelanguage.googleapis.com/v1beta/models/${model}`;
+      const res = await fetch(`${base}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inlineData: { mimeType: audioBlob.type || 'audio/webm', data: base64 } },
+              { text: 'Transcribe this audio recording exactly as spoken. Return only the transcription text, nothing else.' }
+            ]
+          }]
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Gemini transcription error: ${res.status}`);
+      }
+      const data = await res.json();
+      return data.candidates[0].content.parts[0].text;
+    }
+
+    default:
+      throw new Error(`${PROVIDER_LABELS[provider] || provider} does not support audio transcription. Use the text input instead.`);
+  }
+}
+
 // Test connection to the configured provider
 export async function testConnection(config) {
   try {
