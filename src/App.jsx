@@ -1745,6 +1745,7 @@ const DayPlanner = () => {
   const [voiceIsTranscribing, setVoiceIsTranscribing] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceParsedTasks, setVoiceParsedTasks] = useState(null);
+  const [voiceParsedEdits, setVoiceParsedEdits] = useState(null); // resolved edit commands from AI
   const [voiceIsParsing, setVoiceIsParsing] = useState(false);
   const [voiceParseError, setVoiceParseError] = useState('');
   const [voiceEditingParsed, setVoiceEditingParsed] = useState(null);
@@ -5242,6 +5243,7 @@ const DayPlanner = () => {
       setVoiceIsTranscribing(false);
       setVoiceTranscript('');
       setVoiceParsedTasks(null);
+      setVoiceParsedEdits(null);
       setVoiceIsParsing(false);
       setVoiceParseError('');
       setVoiceEditingParsed(null);
@@ -5265,6 +5267,7 @@ const DayPlanner = () => {
     setVoiceParseError('');
     setVoiceTranscript('');
     setVoiceParsedTasks(null);
+    setVoiceParsedEdits(null);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -9641,50 +9644,201 @@ const DayPlanner = () => {
   voiceAllTagsRef.current = allTags;
 
   // Voice input — parse and add callbacks (must be after allTags is defined)
+  // Build a text summary of existing tasks for AI context
+  const buildTaskContextForAI = useCallback(() => {
+    const todayStr = dateToString(new Date());
+    const lines = [];
+    // Scheduled tasks (recent and upcoming — limit to keep prompt manageable)
+    const relevant = tasks.filter(t => !t.imported && !t.isExample && t.date >= todayStr).slice(0, 30);
+    relevant.forEach(t => {
+      let d = `"${t.title}" — ${t.date}`;
+      if (t.startTime) d += ` at ${t.startTime}`;
+      d += `, ${t.duration || 30}min`;
+      if (t.completed) d += ' [COMPLETED]';
+      lines.push(d);
+    });
+    // Inbox tasks (uncompleted)
+    unscheduledTasks.filter(t => !t.completed && !t.isExample).slice(0, 20).forEach(t => {
+      let d = `"${t.title}" — inbox, ${t.duration || 30}min`;
+      if (t.priority > 0) d += `, priority: ${['none', 'low', 'medium', 'high'][t.priority]}`;
+      if (t.deadline) d += `, deadline: ${t.deadline}`;
+      lines.push(d);
+    });
+    return lines.length > 0 ? lines.join('\n') : 'No tasks currently.';
+  }, [tasks, unscheduledTasks]);
+
+  // Resolve an AI-provided taskMatch string to an actual task
+  const resolveTaskMatch = useCallback((taskMatch) => {
+    const lower = (taskMatch || '').toLowerCase();
+    if (!lower) return null;
+    // Search scheduled tasks (best match = shortest title containing the match)
+    const scheduledMatches = tasks.filter(t => !t.imported && !t.isExample && t.title.toLowerCase().includes(lower));
+    if (scheduledMatches.length > 0) {
+      const best = scheduledMatches.sort((a, b) => a.title.length - b.title.length)[0];
+      return { task: best, source: 'scheduled' };
+    }
+    // Search inbox tasks
+    const inboxMatches = unscheduledTasks.filter(t => !t.isExample && t.title.toLowerCase().includes(lower));
+    if (inboxMatches.length > 0) {
+      const best = inboxMatches.sort((a, b) => a.title.length - b.title.length)[0];
+      return { task: best, source: 'inbox' };
+    }
+    return null;
+  }, [tasks, unscheduledTasks]);
+
   const voiceParseWithAI = useCallback(async () => {
     const text = voiceTranscript.trim();
     if (!text) return;
     const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
       setVoiceParsedTasks([{ title: cap(text), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+      setVoiceParsedEdits([]);
       return;
     }
     setVoiceIsParsing(true);
     setVoiceParseError('');
     try {
-      const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+      const context = {
+        todayDate: dateToString(new Date()),
+        existingTags: allTags,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        existingTasks: buildTaskContextForAI(),
+      };
       const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-      const arr = Array.isArray(result) ? result : [result];
-      setVoiceParsedTasks(arr.map(t => ({ ...t, title: cap(t.title) })));
+
+      // Handle both old format (array) and new format ({ newTasks, edits })
+      let newTasks = [];
+      let edits = [];
+      if (Array.isArray(result)) {
+        newTasks = result;
+      } else if (result && typeof result === 'object') {
+        newTasks = Array.isArray(result.newTasks) ? result.newTasks : [];
+        edits = Array.isArray(result.edits) ? result.edits : [];
+      }
+
+      setVoiceParsedTasks(newTasks.map(t => ({ ...t, title: cap(t.title) })));
+
+      // Resolve each edit command to an actual task
+      const resolved = edits.map(edit => {
+        const match = resolveTaskMatch(edit.taskMatch);
+        return { ...edit, resolvedTask: match?.task || null, source: match?.source || null };
+      });
+      setVoiceParsedEdits(resolved);
     } catch (err) {
       setVoiceParseError(err.message);
       setVoiceParsedTasks([{ title: cap(text), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+      setVoiceParsedEdits([]);
     }
     setVoiceIsParsing(false);
-  }, [voiceTranscript, aiConfig, allTags]);
+  }, [voiceTranscript, aiConfig, allTags, buildTaskContextForAI, resolveTaskMatch]);
 
-  const voiceAddAllParsedTasks = useCallback(() => {
-    if (!voiceParsedTasks || voiceParsedTasks.length === 0) return;
+  // Apply all parsed changes (new tasks + edit commands)
+  const voiceApplyAllChanges = useCallback(() => {
+    const hasNewTasks = voiceParsedTasks && voiceParsedTasks.length > 0;
+    const hasEdits = voiceParsedEdits && voiceParsedEdits.length > 0;
+    if (!hasNewTasks && !hasEdits) return;
     pushUndo();
-    for (const parsed of voiceParsedTasks) {
-      const taskId = crypto.randomUUID();
-      const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
-      const rawTitle = parsed.title + tagStr;
-      const title = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
-      if (parsed.date && parsed.time) {
-        setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
-      } else {
-        const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
-        if (parsed.deadline) inboxTask.deadline = parsed.deadline;
-        if (parsed.date && !parsed.time) {
-          setTasks(prev => [...prev, { ...inboxTask, startTime: '09:00', date: parsed.date }]);
+
+    // Add new tasks
+    if (hasNewTasks) {
+      for (const parsed of voiceParsedTasks) {
+        const taskId = crypto.randomUUID();
+        const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
+        const rawTitle = parsed.title + tagStr;
+        const title = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
+        if (parsed.date && parsed.time) {
+          setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
         } else {
-          setUnscheduledTasks(prev => [...prev, inboxTask]);
+          const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
+          if (parsed.deadline) inboxTask.deadline = parsed.deadline;
+          if (parsed.date && !parsed.time) {
+            setTasks(prev => [...prev, { ...inboxTask, startTime: '09:00', date: parsed.date }]);
+          } else {
+            setUnscheduledTasks(prev => [...prev, inboxTask]);
+          }
         }
       }
     }
+
+    // Apply edit commands
+    if (hasEdits) {
+      for (const edit of voiceParsedEdits) {
+        if (!edit.resolvedTask) continue; // skip unresolved
+        const id = edit.resolvedTask.id;
+        const isInbox = edit.source === 'inbox';
+
+        switch (edit.action) {
+          case 'move': {
+            if (isInbox && edit.date) {
+              // Move from inbox to scheduled
+              setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
+              const movedTask = { ...edit.resolvedTask, date: edit.date, startTime: edit.time || '09:00' };
+              delete movedTask.priority; delete movedTask.deadline;
+              setTasks(prev => [...prev, movedTask]);
+            } else if (!isInbox) {
+              setTasks(prev => prev.map(t => t.id === id ? {
+                ...t,
+                ...(edit.date != null ? { date: edit.date } : {}),
+                ...(edit.time != null ? { startTime: edit.time } : {}),
+              } : t));
+            }
+            break;
+          }
+          case 'changeDuration': {
+            const setter = isInbox ? setUnscheduledTasks : setTasks;
+            setter(prev => prev.map(t => t.id === id ? { ...t, duration: edit.duration } : t));
+            break;
+          }
+          case 'rename': {
+            const setter = isInbox ? setUnscheduledTasks : setTasks;
+            setter(prev => prev.map(t => t.id === id ? { ...t, title: edit.newTitle } : t));
+            break;
+          }
+          case 'delete': {
+            if (isInbox) setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
+            else setTasks(prev => prev.filter(t => t.id !== id));
+            break;
+          }
+          case 'complete': {
+            const setter = isInbox ? setUnscheduledTasks : setTasks;
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true } : t));
+            break;
+          }
+          case 'uncomplete': {
+            const setter = isInbox ? setUnscheduledTasks : setTasks;
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false } : t));
+            break;
+          }
+          case 'changePriority': {
+            if (isInbox) {
+              setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, priority: edit.priority } : t));
+            }
+            break;
+          }
+          case 'addTag': {
+            const setter = isInbox ? setUnscheduledTasks : setTasks;
+            setter(prev => prev.map(t => {
+              if (t.id !== id) return t;
+              const existing = (t.title.match(/#(\w+)/g) || []).map(s => s.slice(1).toLowerCase());
+              if (existing.includes(edit.tag.toLowerCase())) return t;
+              return { ...t, title: t.title + ` #${edit.tag}` };
+            }));
+            break;
+          }
+          case 'removeTag': {
+            const setter = isInbox ? setUnscheduledTasks : setTasks;
+            setter(prev => prev.map(t => {
+              if (t.id !== id) return t;
+              return { ...t, title: t.title.replace(new RegExp(`\\s*#${edit.tag}\\b`, 'gi'), '') };
+            }));
+            break;
+          }
+        }
+      }
+    }
+
     setShowVoiceInput(false);
-  }, [voiceParsedTasks]);
+  }, [voiceParsedTasks, voiceParsedEdits]);
 
   // --- Morning dayGLANCE (AI morning summary) ---
   const generateMorningSummary = useCallback(async () => {
@@ -9825,10 +9979,10 @@ const DayPlanner = () => {
         return;
       }
 
-      // ENTER to accept parsed tasks
-      if (e.key === 'Enter' && voiceParsedTasks && voiceEditingParsed === null) {
+      // ENTER to accept parsed tasks/edits
+      if (e.key === 'Enter' && (voiceParsedTasks || voiceParsedEdits) && voiceEditingParsed === null) {
         e.preventDefault();
-        voiceAddAllParsedTasks();
+        voiceApplyAllChanges();
         return;
       }
     };
@@ -9847,7 +10001,7 @@ const DayPlanner = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [showVoiceInput, voiceIsRecording, voiceIsTranscribing, voiceParsedTasks, voiceManualMode, voiceCanRecord, voiceHasTranscription, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceAddAllParsedTasks]);
+  }, [showVoiceInput, voiceIsRecording, voiceIsTranscribing, voiceParsedTasks, voiceParsedEdits, voiceManualMode, voiceCanRecord, voiceHasTranscription, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceApplyAllChanges]);
 
   // Getting Started checklist - uses persistent progress tracking
   const gettingStartedItems = useMemo(() => {
@@ -11599,6 +11753,14 @@ const DayPlanner = () => {
                       <Filter size={16} />
                     </button>
                   )}
+                  {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+                    <button
+                      onClick={() => setShowVoiceInput(true)}
+                      className={`flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'}`}
+                    >
+                      <Mic size={16} />
+                    </button>
+                  )}
                 </div>
                 {/* Morning dayGLANCE — AI morning summary card (mobile) */}
                 {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (
@@ -13294,15 +13456,6 @@ const DayPlanner = () => {
               >
                 <Plus size={28} />
               </button>
-              {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
-                <button
-                  onClick={() => setShowVoiceInput(true)}
-                  className="fixed right-5 z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:bg-purple-800 flex items-center justify-center transition-colors"
-                  style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
-                >
-                  <Mic size={20} />
-                </button>
-              )}
             </>
           )}
 
@@ -14375,6 +14528,15 @@ const DayPlanner = () => {
                             )}
                           </div>
                         )}
+                        {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+                          <button
+                            onClick={() => setShowVoiceInput(true)}
+                            className={`flex-shrink-0 self-stretch flex items-center px-2.5 rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'} active:opacity-80`}
+                            title="Voice Task Input"
+                          >
+                            <Mic size={16} />
+                          </button>
+                        )}
                       </div>
 
                       {/* Morning dayGLANCE — AI morning summary card */}
@@ -15120,6 +15282,15 @@ const DayPlanner = () => {
                           </>
                         )}
                       </div>
+                    )}
+                    {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+                      <button
+                        onClick={() => setShowVoiceInput(true)}
+                        className={`flex-shrink-0 self-stretch flex items-center px-2.5 rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'} hover:opacity-80`}
+                        title="Voice Task Input (V)"
+                      >
+                        <Mic size={16} />
+                      </button>
                     )}
                   </div>
 
@@ -17889,17 +18060,6 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {/* Voice input FAB */}
-          {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
-            <button
-              onClick={() => setShowVoiceInput(true)}
-              className="fixed z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg active:bg-purple-700 flex items-center justify-center transition-colors"
-              style={{ right: '1rem', bottom: '5.5rem' }}
-              title="Voice Task Input"
-            >
-              <Mic size={20} />
-            </button>
-          )}
           {/* Glance panel FABs: weekly review (bottom), daily summary (middle), recycle bin (top) — only when glance panel is visible (portrait or landscape glance tab) */}
           {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
@@ -17991,16 +18151,6 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
-            <button
-              onClick={() => setShowVoiceInput(true)}
-              className="fixed z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 flex items-center justify-center transition-colors"
-              style={{ right: '1.75rem', bottom: '5.5rem' }}
-              title="Voice Task Input (V)"
-            >
-              <Mic size={20} />
-            </button>
-          )}
           {/* Desktop Glance panel FABs — matching tablet landscape */}
           {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
@@ -22113,14 +22263,14 @@ const DayPlanner = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mic size={20} className="text-purple-400" />
-                  Voice Task Input
+                  Voice Input
                 </h3>
                 <button onClick={() => { voiceStopRecording(); setShowVoiceInput(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
                   <X size={18} className={textSecondary} />
                 </button>
               </div>
 
-              {!voiceParsedTasks ? (
+              {!voiceParsedTasks && !voiceParsedEdits ? (
                 <>
                   {/* Recording UI — uses MediaRecorder + AI transcription (works in all browsers) */}
                   {!voiceManualMode && voiceCanRecord && voiceHasTranscription ? (
@@ -22182,7 +22332,7 @@ const DayPlanner = () => {
                         ref={voiceTextareaRef}
                         value={voiceTranscript}
                         onChange={(e) => setVoiceTranscript(e.target.value)}
-                        placeholder="Describe your tasks... e.g. &quot;I need to call mom tomorrow at 3pm, and also pick up groceries on the way home&quot;"
+                        placeholder="Add or edit tasks... e.g. &quot;call mom tomorrow at 3pm&quot; or &quot;move standup to Friday&quot; or &quot;mark report as done&quot;"
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y min-h-[80px]`}
                         rows={3}
                         autoFocus
@@ -22225,10 +22375,11 @@ const DayPlanner = () => {
                 </>
               ) : (
                 <>
-                  {/* Parsed tasks preview */}
+                  {/* Parsed new tasks preview */}
+                  {voiceParsedTasks && voiceParsedTasks.length > 0 && (
                   <div className="space-y-3">
                     <p className={`text-sm ${textSecondary}`}>
-                      {voiceParsedTasks.length === 1 ? '1 task parsed' : `${voiceParsedTasks.length} tasks parsed`}
+                      {voiceParsedTasks.length === 1 ? '1 new task' : `${voiceParsedTasks.length} new tasks`}
                       {voiceParseError && <span className="text-amber-500"> (fallback — AI error)</span>}
                     </p>
 
@@ -22328,22 +22479,87 @@ const DayPlanner = () => {
                       );
                     })}
                   </div>
+                  )}
+
+                  {/* Parsed edit commands preview */}
+                  {voiceParsedEdits && voiceParsedEdits.length > 0 && (
+                  <div className={`space-y-3 ${voiceParsedTasks && voiceParsedTasks.length > 0 ? 'mt-4' : ''}`}>
+                    <p className={`text-sm ${textSecondary}`}>
+                      {voiceParsedEdits.length === 1 ? '1 edit' : `${voiceParsedEdits.length} edits`}
+                    </p>
+
+                    {voiceParsedEdits.map((edit, idx) => {
+                      const actionLabels = { move: 'Move', changeDuration: 'Duration', rename: 'Rename', delete: 'Delete', complete: 'Complete', uncomplete: 'Uncomplete', changePriority: 'Priority', addTag: 'Add Tag', removeTag: 'Remove Tag' };
+                      const actionColors = { move: 'bg-blue-500/20 text-blue-300', changeDuration: 'bg-orange-500/20 text-orange-300', rename: 'bg-purple-500/20 text-purple-300', delete: 'bg-red-500/20 text-red-300', complete: 'bg-green-500/20 text-green-300', uncomplete: 'bg-yellow-500/20 text-yellow-300', changePriority: 'bg-amber-500/20 text-amber-300', addTag: 'bg-teal-500/20 text-teal-300', removeTag: 'bg-pink-500/20 text-pink-300' };
+                      const priorityLabels = ['None', 'Low', 'Medium', 'High'];
+                      // Describe what the edit will do
+                      let changeDesc = '';
+                      if (edit.action === 'move') changeDesc = `→ ${edit.date || ''}${edit.time ? ` at ${edit.time}` : ''}`;
+                      else if (edit.action === 'changeDuration') changeDesc = `→ ${edit.duration}min`;
+                      else if (edit.action === 'rename') changeDesc = `→ "${edit.newTitle}"`;
+                      else if (edit.action === 'changePriority') changeDesc = `→ ${priorityLabels[edit.priority] || 'None'}`;
+                      else if (edit.action === 'addTag') changeDesc = `→ #${edit.tag}`;
+                      else if (edit.action === 'removeTag') changeDesc = `→ remove #${edit.tag}`;
+
+                      return (
+                        <div key={idx} className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${actionColors[edit.action] || 'bg-gray-500/20 text-gray-300'}`}>
+                                  {actionLabels[edit.action] || edit.action}
+                                </span>
+                                {edit.resolvedTask ? (
+                                  <span className={`text-sm font-medium ${textPrimary}`}>{edit.resolvedTask.title}</span>
+                                ) : (
+                                  <span className="text-sm text-red-400 italic">"{edit.taskMatch}" — not found</span>
+                                )}
+                              </div>
+                              {changeDesc && (
+                                <p className={`text-xs ${textSecondary} mt-1`}>{changeDesc}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setVoiceParsedEdits(prev => prev.filter((_, i) => i !== idx))}
+                              className={`p-1 rounded flex-shrink-0 ${hoverBg}`}
+                              title="Remove"
+                            >
+                              <X size={14} className={textSecondary} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  )}
+
+                  {/* No results message */}
+                  {(!voiceParsedTasks || voiceParsedTasks.length === 0) && (!voiceParsedEdits || voiceParsedEdits.length === 0) && (
+                    <p className={`text-sm ${textSecondary}`}>No tasks or edits were parsed from your input.</p>
+                  )}
 
                   {/* Action buttons */}
                   <div className="mt-4 flex justify-between">
                     <button
-                      onClick={() => { setVoiceParsedTasks(null); setVoiceParseError(''); }}
+                      onClick={() => { setVoiceParsedTasks(null); setVoiceParsedEdits(null); setVoiceParseError(''); }}
                       className={`px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
                     >
                       Back
                     </button>
                     <button
-                      onClick={voiceAddAllParsedTasks}
-                      disabled={voiceParsedTasks.length === 0}
+                      onClick={voiceApplyAllChanges}
+                      disabled={((!voiceParsedTasks || voiceParsedTasks.length === 0) && (!voiceParsedEdits || voiceParsedEdits.filter(e => e.resolvedTask).length === 0))}
                       className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
                     >
                       <Check size={14} />
-                      {voiceParsedTasks.length === 1 ? 'Add Task' : `Add All (${voiceParsedTasks.length})`}
+                      {(() => {
+                        const newCount = voiceParsedTasks ? voiceParsedTasks.length : 0;
+                        const editCount = voiceParsedEdits ? voiceParsedEdits.filter(e => e.resolvedTask).length : 0;
+                        const total = newCount + editCount;
+                        if (newCount > 0 && editCount > 0) return `Apply All (${total})`;
+                        if (editCount > 0) return editCount === 1 ? 'Apply Edit' : `Apply Edits (${editCount})`;
+                        return newCount === 1 ? 'Add Task' : `Add All (${newCount})`;
+                      })()}
                       <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[10px] font-mono">↵</kbd>
                     </button>
                   </div>

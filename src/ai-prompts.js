@@ -1,33 +1,63 @@
 // AI Prompt templates for each feature
 
 export function voiceParseSystemPrompt(context) {
-  const { todayDate, existingTags, timezone } = context;
-  return `You are a task parser for a day planner app. The user will give you a voice transcript (natural language) describing one or more tasks they want to add.
+  const { todayDate, existingTags, timezone, existingTasks } = context;
+  return `You are a task assistant for a day planner app. The user will give you a voice transcript (natural language). Determine their intent:
 
-Parse the transcript into structured task(s) as a JSON array. Each task object should have:
+1. **Creating new tasks** — they describe tasks to add
+2. **Editing existing tasks** — they want to modify, move, delete, complete, rename, or re-prioritize tasks that already exist
+
+Return a JSON object:
+{
+  "newTasks": [...],
+  "edits": [...]
+}
+
+If only creating tasks, "edits" should be []. If only editing, "newTasks" should be [].
+
+### New Tasks format
+Each object:
 - "title": string — concise task title (imperative/action-oriented)
-- "tags": string[] — relevant tags. Reuse from the user's existing tags when possible: [${existingTags.map(t => `"${t}"`).join(', ')}]. Only create new tags if none fit. Tags should be lowercase, no # prefix.
-- "date": string|null — ISO date "YYYY-MM-DD" if mentioned, null for inbox. Today is ${todayDate}. Interpret "tomorrow", "next Monday", etc. relative to today.
-- "time": string|null — "HH:MM" (24h) if a specific time is mentioned, null otherwise
-- "duration": number — estimated minutes (default 30 if not specified)
-- "priority": number — 0 (none), 1 (low), 2 (medium), 3 (high). Infer from urgency words like "urgent", "important", "ASAP" → 3, "soon" → 2, etc. Default 0.
-- "deadline": string|null — ISO date if a deadline/due date is mentioned (distinct from scheduled date)
-- "notes": string — any extra context from the transcript that doesn't fit other fields, or empty string
+- "tags": string[] — relevant tags. Reuse from existing: [${existingTags.map(t => `"${t}"`).join(', ')}]. Lowercase, no # prefix.
+- "date": string|null — ISO "YYYY-MM-DD" if mentioned, null for inbox. Today is ${todayDate}.
+- "time": string|null — "HH:MM" (24h) if specified, null otherwise
+- "duration": number — estimated minutes (default 30)
+- "priority": number — 0=none, 1=low, 2=medium, 3=high. Infer from urgency words.
+- "deadline": string|null — ISO date if a due date is mentioned
+- "notes": string — extra context, or empty string
+
+### Edit Commands format
+Each object must have "action" and "taskMatch":
+- "taskMatch": string — a substring that uniquely identifies the target task (case-insensitive). Pick the most distinctive part of the title.
+- "action" + additional fields:
+  - "move": "date" (string|null), "time" (string|null) — new date and/or time. Use null to keep unchanged.
+  - "changeDuration": "duration" (number) — new duration in minutes
+  - "rename": "newTitle" (string) — new task title
+  - "delete": (no extra fields)
+  - "complete": (no extra fields)
+  - "uncomplete": (no extra fields)
+  - "changePriority": "priority" (number 0-3)
+  - "addTag": "tag" (string, lowercase, no #)
+  - "removeTag": "tag" (string, lowercase, no #)
 
 ${timezone ? `The user's timezone is ${timezone}.` : ''}
 
+### Existing tasks for reference:
+${existingTasks || 'No tasks currently.'}
+
 Rules:
-- If the transcript mentions multiple tasks, return multiple objects in the array
-- Be smart about splitting: "call mom and pick up groceries" = 2 tasks
+- If the transcript mentions multiple tasks/edits, return all of them
+- Be smart about splitting: "call mom and pick up groceries" = 2 new tasks
 - But "buy milk and eggs" = 1 task (single errand)
-- Infer reasonable tags from context (e.g. "gym" → "fitness", "meeting with boss" → "work")
-- If no date/time is specified, leave them null (task goes to inbox)
-- Keep titles concise but descriptive
-- Return ONLY the JSON array, no other text`;
+- Infer reasonable tags from context (e.g. "gym" → "fitness")
+- For edits, match "taskMatch" against the existing tasks listed above
+- Interpret relative dates ("tomorrow", "next Monday") relative to today (${todayDate})
+- Examples: "move standup to tomorrow" → move edit; "change meeting to 45 minutes" → changeDuration edit; "mark report as done" → complete edit; "delete groceries" → delete edit; "rename report to quarterly report" → rename edit; "make presentation high priority" → changePriority edit with priority 3
+- Return ONLY the JSON object, no other text`;
 }
 
 export function voiceParseUserPrompt(transcript) {
-  return `Parse this voice transcript into tasks:\n\n"${transcript}"`;
+  return `Parse this voice transcript into new tasks and/or edit commands:\n\n"${transcript}"`;
 }
 
 // --- Phase 2: Morning dayGLANCE ---
