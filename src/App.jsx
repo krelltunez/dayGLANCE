@@ -1755,6 +1755,8 @@ const DayPlanner = () => {
   const voiceAudioChunksRef = useRef([]);
   const voiceTextareaRef = useRef(null);
   const voiceAllTagsRef = useRef([]);
+  const voiceBuildTaskContextRef = useRef(() => 'No tasks currently.');
+  const voiceResolveTaskMatchRef = useRef(() => null);
   const voiceCanRecord = typeof MediaRecorder !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
   // Incomplete tasks modal
@@ -5326,13 +5328,27 @@ const DayPlanner = () => {
         if (text && aiConfig.enabled && (aiConfig.apiKey || aiConfig.provider === 'ollama')) {
           setVoiceIsParsing(true);
           try {
-            const context = { todayDate: dateToString(new Date()), existingTags: voiceAllTagsRef.current, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+            const context = { todayDate: dateToString(new Date()), existingTags: voiceAllTagsRef.current, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, existingTasks: voiceBuildTaskContextRef.current() };
             const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-            const arr = Array.isArray(result) ? result : [result];
-            setVoiceParsedTasks(arr.map(t => ({ ...t, title: t.title ? t.title.charAt(0).toUpperCase() + t.title.slice(1) : t.title })));
+            const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+            let newTasks = [];
+            let edits = [];
+            if (Array.isArray(result)) {
+              newTasks = result;
+            } else if (result && typeof result === 'object') {
+              newTasks = Array.isArray(result.newTasks) ? result.newTasks : [];
+              edits = Array.isArray(result.edits) ? result.edits : [];
+            }
+            setVoiceParsedTasks(newTasks.map(t => ({ ...t, title: cap(t.title) })));
+            const resolved = edits.map(edit => {
+              const match = voiceResolveTaskMatchRef.current(edit.taskMatch);
+              return { ...edit, resolvedTask: match?.task || null, source: match?.source || null };
+            });
+            setVoiceParsedEdits(resolved);
           } catch (parseErr) {
             setVoiceParseError(parseErr.message);
             setVoiceParsedTasks([{ title: text.charAt(0).toUpperCase() + text.slice(1), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+            setVoiceParsedEdits([]);
           }
           setVoiceIsParsing(false);
         } else {
@@ -9670,6 +9686,7 @@ const DayPlanner = () => {
     });
     return lines.length > 0 ? lines.join('\n') : 'No tasks currently.';
   }, [tasks, unscheduledTasks]);
+  voiceBuildTaskContextRef.current = buildTaskContextForAI;
 
   // Resolve an AI-provided taskMatch string to an actual task
   const resolveTaskMatch = useCallback((taskMatch) => {
@@ -9689,6 +9706,7 @@ const DayPlanner = () => {
     }
     return null;
   }, [tasks, unscheduledTasks]);
+  voiceResolveTaskMatchRef.current = resolveTaskMatch;
 
   const voiceParseWithAI = useCallback(async () => {
     const text = voiceTranscript.trim();
