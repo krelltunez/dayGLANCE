@@ -21646,7 +21646,7 @@ const DayPlanner = () => {
                 console.error('Speech recognition error:', event.error);
                 const errorMessages = {
                   'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
-                  'network': 'Network error — speech recognition requires an internet connection in most browsers.',
+                  'network': 'Could not reach the speech recognition service. Please try again.',
                   'audio-capture': 'No microphone found. Please connect a microphone and try again.',
                   'service-not-allowed': 'Speech recognition service not available. Try a different browser (Chrome works best).',
                   'aborted': 'Speech recognition was interrupted.',
