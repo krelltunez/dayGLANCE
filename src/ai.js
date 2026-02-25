@@ -84,12 +84,37 @@ function getBaseUrl(config) {
   }
 }
 
-// Make a completion request to the configured provider
+// Retry a fetch-based operation with exponential backoff for transient errors
+// (500, 502, 503, 504, 429, network failures). Retries up to 3 times.
+async function withRetry(fn, maxRetries = 3) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const isRetryable =
+        err.name === 'TypeError' ||                     // network failure / fetch error
+        /\b(500|502|503|504|529)\b/.test(err.message) ||  // server errors
+        /\b429\b/.test(err.message) ||                  // rate limit
+        /overloaded/i.test(err.message);
+      if (!isRetryable || attempt === maxRetries) throw err;
+      await new Promise(r => setTimeout(r, 1000 * 2 ** attempt)); // 1s, 2s, 4s
+    }
+  }
+  throw lastError;
+}
+
+// Make a completion request to the configured provider (with automatic retry)
 export async function aiComplete(systemPrompt, userMessage, config) {
   if (!config?.enabled || !config.apiKey && config.provider !== 'ollama') {
     throw new Error('AI is not configured');
   }
 
+  return withRetry(() => _aiComplete(systemPrompt, userMessage, config));
+}
+
+async function _aiComplete(systemPrompt, userMessage, config) {
   const { provider, apiKey, model } = config;
 
   switch (provider) {
@@ -217,6 +242,10 @@ export async function aiTranscribe(audioBlob, config) {
     throw new Error('AI is not configured');
   }
 
+  return withRetry(() => _aiTranscribe(audioBlob, config));
+}
+
+async function _aiTranscribe(audioBlob, config) {
   const { provider, apiKey, model } = config;
 
   switch (provider) {
