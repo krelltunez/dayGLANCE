@@ -11484,7 +11484,7 @@ const DayPlanner = () => {
                   <div className="flex-1 flex justify-center gap-2">
                     <button
                       onClick={openNewInboxTask}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                      className="w-20 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                       title="New Inbox Task"
                     >
                       <Plus size={14} />
@@ -11493,7 +11493,7 @@ const DayPlanner = () => {
                     {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                       <button
                         onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                        className="w-20 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                         title="AI Smart Schedule"
                       >
                         <BrainCircuit size={14} />
@@ -15804,7 +15804,7 @@ const DayPlanner = () => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={openNewInboxTask}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                          className="w-20 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                           title="New Inbox Task"
                         >
                           <Plus size={14} />
@@ -15813,7 +15813,7 @@ const DayPlanner = () => {
                         {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                           <button
                             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                            className="w-20 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                             title="AI Smart Schedule"
                           >
                             <BrainCircuit size={14} />
@@ -16590,7 +16590,7 @@ const DayPlanner = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={openNewInboxTask}
-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="w-20 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         title="New Inbox Task"
                       >
                         <Plus size={14} />
@@ -16599,7 +16599,7 @@ const DayPlanner = () => {
                       {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                         <button
                           onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          className="w-20 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                           title="AI Smart Schedule"
                         >
                           <BrainCircuit size={14} />
