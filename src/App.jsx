@@ -1746,6 +1746,7 @@ const DayPlanner = () => {
   const voiceTextareaRef = useRef(null);
   const voiceSpeechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
   const voiceIsBrave = typeof navigator !== 'undefined' && navigator.brave && typeof navigator.brave.isBrave === 'function';
+  const voiceIsEdge = typeof navigator !== 'undefined' && /Edg\//.test(navigator.userAgent);
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -5217,7 +5218,7 @@ const DayPlanner = () => {
       setVoiceParseError('');
       setVoiceEditingParsed(null);
       setVoiceManualMode(false);
-      setVoiceMicError(voiceIsBrave ? 'brave' : null);
+      setVoiceMicError(voiceIsBrave ? 'brave' : voiceIsEdge ? 'edge' : null);
     } else {
       if (voiceRecognitionRef.current) {
         voiceRecognitionRef.current.stop();
@@ -5258,7 +5259,7 @@ const DayPlanner = () => {
         console.error('Speech recognition error:', event.error);
         const errorMessages = {
           'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
-          'network': 'Could not reach the speech recognition service. Brave and some browsers block this feature. Try Chrome or use the text input below.',
+          'network': 'Could not reach the speech recognition service. Some browsers (Brave, Edge) block or restrict this feature. Try Chrome or use the text input below.',
           'audio-capture': 'No microphone found. Please connect a microphone and try again.',
           'service-not-allowed': 'Speech recognition is not available in this browser. Try Chrome or use the text input below.',
           'aborted': 'Speech recognition was interrupted.',
@@ -21828,6 +21829,14 @@ const DayPlanner = () => {
                         <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
                           <p className="text-amber-500 font-medium mb-1">Brave blocks speech recognition by default</p>
                           <p className={textSecondary}>You can try the mic button, but it may not work. Use the text input below as an alternative.</p>
+                        </div>
+                      )}
+
+                      {/* Edge browser warning */}
+                      {voiceMicError === 'edge' && (
+                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
+                          <p className="text-amber-500 font-medium mb-1">Edge may block speech recognition</p>
+                          <p className={textSecondary}>Edge sometimes blocks the speech service. If the mic doesn't work, use the text input below or try Chrome.</p>
                         </div>
                       )}
 
