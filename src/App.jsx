@@ -12863,7 +12863,7 @@ const DayPlanner = () => {
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                               >
                                 {(PROVIDER_MODELS[aiConfig.provider] || []).map(m => (
-                                  <option key={m.id} value={m.id}>{m.label}</option>
+                                  <option key={m.id} value={m.id}>{m.label}{m.recommended ? ' (Recommended)' : ''}</option>
                                 ))}
                               </select>
                             ) : (
@@ -12934,27 +12934,32 @@ const DayPlanner = () => {
                             <p className={`text-xs font-medium uppercase ${textSecondary}`}>Features</p>
                             {[
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
-                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
-                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
-                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
+                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} />, comingSoon: true },
+                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} />, comingSoon: true },
+                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} />, comingSoon: true },
                             ].map(f => (
-                              <label key={f.key} className="flex items-center gap-3 cursor-pointer">
+                              <label key={f.key} className={`flex items-center gap-3 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
                                 <div className="relative">
                                   <input
                                     type="checkbox"
-                                    checked={aiConfig.features[f.key]}
-                                    onChange={(e) => setAiConfig(prev => ({
-                                      ...prev,
-                                      features: { ...prev.features, [f.key]: e.target.checked }
-                                    }))}
+                                    checked={f.comingSoon ? false : aiConfig.features[f.key]}
+                                    onChange={(e) => {
+                                      if (f.comingSoon) return;
+                                      setAiConfig(prev => ({
+                                        ...prev,
+                                        features: { ...prev.features, [f.key]: e.target.checked }
+                                      }));
+                                    }}
+                                    disabled={f.comingSoon}
                                     className="sr-only"
                                   />
-                                  <div className={`w-9 h-5 rounded-full transition-colors ${aiConfig.features[f.key] ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${aiConfig.features[f.key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                  <div className={`w-9 h-5 rounded-full transition-colors ${!f.comingSoon && aiConfig.features[f.key] ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${!f.comingSoon && aiConfig.features[f.key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
                                   </div>
                                 </div>
                                 <span className={`text-sm ${textPrimary} flex items-center gap-1.5`}>
                                   {f.icon} {f.label}
+                                  {f.comingSoon && <span className={`text-xs ${textSecondary} italic`}>Coming soon</span>}
                                 </span>
                               </label>
                             ))}
@@ -19903,7 +19908,7 @@ const DayPlanner = () => {
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                               >
                                 {(PROVIDER_MODELS[aiConfig.provider] || []).map(m => (
-                                  <option key={m.id} value={m.id}>{m.label}</option>
+                                  <option key={m.id} value={m.id}>{m.label}{m.recommended ? ' (Recommended)' : ''}</option>
                                 ))}
                               </select>
                             ) : (
@@ -19976,22 +19981,27 @@ const DayPlanner = () => {
                             <p className={`text-xs font-medium ${textSecondary}`}>Features</p>
                             {[
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
-                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
-                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
-                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
+                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} />, comingSoon: true },
+                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} />, comingSoon: true },
+                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} />, comingSoon: true },
                             ].map(f => (
-                              <label key={f.key} className="flex items-center gap-2 cursor-pointer">
+                              <label key={f.key} className={`flex items-center gap-2 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
                                 <input
                                   type="checkbox"
-                                  checked={aiConfig.features[f.key]}
-                                  onChange={(e) => setAiConfig(prev => ({
-                                    ...prev,
-                                    features: { ...prev.features, [f.key]: e.target.checked }
-                                  }))}
+                                  checked={f.comingSoon ? false : aiConfig.features[f.key]}
+                                  onChange={(e) => {
+                                    if (f.comingSoon) return;
+                                    setAiConfig(prev => ({
+                                      ...prev,
+                                      features: { ...prev.features, [f.key]: e.target.checked }
+                                    }));
+                                  }}
+                                  disabled={f.comingSoon}
                                   className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
                                 />
                                 <span className={`text-xs ${textPrimary} flex items-center gap-1.5`}>
                                   {f.icon} {f.label}
+                                  {f.comingSoon && <span className={`${textSecondary} italic`}>Coming soon</span>}
                                 </span>
                               </label>
                             ))}

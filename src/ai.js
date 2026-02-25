@@ -17,15 +17,15 @@ const DEFAULT_CONFIG = {
 
 const PROVIDER_MODELS = {
   openai: [
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini', recommended: true },
     { id: 'gpt-4o', label: 'GPT-4o' },
     { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
     { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
     { id: 'gpt-4.1', label: 'GPT-4.1' },
   ],
   anthropic: [
+    { id: 'claude-haiku-4-5-20250514', label: 'Claude Haiku 4.5', recommended: true },
     { id: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5' },
-    { id: 'claude-haiku-4-5-20250514', label: 'Claude Haiku 4.5' },
   ],
   gemini: [
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
