@@ -21437,27 +21437,23 @@ const DayPlanner = () => {
         });
         const tagBreakdown = Object.entries(tagStats).map(([tag, s]) => ({ tag, ...s })).sort((a, b) => b.total - a.total).slice(0, 8);
 
-        // Auto-trigger AI weekly summary when modal opens
-        if (aiConfig.enabled && aiConfig.features.weeklySummary && !weeklyAISummary && !weeklyAILoading) {
-          const stats = {
-            dateRange: `${pastStartStr} to ${pastEndStr}`,
-            tasksCompleted: pastCompleted,
-            tasksScheduled: pastScheduled,
-            completionRate: pastCompletionRate,
-            timeSpent: pastTimeSpent,
-            timePlanned: pastTimePlanned,
-            focusMinutes: pastFocusMinutes,
-            recurringCompleted: pastRecurringCompleted,
-            recurringScheduled: pastRecurringScheduled,
-            bestDay: bestDayName,
-            bestDayCount,
-            incompleteCount: pastIncomplete.length,
-            tagBreakdown,
-            inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
-          };
-          // Defer to avoid calling setState during render
-          setTimeout(() => generateWeeklyAISummary(stats), 0);
-        }
+        // Stats for AI weekly summary (used by click-to-reveal prompt)
+        const weeklyAIStats = {
+          dateRange: `${pastStartStr} to ${pastEndStr}`,
+          tasksCompleted: pastCompleted,
+          tasksScheduled: pastScheduled,
+          completionRate: pastCompletionRate,
+          timeSpent: pastTimeSpent,
+          timePlanned: pastTimePlanned,
+          focusMinutes: pastFocusMinutes,
+          recurringCompleted: pastRecurringCompleted,
+          recurringScheduled: pastRecurringScheduled,
+          bestDay: bestDayName,
+          bestDayCount,
+          incompleteCount: pastIncomplete.length,
+          tagBreakdown,
+          inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
+        };
 
         const StatCard = ({ value, label, icon }) => (
           <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3`}>
@@ -21591,7 +21587,8 @@ const DayPlanner = () => {
                   )}
 
                   {/* AI Weekly Insights */}
-                  {aiConfig.enabled && aiConfig.features.weeklySummary && (weeklyAISummary || weeklyAILoading || weeklyAIError) && (
+                  {aiConfig.enabled && aiConfig.features.weeklySummary && (
+                    (weeklyAISummary || weeklyAILoading || weeklyAIError) ? (
                     <div className={`mt-3 rounded-lg border p-3 ${darkMode ? 'border-purple-800/50 bg-purple-900/20' : 'border-purple-200 bg-purple-50'}`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -21610,6 +21607,15 @@ const DayPlanner = () => {
                         <p className={`text-sm leading-relaxed ${textPrimary}`}>{weeklyAISummary}</p>
                       )}
                     </div>
+                    ) : (
+                    <div
+                      className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-purple-800/50 bg-purple-900/20 hover:bg-purple-900/30' : 'border-purple-200 bg-purple-50 hover:bg-purple-100'}`}
+                      onClick={() => generateWeeklyAISummary(weeklyAIStats)}
+                    >
+                      <Sparkles size={14} className="text-purple-500 flex-shrink-0" />
+                      <span className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Click here to see your weekly AI insights</span>
+                    </div>
+                    )
                   )}
                 </div>
 
