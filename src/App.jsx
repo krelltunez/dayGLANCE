@@ -13229,8 +13229,8 @@ const DayPlanner = () => {
               {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
                 <button
                   onClick={() => setShowVoiceInput(true)}
-                  className="fixed right-20 z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:bg-purple-800 flex items-center justify-center transition-colors"
-                  style={{ bottom: 'calc(4.9rem + env(safe-area-inset-bottom, 0px))' }}
+                  className="fixed right-5 z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:bg-purple-800 flex items-center justify-center transition-colors"
+                  style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
                 >
                   <Mic size={20} />
                 </button>
@@ -13308,7 +13308,7 @@ const DayPlanner = () => {
               {/* Routines FAB */}
               {routinesEnabled && (
                 <button
-                  onClick={openRoutinesDashboard}
+                  onClick={() => setMobileActiveTab('routines')}
                   className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
                   style={{ bottom: `calc(${(recycleBin.filter(t => !t.isExample).length > 0 ? 16.5 : 12.5) + (habitsEnabled ? 4 : 0)}rem + env(safe-area-inset-bottom, 0px))` }}
                 >
@@ -14838,7 +14838,7 @@ const DayPlanner = () => {
                                           e.stopPropagation();
                                           setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
                                         }}
-                                        className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                        className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : 'opacity-40'}`}
                                         title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
                                       >
                                         <Calendar size={14} />
