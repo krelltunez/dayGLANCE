@@ -9750,7 +9750,28 @@ const DayPlanner = () => {
     if (aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceText && !morningGlanceDismissed && !morningGlanceLoading) {
       generateMorningSummary();
     }
-  }, [aiConfig.enabled, aiConfig.features.morningSummary]);
+  }, [aiConfig.enabled, aiConfig.features.morningSummary, generateMorningSummary]);
+
+  // Re-trigger morning briefing on day rollover when app stays open (e.g. tab regains focus the next day)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || !aiConfig.enabled || !aiConfig.features.morningSummary) return;
+      const todayStr = dateToString(new Date());
+      // Already have today's briefing cached?
+      try {
+        const cached = localStorage.getItem('day-planner-morning-glance');
+        if (cached && JSON.parse(cached).date === todayStr) return;
+      } catch {}
+      // Dismissed today?
+      if (localStorage.getItem('day-planner-morning-glance-dismissed') === todayStr) return;
+      // New day — reset state and generate
+      setMorningGlanceDismissed(false);
+      setMorningGlanceText(null);
+      generateMorningSummary();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [aiConfig.enabled, aiConfig.features.morningSummary, generateMorningSummary]);
 
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
