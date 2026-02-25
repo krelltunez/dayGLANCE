@@ -1733,6 +1733,19 @@ const DayPlanner = () => {
   const [aiConnectionMessage, setAiConnectionMessage] = useState('');
   const [aiOllamaHelp, setAiOllamaHelp] = useState(null);
   const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [voiceIsRecording, setVoiceIsRecording] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceInterimTranscript, setVoiceInterimTranscript] = useState('');
+  const [voiceParsedTasks, setVoiceParsedTasks] = useState(null);
+  const [voiceIsParsing, setVoiceIsParsing] = useState(false);
+  const [voiceParseError, setVoiceParseError] = useState('');
+  const [voiceEditingParsed, setVoiceEditingParsed] = useState(null);
+  const [voiceManualMode, setVoiceManualMode] = useState(false);
+  const [voiceMicError, setVoiceMicError] = useState(null);
+  const voiceRecognitionRef = useRef(null);
+  const voiceTextareaRef = useRef(null);
+  const voiceSpeechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const voiceIsBrave = typeof navigator !== 'undefined' && navigator.brave && typeof navigator.brave.isBrave === 'function';
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -5192,6 +5205,91 @@ const DayPlanner = () => {
       setSelectedSuggestionIndex(0);
     }
   }, [showAddTask]);
+
+  // Voice input — reset state when modal opens, cleanup recognition on close
+  useEffect(() => {
+    if (showVoiceInput) {
+      setVoiceIsRecording(false);
+      setVoiceTranscript('');
+      setVoiceInterimTranscript('');
+      setVoiceParsedTasks(null);
+      setVoiceIsParsing(false);
+      setVoiceParseError('');
+      setVoiceEditingParsed(null);
+      setVoiceManualMode(false);
+      setVoiceMicError(voiceIsBrave ? 'brave' : null);
+    } else {
+      if (voiceRecognitionRef.current) {
+        voiceRecognitionRef.current.stop();
+        voiceRecognitionRef.current = null;
+      }
+    }
+  }, [showVoiceInput]);
+
+  const voiceStartRecording = useCallback(() => {
+    if (!voiceSpeechSupported) return;
+    setVoiceMicError(null);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || 'en-US';
+
+    recognition.onresult = (event) => {
+      let final = '';
+      let interim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setVoiceTranscript(prev => {
+        const newFinal = final.trim();
+        if (newFinal && !prev.includes(newFinal)) return (prev + ' ' + newFinal).trim();
+        return prev || newFinal;
+      });
+      setVoiceInterimTranscript(interim);
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error !== 'no-speech') {
+        console.error('Speech recognition error:', event.error);
+        const errorMessages = {
+          'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
+          'network': 'Could not reach the speech recognition service. Brave and some browsers block this feature. Try Chrome or use the text input below.',
+          'audio-capture': 'No microphone found. Please connect a microphone and try again.',
+          'service-not-allowed': 'Speech recognition is not available in this browser. Try Chrome or use the text input below.',
+          'aborted': 'Speech recognition was interrupted.',
+        };
+        setVoiceParseError(errorMessages[event.error] || `Speech recognition error: ${event.error}`);
+        setVoiceMicError('error');
+      }
+      setVoiceIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setVoiceIsRecording(false);
+    };
+
+    voiceRecognitionRef.current = recognition;
+    recognition.start();
+    setVoiceIsRecording(true);
+    setVoiceTranscript('');
+    setVoiceInterimTranscript('');
+    setVoiceParsedTasks(null);
+    setVoiceParseError('');
+  }, [voiceSpeechSupported]);
+
+  const voiceStopRecording = useCallback(() => {
+    if (voiceRecognitionRef.current) {
+      voiceRecognitionRef.current.stop();
+      voiceRecognitionRef.current = null;
+    }
+    setVoiceIsRecording(false);
+    setVoiceInterimTranscript('');
+  }, []);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -21599,451 +21697,294 @@ const DayPlanner = () => {
       )}
 
       {/* Voice Input Modal (Phase 1) */}
-      {showVoiceInput && (() => {
-        const VoiceInputContent = () => {
-          const [isRecording, setIsRecording] = useState(false);
-          const [transcript, setTranscript] = useState('');
-          const [interimTranscript, setInterimTranscript] = useState('');
-          const [parsedTasks, setParsedTasks] = useState(null);
-          const [isParsing, setIsParsing] = useState(false);
-          const [parseError, setParseError] = useState('');
-          const [editingParsed, setEditingParsed] = useState(null); // index of task being edited
-          const [manualMode, setManualMode] = useState(false);
-          const recognitionRef = useRef(null);
-          const textareaRef = useRef(null);
+      {showVoiceInput && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => { voiceStopRecording(); setShowVoiceInput(false); }}>
+          <div
+            className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-semibold ${textPrimary} flex items-center gap-2`}>
+                  <Mic size={20} className="text-purple-400" />
+                  Voice Task Input
+                </h3>
+                <button onClick={() => { voiceStopRecording(); setShowVoiceInput(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
+                  <X size={18} className={textSecondary} />
+                </button>
+              </div>
 
-          const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
-          const isBrave = navigator.brave && typeof navigator.brave.isBrave === 'function';
-          const [micError, setMicError] = useState(isBrave ? 'brave' : null); // 'brave' | 'error' | null
+              {!voiceParsedTasks ? (
+                <>
+                  {/* Recording UI */}
+                  {!voiceManualMode && voiceSpeechSupported ? (
+                    <div className="text-center space-y-4">
+                      {/* Brave browser warning */}
+                      {voiceMicError === 'brave' && (
+                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
+                          <p className="text-amber-500 font-medium mb-1">Brave blocks speech recognition by default</p>
+                          <p className={textSecondary}>You can try the mic button, but it may not work. Use the text input below as an alternative.</p>
+                        </div>
+                      )}
 
-          const startRecording = useCallback(() => {
-            if (!speechSupported) return;
-            setMicError(null);
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = navigator.language || 'en-US';
+                      {/* Mic button */}
+                      <button
+                        onClick={voiceIsRecording ? voiceStopRecording : voiceStartRecording}
+                        className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${
+                          voiceIsRecording
+                            ? 'bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-500/30'
+                            : 'bg-purple-600 hover:bg-purple-700'
+                        }`}
+                      >
+                        {voiceIsRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
+                      </button>
+                      <p className={`text-sm ${textSecondary}`}>
+                        {voiceIsRecording ? 'Listening... tap to stop' : 'Tap to start speaking'}
+                      </p>
 
-            recognition.onresult = (event) => {
-              let final = '';
-              let interim = '';
-              for (let i = 0; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                  final += event.results[i][0].transcript + ' ';
-                } else {
-                  interim += event.results[i][0].transcript;
-                }
-              }
-              setTranscript(prev => {
-                // Only append new final results
-                const newFinal = final.trim();
-                if (newFinal && !prev.includes(newFinal)) return (prev + ' ' + newFinal).trim();
-                return prev || newFinal;
-              });
-              setInterimTranscript(interim);
-            };
+                      {/* Live transcript */}
+                      {(voiceTranscript || voiceInterimTranscript) && (
+                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'} min-h-[60px]`}>
+                          <p className={`text-sm ${textPrimary}`}>
+                            {voiceTranscript}
+                            {voiceInterimTranscript && <span className="opacity-50"> {voiceInterimTranscript}</span>}
+                          </p>
+                        </div>
+                      )}
 
-            recognition.onerror = (event) => {
-              if (event.error !== 'no-speech') {
-                console.error('Speech recognition error:', event.error);
-                const errorMessages = {
-                  'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
-                  'network': 'Could not reach the speech recognition service. Brave and some browsers block this feature. Try Chrome or use the text input below.',
-                  'audio-capture': 'No microphone found. Please connect a microphone and try again.',
-                  'service-not-allowed': 'Speech recognition is not available in this browser. Try Chrome or use the text input below.',
-                  'aborted': 'Speech recognition was interrupted.',
-                };
-                setParseError(errorMessages[event.error] || `Speech recognition error: ${event.error}`);
-                setMicError('error');
-              }
-              setIsRecording(false);
-            };
+                      {/* Speech recognition error */}
+                      {voiceMicError === 'error' && voiceParseError && !voiceTranscript && (
+                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'} text-xs`}>
+                          <p className="text-red-400">{voiceParseError}</p>
+                        </div>
+                      )}
 
-            recognition.onend = () => {
-              setIsRecording(false);
-            };
+                      <button
+                        onClick={() => setVoiceManualMode(true)}
+                        className={`text-xs ${textSecondary} hover:underline`}
+                      >
+                        Or type instead
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Text input fallback */}
+                      {!voiceSpeechSupported && !voiceManualMode && (
+                        <p className={`text-xs ${textSecondary}`}>
+                          Speech recognition is not supported in this browser. Type your tasks below.
+                        </p>
+                      )}
+                      <textarea
+                        ref={voiceTextareaRef}
+                        value={voiceTranscript}
+                        onChange={(e) => setVoiceTranscript(e.target.value)}
+                        placeholder="Describe your tasks... e.g. &quot;I need to call mom tomorrow at 3pm, and also pick up groceries on the way home&quot;"
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y min-h-[80px]`}
+                        rows={3}
+                        autoFocus
+                      />
+                      {voiceSpeechSupported && (
+                        <button
+                          onClick={() => { setVoiceManualMode(false); setVoiceTranscript(''); }}
+                          className={`text-xs ${textSecondary} hover:underline`}
+                        >
+                          Use voice instead
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-            recognitionRef.current = recognition;
-            recognition.start();
-            setIsRecording(true);
-            setTranscript('');
-            setInterimTranscript('');
-            setParsedTasks(null);
-            setParseError('');
-          }, [speechSupported]);
+                  {/* Parse button */}
+                  {voiceTranscript.trim() && !voiceIsRecording && (
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button
+                        onClick={async () => {
+                          const text = voiceTranscript.trim();
+                          if (!text) return;
+                          if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
+                            setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+                            return;
+                          }
+                          setVoiceIsParsing(true);
+                          setVoiceParseError('');
+                          try {
+                            const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+                            const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
+                            setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
+                          } catch (err) {
+                            setVoiceParseError(err.message);
+                            setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+                          }
+                          setVoiceIsParsing(false);
+                        }}
+                        disabled={voiceIsParsing}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                      >
+                        {voiceIsParsing ? (
+                          <Loader size={14} className="animate-spin" />
+                        ) : aiConfig.enabled ? (
+                          <BrainCircuit size={14} />
+                        ) : (
+                          <Plus size={14} />
+                        )}
+                        {voiceIsParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Add as Task'}
+                      </button>
+                    </div>
+                  )}
 
-          const stopRecording = useCallback(() => {
-            if (recognitionRef.current) {
-              recognitionRef.current.stop();
-              recognitionRef.current = null;
-            }
-            setIsRecording(false);
-            setInterimTranscript('');
-          }, []);
+                  {voiceParseError && voiceMicError !== 'error' && (
+                    <p className="text-xs text-amber-500 mt-2">AI parsing error: {voiceParseError}. Added as plain task.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Parsed tasks preview */}
+                  <div className="space-y-3">
+                    <p className={`text-sm ${textSecondary}`}>
+                      {voiceParsedTasks.length === 1 ? '1 task parsed' : `${voiceParsedTasks.length} tasks parsed`}
+                      {voiceParseError && <span className="text-amber-500"> (fallback — AI error)</span>}
+                    </p>
 
-          // Cleanup on unmount
-          useEffect(() => {
-            return () => {
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
-              }
-            };
-          }, []);
-
-          const parseWithAI = async () => {
-            const text = transcript.trim();
-            if (!text) return;
-
-            if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
-              // No AI — create single task from transcript
-              setParsedTasks([{
-                title: text,
-                tags: [],
-                date: null,
-                time: null,
-                duration: 30,
-                priority: 0,
-                deadline: null,
-                notes: ''
-              }]);
-              return;
-            }
-
-            setIsParsing(true);
-            setParseError('');
-            try {
-              const context = {
-                todayDate: dateToString(new Date()),
-                existingTags: allTags,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              };
-              const systemPrompt = voiceParseSystemPrompt(context);
-              const userPrompt = voiceParseUserPrompt(text);
-              const result = await aiJSON(systemPrompt, userPrompt, aiConfig);
-              const tasks = Array.isArray(result) ? result : [result];
-              setParsedTasks(tasks);
-            } catch (err) {
-              setParseError(err.message);
-              // Fallback: single task
-              setParsedTasks([{
-                title: text,
-                tags: [],
-                date: null,
-                time: null,
-                duration: 30,
-                priority: 0,
-                deadline: null,
-                notes: ''
-              }]);
-            }
-            setIsParsing(false);
-          };
-
-          const addParsedTasks = (tasksToAdd) => {
-            pushUndo();
-            for (const parsed of tasksToAdd) {
-              const taskId = crypto.randomUUID();
-              const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
-              const title = parsed.title + tagStr;
-
-              if (parsed.date && parsed.time) {
-                // Scheduled task
-                setTasks(prev => [...prev, {
-                  id: taskId,
-                  title,
-                  startTime: parsed.time,
-                  duration: parsed.duration || 30,
-                  date: parsed.date,
-                  color: colors[0].class,
-                  completed: false,
-                  isAllDay: false,
-                  notes: parsed.notes || '',
-                  subtasks: [],
-                }]);
-              } else {
-                // Inbox task
-                const inboxTask = {
-                  id: taskId,
-                  title,
-                  duration: parsed.duration || 30,
-                  color: colors[0].class,
-                  completed: false,
-                  isAllDay: false,
-                  notes: parsed.notes || '',
-                  subtasks: [],
-                  priority: parsed.priority || 0,
-                };
-                if (parsed.deadline) inboxTask.deadline = parsed.deadline;
-                if (parsed.date && !parsed.time) {
-                  // Has date but no time — schedule as all-day or early
-                  inboxTask.date = parsed.date;
-                  setTasks(prev => [...prev, {
-                    ...inboxTask,
-                    startTime: '09:00',
-                    date: parsed.date,
-                  }]);
-                } else {
-                  setUnscheduledTasks(prev => [...prev, inboxTask]);
-                }
-              }
-            }
-            setShowVoiceInput(false);
-          };
-
-          const priorityLabels = ['None', 'Low', 'Medium', 'High'];
-          const priorityColors = ['text-gray-400', 'text-blue-400', 'text-yellow-400', 'text-red-400'];
-
-          return (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => { stopRecording(); setShowVoiceInput(false); }}>
-              <div
-                className={`${cardBg} rounded-xl shadow-2xl ${borderClass} border w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="p-5">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className={`text-lg font-semibold ${textPrimary} flex items-center gap-2`}>
-                      <Mic size={20} className="text-purple-400" />
-                      Voice Task Input
-                    </h3>
-                    <button onClick={() => { stopRecording(); setShowVoiceInput(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
-                      <X size={18} className={textSecondary} />
-                    </button>
+                    {voiceParsedTasks.map((task, idx) => {
+                      const priorityLabels = ['None', 'Low', 'Medium', 'High'];
+                      const priorityColors = ['text-gray-400', 'text-blue-400', 'text-yellow-400', 'text-red-400'];
+                      return (
+                        <div key={idx} className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} space-y-2`}>
+                          {voiceEditingParsed === idx ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={task.title}
+                                onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, title: e.target.value } : t))}
+                                className={`w-full px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                autoFocus
+                              />
+                              <div className="flex gap-2 flex-wrap">
+                                <input
+                                  type="date"
+                                  value={task.date || ''}
+                                  onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, date: e.target.value || null } : t))}
+                                  className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                />
+                                <input
+                                  type="time"
+                                  value={task.time || ''}
+                                  onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, time: e.target.value || null } : t))}
+                                  className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                />
+                                <select
+                                  value={task.duration}
+                                  onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, duration: Number(e.target.value) } : t))}
+                                  className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                >
+                                  {[15, 30, 45, 60, 90, 120].map(d => (
+                                    <option key={d} value={d}>{d}min</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={task.priority}
+                                  onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, priority: Number(e.target.value) } : t))}
+                                  className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                >
+                                  {priorityLabels.map((l, i) => (
+                                    <option key={i} value={i}>{l}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={() => setVoiceEditingParsed(null)}
+                                  className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-sm font-medium ${textPrimary}`}>{task.title}</p>
+                                <div className={`flex items-center gap-2 flex-wrap mt-1 text-xs ${textSecondary}`}>
+                                  {task.tags?.length > 0 && task.tags.map(tag => (
+                                    <span key={tag} className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">#{tag}</span>
+                                  ))}
+                                  {task.date && <span>{task.date}</span>}
+                                  {task.time && <span>{task.time}</span>}
+                                  <span>{task.duration}min</span>
+                                  {task.priority > 0 && (
+                                    <span className={priorityColors[task.priority]}>
+                                      {'!'.repeat(task.priority)} {priorityLabels[task.priority]}
+                                    </span>
+                                  )}
+                                  {!task.date && <span className="italic">→ Inbox</span>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setVoiceEditingParsed(idx)}
+                                  className={`p-1 rounded ${hoverBg}`}
+                                  title="Edit"
+                                >
+                                  <Pencil size={14} className={textSecondary} />
+                                </button>
+                                <button
+                                  onClick={() => setVoiceParsedTasks(prev => prev.filter((_, i) => i !== idx))}
+                                  className={`p-1 rounded ${hoverBg}`}
+                                  title="Remove"
+                                >
+                                  <X size={14} className={textSecondary} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {!parsedTasks ? (
-                    <>
-                      {/* Recording UI */}
-                      {!manualMode && speechSupported ? (
-                        <div className="text-center space-y-4">
-                          {/* Brave browser warning */}
-                          {micError === 'brave' && (
-                            <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
-                              <p className="text-amber-500 font-medium mb-1">Brave blocks speech recognition by default</p>
-                              <p className={textSecondary}>You can try the mic button, but it may not work. Use the text input below as an alternative.</p>
-                            </div>
-                          )}
-
-                          {/* Mic button */}
-                          <button
-                            onClick={isRecording ? stopRecording : startRecording}
-                            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-all ${
-                              isRecording
-                                ? 'bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-500/30'
-                                : 'bg-purple-600 hover:bg-purple-700'
-                            }`}
-                          >
-                            {isRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
-                          </button>
-                          <p className={`text-sm ${textSecondary}`}>
-                            {isRecording ? 'Listening... tap to stop' : 'Tap to start speaking'}
-                          </p>
-
-                          {/* Live transcript */}
-                          {(transcript || interimTranscript) && (
-                            <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'} min-h-[60px]`}>
-                              <p className={`text-sm ${textPrimary}`}>
-                                {transcript}
-                                {interimTranscript && <span className="opacity-50"> {interimTranscript}</span>}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Speech recognition error */}
-                          {micError === 'error' && parseError && !transcript && (
-                            <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'} text-xs`}>
-                              <p className="text-red-400">{parseError}</p>
-                            </div>
-                          )}
-
-                          <button
-                            onClick={() => setManualMode(true)}
-                            className={`text-xs ${textSecondary} hover:underline`}
-                          >
-                            Or type instead
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {/* Text input fallback */}
-                          {!speechSupported && !manualMode && (
-                            <p className={`text-xs ${textSecondary}`}>
-                              Speech recognition is not supported in this browser. Type your tasks below.
-                            </p>
-                          )}
-                          <textarea
-                            ref={textareaRef}
-                            value={transcript}
-                            onChange={(e) => setTranscript(e.target.value)}
-                            placeholder="Describe your tasks... e.g. &quot;I need to call mom tomorrow at 3pm, and also pick up groceries on the way home&quot;"
-                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y min-h-[80px]`}
-                            rows={3}
-                            autoFocus
-                          />
-                          {speechSupported && (
-                            <button
-                              onClick={() => { setManualMode(false); setTranscript(''); }}
-                              className={`text-xs ${textSecondary} hover:underline`}
-                            >
-                              Use voice instead
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Parse button */}
-                      {transcript.trim() && !isRecording && (
-                        <div className="mt-4 flex justify-end gap-2">
-                          <button
-                            onClick={parseWithAI}
-                            disabled={isParsing}
-                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
-                          >
-                            {isParsing ? (
-                              <Loader size={14} className="animate-spin" />
-                            ) : aiConfig.enabled ? (
-                              <BrainCircuit size={14} />
-                            ) : (
-                              <Plus size={14} />
-                            )}
-                            {isParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Add as Task'}
-                          </button>
-                        </div>
-                      )}
-
-                      {parseError && (
-                        <p className="text-xs text-amber-500 mt-2">AI parsing error: {parseError}. Added as plain task.</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {/* Parsed tasks preview */}
-                      <div className="space-y-3">
-                        <p className={`text-sm ${textSecondary}`}>
-                          {parsedTasks.length === 1 ? '1 task parsed' : `${parsedTasks.length} tasks parsed`}
-                          {parseError && <span className="text-amber-500"> (fallback — AI error)</span>}
-                        </p>
-
-                        {parsedTasks.map((task, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} space-y-2`}>
-                            {editingParsed === idx ? (
-                              <div className="space-y-2">
-                                <input
-                                  type="text"
-                                  value={task.title}
-                                  onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, title: e.target.value } : t))}
-                                  className={`w-full px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                  autoFocus
-                                />
-                                <div className="flex gap-2 flex-wrap">
-                                  <input
-                                    type="date"
-                                    value={task.date || ''}
-                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, date: e.target.value || null } : t))}
-                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                  />
-                                  <input
-                                    type="time"
-                                    value={task.time || ''}
-                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, time: e.target.value || null } : t))}
-                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                  />
-                                  <select
-                                    value={task.duration}
-                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, duration: Number(e.target.value) } : t))}
-                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                  >
-                                    {[15, 30, 45, 60, 90, 120].map(d => (
-                                      <option key={d} value={d}>{d}min</option>
-                                    ))}
-                                  </select>
-                                  <select
-                                    value={task.priority}
-                                    onChange={(e) => setParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, priority: Number(e.target.value) } : t))}
-                                    className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                  >
-                                    {priorityLabels.map((l, i) => (
-                                      <option key={i} value={i}>{l}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="flex justify-end">
-                                  <button
-                                    onClick={() => setEditingParsed(null)}
-                                    className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
-                                  >
-                                    Done
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <p className={`text-sm font-medium ${textPrimary}`}>{task.title}</p>
-                                  <div className={`flex items-center gap-2 flex-wrap mt-1 text-xs ${textSecondary}`}>
-                                    {task.tags?.length > 0 && task.tags.map(tag => (
-                                      <span key={tag} className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">#{tag}</span>
-                                    ))}
-                                    {task.date && <span>{task.date}</span>}
-                                    {task.time && <span>{task.time}</span>}
-                                    <span>{task.duration}min</span>
-                                    {task.priority > 0 && (
-                                      <span className={priorityColors[task.priority]}>
-                                        {'!'.repeat(task.priority)} {priorityLabels[task.priority]}
-                                      </span>
-                                    )}
-                                    {!task.date && <span className="italic">→ Inbox</span>}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => setEditingParsed(idx)}
-                                    className={`p-1 rounded ${hoverBg}`}
-                                    title="Edit"
-                                  >
-                                    <Pencil size={14} className={textSecondary} />
-                                  </button>
-                                  <button
-                                    onClick={() => setParsedTasks(prev => prev.filter((_, i) => i !== idx))}
-                                    className={`p-1 rounded ${hoverBg}`}
-                                    title="Remove"
-                                  >
-                                    <X size={14} className={textSecondary} />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="mt-4 flex justify-between">
-                        <button
-                          onClick={() => { setParsedTasks(null); setParseError(''); }}
-                          className={`px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
-                        >
-                          Back
-                        </button>
-                        <button
-                          onClick={() => addParsedTasks(parsedTasks)}
-                          disabled={parsedTasks.length === 0}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
-                        >
-                          <Check size={14} />
-                          {parsedTasks.length === 1 ? 'Add Task' : `Add All (${parsedTasks.length})`}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
+                  {/* Action buttons */}
+                  <div className="mt-4 flex justify-between">
+                    <button
+                      onClick={() => { setVoiceParsedTasks(null); setVoiceParseError(''); }}
+                      className={`px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        pushUndo();
+                        for (const parsed of voiceParsedTasks) {
+                          const taskId = crypto.randomUUID();
+                          const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
+                          const title = parsed.title + tagStr;
+                          if (parsed.date && parsed.time) {
+                            setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
+                          } else {
+                            const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
+                            if (parsed.deadline) inboxTask.deadline = parsed.deadline;
+                            if (parsed.date && !parsed.time) {
+                              setTasks(prev => [...prev, { ...inboxTask, startTime: '09:00', date: parsed.date }]);
+                            } else {
+                              setUnscheduledTasks(prev => [...prev, inboxTask]);
+                            }
+                          }
+                        }
+                        setShowVoiceInput(false);
+                      }}
+                      disabled={voiceParsedTasks.length === 0}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      <Check size={14} />
+                      {voiceParsedTasks.length === 1 ? 'Add Task' : `Add All (${voiceParsedTasks.length})`}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-          );
-        };
-        return <VoiceInputContent />;
-      })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
