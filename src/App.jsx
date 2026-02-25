@@ -1731,6 +1731,7 @@ const DayPlanner = () => {
   const [aiConfig, setAiConfig] = useState(() => loadAIConfig());
   const [aiConnectionStatus, setAiConnectionStatus] = useState(null); // null | 'testing' | 'success' | 'error'
   const [aiConnectionMessage, setAiConnectionMessage] = useState('');
+  const [aiOllamaHelp, setAiOllamaHelp] = useState(null);
   const [showVoiceInput, setShowVoiceInput] = useState(false);
 
   // Incomplete tasks modal
@@ -12808,6 +12809,7 @@ const DayPlanner = () => {
                                   baseUrl: provider === 'ollama' ? (prev.baseUrl || 'http://localhost:11434') : provider === 'custom' ? prev.baseUrl : '',
                                 }));
                                 setAiConnectionStatus(null);
+                                setAiOllamaHelp(null);
                               }}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             >
@@ -12828,6 +12830,7 @@ const DayPlanner = () => {
                                 onChange={(e) => {
                                   setAiConfig(prev => ({ ...prev, apiKey: e.target.value }));
                                   setAiConnectionStatus(null);
+                                setAiOllamaHelp(null);
                                 }}
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
                               />
@@ -12875,30 +12878,52 @@ const DayPlanner = () => {
                           </div>
 
                           {/* Test Connection */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                              onClick={async () => {
-                                setAiConnectionStatus('testing');
-                                setAiConnectionMessage('');
-                                const result = await testConnection(aiConfig);
-                                setAiConnectionStatus(result.success ? 'success' : 'error');
-                                setAiConnectionMessage(result.message);
-                              }}
-                              disabled={aiConnectionStatus === 'testing'}
-                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
-                            >
-                              {aiConnectionStatus === 'testing' ? (
-                                <Loader size={14} className="animate-spin" />
-                              ) : (
-                                <Wifi size={14} />
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                onClick={async () => {
+                                  setAiConnectionStatus('testing');
+                                  setAiConnectionMessage('');
+                                  setAiOllamaHelp(null);
+                                  const result = await testConnection(aiConfig);
+                                  setAiConnectionStatus(result.success ? 'success' : 'error');
+                                  setAiConnectionMessage(result.message);
+                                  setAiOllamaHelp(result.ollamaHelp || null);
+                                }}
+                                disabled={aiConnectionStatus === 'testing'}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                              >
+                                {aiConnectionStatus === 'testing' ? (
+                                  <Loader size={14} className="animate-spin" />
+                                ) : (
+                                  <Wifi size={14} />
+                                )}
+                                {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                              </button>
+                              {aiConnectionStatus === 'success' && (
+                                <span className="text-xs text-green-500">Connected</span>
                               )}
-                              {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
-                            </button>
-                            {aiConnectionStatus === 'success' && (
-                              <span className="text-xs text-green-500">Connected</span>
-                            )}
-                            {aiConnectionStatus === 'error' && (
-                              <span className="text-xs text-red-500">{aiConnectionMessage}</span>
+                              {aiConnectionStatus === 'error' && !aiOllamaHelp && (
+                                <span className="text-xs text-red-500">{aiConnectionMessage}</span>
+                              )}
+                            </div>
+                            {aiOllamaHelp && (
+                              <div className={`text-xs p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'}`}>
+                                <p className="text-red-500 font-medium mb-1.5">{aiOllamaHelp}</p>
+                                <ul className={`${textSecondary} space-y-1 ml-3 list-disc mb-2`}>
+                                  <li>Ollama must be running on your computer</li>
+                                  <li>CORS must be enabled for this site&apos;s origin</li>
+                                  <li>Set the environment variable: <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.location.origin}</code></li>
+                                </ul>
+                                <a
+                                  href="https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-purple-500 hover:text-purple-400 underline flex items-center gap-1 w-fit"
+                                >
+                                  Ollama setup guide <ExternalLink size={11} />
+                                </a>
+                              </div>
                             )}
                           </div>
 
@@ -19820,6 +19845,7 @@ const DayPlanner = () => {
                                   baseUrl: provider === 'ollama' ? (prev.baseUrl || 'http://localhost:11434') : provider === 'custom' ? prev.baseUrl : '',
                                 }));
                                 setAiConnectionStatus(null);
+                                setAiOllamaHelp(null);
                               }}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             >
@@ -19843,6 +19869,7 @@ const DayPlanner = () => {
                                 onChange={(e) => {
                                   setAiConfig(prev => ({ ...prev, apiKey: e.target.value }));
                                   setAiConnectionStatus(null);
+                                setAiOllamaHelp(null);
                                 }}
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
                               />
@@ -19891,34 +19918,56 @@ const DayPlanner = () => {
                           </div>
 
                           {/* Test Connection */}
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={async () => {
-                                setAiConnectionStatus('testing');
-                                setAiConnectionMessage('');
-                                const result = await testConnection(aiConfig);
-                                setAiConnectionStatus(result.success ? 'success' : 'error');
-                                setAiConnectionMessage(result.message);
-                              }}
-                              disabled={aiConnectionStatus === 'testing'}
-                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
-                            >
-                              {aiConnectionStatus === 'testing' ? (
-                                <Loader size={14} className="animate-spin" />
-                              ) : aiConnectionStatus === 'success' ? (
-                                <Wifi size={14} />
-                              ) : aiConnectionStatus === 'error' ? (
-                                <WifiOff size={14} />
-                              ) : (
-                                <Wifi size={14} />
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={async () => {
+                                  setAiConnectionStatus('testing');
+                                  setAiConnectionMessage('');
+                                  setAiOllamaHelp(null);
+                                  const result = await testConnection(aiConfig);
+                                  setAiConnectionStatus(result.success ? 'success' : 'error');
+                                  setAiConnectionMessage(result.message);
+                                  setAiOllamaHelp(result.ollamaHelp || null);
+                                }}
+                                disabled={aiConnectionStatus === 'testing'}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                              >
+                                {aiConnectionStatus === 'testing' ? (
+                                  <Loader size={14} className="animate-spin" />
+                                ) : aiConnectionStatus === 'success' ? (
+                                  <Wifi size={14} />
+                                ) : aiConnectionStatus === 'error' ? (
+                                  <WifiOff size={14} />
+                                ) : (
+                                  <Wifi size={14} />
+                                )}
+                                {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                              </button>
+                              {aiConnectionStatus === 'success' && (
+                                <span className="text-xs text-green-500">Connected</span>
                               )}
-                              {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
-                            </button>
-                            {aiConnectionStatus === 'success' && (
-                              <span className="text-xs text-green-500">Connected</span>
-                            )}
-                            {aiConnectionStatus === 'error' && (
-                              <span className="text-xs text-red-500 truncate max-w-[180px]" title={aiConnectionMessage}>{aiConnectionMessage}</span>
+                              {aiConnectionStatus === 'error' && !aiOllamaHelp && (
+                                <span className="text-xs text-red-500 truncate max-w-[180px]" title={aiConnectionMessage}>{aiConnectionMessage}</span>
+                              )}
+                            </div>
+                            {aiOllamaHelp && (
+                              <div className={`text-xs p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'}`}>
+                                <p className="text-red-500 font-medium mb-1.5">{aiOllamaHelp}</p>
+                                <ul className={`${textSecondary} space-y-1 ml-3 list-disc mb-2`}>
+                                  <li>Ollama must be running on your computer</li>
+                                  <li>CORS must be enabled for this site&apos;s origin</li>
+                                  <li>Set: <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.location.origin}</code></li>
+                                </ul>
+                                <a
+                                  href="https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-purple-500 hover:text-purple-400 underline flex items-center gap-1 w-fit"
+                                >
+                                  Ollama setup guide <ExternalLink size={11} />
+                                </a>
+                              </div>
                             )}
                           </div>
 

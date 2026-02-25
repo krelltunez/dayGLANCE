@@ -215,7 +215,17 @@ export async function testConnection(config) {
     );
     return { success: true, message: result.trim() };
   } catch (err) {
-    return { success: false, message: err.message };
+    const isOllama = config.provider === 'ollama';
+    const isNetworkError = err.message === 'Failed to fetch' || err.name === 'TypeError';
+    return {
+      success: false,
+      message: err.message,
+      ollamaHelp: isOllama && isNetworkError
+        ? 'Could not reach Ollama. Make sure it\'s running and CORS is enabled for this origin. See setup guide →'
+        : isOllama && !isNetworkError
+        ? err.message
+        : null,
+    };
   }
 }
 
