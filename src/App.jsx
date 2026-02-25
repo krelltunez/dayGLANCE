@@ -5746,6 +5746,12 @@ const DayPlanner = () => {
           setFrameAdjustModal(null);
           return;
         }
+        if (showFramesModal) {
+          e.preventDefault();
+          setShowFramesModal(false);
+          setEditingFrame(null);
+          return;
+        }
         if (showSpotlight) {
           e.preventDefault();
           setShowSpotlight(false);
