@@ -3198,7 +3198,7 @@ const DayPlanner = () => {
       cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, cloudSyncConfig?.enabled]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
 
   // Cloud sync: download on app load or when sync is first enabled
   useEffect(() => {
@@ -9297,7 +9297,8 @@ const DayPlanner = () => {
       habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
       habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
-      routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true')
+      routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
+      gtdFrames: JSON.parse(localStorage.getItem('day-planner-gtd-frames') || '[]')
     }
   });
 
@@ -9384,6 +9385,10 @@ const DayPlanner = () => {
     if (data.routinesEnabled !== undefined) {
       localStorage.setItem('day-planner-routines-enabled', JSON.stringify(data.routinesEnabled));
       setRoutinesEnabled(data.routinesEnabled);
+    }
+    if (data.gtdFrames) {
+      localStorage.setItem('day-planner-gtd-frames', JSON.stringify(data.gtdFrames));
+      setGtdFrames(data.gtdFrames);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
