@@ -1498,6 +1498,7 @@ const DayPlanner = () => {
       hasCreatedRecurring: false,
       hasSetupRoutines: false,
       hasUsedFocusMode: false,
+      hasEnabledOptionalFeature: false,
     };
   });
   const [suggestions, setSuggestions] = useState([]); // Array of { type: 'tag'|'date'|'time', value, display, ... }
@@ -3146,15 +3147,6 @@ const DayPlanner = () => {
         setUnscheduledTasks(exampleInboxTasks);
         setRecycleBin(exampleRecycleBin);
         setRecurringTasks(exampleRecurringTasks);
-        setRoutineDefinitions(prev => ({
-          ...prev,
-          everyday: [{ id: 'example-routine-1', name: 'Unscheduled' }, { id: 'example-routine-2', name: 'Breaktime' }]
-        }));
-        setTodayRoutines([
-          { id: 'example-routine-1', name: 'Unscheduled', bucket: 'everyday', startTime: null, duration: 15, isAllDay: true },
-          { id: 'example-routine-2', name: 'Breaktime', bucket: 'everyday', startTime: toTime(baseHour + 3, 0), duration: 15, isAllDay: false }
-        ]);
-        setRoutinesDate(todayStr);
       } else {
         // Load normally
         setTasks(parsedTasks);
@@ -9840,16 +9832,13 @@ const DayPlanner = () => {
       { id: 'inbox', label: 'Add your first inbox task', completed: onboardingProgress.hasAddedInboxTask },
       { id: 'scheduled', label: 'Add your first scheduled task', completed: onboardingProgress.hasAddedScheduledTask },
       { id: 'drag', label: isMobile ? 'Schedule a task from inbox' : 'Drag a task to the timeline', completed: onboardingProgress.hasDraggedToTimeline },
-      { id: 'deadline', label: 'Add a deadline to an inbox task', completed: onboardingProgress.hasAddedDeadline },
-      { id: 'priority', label: 'Set a priority on an inbox task', completed: onboardingProgress.hasSetPriority },
+      { id: 'priority', label: 'Set a priority or deadline', completed: onboardingProgress.hasSetPriority || onboardingProgress.hasAddedDeadline },
       { id: 'notes', label: 'Add notes or subtasks to a task', completed: onboardingProgress.hasAddedNotes },
       { id: 'tags', label: 'Use #tags in a task title', completed: onboardingProgress.hasUsedTags },
-      { id: 'actions', label: 'Use the action buttons on a task', completed: onboardingProgress.hasUsedActionButtons },
-      { id: 'complete', label: 'Complete a task', completed: onboardingProgress.hasCompletedTask },
       { id: 'recurring', label: 'Create a recurring task', completed: onboardingProgress.hasCreatedRecurring },
-      { id: 'routines', label: 'Set up a routine', completed: onboardingProgress.hasSetupRoutines },
       { id: 'focus', label: 'Try Focus Mode', completed: onboardingProgress.hasUsedFocusMode },
       { id: 'sync', label: 'Set up calendar sync', completed: onboardingProgress.hasSetupSync },
+      { id: 'optional', label: 'Enable routines, habits, or AI', completed: onboardingProgress.hasEnabledOptionalFeature },
     ];
   }, [onboardingProgress, isMobile]);
 
@@ -9900,14 +9889,6 @@ const DayPlanner = () => {
               setUnscheduledTasks(prev => prev.filter(t => !t.isExample));
               setRecycleBin(prev => prev.filter(t => !t.isExample));
               setRecurringTasks(prev => prev.filter(t => !t.isExample));
-              setRoutineDefinitions(prev => {
-                const cleaned = {};
-                for (const key of Object.keys(prev)) {
-                  cleaned[key] = prev[key].filter(c => !String(c.id).startsWith('example-'));
-                }
-                return cleaned;
-              });
-              setTodayRoutines(prev => prev.filter(r => !String(r.id).startsWith('example-')));
               setOnboardingComplete(true);
               setGettingStartedDismissed(true);
             }}
@@ -12492,14 +12473,14 @@ const DayPlanner = () => {
                       <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
                     </button>
                     <button
-                      onClick={() => setHabitsEnabled(!habitsEnabled)}
+                      onClick={() => { if (!habitsEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(!habitsEnabled); }}
                       className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
                     >
                       {habitsEnabled ? <Activity size={24} className="text-green-500" /> : <Activity size={24} className={textSecondary} />}
                       <span className={`text-xs font-medium ${textPrimary}`}>Habits {habitsEnabled ? 'On' : 'Off'}</span>
                     </button>
                     <button
-                      onClick={() => setRoutinesEnabled(!routinesEnabled)}
+                      onClick={() => { if (!routinesEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(!routinesEnabled); }}
                       className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
                     >
                       {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
@@ -13181,7 +13162,7 @@ const DayPlanner = () => {
                           <input
                             type="checkbox"
                             checked={aiConfig.enabled}
-                            onChange={(e) => setAiConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setAiConfig(prev => ({ ...prev, enabled: e.target.checked })); }}
                             className="sr-only"
                           />
                           <div className={`w-10 h-6 rounded-full transition-colors ${aiConfig.enabled ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
@@ -20254,7 +20235,7 @@ const DayPlanner = () => {
                           <input
                             type="checkbox"
                             checked={habitsEnabled}
-                            onChange={(e) => setHabitsEnabled(e.target.checked)}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
                             className="sr-only"
                           />
                           <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
@@ -20278,7 +20259,7 @@ const DayPlanner = () => {
                           <input
                             type="checkbox"
                             checked={routinesEnabled}
-                            onChange={(e) => setRoutinesEnabled(e.target.checked)}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(e.target.checked); }}
                             className="sr-only"
                           />
                           <div className={`w-10 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
@@ -20307,7 +20288,7 @@ const DayPlanner = () => {
                           <input
                             type="checkbox"
                             checked={aiConfig.enabled}
-                            onChange={(e) => setAiConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setAiConfig(prev => ({ ...prev, enabled: e.target.checked })); }}
                             className="sr-only"
                           />
                           <div className={`w-10 h-6 rounded-full transition-colors ${aiConfig.enabled ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
@@ -21766,7 +21747,7 @@ const DayPlanner = () => {
                 </div>
                 <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Glance</h2>
                 <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-                  <li>Your <strong className={textPrimary}>smart agenda</strong> — see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, <strong className={textPrimary}>upcoming</strong> tasks and your <strong className={textPrimary}>daily routine</strong> in real time</li>
+                  <li>Your <strong className={textPrimary}>smart agenda</strong> — see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>upcoming</strong> tasks in real time</li>
                   <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
                   <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and events, and filter your day by <strong className={textPrimary}>#tags</strong> <Filter size={14} className="inline mx-0.5" /></li>
                   <li>Deleted something by mistake? Restore it from the <strong className={textPrimary}>Recycle Bin</strong> <Trash2 size={14} className="inline mx-0.5" /></li>
@@ -21803,16 +21784,32 @@ const DayPlanner = () => {
               </div>
             )}
             {mobileWelcomeStep === 4 && (
-              <div className="text-center">
-                <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Sparkles size={32} className="text-teal-500" />
+              <div className="text-center w-full max-w-xs mx-auto">
+                <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Zap size={32} className="text-purple-500" />
                 </div>
-                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Routines</h2>
-                <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-                  <li>Create <strong className={textPrimary}>daily habits</strong> for each day of the week</li>
-                  <li>Tap chips to <strong className={textPrimary}>add routines</strong> to today's timeline</li>
-                  <li>Set a <strong className={textPrimary}>time</strong> to see routines on the timeline</li>
-                </ul>
+                <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>Make It Yours</h2>
+                <p className={`${textSecondary} text-sm mb-4`}>Optional features you can enable anytime in Settings:</p>
+                <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
+                  <div className="flex items-start gap-3">
+                    <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <RefreshCw size={16} className="text-teal-500" />
+                    </span>
+                    <span><strong className={textPrimary}>Routines</strong> — daily task templates for each day of the week</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Target size={16} className="text-rose-500" />
+                    </span>
+                    <span><strong className={textPrimary}>Habits</strong> — track daily habits with streaks and visual progress rings</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Mic size={16} className="text-amber-500" />
+                    </span>
+                    <span><strong className={textPrimary}>AI Features</strong> — voice input, morning briefings, and smart task parsing (BYO API key)</span>
+                  </div>
+                </div>
               </div>
             )}
             {mobileWelcomeStep === 5 && (
@@ -21927,7 +21924,7 @@ const DayPlanner = () => {
                       <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Eye size={16} className="text-blue-500" />
                       </span>
-                      <span><strong className={textPrimary}>Glance</strong> — your smart agenda with overdue tasks, today's schedule, and routines</span>
+                      <span><strong className={textPrimary}>Glance</strong> — your smart agenda with overdue tasks and today's schedule</span>
                     </div>
                     <div className="flex items-start gap-3">
                       <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -22015,36 +22012,16 @@ const DayPlanner = () => {
               )}
               {desktopWelcomeStep === 5 && (
                 <div className="text-center w-full max-w-sm">
-                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                    <CalendarDays size={32} className="text-blue-500" />
-                  </div>
-                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Sync Your Calendars</h2>
-                  <ul className={`text-sm ${textSecondary} text-left space-y-2 list-none`}>
-                    <li>Click <Settings size={14} className="inline mx-0.5" /> in the top bar to open <strong className={textPrimary}>Settings</strong></li>
-                    <li>Add <strong className={textPrimary}>CalDAV</strong> calendar URLs to sync events and reminders</li>
-                    <li>Import <strong className={textPrimary}>iCal (.ics)</strong> files to bring in existing events</li>
-                    <li>Calendar events are imported <strong className={textPrimary}>one-way</strong> for viewing. Task completions can optionally be synced back to your CalDAV server</li>
-                  </ul>
-                </div>
-              )}
-              {desktopWelcomeStep === 6 && (
-                <div className="text-center w-full max-w-sm">
                   <div className="w-16 h-16 bg-stone-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <Settings size={32} className={textSecondary} />
                   </div>
-                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>App Settings</h2>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Settings & Sync</h2>
                   <div className={`text-sm ${textSecondary} space-y-2 text-left`}>
                     <div className="flex items-center gap-3">
                       <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        <Settings size={16} className={textPrimary} />
+                        <CalendarDays size={16} className={textPrimary} />
                       </span>
-                      <span><strong className={textPrimary}>Settings</strong> — calendar sync, iCal import, clock format, and sounds</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
-                      </span>
-                      <span><strong className={textPrimary}>Dark / Light mode</strong> — toggle your preferred theme</span>
+                      <span><strong className={textPrimary}>Calendar sync</strong> — import CalDAV and iCal (.ics) events</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -22054,17 +22031,40 @@ const DayPlanner = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        <Bell size={16} className={textPrimary} />
+                        {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
                       </span>
-                      <span><strong className={textPrimary}>Reminders</strong> — get notified before tasks start</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        <Save size={16} className={textPrimary} />
-                      </span>
-                      <span><strong className={textPrimary}>Backup & Restore</strong> — export or import as JSON</span>
+                      <span><strong className={textPrimary}>Dark / Light mode</strong>, reminders, backup & restore</span>
                     </div>
                     <p className="text-xs opacity-75 mt-2">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
+                  </div>
+                </div>
+              )}
+              {desktopWelcomeStep === 6 && (
+                <div className="text-center w-full max-w-sm">
+                  <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <Zap size={32} className="text-purple-500" />
+                  </div>
+                  <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Make It Yours</h2>
+                  <p className={`${textSecondary} text-sm mb-4`}>Optional features you can enable anytime in Settings:</p>
+                  <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <RefreshCw size={16} className="text-teal-500" />
+                      </span>
+                      <span><strong className={textPrimary}>Routines</strong> — daily task templates for each day of the week</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Target size={16} className="text-rose-500" />
+                      </span>
+                      <span><strong className={textPrimary}>Habits</strong> — track daily habits with streaks and visual progress rings</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Mic size={16} className="text-amber-500" />
+                      </span>
+                      <span><strong className={textPrimary}>AI Features</strong> — voice input, morning briefings, and smart task parsing (BYO API key)</span>
+                    </div>
                   </div>
                 </div>
               )}
