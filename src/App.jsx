@@ -2,8 +2,8 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
-import { loadAIConfig, saveAIConfig, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
-import { voiceParseSystemPrompt, voiceParseUserPrompt } from './ai-prompts.js';
+import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt } from './ai-prompts.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -1761,6 +1761,32 @@ const DayPlanner = () => {
   const weeklyReviewDismissedRef = useRef(
     localStorage.getItem('day-planner-weekly-review-dismissed') || ''
   );
+
+  // Morning dayGLANCE (AI morning summary)
+  const [morningGlanceText, setMorningGlanceText] = useState(() => {
+    try {
+      const cached = localStorage.getItem('day-planner-morning-glance');
+      if (cached) {
+        const { date, text } = JSON.parse(cached);
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (date === todayStr) return text;
+      }
+    } catch {}
+    return null;
+  });
+  const [morningGlanceLoading, setMorningGlanceLoading] = useState(false);
+  const [morningGlanceDismissed, setMorningGlanceDismissed] = useState(() => {
+    try {
+      const d = localStorage.getItem('day-planner-morning-glance-dismissed');
+      return d === new Date().toISOString().split('T')[0];
+    } catch { return false; }
+  });
+  const [morningGlanceError, setMorningGlanceError] = useState('');
+
+  // Weekly AI summary (enhanced weekly review)
+  const [weeklyAISummary, setWeeklyAISummary] = useState(null);
+  const [weeklyAILoading, setWeeklyAILoading] = useState(false);
+  const [weeklyAIError, setWeeklyAIError] = useState('');
 
   // Spotlight search
   const [showSpotlight, setShowSpotlight] = useState(false);
@@ -9659,6 +9685,95 @@ const DayPlanner = () => {
     setShowVoiceInput(false);
   }, [voiceParsedTasks]);
 
+  // --- Morning dayGLANCE (AI morning summary) ---
+  const generateMorningSummary = useCallback(async () => {
+    if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.morningSummary) return;
+    const todayStr = dateToString(new Date());
+    // Check cache
+    try {
+      const cached = localStorage.getItem('day-planner-morning-glance');
+      if (cached) {
+        const { date, text } = JSON.parse(cached);
+        if (date === todayStr) { setMorningGlanceText(text); return; }
+      }
+    } catch {}
+
+    setMorningGlanceLoading(true);
+    setMorningGlanceError('');
+    try {
+      const todayDate = new Date();
+      const dayOfWeek = todayDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+      // Gather today's scheduled tasks
+      const scheduledToday = tasks.filter(t => t.date === todayStr && !t.imported && !t.isExample);
+      // Gather today's recurring tasks
+      const todayRecurring = recurringTasks.flatMap(t => {
+        const occs = getOccurrencesInRange(t, todayStr, todayStr);
+        return occs.map(() => ({ title: t.title, time: t.startTime, completed: (t.completedDates || []).includes(todayStr) }));
+      }).filter(t => !t.completed);
+      // Inbox count
+      const inboxCount = unscheduledTasks.filter(t => !t.completed && !t.isExample).length;
+      // Overdue tasks
+      const overdue = getOverdueTasks();
+      const overdueTasks = overdue.filter(t => t.date !== todayStr).slice(0, 5);
+      // Deadlines
+      const deadlinesToday = unscheduledTasks.filter(t => t.deadline === todayStr && !t.completed);
+      const nextWeek = new Date(todayDate);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      const nextWeekStr = dateToString(nextWeek);
+      const upcomingDeadlines = unscheduledTasks.filter(t => t.deadline && t.deadline > todayStr && t.deadline <= nextWeekStr && !t.completed).slice(0, 5);
+      // Total minutes
+      const totalMinutes = scheduledToday.reduce((s, t) => s + (t.duration || 0), 0)
+        + todayRecurring.reduce((s, t) => s + 30, 0); // recurring default 30
+
+      const data = {
+        todayDate: todayStr,
+        dayOfWeek,
+        scheduledTasks: scheduledToday.map(t => ({ title: t.title, time: t.startTime, priority: t.priority || 0 })),
+        recurringTasks: todayRecurring.map(t => ({ title: t.title, time: t.time })),
+        inboxCount,
+        overdueTasks: overdueTasks.map(t => ({ title: t.title })),
+        deadlinesToday: deadlinesToday.map(t => ({ title: t.title })),
+        upcomingDeadlines: upcomingDeadlines.map(t => ({ title: t.title, deadline: t.deadline })),
+        totalMinutes,
+      };
+
+      const text = await aiComplete(morningSummarySystemPrompt(), morningSummaryUserPrompt(data), aiConfig);
+      const cleaned = text.trim();
+      setMorningGlanceText(cleaned);
+      localStorage.setItem('day-planner-morning-glance', JSON.stringify({ date: todayStr, text: cleaned }));
+    } catch (err) {
+      setMorningGlanceError(err.message);
+    }
+    setMorningGlanceLoading(false);
+  }, [aiConfig, tasks, recurringTasks, unscheduledTasks]);
+
+  const dismissMorningGlance = useCallback(() => {
+    setMorningGlanceDismissed(true);
+    localStorage.setItem('day-planner-morning-glance-dismissed', new Date().toISOString().split('T')[0]);
+  }, []);
+
+  // Auto-generate morning summary on app load (once per day)
+  useEffect(() => {
+    if (aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceText && !morningGlanceDismissed && !morningGlanceLoading) {
+      generateMorningSummary();
+    }
+  }, [aiConfig.enabled, aiConfig.features.morningSummary]);
+
+  // --- Weekly AI Summary (enhanced weekly review) ---
+  const generateWeeklyAISummary = useCallback(async (stats) => {
+    if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.weeklySummary) return;
+    setWeeklyAILoading(true);
+    setWeeklyAIError('');
+    try {
+      const text = await aiComplete(weeklySummarySystemPrompt(), weeklySummaryUserPrompt(stats), aiConfig);
+      setWeeklyAISummary(text.trim());
+    } catch (err) {
+      setWeeklyAIError(err.message);
+    }
+    setWeeklyAILoading(false);
+  }, [aiConfig]);
+
   // Voice input keyboard shortcuts (SPACE to hold-record, T for typing, ENTER to parse/accept)
   const voiceHasTranscription = aiConfig.enabled && supportsTranscription(aiConfig);
   useEffect(() => {
@@ -11481,6 +11596,47 @@ const DayPlanner = () => {
                     </button>
                   )}
                 </div>
+                {/* Morning dayGLANCE — AI morning summary card (mobile) */}
+                {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (morningGlanceText || morningGlanceLoading || morningGlanceError) && (
+                  <div className={`mb-4 rounded-lg border p-3 ${darkMode ? 'border-amber-800/50 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Sun size={16} className="text-amber-500" />
+                        <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Morning Briefing</span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={generateMorningSummary}
+                          className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                          title="Regenerate"
+                        >
+                          <RefreshCw size={12} className={`${morningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
+                        </button>
+                        <button
+                          onClick={dismissMorningGlance}
+                          className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                          title="Dismiss for today"
+                        >
+                          <X size={12} className={textSecondary} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      {morningGlanceLoading && (
+                        <div className="flex items-center gap-2">
+                          <Loader size={14} className={`animate-spin ${textSecondary}`} />
+                          <span className={`text-xs ${textSecondary}`}>Generating your briefing...</span>
+                        </div>
+                      )}
+                      {morningGlanceError && (
+                        <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{morningGlanceError}</p>
+                      )}
+                      {morningGlanceText && !morningGlanceLoading && (
+                        <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {/* Habit rings row */}
                 {habitsEnabled && activeHabits.length > 0 && (
                   <div className="mb-4 relative">
@@ -13177,8 +13333,8 @@ const DayPlanner = () => {
                             <p className={`text-xs font-medium uppercase ${textSecondary}`}>Features</p>
                             {[
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
-                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} />, comingSoon: true },
-                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} />, comingSoon: true },
+                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
+                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} />, comingSoon: true },
                             ].map(f => (
                               <label key={f.key} className={`flex items-center gap-3 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
@@ -14309,6 +14465,48 @@ const DayPlanner = () => {
                         )}
                       </div>
 
+                      {/* Morning dayGLANCE — AI morning summary card */}
+                      {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (morningGlanceText || morningGlanceLoading || morningGlanceError) && (
+                        <div className={`rounded-lg border p-3 ${darkMode ? 'border-amber-800/50 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Sun size={16} className="text-amber-500" />
+                              <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Morning Briefing</span>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={generateMorningSummary}
+                                className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                                title="Regenerate"
+                              >
+                                <RefreshCw size={12} className={`${morningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
+                              </button>
+                              <button
+                                onClick={dismissMorningGlance}
+                                className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                                title="Dismiss for today"
+                              >
+                                <X size={12} className={textSecondary} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            {morningGlanceLoading && (
+                              <div className="flex items-center gap-2">
+                                <Loader size={14} className={`animate-spin ${textSecondary}`} />
+                                <span className={`text-xs ${textSecondary}`}>Generating your briefing...</span>
+                              </div>
+                            )}
+                            {morningGlanceError && (
+                              <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{morningGlanceError}</p>
+                            )}
+                            {morningGlanceText && !morningGlanceLoading && (
+                              <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Habit rings row */}
                       {habitsEnabled && activeHabits.length > 0 && (
                         <div className="relative">
@@ -14995,6 +15193,48 @@ const DayPlanner = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Morning dayGLANCE — AI morning summary card (desktop) */}
+                  {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (morningGlanceText || morningGlanceLoading || morningGlanceError) && (
+                    <div className={`rounded-lg border p-3 ${darkMode ? 'border-amber-800/50 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Sun size={16} className="text-amber-500" />
+                          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Morning Briefing</span>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={generateMorningSummary}
+                            className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                            title="Regenerate"
+                          >
+                            <RefreshCw size={12} className={`${morningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
+                          </button>
+                          <button
+                            onClick={dismissMorningGlance}
+                            className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+                            title="Dismiss for today"
+                          >
+                            <X size={12} className={textSecondary} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        {morningGlanceLoading && (
+                          <div className="flex items-center gap-2">
+                            <Loader size={14} className={`animate-spin ${textSecondary}`} />
+                            <span className={`text-xs ${textSecondary}`}>Generating your briefing...</span>
+                          </div>
+                        )}
+                        {morningGlanceError && (
+                          <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{morningGlanceError}</p>
+                        )}
+                        {morningGlanceText && !morningGlanceLoading && (
+                          <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Habit rings row */}
                   {habitsEnabled && activeHabits.length > 0 && (
@@ -20225,8 +20465,8 @@ const DayPlanner = () => {
                             <p className={`text-xs font-medium ${textSecondary}`}>Features</p>
                             {[
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
-                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} />, comingSoon: true },
-                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} />, comingSoon: true },
+                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
+                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} />, comingSoon: true },
                             ].map(f => (
                               <label key={f.key} className={`flex items-center gap-2 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
@@ -21242,6 +21482,40 @@ const DayPlanner = () => {
           return `${h}h ${m}m`;
         };
 
+        // Tag breakdown for AI summary
+        const tagStats = {};
+        pastRegular.forEach(t => {
+          const taskTags = (t.title.match(/#(\w+)/g) || []).map(tag => tag.slice(1));
+          taskTags.forEach(tag => {
+            if (!tagStats[tag]) tagStats[tag] = { total: 0, completed: 0 };
+            tagStats[tag].total++;
+            if (t.completed) tagStats[tag].completed++;
+          });
+        });
+        const tagBreakdown = Object.entries(tagStats).map(([tag, s]) => ({ tag, ...s })).sort((a, b) => b.total - a.total).slice(0, 8);
+
+        // Auto-trigger AI weekly summary when modal opens
+        if (aiConfig.enabled && aiConfig.features.weeklySummary && !weeklyAISummary && !weeklyAILoading) {
+          const stats = {
+            dateRange: `${pastStartStr} to ${pastEndStr}`,
+            tasksCompleted: pastCompleted,
+            tasksScheduled: pastScheduled,
+            completionRate: pastCompletionRate,
+            timeSpent: pastTimeSpent,
+            timePlanned: pastTimePlanned,
+            focusMinutes: pastFocusMinutes,
+            recurringCompleted: pastRecurringCompleted,
+            recurringScheduled: pastRecurringScheduled,
+            bestDay: bestDayName,
+            bestDayCount,
+            incompleteCount: pastIncomplete.length,
+            tagBreakdown,
+            inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
+          };
+          // Defer to avoid calling setState during render
+          setTimeout(() => generateWeeklyAISummary(stats), 0);
+        }
+
         const StatCard = ({ value, label, icon }) => (
           <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3`}>
             <div className={`text-xl font-bold ${textPrimary} flex items-center gap-1.5`}>
@@ -21253,7 +21527,7 @@ const DayPlanner = () => {
         );
 
         return (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end items-start" style={!isMobile ? { width: '320px' } : undefined} onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}>
+          <div className="fixed inset-0 z-50 flex flex-col justify-end items-start" style={!isMobile ? { width: '320px' } : undefined} onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); setWeeklyAISummary(null); setWeeklyAIError(''); }}>
             <div className="bg-black/30 absolute inset-0" />
             <div
               className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] flex flex-col w-full`}
@@ -21297,7 +21571,7 @@ const DayPlanner = () => {
                     </>
                   )}
                   <button
-                    onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); }}
+                    onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); setWeeklyAISummary(null); setWeeklyAIError(''); }}
                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
                     aria-label="Close weekly review"
                   >
@@ -21370,6 +21644,28 @@ const DayPlanner = () => {
                           </button>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* AI Weekly Insights */}
+                  {aiConfig.enabled && aiConfig.features.weeklySummary && (weeklyAISummary || weeklyAILoading || weeklyAIError) && (
+                    <div className={`mt-3 rounded-lg border p-3 ${darkMode ? 'border-purple-800/50 bg-purple-900/20' : 'border-purple-200 bg-purple-50'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={14} className="text-purple-500" />
+                          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>AI Insights</span>
+                        </div>
+                        {weeklyAILoading && <Loader size={12} className={`animate-spin ${textSecondary}`} />}
+                      </div>
+                      {weeklyAILoading && !weeklyAISummary && (
+                        <p className={`text-xs ${textSecondary}`}>Analyzing your week...</p>
+                      )}
+                      {weeklyAIError && (
+                        <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{weeklyAIError}</p>
+                      )}
+                      {weeklyAISummary && (
+                        <p className={`text-sm leading-relaxed ${textPrimary}`}>{weeklyAISummary}</p>
+                      )}
                     </div>
                   )}
                 </div>
