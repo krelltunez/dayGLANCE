@@ -11484,19 +11484,18 @@ const DayPlanner = () => {
                   <div className="flex-1 flex justify-center gap-2">
                     <button
                       onClick={openNewInboxTask}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
+                      className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center active:bg-blue-700 transition-colors"
+                      title="New Inbox Task"
                     >
-                      <Plus size={14} />
-                      New Inbox Task
+                      <Plus size={18} />
                     </button>
                     {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                       <button
                         onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-purple-900/40 text-purple-300 active:bg-purple-900/60' : 'bg-purple-50 text-purple-600 active:bg-purple-100'}`}
+                        className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center active:bg-blue-700 transition-colors"
                         title="AI Smart Schedule"
                       >
-                        <BrainCircuit size={14} />
-                        Schedule
+                        <BrainCircuit size={18} />
                       </button>
                     )}
                   </div>
@@ -15803,19 +15802,18 @@ const DayPlanner = () => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={openNewInboxTask}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
+                          className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center active:bg-blue-700 transition-colors"
+                          title="New Inbox Task"
                         >
-                          <Plus size={14} />
-                          New Inbox Task
+                          <Plus size={18} />
                         </button>
                         {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                           <button
                             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-purple-900/40 text-purple-300 active:bg-purple-900/60' : 'bg-purple-50 text-purple-600 active:bg-purple-100'}`}
+                            className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center active:bg-blue-700 transition-colors"
                             title="AI Smart Schedule"
                           >
-                            <BrainCircuit size={14} />
-                            Schedule
+                            <BrainCircuit size={18} />
                           </button>
                         )}
                       </div>
@@ -16588,19 +16586,18 @@ const DayPlanner = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={openNewInboxTask}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                        className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
+                        title="New Inbox Task"
                       >
-                        <Plus size={14} />
-                        New Inbox Task
+                        <Plus size={18} />
                       </button>
                       {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                         <button
                           onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-purple-900/40 text-purple-300 hover:bg-purple-900/60' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                          className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
                           title="AI Smart Schedule"
                         >
-                          <BrainCircuit size={14} />
-                          Schedule
+                          <BrainCircuit size={18} />
                         </button>
                       )}
                     </div>
