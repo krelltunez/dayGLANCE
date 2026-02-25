@@ -194,7 +194,7 @@ export async function aiComplete(systemPrompt, userMessage, config) {
 export async function aiJSON(systemPrompt, userMessage, config) {
   const raw = await aiComplete(systemPrompt, userMessage, config);
   // Extract JSON from the response (handles ```json fences and bare JSON)
-  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
   if (!jsonMatch) {
     throw new Error('AI response did not contain valid JSON');
   }

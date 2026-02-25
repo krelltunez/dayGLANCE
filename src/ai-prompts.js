@@ -7,7 +7,12 @@ export function voiceParseSystemPrompt(context) {
 1. **Creating new tasks** — they describe tasks to add
 2. **Editing existing tasks** — they want to modify, move, delete, complete, rename, or re-prioritize tasks that already exist
 
-Return a JSON object:
+IMPORTANT — Detect edits vs new tasks:
+- These words/phrases signal an EDIT to an existing task, NOT a new task: "reschedule", "move", "change", "make it", "set to", "push to", "bump", "shift", "delete", "remove", "cancel", "complete", "finish", "mark as done", "done with", "rename", "shorten", "lengthen", "extend", "prioritize", "deprioritize", "tag", "untag"
+- If the user references an existing task from the list below by name and says what to do with it, that is an EDIT
+- Only create a NEW task when the user describes something that does not already exist in their task list
+
+CRITICAL: Always return a JSON **object** (not an array):
 {
   "newTasks": [...],
   "edits": [...]
@@ -30,7 +35,7 @@ Each object:
 Each object must have "action" and "taskMatch":
 - "taskMatch": string — a substring that uniquely identifies the target task (case-insensitive). Pick the most distinctive part of the title.
 - "action" + additional fields:
-  - "move": "date" (string|null), "time" (string|null) — new date and/or time. Use null to keep unchanged.
+  - "move": "date" (string|null), "time" (string|null) — new date and/or time. Use null to keep unchanged. "reschedule X to 2pm" → move with time "14:00". "move X to tomorrow" → move with date.
   - "changeDuration": "duration" (number) — new duration in minutes
   - "rename": "newTitle" (string) — new task title
   - "delete": (no extra fields)
@@ -50,9 +55,16 @@ Rules:
 - Be smart about splitting: "call mom and pick up groceries" = 2 new tasks
 - But "buy milk and eggs" = 1 task (single errand)
 - Infer reasonable tags from context (e.g. "gym" → "fitness")
-- For edits, match "taskMatch" against the existing tasks listed above
+- For edits, match "taskMatch" against the existing tasks listed above — use a distinctive substring of the task title
 - Interpret relative dates ("tomorrow", "next Monday") relative to today (${todayDate})
-- Examples: "move standup to tomorrow" → move edit; "change meeting to 45 minutes" → changeDuration edit; "mark report as done" → complete edit; "delete groceries" → delete edit; "rename report to quarterly report" → rename edit; "make presentation high priority" → changePriority edit with priority 3
+- "reschedule standup to 2pm" → edit: move, time "14:00"
+- "move standup to tomorrow" → edit: move, date tomorrow
+- "change meeting to 45 minutes" → edit: changeDuration 45
+- "mark report as done" → edit: complete
+- "delete groceries" → edit: delete
+- "rename report to quarterly report" → edit: rename
+- "make presentation high priority" → edit: changePriority 3
+- NEVER return a bare JSON array — always return the {"newTasks": [], "edits": []} object
 - Return ONLY the JSON object, no other text`;
 }
 

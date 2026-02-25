@@ -9646,10 +9646,14 @@ const DayPlanner = () => {
   // Voice input — parse and add callbacks (must be after allTags is defined)
   // Build a text summary of existing tasks for AI context
   const buildTaskContextForAI = useCallback(() => {
-    const todayStr = dateToString(new Date());
+    const today = new Date();
+    const todayStr = dateToString(today);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = dateToString(yesterday);
     const lines = [];
-    // Scheduled tasks (recent and upcoming — limit to keep prompt manageable)
-    const relevant = tasks.filter(t => !t.imported && !t.isExample && t.date >= todayStr).slice(0, 30);
+    // Scheduled tasks (yesterday + today + future — user may reschedule past tasks)
+    const relevant = tasks.filter(t => !t.imported && !t.isExample && t.date >= yesterdayStr).slice(0, 40);
     relevant.forEach(t => {
       let d = `"${t.title}" — ${t.date}`;
       if (t.startTime) d += ` at ${t.startTime}`;
