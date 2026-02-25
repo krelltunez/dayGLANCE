@@ -449,6 +449,35 @@ export const mergeSyncData = (localData, remoteData) => {
   if (Object.keys(allRemovedTodayIds).length !== Object.keys(localRemovedToday).length) localChanged = true;
   if (Object.keys(allRemovedTodayIds).length !== Object.keys(remoteRemovedToday).length) remoteChanged = true;
 
+  // Merge GTD frames by ID (simple last-write-wins per frame, append remote-only)
+  const localFrames = localData.gtdFrames || [];
+  const remoteFrames = remoteData.gtdFrames || [];
+  const localFrameIds = new Set(localFrames.map(f => String(f.id)));
+  const remoteFrameMap = new Map(remoteFrames.map(f => [String(f.id), f]));
+  const mergedFrames = [...localFrames];
+  for (const remoteFrame of remoteFrames) {
+    if (!localFrameIds.has(String(remoteFrame.id))) {
+      mergedFrames.push(remoteFrame);
+      localChanged = true;
+    }
+  }
+  // Detect frames only on local (remote needs them)
+  for (const localFrame of localFrames) {
+    if (!remoteFrameMap.has(String(localFrame.id))) {
+      remoteChanged = true;
+    }
+  }
+  // Detect if remote has different data for same frame
+  for (const localFrame of localFrames) {
+    const remoteFrame = remoteFrameMap.get(String(localFrame.id));
+    if (remoteFrame && JSON.stringify(localFrame) !== JSON.stringify(remoteFrame)) {
+      // Remote has a different version — prefer remote
+      const idx = mergedFrames.findIndex(f => String(f.id) === String(localFrame.id));
+      if (idx !== -1) mergedFrames[idx] = remoteFrame;
+      localChanged = true;
+    }
+  }
+
   // Check if habitsEnabled setting differs
   const localHabitsEnabled = localData.habitsEnabled !== undefined ? localData.habitsEnabled : true;
   const remoteHabitsEnabled = remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : true;
@@ -487,6 +516,7 @@ export const mergeSyncData = (localData, remoteData) => {
       habitLogs: habitLogsMerge.merged,
       habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
       routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,
+      gtdFrames: mergedFrames,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },
