@@ -441,16 +441,6 @@ export const mergeSyncData = (localData, remoteData) => {
   if (mergedCompletedUids.length !== (localData.completedTaskUids || []).length) localChanged = true;
   if (mergedCompletedUids.length !== (remoteData.completedTaskUids || []).length) remoteChanged = true;
 
-  // Check if tombstones changed
-  if (Object.keys(allDeletedIds).length !== Object.keys(localDeleted).length) localChanged = true;
-  if (Object.keys(allDeletedIds).length !== Object.keys(remoteDeleted).length) remoteChanged = true;
-  if (Object.keys(allDeletedChipIds).length !== Object.keys(localDeletedChips).length) localChanged = true;
-  if (Object.keys(allDeletedChipIds).length !== Object.keys(remoteDeletedChips).length) remoteChanged = true;
-  if (Object.keys(allRemovedTodayIds).length !== Object.keys(localRemovedToday).length) localChanged = true;
-  if (Object.keys(allRemovedTodayIds).length !== Object.keys(remoteRemovedToday).length) remoteChanged = true;
-  if (Object.keys(allDeletedFrameIds).length !== Object.keys(localDeletedFrames).length) localChanged = true;
-  if (Object.keys(allDeletedFrameIds).length !== Object.keys(remoteDeletedFrames).length) remoteChanged = true;
-
   // Combine frame tombstones from both sides
   const localDeletedFrames = localData.deletedFrameIds || {};
   const remoteDeletedFrames = remoteData.deletedFrameIds || {};
@@ -460,6 +450,16 @@ export const mergeSyncData = (localData, remoteData) => {
       allDeletedFrameIds[id] = ts;
     }
   }
+
+  // Check if tombstones changed
+  if (Object.keys(allDeletedIds).length !== Object.keys(localDeleted).length) localChanged = true;
+  if (Object.keys(allDeletedIds).length !== Object.keys(remoteDeleted).length) remoteChanged = true;
+  if (Object.keys(allDeletedChipIds).length !== Object.keys(localDeletedChips).length) localChanged = true;
+  if (Object.keys(allDeletedChipIds).length !== Object.keys(remoteDeletedChips).length) remoteChanged = true;
+  if (Object.keys(allRemovedTodayIds).length !== Object.keys(localRemovedToday).length) localChanged = true;
+  if (Object.keys(allRemovedTodayIds).length !== Object.keys(remoteRemovedToday).length) remoteChanged = true;
+  if (Object.keys(allDeletedFrameIds).length !== Object.keys(localDeletedFrames).length) localChanged = true;
+  if (Object.keys(allDeletedFrameIds).length !== Object.keys(remoteDeletedFrames).length) remoteChanged = true;
 
   // Merge GTD frames by ID, respecting tombstones
   const localFrames = localData.gtdFrames || [];
