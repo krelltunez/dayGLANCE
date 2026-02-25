@@ -1745,6 +1745,7 @@ const DayPlanner = () => {
   const voiceRecorderRef = useRef(null); // { recorder: MediaRecorder, stream: MediaStream }
   const voiceAudioChunksRef = useRef([]);
   const voiceTextareaRef = useRef(null);
+  const voiceAllTagsRef = useRef([]);
   const voiceCanRecord = typeof MediaRecorder !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices;
 
   // Incomplete tasks modal
@@ -5295,7 +5296,7 @@ const DayPlanner = () => {
         if (text && aiConfig.enabled && (aiConfig.apiKey || aiConfig.provider === 'ollama')) {
           setVoiceIsParsing(true);
           try {
-            const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+            const context = { todayDate: dateToString(new Date()), existingTags: voiceAllTagsRef.current, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
             const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
             setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
           } catch (parseErr) {
@@ -5313,7 +5314,7 @@ const DayPlanner = () => {
       }
       setVoiceIsTranscribing(false);
     }
-  }, [aiConfig, allTags]);
+  }, [aiConfig]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -9609,6 +9610,7 @@ const DayPlanner = () => {
     });
     return Array.from(tagSet).sort();
   }, [tasks, recurringTasks]);
+  voiceAllTagsRef.current = allTags;
 
   // Voice input — parse and add callbacks (must be after allTags is defined)
   const voiceParseWithAI = useCallback(async () => {
