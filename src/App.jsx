@@ -5285,12 +5285,27 @@ const DayPlanner = () => {
     voiceRecorderRef.current = null;
     setVoiceIsRecording(false);
 
-    // Transcribe the audio via AI
+    // Transcribe + parse in one shot
     if (blob.size > 0) {
       setVoiceIsTranscribing(true);
       try {
-        const text = await aiTranscribe(blob, aiConfig);
-        setVoiceTranscript(text.trim());
+        const text = (await aiTranscribe(blob, aiConfig)).trim();
+        setVoiceTranscript(text);
+        // Immediately parse into tasks
+        if (text && aiConfig.enabled && (aiConfig.apiKey || aiConfig.provider === 'ollama')) {
+          setVoiceIsParsing(true);
+          try {
+            const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+            const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
+            setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
+          } catch (parseErr) {
+            setVoiceParseError(parseErr.message);
+            setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+          }
+          setVoiceIsParsing(false);
+        } else {
+          setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+        }
       } catch (err) {
         console.error('Transcription error:', err);
         setVoiceParseError(`Transcription failed: ${err.message}`);
@@ -5298,7 +5313,7 @@ const DayPlanner = () => {
       }
       setVoiceIsTranscribing(false);
     }
-  }, [aiConfig]);
+  }, [aiConfig, allTags]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -17688,7 +17703,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowVoiceInput(true)}
               className="fixed z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg active:bg-purple-700 flex items-center justify-center transition-colors"
-              style={{ right: '1rem', bottom: '5rem' }}
+              style={{ right: '1rem', bottom: '5.5rem' }}
               title="Voice Task Input"
             >
               <Mic size={20} />
@@ -17789,7 +17804,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowVoiceInput(true)}
               className="fixed z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 flex items-center justify-center transition-colors"
-              style={{ right: '1.75rem', bottom: '5rem' }}
+              style={{ right: '1.75rem', bottom: '5.5rem' }}
               title="Voice Task Input (V)"
             >
               <Mic size={20} />
@@ -21833,11 +21848,11 @@ const DayPlanner = () => {
                   {/* Recording UI — uses MediaRecorder + AI transcription (works in all browsers) */}
                   {!voiceManualMode && voiceCanRecord && voiceHasTranscription ? (
                     <div className="text-center space-y-4">
-                      {/* Transcribing spinner */}
+                      {/* Processing spinner (transcribe + parse) */}
                       {voiceIsTranscribing ? (
                         <div className="flex flex-col items-center gap-3 py-4">
                           <Loader size={32} className="animate-spin text-purple-400" />
-                          <p className={`text-sm ${textSecondary}`}>Transcribing...</p>
+                          <p className={`text-sm ${textSecondary}`}>{voiceIsParsing ? 'Parsing tasks...' : 'Transcribing...'}</p>
                         </div>
                       ) : (
                         <>
@@ -21858,15 +21873,8 @@ const DayPlanner = () => {
                         </>
                       )}
 
-                      {/* Transcript (shown after transcription completes) */}
-                      {voiceTranscript && !voiceIsTranscribing && (
-                        <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'} min-h-[60px]`}>
-                          <p className={`text-sm ${textPrimary}`}>{voiceTranscript}</p>
-                        </div>
-                      )}
-
                       {/* Mic/transcription error */}
-                      {voiceMicError === 'error' && voiceParseError && !voiceTranscript && (
+                      {voiceMicError === 'error' && voiceParseError && (
                         <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'} text-xs`}>
                           <p className="text-red-400">{voiceParseError}</p>
                         </div>
