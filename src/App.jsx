@@ -1578,6 +1578,10 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
     );
   }
 
+  // Robust task lookup: AI may return taskId as a different type (number vs string)
+  const findTaskById = (taskId) =>
+    inboxTasks.find(t => t.id === taskId) || inboxTasks.find(t => String(t.id) === String(taskId));
+
   // Show results
   if (smartScheduleResults) {
     const placements = smartScheduleResults.placements || [];
@@ -1590,7 +1594,7 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
         {placements.length > 0 && (
           <div className="space-y-2">
             {placements.map(p => {
-              const task = inboxTasks.find(t => t.id === p.taskId);
+              const task = findTaskById(p.taskId);
               return (
                 <div key={p.taskId} className={`p-3 rounded-lg border ${borderClass} ${smartScheduleAccepted[p.taskId] ? (darkMode ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200') : (darkMode ? 'bg-gray-800' : 'bg-stone-50')}`}>
                   <div className="flex items-start gap-2">
@@ -1601,7 +1605,7 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
                       {smartScheduleAccepted[p.taskId] && <Check size={12} />}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium ${textPrimary} truncate`}>{task?.title || p.taskId}</div>
+                      <div className={`text-sm font-medium ${textPrimary} truncate`}>{task?.title || 'Unknown task'}</div>
                       <div className={`text-xs ${textSecondary} mt-0.5`}>
                         {p.date} at {formatTime(p.time)} · {p.frameLabel}
                       </div>
@@ -1619,10 +1623,10 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
             <h4 className={`text-xs font-semibold ${textSecondary} mb-1`}>Could not be placed</h4>
             <div className="space-y-1">
               {unplaceable.map(u => {
-                const task = inboxTasks.find(t => t.id === u.taskId);
+                const task = findTaskById(u.taskId);
                 return (
                   <div key={u.taskId} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-50'} text-xs`}>
-                    <span className={textPrimary}>{task?.title || u.taskId}</span>
+                    <span className={textPrimary}>{task?.title || 'Unknown task'}</span>
                     <span className={`${textSecondary} ml-1`}>— {u.reason}</span>
                   </div>
                 );
@@ -11116,7 +11120,9 @@ const DayPlanner = () => {
     const movedIds = new Set();
 
     for (const placement of accepted) {
-      const task = unscheduledTasks.find(t => t.id === placement.taskId);
+      // Robust lookup: AI may return taskId as a different type
+      const task = unscheduledTasks.find(t => t.id === placement.taskId)
+        || unscheduledTasks.find(t => String(t.id) === String(placement.taskId));
       if (!task) continue;
       const { priority, deadline, ...preserved } = task;
       setTasks(prev => [...prev, {
@@ -11127,7 +11133,7 @@ const DayPlanner = () => {
         color: task.color || 'bg-blue-500',
         isAllDay: false,
       }]);
-      movedIds.add(placement.taskId);
+      movedIds.add(task.id); // Use actual task.id for consistent removal
     }
 
     setUnscheduledTasks(prev => prev.filter(t => !movedIds.has(t.id)));
@@ -11475,7 +11481,7 @@ const DayPlanner = () => {
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2 flex-shrink-0`}>
                     <Inbox size={20} /> Inbox
                   </h2>
-                  <div className="flex-1 flex justify-center">
+                  <div className="flex-1 flex justify-center gap-2">
                     <button
                       onClick={openNewInboxTask}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
@@ -11483,6 +11489,16 @@ const DayPlanner = () => {
                       <Plus size={14} />
                       New Inbox Task
                     </button>
+                    {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+                      <button
+                        onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-purple-900/40 text-purple-300 active:bg-purple-900/60' : 'bg-purple-50 text-purple-600 active:bg-purple-100'}`}
+                        title="AI Smart Schedule"
+                      >
+                        <BrainCircuit size={14} />
+                        Schedule
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
@@ -16569,13 +16585,25 @@ const DayPlanner = () => {
                   className={`transition-colors ${dragOverInbox ? (darkMode ? 'bg-green-900/20 rounded-lg ring-2 ring-inset ring-green-400' : 'bg-green-50 rounded-lg ring-2 ring-inset ring-green-500') : ''}`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <button
-                      onClick={openNewInboxTask}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      <Plus size={14} />
-                      New Inbox Task
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={openNewInboxTask}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        <Plus size={14} />
+                        New Inbox Task
+                      </button>
+                      {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+                        <button
+                          onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-purple-900/40 text-purple-300 hover:bg-purple-900/60' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+                          title="AI Smart Schedule"
+                        >
+                          <BrainCircuit size={14} />
+                          Schedule
+                        </button>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       {nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
                         <>
