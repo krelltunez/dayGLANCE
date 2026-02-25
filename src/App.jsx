@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
@@ -12666,6 +12666,16 @@ const DayPlanner = () => {
               </div>
             )}
 
+            {mobileActiveTab === 'frames' && (
+              <div className={`px-4 py-4 mobile-tab-fade-in`}>
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <LayoutGrid size={48} className={textSecondary} />
+                  <h2 className={`text-lg font-semibold ${textPrimary}`}>Frames</h2>
+                  <p className={`text-sm ${textSecondary} text-center`}>Coming soon</p>
+                </div>
+              </div>
+            )}
+
             {mobileActiveTab === 'settings' && (
               <div className={`relative overflow-hidden mobile-tab-fade-in`}>
                 {/* Main settings view */}
@@ -13921,6 +13931,11 @@ const DayPlanner = () => {
           )}
 
           {/* Bottom Tab Bar */}
+          {(() => {
+            const tabCount = 5 + (routinesEnabled ? 1 : 0);
+            const showLabels = tabCount <= 5;
+            const iconSize = showLabels ? 20 : 22;
+            return (
           <div
             className={`fixed bottom-0 left-0 right-0 z-40 ${cardBg} border-t ${borderClass}`}
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
@@ -13932,10 +13947,10 @@ const DayPlanner = () => {
                   setMobileActiveTab('dayglance');
                   setMobileSettingsView('main');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'dayglance' ? 'text-blue-500' : textSecondary}`}
+                className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'dayglance' ? 'text-blue-500' : textSecondary}`}
               >
-                <Eye size={20} />
-                <span className="text-[10px] font-medium">Glance</span>
+                <Eye size={iconSize} />
+                {showLabels && <span className="text-[10px] font-medium">Glance</span>}
               </button>
               <button
                 onClick={() => {
@@ -13944,7 +13959,7 @@ const DayPlanner = () => {
                   setMobileActiveTab('timeline');
                   setMobileSettingsView('main');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'timeline' ? (todayAgenda.some(t => {
+                className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'timeline' ? (todayAgenda.some(t => {
                   if (t.completed || t._agendaType !== 'scheduled') return false;
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                   const [h, m] = (t.startTime || '0:0').split(':').map(Number);
@@ -13952,7 +13967,7 @@ const DayPlanner = () => {
                 }) ? 'text-red-500' : 'text-blue-500') : textSecondary}`}
               >
                 <div className="relative">
-                  <Calendar size={20} />
+                  <Calendar size={iconSize} />
                   {(() => {
                     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
                     const overdueCount = todayAgenda.filter(t => {
@@ -13967,7 +13982,7 @@ const DayPlanner = () => {
                     ) : null;
                   })()}
                 </div>
-                <span className="text-[10px] font-medium">Timeline</span>
+                {showLabels && <span className="text-[10px] font-medium">Timeline</span>}
               </button>
               <button
                 onClick={() => {
@@ -13975,17 +13990,17 @@ const DayPlanner = () => {
                   setMobileActiveTab('inbox');
                   setMobileSettingsView('main');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative ${mobileActiveTab === 'inbox' ? 'text-blue-500' : textSecondary}`}
+                className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full relative ${mobileActiveTab === 'inbox' ? 'text-blue-500' : textSecondary}`}
               >
                 <div className="relative">
-                  <Inbox size={20} />
+                  <Inbox size={iconSize} />
                   {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
                     <span className="absolute -top-1.5 -right-2.5 bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
                       {filteredUnscheduledTasks.filter(t => !t.isExample).length}
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] font-medium">Inbox</span>
+                {showLabels && <span className="text-[10px] font-medium">Inbox</span>}
               </button>
               {routinesEnabled && (
               <button
@@ -13996,24 +14011,37 @@ const DayPlanner = () => {
                   setRoutineAddingToBucket(null);
                   setRoutineNewChipName('');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'routines' ? 'text-blue-500' : textSecondary}`}
+                className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'routines' ? 'text-blue-500' : textSecondary}`}
               >
-                <Sparkles size={20} />
-                <span className="text-[10px] font-medium">Routines</span>
+                <Sparkles size={iconSize} />
+                {showLabels && <span className="text-[10px] font-medium">Routines</span>}
               </button>
               )}
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
+                  setMobileActiveTab('frames');
+                  setMobileSettingsView('main');
+                }}
+                className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'frames' ? 'text-blue-500' : textSecondary}`}
+              >
+                <LayoutGrid size={iconSize} />
+                {showLabels && <span className="text-[10px] font-medium">Frames</span>}
+              </button>
+              <button
+                onClick={() => {
+                  if (mobileActiveTab === 'routines') handleRoutinesDone();
                   setMobileActiveTab('settings');
                 }}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${mobileActiveTab === 'settings' ? 'text-blue-500' : textSecondary}`}
+                className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'settings' ? 'text-blue-500' : textSecondary}`}
               >
-                <Settings size={20} />
-                <span className="text-[10px] font-medium">Settings</span>
+                <Settings size={iconSize} />
+                {showLabels && <span className="text-[10px] font-medium">Settings</span>}
               </button>
             </div>
           </div>
+            );
+          })()}
         </>
       ) : (
       <>
