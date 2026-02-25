@@ -5291,6 +5291,111 @@ const DayPlanner = () => {
     setVoiceInterimTranscript('');
   }, []);
 
+  const voiceParseWithAI = useCallback(async () => {
+    const text = voiceTranscript.trim();
+    if (!text) return;
+    if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
+      setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+      return;
+    }
+    setVoiceIsParsing(true);
+    setVoiceParseError('');
+    try {
+      const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+      const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
+      setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
+    } catch (err) {
+      setVoiceParseError(err.message);
+      setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+    }
+    setVoiceIsParsing(false);
+  }, [voiceTranscript, aiConfig, allTags]);
+
+  const voiceAddAllParsedTasks = useCallback(() => {
+    if (!voiceParsedTasks || voiceParsedTasks.length === 0) return;
+    pushUndo();
+    for (const parsed of voiceParsedTasks) {
+      const taskId = crypto.randomUUID();
+      const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
+      const rawTitle = parsed.title + tagStr;
+      const title = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
+      if (parsed.date && parsed.time) {
+        setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
+      } else {
+        const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
+        if (parsed.deadline) inboxTask.deadline = parsed.deadline;
+        if (parsed.date && !parsed.time) {
+          setTasks(prev => [...prev, { ...inboxTask, startTime: '09:00', date: parsed.date }]);
+        } else {
+          setUnscheduledTasks(prev => [...prev, inboxTask]);
+        }
+      }
+    }
+    setShowVoiceInput(false);
+  }, [voiceParsedTasks]);
+
+  // Voice input keyboard shortcuts (SPACE to hold-record, T for typing, ENTER to parse/accept)
+  useEffect(() => {
+    if (!showVoiceInput) return;
+
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+
+    const handleKeyDown = (e) => {
+      // Don't intercept when editing a parsed task or typing in textarea
+      const tag = e.target.tagName;
+      const isTextInput = tag === 'TEXTAREA' || tag === 'INPUT' || e.target.isContentEditable;
+
+      // ENTER in textarea → parse with AI
+      if (e.key === 'Enter' && tag === 'TEXTAREA' && !e.isComposing) {
+        e.preventDefault();
+        voiceParseWithAI();
+        return;
+      }
+
+      // Don't handle other shortcuts when focus is in a text input
+      if (isTextInput) return;
+
+      // SPACE hold-to-record (desktop/tablet only, not on parsed screen)
+      if (e.key === ' ' && !isTouchDevice && !voiceParsedTasks && !voiceManualMode && voiceSpeechSupported) {
+        e.preventDefault();
+        if (!voiceIsRecording && !e.repeat) {
+          voiceStartRecording();
+        }
+        return;
+      }
+
+      // T to switch to typing mode (only on voice recording screen)
+      if ((e.key === 't' || e.key === 'T') && !voiceParsedTasks && !voiceManualMode) {
+        e.preventDefault();
+        setVoiceManualMode(true);
+        return;
+      }
+
+      // ENTER to accept parsed tasks
+      if (e.key === 'Enter' && voiceParsedTasks && voiceEditingParsed === null) {
+        e.preventDefault();
+        voiceAddAllParsedTasks();
+        return;
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      // Release SPACE → stop recording
+      if (e.key === ' ' && !isTouchDevice && voiceIsRecording) {
+        e.preventDefault();
+        voiceStopRecording();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [showVoiceInput, voiceIsRecording, voiceParsedTasks, voiceManualMode, voiceSpeechSupported, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceAddAllParsedTasks]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -21740,7 +21845,7 @@ const DayPlanner = () => {
                         {voiceIsRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
                       </button>
                       <p className={`text-sm ${textSecondary}`}>
-                        {voiceIsRecording ? 'Listening... tap to stop' : 'Tap to start speaking'}
+                        {voiceIsRecording ? 'Listening... release Space or tap to stop' : 'Hold Space or tap to speak'}
                       </p>
 
                       {/* Live transcript */}
@@ -21764,7 +21869,7 @@ const DayPlanner = () => {
                         onClick={() => setVoiceManualMode(true)}
                         className={`text-xs ${textSecondary} hover:underline`}
                       >
-                        Or type instead
+                        Or type instead <kbd className="ml-1 px-1 py-0.5 rounded bg-black/20 text-[10px] font-mono">T</kbd>
                       </button>
                     </div>
                   ) : (
@@ -21799,25 +21904,7 @@ const DayPlanner = () => {
                   {voiceTranscript.trim() && !voiceIsRecording && (
                     <div className="mt-4 flex justify-end gap-2">
                       <button
-                        onClick={async () => {
-                          const text = voiceTranscript.trim();
-                          if (!text) return;
-                          if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
-                            setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
-                            return;
-                          }
-                          setVoiceIsParsing(true);
-                          setVoiceParseError('');
-                          try {
-                            const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-                            const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-                            setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
-                          } catch (err) {
-                            setVoiceParseError(err.message);
-                            setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
-                          }
-                          setVoiceIsParsing(false);
-                        }}
+                        onClick={voiceParseWithAI}
                         disabled={voiceIsParsing}
                         className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
                       >
@@ -21829,6 +21916,7 @@ const DayPlanner = () => {
                           <Plus size={14} />
                         )}
                         {voiceIsParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Add as Task'}
+                        {!voiceIsParsing && <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[10px] font-mono">↵</kbd>}
                       </button>
                     </div>
                   )}
@@ -21952,31 +22040,13 @@ const DayPlanner = () => {
                       Back
                     </button>
                     <button
-                      onClick={() => {
-                        pushUndo();
-                        for (const parsed of voiceParsedTasks) {
-                          const taskId = crypto.randomUUID();
-                          const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
-                          const title = parsed.title + tagStr;
-                          if (parsed.date && parsed.time) {
-                            setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
-                          } else {
-                            const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
-                            if (parsed.deadline) inboxTask.deadline = parsed.deadline;
-                            if (parsed.date && !parsed.time) {
-                              setTasks(prev => [...prev, { ...inboxTask, startTime: '09:00', date: parsed.date }]);
-                            } else {
-                              setUnscheduledTasks(prev => [...prev, inboxTask]);
-                            }
-                          }
-                        }
-                        setShowVoiceInput(false);
-                      }}
+                      onClick={voiceAddAllParsedTasks}
                       disabled={voiceParsedTasks.length === 0}
                       className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
                     >
                       <Check size={14} />
                       {voiceParsedTasks.length === 1 ? 'Add Task' : `Add All (${voiceParsedTasks.length})`}
+                      <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[10px] font-mono">↵</kbd>
                     </button>
                   </div>
                 </>
