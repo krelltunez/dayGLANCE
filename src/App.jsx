@@ -22388,14 +22388,21 @@ const DayPlanner = () => {
                     <span className="text-sm flex-1">{desc}</span>
                   </div>
                 ))}
-                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>Create</h3>
-                {[
-                  ['N', 'New scheduled task'],
-                  ['I', 'New inbox task'],
-                  ['S', 'Smart schedule'],
-                  ['V', 'Voice task input'],
-                  ['R', 'Routines dashboard'],
-                ].map(([key, desc]) => (
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>App</h3>
+                {(() => {
+                  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+                  return [
+                    [isMac ? '⌘K' : 'Ctrl+K', 'Search tasks'],
+                    ['/', 'Filter by tag'],
+                    ['F', 'Focus mode'],
+                    ['H', 'Habits'],
+                    ['D', 'Toggle dark mode'],
+                    ['B', 'Backup menu'],
+                    [',', 'Side panel: Glance'],
+                    ['.', 'Side panel: Inbox'],
+                    ['?', 'This help'],
+                  ];
+                })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>
                     <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono min-w-[2rem] text-center ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm flex-1">{desc}</span>
@@ -22414,6 +22421,21 @@ const DayPlanner = () => {
                     <span className="text-sm flex-1">{desc}</span>
                   </div>
                 ))}
+              </div>
+              <div>
+                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mb-2`}>Create</h3>
+                {[
+                  ['N', 'New scheduled task'],
+                  ['I', 'New inbox task'],
+                  ['S', 'Smart schedule'],
+                  ['V', 'Voice task input'],
+                  ['R', 'Routines dashboard'],
+                ].map(([key, desc]) => (
+                  <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>
+                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono min-w-[2rem] text-center ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
+                    <span className="text-sm flex-1">{desc}</span>
+                  </div>
+                ))}
                 <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>Task Entry</h3>
                 <p className={`text-xs ${textSecondary} mb-2`}>Type in the task title field:</p>
                 {[
@@ -22425,28 +22447,6 @@ const DayPlanner = () => {
                   ['^', 'Toggle all-day'],
                   ['$', 'Deadline (inbox)'],
                 ].map(([key, desc]) => (
-                  <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>
-                    <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono min-w-[2rem] text-center ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
-                    <span className="text-sm flex-1">{desc}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <h3 className={`text-xs font-semibold uppercase ${textSecondary} mb-2`}>App</h3>
-                {(() => {
-                  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-                  return [
-                    [isMac ? '⌘K' : 'Ctrl+K', 'Search tasks'],
-                    ['/', 'Filter by tag'],
-                    ['F', 'Focus mode'],
-                    ['H', 'Habits'],
-                    ['D', 'Toggle dark mode'],
-                    ['B', 'Backup menu'],
-                    [',', 'Side panel: Glance'],
-                    ['.', 'Side panel: Inbox'],
-                    ['?', 'This help'],
-                  ];
-                })().map(([key, desc]) => (
                   <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>
                     <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono min-w-[2rem] text-center ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>
                     <span className="text-sm flex-1">{desc}</span>
