@@ -5298,14 +5298,15 @@ const DayPlanner = () => {
           try {
             const context = { todayDate: dateToString(new Date()), existingTags: voiceAllTagsRef.current, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
             const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-            setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
+            const arr = Array.isArray(result) ? result : [result];
+            setVoiceParsedTasks(arr.map(t => ({ ...t, title: t.title ? t.title.charAt(0).toUpperCase() + t.title.slice(1) : t.title })));
           } catch (parseErr) {
             setVoiceParseError(parseErr.message);
-            setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+            setVoiceParsedTasks([{ title: text.charAt(0).toUpperCase() + text.slice(1), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
           }
           setVoiceIsParsing(false);
         } else {
-          setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+          setVoiceParsedTasks([{ title: text.charAt(0).toUpperCase() + text.slice(1), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
         }
       } catch (err) {
         console.error('Transcription error:', err);
@@ -9616,8 +9617,9 @@ const DayPlanner = () => {
   const voiceParseWithAI = useCallback(async () => {
     const text = voiceTranscript.trim();
     if (!text) return;
+    const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
-      setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+      setVoiceParsedTasks([{ title: cap(text), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
       return;
     }
     setVoiceIsParsing(true);
@@ -9625,10 +9627,11 @@ const DayPlanner = () => {
     try {
       const context = { todayDate: dateToString(new Date()), existingTags: allTags, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
       const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-      setVoiceParsedTasks(Array.isArray(result) ? result : [result]);
+      const arr = Array.isArray(result) ? result : [result];
+      setVoiceParsedTasks(arr.map(t => ({ ...t, title: cap(t.title) })));
     } catch (err) {
       setVoiceParseError(err.message);
-      setVoiceParsedTasks([{ title: text, tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
+      setVoiceParsedTasks([{ title: cap(text), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
     }
     setVoiceIsParsing(false);
   }, [voiceTranscript, aiConfig, allTags]);
