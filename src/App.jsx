@@ -13742,15 +13742,6 @@ const DayPlanner = () => {
               }`} />
             </button>
           )}
-          {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
-            <button
-              onClick={() => setShowVoiceInput(true)}
-              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-              title="Voice Task Input"
-            >
-              <Mic size={18} className="text-purple-400" />
-            </button>
-          )}
           <button
             onClick={() => setShowSettings(true)}
             className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
@@ -17572,7 +17563,7 @@ const DayPlanner = () => {
         </>
       )}
 
-      {/* Desktop: Timeline FABs — + (new task) */}
+      {/* Desktop: Timeline FABs — + (new task), mic (voice input) */}
       {!isTablet && !isMobile && (
         <>
           <button
@@ -17583,6 +17574,16 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
+          {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+            <button
+              onClick={() => setShowVoiceInput(true)}
+              className="fixed z-40 w-11 h-11 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 flex items-center justify-center transition-colors"
+              style={{ right: '1.75rem', bottom: '5rem' }}
+              title="Voice Task Input (V)"
+            >
+              <Mic size={20} />
+            </button>
+          )}
           {/* Desktop Glance panel FABs — matching tablet landscape */}
           {tabletActiveTab === 'glance' && (<>
           {/* Daily summary ring FAB */}
