@@ -12815,7 +12815,7 @@ const DayPlanner = () => {
                                   className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
                                   title="Enter Focus Mode"
                                 >
-                                  <BrainCircuit size={16} className="animate-pulse" />
+                                  <Target size={16} className="animate-pulse" />
                                 </button>
                               )}
                             </div>
@@ -14584,7 +14584,7 @@ const DayPlanner = () => {
                         </div>
                         {actualTodayFocusMinutes > 0 && (
                           <div className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
+                            <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
                             <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m</span>
                           </div>
                         )}
@@ -14677,7 +14677,7 @@ const DayPlanner = () => {
                           </div>
                           {allTimeFocusMinutes > 0 && (
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
+                              <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
                               <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
                             </div>
                           )}
@@ -15693,7 +15693,7 @@ const DayPlanner = () => {
                                         className="ml-1 p-1.5 rounded text-purple-500 active:text-purple-400 active:bg-purple-500/20 transition-colors"
                                         title="Enter Focus Mode"
                                       >
-                                        <BrainCircuit size={16} className="animate-pulse" />
+                                        <Target size={16} className="animate-pulse" />
                                       </button>
                                     )}
                                   </div>
@@ -16468,7 +16468,7 @@ const DayPlanner = () => {
                                     className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
                                     title="Enter Focus Mode"
                                   >
-                                    <BrainCircuit size={16} className="animate-pulse" />
+                                    <Target size={16} className="animate-pulse" />
                                   </button>
                                 )}
                               </div>
@@ -19270,7 +19270,7 @@ const DayPlanner = () => {
                       </div>
                       {actualTodayFocusMinutes > 0 && (
                         <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
+                          <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
                           <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m</span>
                         </div>
                       )}
@@ -19366,7 +19366,7 @@ const DayPlanner = () => {
                   </div>
                   {allTimeFocusMinutes > 0 && (
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><BrainCircuit size={14} className="text-purple-400" /> Focus time</div>
+                      <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
                       <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
                     </div>
                   )}
@@ -20753,7 +20753,7 @@ const DayPlanner = () => {
           {/* Settings view */}
           {focusShowSettings && !focusShowStats && (
             <div className="w-full max-w-md px-6 py-8 flex flex-col items-center gap-6">
-              <BrainCircuit size={48} className="text-blue-400" />
+              <Target size={48} className="text-blue-400" />
               <h1 className="text-2xl font-bold text-white">Focus Mode</h1>
 
               {/* Interval controls */}
@@ -22618,7 +22618,7 @@ const DayPlanner = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-3 mb-3">
                         <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
-                        <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<BrainCircuit size={16} className="text-purple-400" />} />
+                        <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<Target size={16} className="text-purple-400" />} />
                       </div>
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
@@ -22794,7 +22794,7 @@ const DayPlanner = () => {
                   <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
                   <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and events, and filter your day by <strong className={textPrimary}>#tags</strong> <Filter size={14} className="inline mx-0.5" /></li>
                   <li>Deleted something by mistake? Restore it from the <strong className={textPrimary}>Recycle Bin</strong> <Trash2 size={14} className="inline mx-0.5" /></li>
-                  <li>Tap <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session with a Pomodoro timer</li>
+                  <li>Tap <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session with a Pomodoro timer</li>
                 </ul>
               </div>
             )}
@@ -23001,7 +23001,7 @@ const DayPlanner = () => {
                     <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
                     <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong> for extra detail</li>
                     <li>Click <NotebookPen size={14} className="inline mx-0.5" /> on a date header to write <strong className={textPrimary}>daily notes</strong></li>
-                    <li>Use <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
+                    <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
                   </ul>
                 </div>
               )}
