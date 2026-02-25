@@ -5306,7 +5306,7 @@ const DayPlanner = () => {
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal) {
         return;
       }
 
@@ -5399,6 +5399,18 @@ const DayPlanner = () => {
         setTabletActiveTab('inbox');
       }
 
+      // 'v' for voice task input
+      if (e.key === 'v' && noModifiers && aiConfig.enabled && aiConfig.features.voiceTaskInput) {
+        e.preventDefault();
+        setShowVoiceInput(true);
+      }
+
+      // 'h' for habits modal
+      if (e.key === 'h' && noModifiers && habitsEnabled) {
+        e.preventDefault();
+        setShowHabitModal(true);
+      }
+
       // Arrow left/right to navigate dates
       if (e.key === 'ArrowLeft' && noModifiers) {
         e.preventDefault();
@@ -5425,7 +5437,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -20719,6 +20731,7 @@ const DayPlanner = () => {
                 {[
                   ['N', 'New scheduled task'],
                   ['I', 'New inbox task'],
+                  ['V', 'Voice task input'],
                   ['R', 'Routines dashboard'],
                 ].map(([key, desc]) => (
                   <div key={key} className={`flex items-center justify-between py-1 ${textSecondary}`}>
@@ -20746,6 +20759,7 @@ const DayPlanner = () => {
                     [isMac ? '⌘K' : 'Ctrl+K', 'Search tasks'],
                     ['/', 'Filter by tag'],
                     ['F', 'Focus mode'],
+                    ['H', 'Habits'],
                     ['D', 'Toggle dark mode'],
                     ['B', 'Backup menu'],
                     [',', 'Side panel: Glance'],
