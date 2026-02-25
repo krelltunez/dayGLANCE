@@ -21613,9 +21613,12 @@ const DayPlanner = () => {
           const textareaRef = useRef(null);
 
           const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+          const isBrave = navigator.brave && typeof navigator.brave.isBrave === 'function';
+          const [micError, setMicError] = useState(isBrave ? 'brave' : null); // 'brave' | 'error' | null
 
           const startRecording = useCallback(() => {
             if (!speechSupported) return;
+            setMicError(null);
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
@@ -21646,12 +21649,13 @@ const DayPlanner = () => {
                 console.error('Speech recognition error:', event.error);
                 const errorMessages = {
                   'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
-                  'network': 'Could not reach the speech recognition service. Please try again.',
+                  'network': 'Could not reach the speech recognition service. Brave and some browsers block this feature. Try Chrome or use the text input below.',
                   'audio-capture': 'No microphone found. Please connect a microphone and try again.',
-                  'service-not-allowed': 'Speech recognition service not available. Try a different browser (Chrome works best).',
+                  'service-not-allowed': 'Speech recognition is not available in this browser. Try Chrome or use the text input below.',
                   'aborted': 'Speech recognition was interrupted.',
                 };
                 setParseError(errorMessages[event.error] || `Speech recognition error: ${event.error}`);
+                setMicError('error');
               }
               setIsRecording(false);
             };
@@ -21813,6 +21817,14 @@ const DayPlanner = () => {
                       {/* Recording UI */}
                       {!manualMode && speechSupported ? (
                         <div className="text-center space-y-4">
+                          {/* Brave browser warning */}
+                          {micError === 'brave' && (
+                            <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-amber-900/30 border border-amber-800/50' : 'bg-amber-50 border border-amber-200'} text-xs`}>
+                              <p className="text-amber-500 font-medium mb-1">Brave blocks speech recognition by default</p>
+                              <p className={textSecondary}>You can try the mic button, but it may not work. Use the text input below as an alternative.</p>
+                            </div>
+                          )}
+
                           {/* Mic button */}
                           <button
                             onClick={isRecording ? stopRecording : startRecording}
@@ -21838,8 +21850,11 @@ const DayPlanner = () => {
                             </div>
                           )}
 
-                          {parseError && !transcript && (
-                            <p className={`text-xs text-red-400 px-2`}>{parseError}</p>
+                          {/* Speech recognition error */}
+                          {micError === 'error' && parseError && !transcript && (
+                            <div className={`text-left p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'} text-xs`}>
+                              <p className="text-red-400">{parseError}</p>
+                            </div>
                           )}
 
                           <button
