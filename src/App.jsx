@@ -12528,21 +12528,6 @@ const DayPlanner = () => {
                           <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
                         </button>
                       )}
-                      {obsidianConfig?.enabled && (
-                        <button
-                          onClick={() => performObsidianSync()}
-                          disabled={obsidianSyncStatus === 'syncing'}
-                          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${obsidianSyncStatus === 'syncing' ? 'opacity-70' : ''}`}
-                        >
-                          <div className="relative">
-                            <BookOpen size={20} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
-                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                              obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-                            }`} />
-                          </div>
-                          <span className={`font-medium ${textPrimary}`}>Obsidian Sync</span>
-                        </button>
-                      )}
                     </div>
                   )}
 
@@ -12746,100 +12731,6 @@ const DayPlanner = () => {
                       </label>
                     </div>
 
-                    <hr className={borderClass} />
-
-                    {/* Obsidian Integration */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <BookOpen size={16} className={textSecondary} />
-                        Obsidian Integration
-                      </h4>
-                      <p className={`${textSecondary} text-xs`}>
-                        Import tasks and sync daily notes with your Obsidian vault.
-                      </p>
-                      {obsidianConfig?.enabled ? (
-                        <div className="space-y-3">
-                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
-                            <FolderOpen size={14} className={textSecondary} />
-                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                          </div>
-                          <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
-                            <input
-                              type="text"
-                              placeholder="(vault root)"
-                              value={obsidianConfig.dailyNotesPath || ''}
-                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
-                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                            />
-                            <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root</p>
-                          </div>
-                          <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Daily note template</label>
-                            <textarea
-                              value={dailyNoteTemplate}
-                              onChange={(e) => setDailyNoteTemplate(e.target.value)}
-                              placeholder="Template for new daily notes..."
-                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
-                              rows={4}
-                            />
-                            <p className={`text-xs ${textSecondary} mt-1`}>Pre-filled when creating a new daily note</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => performObsidianSync()}
-                              disabled={obsidianSyncStatus === 'syncing'}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
-                            >
-                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
-                            </button>
-                            <button
-                              onClick={async () => {
-                                await disconnectVault();
-                                obsidianVaultHandleRef.current = null;
-                                setObsidianConfig(null);
-                                setObsidianLastSynced(null);
-                                localStorage.removeItem('day-planner-obsidian-last-synced');
-                                setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
-                                setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
-                              }}
-                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
-                            >
-                              Disconnect
-                            </button>
-                          </div>
-                          {obsidianSyncStatus === 'success' && (
-                            <p className="text-xs text-green-500">Sync complete</p>
-                          )}
-                          {obsidianSyncStatus === 'error' && (
-                            <p className="text-xs text-red-500">Sync failed — check console</p>
-                          )}
-                          {obsidianLastSynced && (
-                            <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={async () => {
-                            if (!isFileSystemAccessSupported()) {
-                              alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
-                              return;
-                            }
-                            const handle = await requestVaultAccess();
-                            if (handle) {
-                              obsidianVaultHandleRef.current = handle;
-                              setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
-                            }
-                          }}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
-                        >
-                          <FolderOpen size={14} />
-                          Select Vault Folder
-                        </button>
-                      )}
-                    </div>
                   </div>
                   );
                 })()}
@@ -21765,7 +21656,8 @@ const DayPlanner = () => {
                   <li>Swipe a task <strong className={textPrimary}>right</strong> to move it to inbox</li>
                   <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
                   <li><strong className={textPrimary}>Long-press</strong> and drag to reschedule a task</li>
-                  <li>Tap the <strong className={textPrimary}>+</strong> button to add a new task</li>
+                  <li>Expand tasks to add <strong className={textPrimary}>notes</strong> and <strong className={textPrimary}>subtasks</strong></li>
+                  <li>Tap <NotebookPen size={14} className="inline mx-0.5" /> on a date to write <strong className={textPrimary}>daily notes</strong></li>
                 </ul>
               </div>
             )}
@@ -21954,6 +21846,8 @@ const DayPlanner = () => {
                     <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
                     <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
                     <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
+                    <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong> for extra detail</li>
+                    <li>Click <NotebookPen size={14} className="inline mx-0.5" /> on a date header to write <strong className={textPrimary}>daily notes</strong></li>
                     <li>Use <strong className={textPrimary}>Focus Mode</strong> <BrainCircuit size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
                   </ul>
                 </div>
