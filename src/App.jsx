@@ -1326,6 +1326,13 @@ const MiniHabitRing = ({ habit, count = 0, darkMode }) => {
   );
 };
 
+// Local-date string helper (YYYY-MM-DD) — defined outside component so
+// useState initialisers that run before the in-component dateToString can
+// use it.  Using local time (not UTC) avoids the timezone mismatch that
+// caused the morning briefing to stay suppressed across day boundaries.
+const localDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
@@ -1769,8 +1776,7 @@ const DayPlanner = () => {
       const cached = localStorage.getItem('day-planner-morning-glance');
       if (cached) {
         const { date, text } = JSON.parse(cached);
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (date === todayStr) return text;
+        if (date === localDateStr()) return text;
       }
     } catch {}
     return null;
@@ -1779,7 +1785,7 @@ const DayPlanner = () => {
   const [morningGlanceDismissed, setMorningGlanceDismissed] = useState(() => {
     try {
       const d = localStorage.getItem('day-planner-morning-glance-dismissed');
-      return d === new Date().toISOString().split('T')[0];
+      return d === localDateStr();
     } catch { return false; }
   });
   const [morningGlanceError, setMorningGlanceError] = useState('');
@@ -9742,17 +9748,11 @@ const DayPlanner = () => {
 
   const dismissMorningGlance = useCallback(() => {
     setMorningGlanceDismissed(true);
-    localStorage.setItem('day-planner-morning-glance-dismissed', new Date().toISOString().split('T')[0]);
+    localStorage.setItem('day-planner-morning-glance-dismissed', localDateStr());
   }, []);
 
-  // Auto-generate morning summary on app load (once per day)
-  useEffect(() => {
-    if (aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceText && !morningGlanceDismissed && !morningGlanceLoading) {
-      generateMorningSummary();
-    }
-  }, [aiConfig.enabled, aiConfig.features.morningSummary, generateMorningSummary]);
-
-  // Re-trigger morning briefing on day rollover when app stays open (e.g. tab regains focus the next day)
+  // Reset morning briefing state on day rollover (tab regains focus the next day).
+  // We no longer auto-generate — the user clicks "see your daily briefing" to trigger it.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible' || !aiConfig.enabled || !aiConfig.features.morningSummary) return;
@@ -9764,14 +9764,13 @@ const DayPlanner = () => {
       } catch {}
       // Dismissed today?
       if (localStorage.getItem('day-planner-morning-glance-dismissed') === todayStr) return;
-      // New day — reset state and generate
+      // New day — reset state so click prompt appears
       setMorningGlanceDismissed(false);
       setMorningGlanceText(null);
-      generateMorningSummary();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [aiConfig.enabled, aiConfig.features.morningSummary, generateMorningSummary]);
+  }, [aiConfig.enabled, aiConfig.features.morningSummary]);
 
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
@@ -11599,7 +11598,8 @@ const DayPlanner = () => {
                   )}
                 </div>
                 {/* Morning dayGLANCE — AI morning summary card (mobile) */}
-                {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (morningGlanceText || morningGlanceLoading || morningGlanceError) && (
+                {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (
+                  (morningGlanceText || morningGlanceLoading || morningGlanceError) ? (
                   <div className={`mb-4 rounded-lg border p-3 ${darkMode ? 'border-amber-800/50 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -11638,6 +11638,22 @@ const DayPlanner = () => {
                       )}
                     </div>
                   </div>
+                  ) : (
+                  <div
+                    className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-amber-800/50 bg-amber-900/20 hover:bg-amber-900/30' : 'border-amber-200 bg-amber-50 hover:bg-amber-100'}`}
+                    onClick={generateMorningSummary}
+                  >
+                    <Sun size={14} className="text-amber-500 flex-shrink-0" />
+                    <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see your daily briefing</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
+                      className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
+                      title="Dismiss for today"
+                    >
+                      <X size={12} className={textSecondary} />
+                    </button>
+                  </div>
+                  )
                 )}
                 {/* Habit rings row */}
                 {habitsEnabled && activeHabits.length > 0 && (
@@ -14359,7 +14375,8 @@ const DayPlanner = () => {
                       </div>
 
                       {/* Morning dayGLANCE — AI morning summary card */}
-                      {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (morningGlanceText || morningGlanceLoading || morningGlanceError) && (
+                      {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (
+                        (morningGlanceText || morningGlanceLoading || morningGlanceError) ? (
                         <div className={`rounded-lg border p-3 ${darkMode ? 'border-amber-800/50 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 flex-shrink-0">
@@ -14398,6 +14415,22 @@ const DayPlanner = () => {
                             )}
                           </div>
                         </div>
+                        ) : (
+                        <div
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-amber-800/50 bg-amber-900/20 hover:bg-amber-900/30' : 'border-amber-200 bg-amber-50 hover:bg-amber-100'}`}
+                          onClick={generateMorningSummary}
+                        >
+                          <Sun size={14} className="text-amber-500 flex-shrink-0" />
+                          <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see your daily briefing</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
+                            className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
+                            title="Dismiss for today"
+                          >
+                            <X size={12} className={textSecondary} />
+                          </button>
+                        </div>
+                        )
                       )}
 
                       {/* Habit rings row */}
@@ -15088,7 +15121,8 @@ const DayPlanner = () => {
                   </div>
 
                   {/* Morning dayGLANCE — AI morning summary card (desktop) */}
-                  {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (morningGlanceText || morningGlanceLoading || morningGlanceError) && (
+                  {aiConfig.enabled && aiConfig.features.morningSummary && !morningGlanceDismissed && (
+                    (morningGlanceText || morningGlanceLoading || morningGlanceError) ? (
                     <div className={`rounded-lg border p-3 ${darkMode ? 'border-amber-800/50 bg-amber-900/20' : 'border-amber-200 bg-amber-50'}`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -15127,6 +15161,22 @@ const DayPlanner = () => {
                         )}
                       </div>
                     </div>
+                    ) : (
+                    <div
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-amber-800/50 bg-amber-900/20 hover:bg-amber-900/30' : 'border-amber-200 bg-amber-50 hover:bg-amber-100'}`}
+                      onClick={generateMorningSummary}
+                    >
+                      <Sun size={14} className="text-amber-500 flex-shrink-0" />
+                      <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see your daily briefing</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
+                        className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
+                        title="Dismiss for today"
+                      >
+                        <X size={12} className={textSecondary} />
+                      </button>
+                    </div>
+                    )
                   )}
 
                   {/* Habit rings row */}
