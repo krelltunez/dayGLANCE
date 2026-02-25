@@ -1378,3 +1378,219 @@ describe('mergeSyncData — habits integration', () => {
     expect(data.habitLogs['2026-02-20']['1']).toBe(2);
   });
 });
+
+// ─── mergeSyncData: GTD frames sync ──────────────────────────────────
+
+describe('mergeSyncData — GTD frames sync', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {}, deletedRoutineChipIds: {},
+    deletedFrameIds: {},
+    syncUrl: null, taskCalendarUrl: null,
+    routineDefinitions: {}, todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false,
+    gtdFrames: [],
+  });
+
+  const F = (id, name, extra = {}) => ({
+    id, name, days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    start: '09:00', end: '12:00', color: '#3b82f6', enabled: true, ...extra,
+  });
+
+  it('frames added on desktop survive when tablet syncs', () => {
+    const desktop = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work'), F('f2', 'Admin')],
+    };
+    const tablet = emptyData();
+
+    const { data, localChanged, remoteChanged } = mergeSyncData(tablet, desktop);
+    expect(data.gtdFrames).toHaveLength(2);
+    expect(data.gtdFrames.map(f => f.name)).toEqual(['Deep Work', 'Admin']);
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('frames added on tablet survive when desktop syncs', () => {
+    const desktop = emptyData();
+    const tablet = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Focus Time')],
+    };
+
+    const { data, remoteChanged } = mergeSyncData(desktop, tablet);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].name).toBe('Focus Time');
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('identical frames on both devices produce no changes', () => {
+    const frames = [F('f1', 'Deep Work'), F('f2', 'Admin')];
+    const deviceA = { ...emptyData(), gtdFrames: [...frames] };
+    const deviceB = { ...emptyData(), gtdFrames: [...frames] };
+
+    const { data, localChanged, remoteChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(2);
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('frames added on two devices both survive', () => {
+    const deviceA = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work')],
+    };
+    const deviceB = {
+      ...emptyData(),
+      gtdFrames: [F('f2', 'Admin')],
+    };
+
+    const { data, localChanged, remoteChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(2);
+    const names = data.gtdFrames.map(f => f.name);
+    expect(names).toContain('Deep Work');
+    expect(names).toContain('Admin');
+    expect(localChanged).toBe(true);  // got Admin from remote
+    expect(remoteChanged).toBe(true); // remote needs Deep Work
+  });
+
+  it('remote version of a frame wins when frames differ', () => {
+    const deviceA = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work', { start: '09:00', end: '12:00' })],
+    };
+    const deviceB = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work', { start: '08:00', end: '11:00' })],
+    };
+
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].start).toBe('08:00');
+    expect(localChanged).toBe(true);
+  });
+
+  it('frame deleted on one device is removed on the other via tombstone', () => {
+    const deviceA = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work'), F('f2', 'Admin')],
+    };
+    const deviceB = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work')],
+      deletedFrameIds: { 'f2': new Date().toISOString() },
+    };
+
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].id).toBe('f1');
+    expect(localChanged).toBe(true);
+    expect(data.deletedFrameIds['f2']).toBeDefined();
+  });
+
+  it('frame tombstones from both devices are combined', () => {
+    const deviceA = {
+      ...emptyData(),
+      deletedFrameIds: { 'f1': '2026-01-01T00:00:00Z' },
+    };
+    const deviceB = {
+      ...emptyData(),
+      deletedFrameIds: { 'f2': '2026-01-02T00:00:00Z' },
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.deletedFrameIds['f1']).toBeDefined();
+    expect(data.deletedFrameIds['f2']).toBeDefined();
+  });
+
+  it('tombstoned frame is not resurrected from remote', () => {
+    // Device A deleted the frame, device B still has it
+    const deviceA = {
+      ...emptyData(),
+      gtdFrames: [],
+      deletedFrameIds: { 'f1': new Date().toISOString() },
+    };
+    const deviceB = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work')],
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(0);
+    expect(data.deletedFrameIds['f1']).toBeDefined();
+  });
+
+  it('tombstoned frame is not resurrected from local', () => {
+    // Device B deleted the frame, device A still has it
+    const deviceA = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work')],
+    };
+    const deviceB = {
+      ...emptyData(),
+      gtdFrames: [],
+      deletedFrameIds: { 'f1': new Date().toISOString() },
+    };
+
+    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(0);
+    expect(localChanged).toBe(true);
+  });
+
+  it('newer tombstone timestamp wins when both devices have tombstones for same frame', () => {
+    const deviceA = {
+      ...emptyData(),
+      deletedFrameIds: { 'f1': '2026-01-01T00:00:00Z' },
+    };
+    const deviceB = {
+      ...emptyData(),
+      deletedFrameIds: { 'f1': '2026-02-01T00:00:00Z' },
+    };
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.deletedFrameIds['f1']).toBe('2026-02-01T00:00:00Z');
+  });
+
+  it('handles undefined gtdFrames gracefully (old remote data)', () => {
+    const localDevice = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work')],
+    };
+    // Simulate old remote payload that has no gtdFrames field
+    const oldRemote = { ...emptyData() };
+    delete oldRemote.gtdFrames;
+    delete oldRemote.deletedFrameIds;
+
+    const { data, remoteChanged } = mergeSyncData(localDevice, oldRemote);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].name).toBe('Deep Work');
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('handles undefined gtdFrames on local (fresh device)', () => {
+    const freshDevice = { ...emptyData() };
+    delete freshDevice.gtdFrames;
+    delete freshDevice.deletedFrameIds;
+    const remoteDevice = {
+      ...emptyData(),
+      gtdFrames: [F('f1', 'Deep Work')],
+    };
+
+    const { data, localChanged } = mergeSyncData(freshDevice, remoteDevice);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].name).toBe('Deep Work');
+    expect(localChanged).toBe(true);
+  });
+
+  it('frame with exceptions syncs correctly', () => {
+    const frame = F('f1', 'Deep Work', {
+      exceptions: { '2026-02-25': { deleted: true } },
+    });
+    const deviceA = { ...emptyData(), gtdFrames: [frame] };
+    const deviceB = emptyData();
+
+    const { data } = mergeSyncData(deviceB, deviceA);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].exceptions['2026-02-25'].deleted).toBe(true);
+  });
+});
