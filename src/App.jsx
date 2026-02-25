@@ -21629,6 +21629,7 @@ const DayPlanner = () => {
                 />
                 <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>Welcome to dayGLANCE</h1>
                 <p className={`${textSecondary}`}>Your minimalist day planner</p>
+                <p className={`${textSecondary} text-xs mt-4`}>100% local — no accounts, no servers, no tracking.</p>
               </div>
             )}
             {mobileWelcomeStep === 1 && (
@@ -21802,6 +21803,7 @@ const DayPlanner = () => {
                   />
                   <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>Welcome to dayGLANCE</h1>
                   <p className={`${textSecondary}`}>Your minimalist day planner</p>
+                  <p className={`${textSecondary} text-xs mt-3`}>100% local — no accounts, no servers, no tracking.</p>
                   <p className={`${textSecondary} text-sm mt-4`}>Let's take a quick tour of the key features.</p>
                 </div>
               )}
