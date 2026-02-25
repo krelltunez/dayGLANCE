@@ -3,7 +3,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
-import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt } from './ai-prompts.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -1333,6 +1333,352 @@ const MiniHabitRing = ({ habit, count = 0, darkMode }) => {
 const localDateStr = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+// GTD Frame color options
+const FRAME_COLORS = [
+  { name: 'Indigo', class: 'bg-indigo-200' },
+  { name: 'Amber', class: 'bg-amber-200' },
+  { name: 'Green', class: 'bg-green-200' },
+  { name: 'Blue', class: 'bg-blue-200' },
+  { name: 'Rose', class: 'bg-rose-200' },
+  { name: 'Purple', class: 'bg-purple-200' },
+  { name: 'Teal', class: 'bg-teal-200' },
+  { name: 'Orange', class: 'bg-orange-200' },
+];
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Frame Editor component for creating/editing GTD Frames
+const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames }) => {
+  const [label, setLabel] = useState(frame?.label || '');
+  const [days, setDays] = useState(frame?.days || [1, 2, 3, 4, 5]);
+  const [start, setStart] = useState(frame?.start || '09:00');
+  const [end, setEnd] = useState(frame?.end || '12:00');
+  const [color, setColor] = useState(frame?.color || 'bg-indigo-200');
+  const [tagAffinity, setTagAffinity] = useState(frame?.tagAffinity || []);
+  const [energyLevel, setEnergyLevel] = useState(frame?.energyLevel || 'medium');
+  const [bufferMinutes, setBufferMinutes] = useState(frame?.bufferMinutes ?? 5);
+  const [enabled, setEnabled] = useState(frame?.enabled ?? true);
+  const [error, setError] = useState('');
+
+  const toggleDay = (d) => {
+    setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+  };
+
+  const toggleTag = (tag) => {
+    setTagAffinity(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
+
+  const validate = () => {
+    if (!label.trim()) return 'Frame needs a name';
+    if (days.length === 0) return 'Select at least one day';
+    if (start >= end) return 'End time must be after start time';
+    // Check overlap with existing frames (same day)
+    const otherFrames = existingFrames.filter(f => f.id !== frame?.id && f.enabled);
+    for (const other of otherFrames) {
+      const sharedDays = days.filter(d => other.days.includes(d));
+      if (sharedDays.length > 0) {
+        if (start < other.end && end > other.start) {
+          return `Overlaps with "${other.label}" on ${sharedDays.map(d => DAY_LABELS[d]).join(', ')}`;
+        }
+      }
+    }
+    return '';
+  };
+
+  const handleSave = () => {
+    const err = validate();
+    if (err) { setError(err); return; }
+    onSave({
+      ...(frame || {}),
+      id: frame?.id || undefined,
+      label: label.trim(),
+      days,
+      start,
+      end,
+      color,
+      tagAffinity,
+      energyLevel,
+      bufferMinutes,
+      enabled,
+      exceptions: frame?.exceptions || {},
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{frame ? 'Edit Frame' : 'New Frame'}</h3>
+        <button onClick={onCancel} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+          <X size={18} className={textSecondary} />
+        </button>
+      </div>
+
+      {error && <div className="p-2 rounded-lg bg-red-500/10 text-red-500 text-sm">{error}</div>}
+
+      {/* Name */}
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Name</label>
+        <input
+          type="text"
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          placeholder="e.g. Morning Deep Work"
+          className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`}
+          autoFocus
+        />
+      </div>
+
+      {/* Days */}
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Days</label>
+        <div className="flex gap-1">
+          {DAY_LABELS.map((d, i) => (
+            <button
+              key={i}
+              onClick={() => toggleDay(i)}
+              className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${days.includes(i) ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Time range */}
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start</label>
+          <input type="time" value={start} onChange={e => setStart(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+        </div>
+        <div className="flex-1">
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End</label>
+          <input type="time" value={end} onChange={e => setEnd(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+        </div>
+      </div>
+
+      {/* Color */}
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Color</label>
+        <div className="flex gap-2 flex-wrap">
+          {FRAME_COLORS.map(c => (
+            <button
+              key={c.class}
+              onClick={() => setColor(c.class)}
+              className={`w-7 h-7 rounded-full ${c.class} ${color === c.class ? 'ring-2 ring-blue-500 ring-offset-2' : ''} transition-all`}
+              style={darkMode ? { ringOffsetColor: '#1f2937' } : {}}
+              title={c.name}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Energy Level */}
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Energy Level</label>
+        <div className="flex gap-1">
+          {['low', 'medium', 'high'].map(level => (
+            <button
+              key={level}
+              onClick={() => setEnergyLevel(level)}
+              className={`flex-1 py-1.5 rounded text-xs font-medium capitalize transition-colors ${energyLevel === level ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
+            >
+              {level}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Buffer */}
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Buffer between tasks: {bufferMinutes} min</label>
+        <input type="range" min={0} max={30} step={5} value={bufferMinutes} onChange={e => setBufferMinutes(Number(e.target.value))}
+          className="w-full" />
+      </div>
+
+      {/* Tag Affinity */}
+      {allTags.length > 0 && (
+        <div>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Tag Affinity</label>
+          <div className="flex gap-1.5 flex-wrap">
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`px-2 py-1 rounded-full text-xs transition-colors ${tagAffinity.includes(tag) ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Enabled toggle */}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <div className="relative">
+          <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} className="sr-only" />
+          <div className={`w-10 h-5 rounded-full transition-colors ${enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-700' : 'bg-stone-300'}`} />
+          <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${enabled ? 'translate-x-5' : ''}`} />
+        </div>
+        <span className={`text-sm ${textPrimary}`}>Enabled</span>
+      </label>
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-2">
+        <button onClick={handleSave} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+          {frame ? 'Save Changes' : 'Create Frame'}
+        </button>
+        {frame && (
+          <button onClick={() => onDelete(frame.id)} className="px-4 py-2.5 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors">
+            <Trash2 size={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Smart Schedule panel — shows AI scheduling UI
+const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartScheduleLoading, smartScheduleError, smartScheduleAccepted, setSmartScheduleAccepted, onRun, onApply, onCancel, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, gtdFrames, formatTime }) => {
+  if (!aiConfig?.enabled || !aiConfig.features?.smartScheduling) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <BrainCircuit size={48} className={textSecondary} />
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>AI Scheduling</h3>
+        <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+          Enable AI features and Smart Scheduling in Settings to use this feature.
+        </p>
+      </div>
+    );
+  }
+
+  if (gtdFrames.filter(f => f.enabled).length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <LayoutGrid size={48} className={textSecondary} />
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>No Active Frames</h3>
+        <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+          Create and enable at least one GTD Frame before running Smart Schedule.
+        </p>
+      </div>
+    );
+  }
+
+  if (inboxTasks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <Inbox size={48} className={textSecondary} />
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>Inbox Empty</h3>
+        <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+          Add tasks to your inbox first, then Smart Schedule will place them in your frames.
+        </p>
+      </div>
+    );
+  }
+
+  // Show results
+  if (smartScheduleResults) {
+    const placements = smartScheduleResults.placements || [];
+    const unplaceable = smartScheduleResults.unplaceable || [];
+    const acceptedCount = placements.filter(p => smartScheduleAccepted[p.taskId]).length;
+
+    return (
+      <div className="space-y-3">
+        <h3 className={`text-sm font-semibold ${textPrimary}`}>Proposed Schedule</h3>
+        {placements.length > 0 && (
+          <div className="space-y-2">
+            {placements.map(p => {
+              const task = inboxTasks.find(t => t.id === p.taskId);
+              return (
+                <div key={p.taskId} className={`p-3 rounded-lg border ${borderClass} ${smartScheduleAccepted[p.taskId] ? (darkMode ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200') : (darkMode ? 'bg-gray-800' : 'bg-stone-50')}`}>
+                  <div className="flex items-start gap-2">
+                    <button
+                      onClick={() => setSmartScheduleAccepted(prev => ({ ...prev, [p.taskId]: !prev[p.taskId] }))}
+                      className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${smartScheduleAccepted[p.taskId] ? 'bg-green-500 border-green-500 text-white' : `${borderClass}`}`}
+                    >
+                      {smartScheduleAccepted[p.taskId] && <Check size={12} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-medium ${textPrimary} truncate`}>{task?.title || p.taskId}</div>
+                      <div className={`text-xs ${textSecondary} mt-0.5`}>
+                        {p.date} at {formatTime(p.time)} · {p.frameLabel}
+                      </div>
+                      {p.reasoning && <div className={`text-xs ${textSecondary} mt-0.5 italic`}>{p.reasoning}</div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {unplaceable.length > 0 && (
+          <div>
+            <h4 className={`text-xs font-semibold ${textSecondary} mb-1`}>Could not be placed</h4>
+            <div className="space-y-1">
+              {unplaceable.map(u => {
+                const task = inboxTasks.find(t => t.id === u.taskId);
+                return (
+                  <div key={u.taskId} className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-50'} text-xs`}>
+                    <span className={textPrimary}>{task?.title || u.taskId}</span>
+                    <span className={`${textSecondary} ml-1`}>— {u.reason}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={onApply}
+            disabled={acceptedCount === 0}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${acceptedCount > 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+          >
+            Apply {acceptedCount} Task{acceptedCount !== 1 ? 's' : ''}
+          </button>
+          <button onClick={onCancel} className={`px-4 py-2.5 rounded-lg text-sm ${textSecondary} ${hoverBg} transition-colors`}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Initial state — show run button
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col items-center py-8 gap-3">
+        <CalendarDays size={48} className="text-blue-500" />
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>Smart Schedule</h3>
+        <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+          AI will place your {inboxTasks.length} inbox task{inboxTasks.length !== 1 ? 's' : ''} into available frame slots for the next 3 days.
+        </p>
+
+        {smartScheduleError && (
+          <div className="p-2 rounded-lg bg-red-500/10 text-red-500 text-sm text-center max-w-xs">
+            {smartScheduleError}
+          </div>
+        )}
+
+        <button
+          onClick={onRun}
+          disabled={smartScheduleLoading}
+          className="mt-2 px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {smartScheduleLoading ? (
+            <><Loader size={16} className="animate-spin" /> Scheduling...</>
+          ) : (
+            <><BrainCircuit size={16} /> Run Smart Schedule</>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
@@ -1758,6 +2104,21 @@ const DayPlanner = () => {
   const voiceBuildTaskContextRef = useRef(() => 'No tasks currently.');
   const voiceResolveTaskMatchRef = useRef(() => null);
   const voiceCanRecord = typeof MediaRecorder !== 'undefined' && typeof navigator !== 'undefined' && !!navigator.mediaDevices;
+
+  // GTD Frames state
+  const [gtdFrames, setGtdFrames] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-gtd-frames');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [showFramesModal, setShowFramesModal] = useState(false);
+  const [framesModalTab, setFramesModalTab] = useState('frames'); // 'frames' | 'schedule'
+  const [editingFrame, setEditingFrame] = useState(null); // frame object being edited, or 'new' for create
+  const [smartScheduleResults, setSmartScheduleResults] = useState(null); // AI scheduling results
+  const [smartScheduleLoading, setSmartScheduleLoading] = useState(false);
+  const [smartScheduleError, setSmartScheduleError] = useState('');
+  const [smartScheduleAccepted, setSmartScheduleAccepted] = useState({}); // { taskId: true/false }
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -2816,7 +3177,7 @@ const DayPlanner = () => {
         suppressTimestampRef.current = false;
       });
     }
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames]);
 
   // Re-check conflicts when date or tasks change
   useEffect(() => {
@@ -3277,6 +3638,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-habit-logs', JSON.stringify(habitLogs));
       localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabled));
       localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabled));
+      localStorage.setItem('day-planner-gtd-frames', JSON.stringify(gtdFrames));
       // Only update local-modified after initial cloud sync has run,
       // otherwise the initial loadData() sets it to "now" and overwrites remote
       if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
@@ -10556,6 +10918,231 @@ const DayPlanner = () => {
     return filterByTags(tasksByDate[dateStr] || []);
   };
 
+  // --- GTD Frames: Instance computation + Available time calculation ---
+
+  // Get frame instances for a given date (which templates apply)
+  const getFrameInstancesForDate = useCallback((date) => {
+    const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
+    const dateStr = dateToString(date);
+    return gtdFrames
+      .filter(f => f.enabled && f.days.includes(dayOfWeek))
+      .map(f => {
+        // Check for per-day exceptions
+        const exception = f.exceptions?.[dateStr];
+        if (exception?.deleted) return null;
+        return {
+          frameId: f.id,
+          templateId: f.id,
+          date: dateStr,
+          start: exception?.start || f.start,
+          end: exception?.end || f.end,
+          label: f.label,
+          color: f.color,
+          tagAffinity: f.tagAffinity || [],
+          energyLevel: f.energyLevel || 'medium',
+          bufferMinutes: f.bufferMinutes ?? 5,
+        };
+      })
+      .filter(Boolean);
+  }, [gtdFrames]);
+
+  // Compute available time slots within a frame instance, subtracting existing tasks/events
+  const computeAvailableSlots = useCallback((frameInstance, date) => {
+    const allDayTasks = getTasksForDate(date instanceof Date ? date : new Date(frameInstance.date + 'T12:00:00'));
+    const timedTasks = allDayTasks.filter(t => !t.isAllDay && t.startTime);
+    const frameStartMin = timeToMinutes(frameInstance.start);
+    const frameEndMin = timeToMinutes(frameInstance.end);
+    const buffer = frameInstance.bufferMinutes || 0;
+
+    // Collect occupied intervals within the frame
+    const occupied = [];
+    for (const task of timedTasks) {
+      const tStart = timeToMinutes(task.startTime);
+      const tEnd = tStart + (task.duration || 30);
+      // Only include if it overlaps the frame
+      if (tEnd > frameStartMin && tStart < frameEndMin) {
+        occupied.push({
+          start: Math.max(tStart, frameStartMin),
+          end: Math.min(tEnd, frameEndMin),
+        });
+      }
+    }
+
+    // Sort occupied by start time
+    occupied.sort((a, b) => a.start - b.start);
+
+    // Merge overlapping intervals
+    const merged = [];
+    for (const o of occupied) {
+      if (merged.length > 0 && o.start <= merged[merged.length - 1].end + buffer) {
+        merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, o.end);
+      } else {
+        merged.push({ ...o });
+      }
+    }
+
+    // Compute free gaps
+    const slots = [];
+    let cursor = frameStartMin;
+    for (const m of merged) {
+      const gapStart = cursor + (cursor === frameStartMin ? 0 : buffer);
+      const gapEnd = m.start - buffer;
+      if (gapEnd > gapStart) {
+        slots.push({
+          start: minutesToTime(gapStart),
+          end: minutesToTime(gapEnd),
+          minutes: gapEnd - gapStart,
+        });
+      }
+      cursor = m.end;
+    }
+    // Final gap after last occupied block
+    const finalStart = cursor + (cursor === frameStartMin ? 0 : buffer);
+    if (finalStart < frameEndMin) {
+      slots.push({
+        start: minutesToTime(finalStart),
+        end: minutesToTime(frameEndMin),
+        minutes: frameEndMin - finalStart,
+      });
+    }
+
+    return slots;
+  }, [getTasksForDate]);
+
+  // GTD Frame CRUD operations
+  const saveFrame = (frame) => {
+    if (frame.id) {
+      setGtdFrames(prev => prev.map(f => f.id === frame.id ? frame : f));
+    } else {
+      setGtdFrames(prev => [...prev, { ...frame, id: crypto.randomUUID() }]);
+    }
+    setEditingFrame(null);
+  };
+
+  const deleteFrame = (frameId) => {
+    setGtdFrames(prev => prev.filter(f => f.id !== frameId));
+    setEditingFrame(null);
+  };
+
+  // Run Smart Schedule: gather context, call AI, present results
+  const runSmartSchedule = async () => {
+    if (!aiConfig?.enabled || !aiConfig.features?.smartScheduling) return;
+    setSmartScheduleLoading(true);
+    setSmartScheduleError('');
+    setSmartScheduleResults(null);
+    setSmartScheduleAccepted({});
+
+    try {
+      const today = new Date();
+      const todayStr = dateToString(today);
+      // Gather inbox tasks (non-completed, non-example)
+      const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      if (inboxTasks.length === 0) {
+        setSmartScheduleError('No inbox tasks to schedule.');
+        setSmartScheduleLoading(false);
+        return;
+      }
+
+      // Gather available slots for today + 2 days
+      const dateRange = [];
+      for (let d = 0; d < 3; d++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + d);
+        dateRange.push(date);
+      }
+
+      const slotsContext = [];
+      for (const date of dateRange) {
+        const dateStr = dateToString(date);
+        const frames = getFrameInstancesForDate(date);
+        for (const frame of frames) {
+          const slots = computeAvailableSlots(frame, date);
+          for (const slot of slots) {
+            slotsContext.push({
+              date: dateStr,
+              frameLabel: frame.label,
+              energyLevel: frame.energyLevel,
+              tagAffinity: frame.tagAffinity,
+              start: slot.start,
+              end: slot.end,
+              minutes: slot.minutes,
+            });
+          }
+        }
+      }
+
+      if (slotsContext.length === 0) {
+        setSmartScheduleError('No available time slots found in your frames for the next 3 days. Create or adjust your GTD Frames first.');
+        setSmartScheduleLoading(false);
+        return;
+      }
+
+      // Build the prompt using ai-prompts.js
+      const systemPrompt = smartScheduleSystemPrompt();
+      const taskData = inboxTasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        duration: t.duration || 30,
+        priority: t.priority || 0,
+        deadline: t.deadline || null,
+        tags: extractTags(t.title),
+      }));
+      const userMessage = smartScheduleUserPrompt({
+        todayDate: todayStr,
+        slots: slotsContext,
+        tasks: taskData,
+      });
+
+      const result = await aiJSON(systemPrompt, userMessage, aiConfig);
+      setSmartScheduleResults(result);
+      // Default all placements to accepted
+      const accepted = {};
+      if (result?.placements) {
+        result.placements.forEach(p => { accepted[p.taskId] = true; });
+      }
+      setSmartScheduleAccepted(accepted);
+    } catch (err) {
+      setSmartScheduleError(err.message || 'Failed to generate schedule');
+    } finally {
+      setSmartScheduleLoading(false);
+    }
+  };
+
+  // Apply accepted smart schedule placements
+  const applySmartSchedule = () => {
+    if (!smartScheduleResults?.placements) return;
+    pushUndo();
+    const accepted = smartScheduleResults.placements.filter(p => smartScheduleAccepted[p.taskId]);
+    const movedIds = new Set();
+
+    for (const placement of accepted) {
+      const task = unscheduledTasks.find(t => t.id === placement.taskId);
+      if (!task) continue;
+      const { priority, deadline, ...preserved } = task;
+      setTasks(prev => [...prev, {
+        ...preserved,
+        date: placement.date,
+        startTime: placement.time,
+        duration: task.duration || 30,
+        color: task.color || 'bg-blue-500',
+        isAllDay: false,
+      }]);
+      movedIds.add(placement.taskId);
+    }
+
+    setUnscheduledTasks(prev => prev.filter(t => !movedIds.has(t.id)));
+    setSmartScheduleResults(null);
+    setSmartScheduleAccepted({});
+    setShowFramesModal(false);
+    if (movedIds.size > 0) {
+      setSyncNotification({
+        type: 'success',
+        title: 'Tasks Scheduled',
+        message: `${movedIds.size} task${movedIds.size === 1 ? '' : 's'} placed on your timeline`
+      });
+    }
+  };
+
   // Focus mode availability: current task or back-to-back block >= 45 min remaining
   const focusModeAvailable = useMemo(() => {
     const now = currentTime;
@@ -11323,6 +11910,7 @@ const DayPlanner = () => {
                         const dateStr = dateToString(date);
                         const isDateToday = dateStr === dateToString(new Date());
                         const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample);
+                        const frameInstances = getFrameInstancesForDate(date);
 
                         return (
                           <div
@@ -11330,6 +11918,52 @@ const DayPlanner = () => {
                             data-date-column={dateStr}
                             className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
                           >
+                            {/* GTD Frame background zones */}
+                            {frameInstances.map(frame => {
+                              const frameStartMin = timeToMinutes(frame.start);
+                              const frameEndMin = timeToMinutes(frame.end);
+                              const top = Math.round(minutesToPosition(frameStartMin));
+                              const bottom = Math.round(minutesToPosition(frameEndMin));
+                              const height = bottom - top;
+                              // Map frame color class to a translucent background
+                              const colorMap = {
+                                'bg-indigo-200': 'rgba(165,180,252,0.15)',
+                                'bg-amber-200': 'rgba(253,230,138,0.15)',
+                                'bg-green-200': 'rgba(167,243,208,0.15)',
+                                'bg-blue-200': 'rgba(191,219,254,0.15)',
+                                'bg-rose-200': 'rgba(254,205,211,0.15)',
+                                'bg-purple-200': 'rgba(221,214,254,0.15)',
+                                'bg-teal-200': 'rgba(153,246,228,0.15)',
+                                'bg-orange-200': 'rgba(254,215,170,0.15)',
+                              };
+                              const borderColorMap = {
+                                'bg-indigo-200': 'rgba(165,180,252,0.4)',
+                                'bg-amber-200': 'rgba(253,230,138,0.4)',
+                                'bg-green-200': 'rgba(167,243,208,0.4)',
+                                'bg-blue-200': 'rgba(191,219,254,0.4)',
+                                'bg-rose-200': 'rgba(254,205,211,0.4)',
+                                'bg-purple-200': 'rgba(221,214,254,0.4)',
+                                'bg-teal-200': 'rgba(153,246,228,0.4)',
+                                'bg-orange-200': 'rgba(254,215,170,0.4)',
+                              };
+                              return (
+                                <div
+                                  key={frame.frameId}
+                                  className="absolute left-0 right-0 rounded-sm pointer-events-none"
+                                  style={{
+                                    top: `${top}px`,
+                                    height: `${height}px`,
+                                    background: colorMap[frame.color] || 'rgba(165,180,252,0.15)',
+                                    borderLeft: `2px solid ${borderColorMap[frame.color] || 'rgba(165,180,252,0.4)'}`,
+                                  }}
+                                >
+                                  <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || 'rgba(165,180,252,0.6)', opacity: 0.8 }}>
+                                    {frame.label}
+                                  </span>
+                                </div>
+                              );
+                            })}
+
                             {/* Current time line */}
                             {isDateToday && (
                               <div
@@ -11822,6 +12456,15 @@ const DayPlanner = () => {
                       )}
                       {morningGlanceText && !morningGlanceLoading && (
                         <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
+                      )}
+                      {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+                        <button
+                          onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); }}
+                          className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
+                        >
+                          <BrainCircuit size={12} />
+                          Schedule inbox items?
+                        </button>
                       )}
                     </div>
                   </div>
@@ -12668,11 +13311,110 @@ const DayPlanner = () => {
 
             {mobileActiveTab === 'frames' && (
               <div className={`px-4 py-4 mobile-tab-fade-in`}>
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <LayoutGrid size={48} className={textSecondary} />
-                  <h2 className={`text-lg font-semibold ${textPrimary}`}>Frames</h2>
-                  <p className={`text-sm ${textSecondary} text-center`}>Coming soon</p>
+                {/* Tab switcher */}
+                <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5 mb-4`}>
+                  <button
+                    onClick={() => setFramesModalTab('frames')}
+                    className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'frames' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
+                  >
+                    My Frames
+                  </button>
+                  <button
+                    onClick={() => setFramesModalTab('schedule')}
+                    className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'schedule' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
+                  >
+                    Smart Schedule
+                  </button>
                 </div>
+
+                {framesModalTab === 'frames' && (
+                  <>
+                    {editingFrame ? (
+                      <FrameEditor
+                        frame={editingFrame === 'new' ? null : editingFrame}
+                        onSave={saveFrame}
+                        onDelete={deleteFrame}
+                        onCancel={() => setEditingFrame(null)}
+                        allTags={allTags}
+                        darkMode={darkMode}
+                        textPrimary={textPrimary}
+                        textSecondary={textSecondary}
+                        borderClass={borderClass}
+                        cardBg={cardBg}
+                        hoverBg={hoverBg}
+                        existingFrames={gtdFrames}
+                      />
+                    ) : (
+                      <>
+                        {gtdFrames.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-12 gap-3">
+                            <LayoutGrid size={48} className={textSecondary} />
+                            <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
+                            <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+                              Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.
+                            </p>
+                            <button
+                              onClick={() => setEditingFrame('new')}
+                              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            >
+                              <Plus size={16} />
+                              Create Frame
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {gtdFrames.map(frame => (
+                              <div
+                                key={frame.id}
+                                onClick={() => setEditingFrame(frame)}
+                                className={`p-3 rounded-lg border ${borderClass} ${cardBg} cursor-pointer ${hoverBg} transition-colors`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-3 h-3 rounded-full ${frame.color}`} />
+                                  <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
+                                  {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
+                                </div>
+                                <div className={`text-xs ${textSecondary} mt-1`}>
+                                  {frame.start} – {frame.end} · {frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
+                                </div>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => setEditingFrame('new')}
+                              className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
+                            >
+                              <Plus size={16} />
+                              Add Frame
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {framesModalTab === 'schedule' && (
+                  <SmartSchedulePanel
+                    aiConfig={aiConfig}
+                    inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
+                    smartScheduleResults={smartScheduleResults}
+                    smartScheduleLoading={smartScheduleLoading}
+                    smartScheduleError={smartScheduleError}
+                    smartScheduleAccepted={smartScheduleAccepted}
+                    setSmartScheduleAccepted={setSmartScheduleAccepted}
+                    onRun={runSmartSchedule}
+                    onApply={applySmartSchedule}
+                    onCancel={() => { setSmartScheduleResults(null); setSmartScheduleError(''); }}
+                    darkMode={darkMode}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                    borderClass={borderClass}
+                    cardBg={cardBg}
+                    hoverBg={hoverBg}
+                    gtdFrames={gtdFrames}
+                    formatTime={formatTime}
+                  />
+                )}
               </div>
             )}
 
@@ -13441,7 +14183,7 @@ const DayPlanner = () => {
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
                               { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
-                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} />, comingSoon: true },
+                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
                             ].map(f => (
                               <label key={f.key} className={`flex items-center gap-3 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
                                 <div className="relative">
@@ -13481,6 +14223,16 @@ const DayPlanner = () => {
           {/* FAB - Floating Action Button (timeline only) */}
           {mobileActiveTab === 'timeline' && (
             <>
+              {/* GTD Frames FAB */}
+              {gtdFrames.length > 0 && (
+                <button
+                  onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); }}
+                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
+                  style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                  <LayoutGrid size={22} />
+                </button>
+              )}
               <button
                 onClick={() => openNewTaskForm()}
                 className="fixed right-4 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:bg-blue-800 flex items-center justify-center transition-colors"
@@ -14628,6 +15380,15 @@ const DayPlanner = () => {
                             {morningGlanceText && !morningGlanceLoading && (
                               <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
                             )}
+                            {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+                              <button
+                                onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
+                                className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
+                              >
+                                <BrainCircuit size={12} />
+                                Schedule inbox items?
+                              </button>
+                            )}
                           </div>
                         </div>
                         ) : (
@@ -15023,13 +15784,25 @@ const DayPlanner = () => {
                   <div className="p-4">
                     {/* Inbox header with priority filter */}
                     <div className="flex items-center justify-between mb-4">
-                      <button
-                        onClick={openNewInboxTask}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
-                      >
-                        <Plus size={14} />
-                        New Inbox Task
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={openNewInboxTask}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors"
+                        >
+                          <Plus size={14} />
+                          New Inbox Task
+                        </button>
+                        {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+                          <button
+                            onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-purple-900/40 text-purple-300 active:bg-purple-900/60' : 'bg-purple-50 text-purple-600 active:bg-purple-100'}`}
+                            title="AI Smart Schedule"
+                          >
+                            <BrainCircuit size={14} />
+                            Schedule
+                          </button>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
@@ -15382,6 +16155,15 @@ const DayPlanner = () => {
                         )}
                         {morningGlanceText && !morningGlanceLoading && (
                           <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
+                        )}
+                        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+                          <button
+                            onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
+                            className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
+                          >
+                            <BrainCircuit size={12} />
+                            Schedule inbox items?
+                          </button>
                         )}
                       </div>
                     </div>
@@ -16640,6 +17422,7 @@ const DayPlanner = () => {
                     const dateStr = dateToString(date);
                     const isDateToday = dateStr === dateToString(new Date());
                     const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay);
+                    const frameInstances = getFrameInstancesForDate(date);
 
                     return (
                       <div
@@ -16647,6 +17430,51 @@ const DayPlanner = () => {
                         data-date-column={dateStr}
                         className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
                       >
+                        {/* GTD Frame background zones */}
+                        {frameInstances.map(frame => {
+                          const frameStartMin = timeToMinutes(frame.start);
+                          const frameEndMin = timeToMinutes(frame.end);
+                          const top = Math.round(minutesToPosition(frameStartMin));
+                          const bottom = Math.round(minutesToPosition(frameEndMin));
+                          const height = bottom - top;
+                          const colorMap = {
+                            'bg-indigo-200': 'rgba(165,180,252,0.15)',
+                            'bg-amber-200': 'rgba(253,230,138,0.15)',
+                            'bg-green-200': 'rgba(167,243,208,0.15)',
+                            'bg-blue-200': 'rgba(191,219,254,0.15)',
+                            'bg-rose-200': 'rgba(254,205,211,0.15)',
+                            'bg-purple-200': 'rgba(221,214,254,0.15)',
+                            'bg-teal-200': 'rgba(153,246,228,0.15)',
+                            'bg-orange-200': 'rgba(254,215,170,0.15)',
+                          };
+                          const borderColorMap = {
+                            'bg-indigo-200': 'rgba(165,180,252,0.4)',
+                            'bg-amber-200': 'rgba(253,230,138,0.4)',
+                            'bg-green-200': 'rgba(167,243,208,0.4)',
+                            'bg-blue-200': 'rgba(191,219,254,0.4)',
+                            'bg-rose-200': 'rgba(254,205,211,0.4)',
+                            'bg-purple-200': 'rgba(221,214,254,0.4)',
+                            'bg-teal-200': 'rgba(153,246,228,0.4)',
+                            'bg-orange-200': 'rgba(254,215,170,0.4)',
+                          };
+                          return (
+                            <div
+                              key={frame.frameId}
+                              className="absolute left-0 right-0 rounded-sm pointer-events-none"
+                              style={{
+                                top: `${top}px`,
+                                height: `${height}px`,
+                                background: colorMap[frame.color] || 'rgba(165,180,252,0.15)',
+                                borderLeft: `3px solid ${borderColorMap[frame.color] || 'rgba(165,180,252,0.4)'}`,
+                              }}
+                            >
+                              <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || 'rgba(165,180,252,0.6)', opacity: 0.8 }}>
+                                {frame.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+
                         {/* Current time line - only on today */}
                         {isDateToday && (
                           <div
@@ -18098,9 +18926,18 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Tablet: Timeline FABs — + (new task) */}
+      {/* Tablet: Timeline FABs — + (new task), Frames */}
       {isTablet && (
         <>
+          {/* GTD Frames FAB */}
+          <button
+            onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg active:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
+            style={{ right: '1rem', bottom: '5.5rem' }}
+            title="GTD Frames & Smart Schedule"
+          >
+            <LayoutGrid size={22} />
+          </button>
           {/* + New task FAB */}
           <button
             onClick={openNewTaskForm}
@@ -18190,9 +19027,18 @@ const DayPlanner = () => {
         </>
       )}
 
-      {/* Desktop: Timeline FABs — + (new task), mic (voice input) */}
+      {/* Desktop: Timeline FABs — + (new task), Frames, mic (voice input) */}
       {!isTablet && !isMobile && (
         <>
+          {/* GTD Frames FAB */}
+          <button
+            onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
+            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg hover:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
+            style={{ right: '1.5rem', bottom: '5.5rem' }}
+            title="GTD Frames & Smart Schedule"
+          >
+            <LayoutGrid size={22} />
+          </button>
           <button
             onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
@@ -20613,7 +21459,7 @@ const DayPlanner = () => {
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
                               { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
-                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} />, comingSoon: true },
+                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
                             ].map(f => (
                               <label key={f.key} className={`flex items-center gap-2 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
                                 <input
@@ -22614,6 +23460,133 @@ const DayPlanner = () => {
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GTD Frames Modal (Desktop/Tablet) */}
+      {showFramesModal && !isMobile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowFramesModal(false); setEditingFrame(null); }}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className={`relative ${cardBg} rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className={`sticky top-0 ${cardBg} z-10 px-6 pt-5 pb-3 border-b ${borderClass}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className={`text-lg font-semibold ${textPrimary}`}>GTD Frames</h2>
+                <button onClick={() => { setShowFramesModal(false); setEditingFrame(null); }} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+                  <X size={18} className={textSecondary} />
+                </button>
+              </div>
+              {/* Tab switcher */}
+              <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5`}>
+                <button
+                  onClick={() => setFramesModalTab('frames')}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'frames' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
+                >
+                  My Frames
+                </button>
+                <button
+                  onClick={() => setFramesModalTab('schedule')}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'schedule' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
+                >
+                  Smart Schedule
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-4">
+              {framesModalTab === 'frames' && (
+                <>
+                  {editingFrame ? (
+                    <FrameEditor
+                      frame={editingFrame === 'new' ? null : editingFrame}
+                      onSave={saveFrame}
+                      onDelete={deleteFrame}
+                      onCancel={() => setEditingFrame(null)}
+                      allTags={allTags}
+                      darkMode={darkMode}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      borderClass={borderClass}
+                      cardBg={cardBg}
+                      hoverBg={hoverBg}
+                      existingFrames={gtdFrames}
+                    />
+                  ) : (
+                    <>
+                      {gtdFrames.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-3">
+                          <LayoutGrid size={48} className={textSecondary} />
+                          <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
+                          <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+                            Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.
+                          </p>
+                          <button
+                            onClick={() => setEditingFrame('new')}
+                            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                          >
+                            <Plus size={16} />
+                            Create Frame
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {gtdFrames.map(frame => (
+                            <div
+                              key={frame.id}
+                              onClick={() => setEditingFrame(frame)}
+                              className={`p-3 rounded-lg border ${borderClass} cursor-pointer ${hoverBg} transition-colors`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${frame.color}`} />
+                                <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
+                                {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
+                              </div>
+                              <div className={`text-xs ${textSecondary} mt-1`}>
+                                {frame.start} – {frame.end} · {frame.days.map(d => DAY_LABELS[d]).join(', ')}
+                                {frame.energyLevel !== 'medium' && ` · ${frame.energyLevel} energy`}
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setEditingFrame('new')}
+                            className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
+                          >
+                            <Plus size={16} />
+                            Add Frame
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {framesModalTab === 'schedule' && (
+                <SmartSchedulePanel
+                  aiConfig={aiConfig}
+                  inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
+                  smartScheduleResults={smartScheduleResults}
+                  smartScheduleLoading={smartScheduleLoading}
+                  smartScheduleError={smartScheduleError}
+                  smartScheduleAccepted={smartScheduleAccepted}
+                  setSmartScheduleAccepted={setSmartScheduleAccepted}
+                  onRun={runSmartSchedule}
+                  onApply={applySmartSchedule}
+                  onCancel={() => { setSmartScheduleResults(null); setSmartScheduleError(''); }}
+                  darkMode={darkMode}
+                  textPrimary={textPrimary}
+                  textSecondary={textSecondary}
+                  borderClass={borderClass}
+                  cardBg={cardBg}
+                  hoverBg={hoverBg}
+                  gtdFrames={gtdFrames}
+                  formatTime={formatTime}
+                />
               )}
             </div>
           </div>

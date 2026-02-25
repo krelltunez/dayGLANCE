@@ -181,3 +181,47 @@ export function weeklySummaryUserPrompt(data) {
 
   return lines.join('\n');
 }
+
+// --- Phase 4: Smart Scheduling ---
+
+export function smartScheduleSystemPrompt() {
+  return `You are a GTD scheduling assistant for a day planner app. Place inbox tasks into available time slots following these heuristics:
+
+HEURISTICS:
+- Deadline-first: Tasks with approaching deadlines get earliest placement
+- Tag grouping: Batch tasks with similar tags into the same frame when possible
+- Priority weighting: High-priority tasks (3) go in high-energy frames first
+- Energy matching: Tasks with complex/deep-work tags go in high-energy frames, routine tasks in low-energy
+- Duration fitting: Don't split tasks; only place a task if its full duration fits in the slot
+- Buffer respect: The buffer time between tasks is already accounted for in the available slots
+- Don't overfill: Leave some breathing room — don't schedule 100% of available frame time
+- If a task doesn't fit any available slot, mark it as unplaceable with a clear reason
+
+Return ONLY valid JSON (no markdown fences, no explanation text outside the JSON) with this exact structure:
+{
+  "placements": [
+    { "taskId": "...", "date": "YYYY-MM-DD", "time": "HH:MM", "frameLabel": "...", "reasoning": "one sentence" }
+  ],
+  "unplaceable": [
+    { "taskId": "...", "reason": "why it can't be placed" }
+  ]
+}`;
+}
+
+export function smartScheduleUserPrompt(data) {
+  const { todayDate, slots, tasks } = data;
+  const slotLines = slots.map(function(s) {
+    var line = '- ' + s.date + ' | ' + s.start + '-' + s.end + ' (' + s.minutes + 'min) | Frame: "' + s.frameLabel + '" | Energy: ' + s.energyLevel;
+    if (s.tagAffinity && s.tagAffinity.length) line += ' | Tags: ' + s.tagAffinity.join(', ');
+    return line;
+  }).join('\n');
+
+  const taskLines = tasks.map(function(t) {
+    var line = '- ID: ' + t.id + ' | "' + t.title + '" | ' + t.duration + 'min | Priority: ' + t.priority + '/3';
+    if (t.deadline) line += ' | Deadline: ' + t.deadline;
+    if (t.tags && t.tags.length) line += ' | Tags: ' + t.tags.join(', ');
+    return line;
+  }).join('\n');
+
+  return 'Today is ' + todayDate + '.\n\nAVAILABLE SLOTS:\n' + (slotLines || 'No slots available.') + '\n\nINBOX TASKS TO SCHEDULE:\n' + (taskLines || 'No tasks.') + '\n\nPlace as many tasks as possible. Return ONLY the JSON.';
+}
