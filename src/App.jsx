@@ -1784,7 +1784,10 @@ const DayPlanner = () => {
   const [morningGlanceLoading, setMorningGlanceLoading] = useState(false);
   const [morningGlanceDismissed, setMorningGlanceDismissed] = useState(() => {
     try {
-      const d = localStorage.getItem('day-planner-morning-glance-dismissed');
+      // Key was renamed from 'day-planner-morning-glance-dismissed' to drop
+      // stale values that were stored using UTC instead of local time.
+      localStorage.removeItem('day-planner-morning-glance-dismissed');
+      const d = localStorage.getItem('day-planner-mg-dismissed');
       return d === localDateStr();
     } catch { return false; }
   });
@@ -9748,7 +9751,7 @@ const DayPlanner = () => {
 
   const dismissMorningGlance = useCallback(() => {
     setMorningGlanceDismissed(true);
-    localStorage.setItem('day-planner-morning-glance-dismissed', localDateStr());
+    localStorage.setItem('day-planner-mg-dismissed', localDateStr());
   }, []);
 
   // Reset morning briefing state on day rollover (tab regains focus the next day).
@@ -9763,7 +9766,7 @@ const DayPlanner = () => {
         if (cached && JSON.parse(cached).date === todayStr) return;
       } catch {}
       // Dismissed today?
-      if (localStorage.getItem('day-planner-morning-glance-dismissed') === todayStr) return;
+      if (localStorage.getItem('day-planner-mg-dismissed') === todayStr) return;
       // New day — reset state so click prompt appears
       setMorningGlanceDismissed(false);
       setMorningGlanceText(null);
