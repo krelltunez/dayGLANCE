@@ -448,34 +448,52 @@ export const mergeSyncData = (localData, remoteData) => {
   if (Object.keys(allDeletedChipIds).length !== Object.keys(remoteDeletedChips).length) remoteChanged = true;
   if (Object.keys(allRemovedTodayIds).length !== Object.keys(localRemovedToday).length) localChanged = true;
   if (Object.keys(allRemovedTodayIds).length !== Object.keys(remoteRemovedToday).length) remoteChanged = true;
+  if (Object.keys(allDeletedFrameIds).length !== Object.keys(localDeletedFrames).length) localChanged = true;
+  if (Object.keys(allDeletedFrameIds).length !== Object.keys(remoteDeletedFrames).length) remoteChanged = true;
 
-  // Merge GTD frames by ID (simple last-write-wins per frame, append remote-only)
+  // Combine frame tombstones from both sides
+  const localDeletedFrames = localData.deletedFrameIds || {};
+  const remoteDeletedFrames = remoteData.deletedFrameIds || {};
+  const allDeletedFrameIds = { ...localDeletedFrames };
+  for (const [id, ts] of Object.entries(remoteDeletedFrames)) {
+    if (!allDeletedFrameIds[id] || new Date(ts) > new Date(allDeletedFrameIds[id])) {
+      allDeletedFrameIds[id] = ts;
+    }
+  }
+
+  // Merge GTD frames by ID, respecting tombstones
   const localFrames = localData.gtdFrames || [];
   const remoteFrames = remoteData.gtdFrames || [];
   const localFrameIds = new Set(localFrames.map(f => String(f.id)));
   const remoteFrameMap = new Map(remoteFrames.map(f => [String(f.id), f]));
-  const mergedFrames = [...localFrames];
-  for (const remoteFrame of remoteFrames) {
-    if (!localFrameIds.has(String(remoteFrame.id))) {
+  const mergedFrames = [];
+
+  // Keep local frames that aren't tombstoned, preferring remote version if it differs
+  for (const localFrame of localFrames) {
+    const id = String(localFrame.id);
+    if (allDeletedFrameIds[id]) {
+      localChanged = true; // frame was deleted
+      continue;
+    }
+    const remoteFrame = remoteFrameMap.get(id);
+    if (remoteFrame && JSON.stringify(localFrame) !== JSON.stringify(remoteFrame)) {
       mergedFrames.push(remoteFrame);
       localChanged = true;
+    } else {
+      mergedFrames.push(localFrame);
+      if (!remoteFrame) remoteChanged = true; // local-only → remote needs it
     }
   }
-  // Detect frames only on local (remote needs them)
-  for (const localFrame of localFrames) {
-    if (!remoteFrameMap.has(String(localFrame.id))) {
-      remoteChanged = true;
+  // Append remote-only frames that aren't tombstoned
+  for (const remoteFrame of remoteFrames) {
+    const id = String(remoteFrame.id);
+    if (localFrameIds.has(id)) continue;
+    if (allDeletedFrameIds[id]) {
+      remoteChanged = true; // tell remote this was deleted
+      continue;
     }
-  }
-  // Detect if remote has different data for same frame
-  for (const localFrame of localFrames) {
-    const remoteFrame = remoteFrameMap.get(String(localFrame.id));
-    if (remoteFrame && JSON.stringify(localFrame) !== JSON.stringify(remoteFrame)) {
-      // Remote has a different version — prefer remote
-      const idx = mergedFrames.findIndex(f => String(f.id) === String(localFrame.id));
-      if (idx !== -1) mergedFrames[idx] = remoteFrame;
-      localChanged = true;
-    }
+    mergedFrames.push(remoteFrame);
+    localChanged = true;
   }
 
   // Check if habitsEnabled setting differs
@@ -504,6 +522,7 @@ export const mergeSyncData = (localData, remoteData) => {
       completedTaskUids: mergedCompletedUids,
       deletedTaskIds: allDeletedIds,
       deletedRoutineChipIds: allDeletedChipIds,
+      deletedFrameIds: allDeletedFrameIds,
       removedTodayRoutineIds: allRemovedTodayIds,
       // Settings: prefer remote for shared settings, local values are kept per-device
       syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,

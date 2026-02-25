@@ -9292,6 +9292,7 @@ const DayPlanner = () => {
       weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit',
       deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
       deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
+      deletedFrameIds: JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}'),
       removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}'),
       dailyNotes: JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}'),
       habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
@@ -9362,6 +9363,7 @@ const DayPlanner = () => {
     if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
     if (data.deletedTaskIds) localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(data.deletedTaskIds));
     if (data.deletedRoutineChipIds) localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(data.deletedRoutineChipIds));
+    if (data.deletedFrameIds) localStorage.setItem('day-planner-deleted-frame-ids', JSON.stringify(data.deletedFrameIds));
     if (data.removedTodayRoutineIds) {
       localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(data.removedTodayRoutineIds));
       setRemovedTodayRoutineIds(data.removedTodayRoutineIds);
@@ -11062,6 +11064,10 @@ const DayPlanner = () => {
 
   const deleteFrame = (frameId) => {
     setGtdFrames(prev => prev.filter(f => f.id !== frameId));
+    // Record tombstone so cloud sync doesn't resurrect the frame from other devices
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}');
+    tombstones[String(frameId)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-frame-ids', JSON.stringify(tombstones));
     setEditingFrame(null);
   };
 
