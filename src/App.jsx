@@ -21629,6 +21629,14 @@ const DayPlanner = () => {
             recognition.onerror = (event) => {
               if (event.error !== 'no-speech') {
                 console.error('Speech recognition error:', event.error);
+                const errorMessages = {
+                  'not-allowed': 'Microphone access denied. Please allow microphone permissions in your browser settings.',
+                  'network': 'Network error — speech recognition requires an internet connection in most browsers.',
+                  'audio-capture': 'No microphone found. Please connect a microphone and try again.',
+                  'service-not-allowed': 'Speech recognition service not available. Try a different browser (Chrome works best).',
+                  'aborted': 'Speech recognition was interrupted.',
+                };
+                setParseError(errorMessages[event.error] || `Speech recognition error: ${event.error}`);
               }
               setIsRecording(false);
             };
@@ -21813,6 +21821,10 @@ const DayPlanner = () => {
                                 {interimTranscript && <span className="opacity-50"> {interimTranscript}</span>}
                               </p>
                             </div>
+                          )}
+
+                          {parseError && !transcript && (
+                            <p className={`text-xs text-red-400 px-2`}>{parseError}</p>
                           )}
 
                           <button
