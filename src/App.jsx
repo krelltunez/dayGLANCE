@@ -16776,7 +16776,7 @@ const DayPlanner = () => {
                           </button>
                           <button
                             onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                            className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                            className={`flex gap-0.5 ${hoverBg} rounded pl-1 pr-2 py-1.5 transition-colors`}
                             title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
                           >
                             {[0, 1, 2].map(i => (
