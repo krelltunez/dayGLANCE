@@ -41,8 +41,8 @@ const useDeviceType = () => {
     // physical short side regardless of current orientation.
     const shortSide = Math.min(screen.width, screen.height);
     const isPhone = touchPrimary && shortSide < 600;
-    const isMobile = isPhone || w < 768;
-    const isTablet = !isPhone && touchPrimary && w >= 768 && w < 1200;
+    const isMobile = isPhone || w < 721;
+    const isTablet = !isPhone && touchPrimary && w >= 721 && w < 1200;
     return { isPhone, isMobile, isTablet };
   };
 
