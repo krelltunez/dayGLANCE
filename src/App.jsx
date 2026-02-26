@@ -11202,13 +11202,40 @@ const DayPlanner = () => {
         dateRange.push(date);
       }
 
+      // Current time in minutes — used to exclude past slots for today
+      const nowMinutes = today.getHours() * 60 + today.getMinutes();
+
       const slotsContext = [];
       for (const date of dateRange) {
         const dateStr = dateToString(date);
+        const isToday = dateStr === todayStr;
         const frames = getFrameInstancesForDate(date);
         for (const frame of frames) {
           const slots = computeAvailableSlots(frame, date);
           for (const slot of slots) {
+            // For today, skip slots that have already ended and
+            // truncate slots that are partially in the past
+            if (isToday) {
+              const slotEndMin = timeToMinutes(slot.end);
+              if (slotEndMin <= nowMinutes) continue; // entirely in the past
+              const slotStartMin = timeToMinutes(slot.start);
+              if (slotStartMin < nowMinutes) {
+                // Truncate: move start to now
+                const newStart = minutesToTime(nowMinutes);
+                const newMinutes = slotEndMin - nowMinutes;
+                if (newMinutes <= 0) continue;
+                slotsContext.push({
+                  date: dateStr,
+                  frameLabel: frame.label,
+                  energyLevel: frame.energyLevel,
+                  tagAffinity: frame.tagAffinity,
+                  start: newStart,
+                  end: slot.end,
+                  minutes: newMinutes,
+                });
+                continue;
+              }
+            }
             slotsContext.push({
               date: dateStr,
               frameLabel: frame.label,
