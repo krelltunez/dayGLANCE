@@ -16764,7 +16764,7 @@ const DayPlanner = () => {
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-0.5">
                       {nonOverdueInboxTasks.filter(t => !t.deadline).length > 0 && (
                         <>
                           <button
