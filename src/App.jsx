@@ -15957,8 +15957,7 @@ const DayPlanner = () => {
                 {tabletActiveTab === 'inbox' && (
                   <div className="p-4">
                     {/* Inbox header with priority filter */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-evenly mb-4">
                         <button
                           onClick={openNewInboxTask}
                           className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
@@ -15977,8 +15976,6 @@ const DayPlanner = () => {
                             <span className="text-xs font-medium">Schedule</span>
                           </button>
                         )}
-                      </div>
-                      <div className="flex items-center gap-1">
                         <button
                           onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                           className={`${hoverBg} rounded px-2 py-1.5 transition-colors`}
@@ -16004,7 +16001,6 @@ const DayPlanner = () => {
                             />
                           ))}
                         </button>
-                      </div>
                     </div>
                     <div className="space-y-2">
                       {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
