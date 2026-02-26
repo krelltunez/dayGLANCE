@@ -15978,10 +15978,10 @@ const DayPlanner = () => {
                           </button>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-4">
                         <button
                           onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                          className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                          className={`${hoverBg} rounded px-2 py-1.5 transition-colors`}
                           title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                         >
                           <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
