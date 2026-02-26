@@ -104,6 +104,13 @@ body.using-pointer a:focus-visible {
 /* Hide scrollbar on review carousel */
 .review-carousel::-webkit-scrollbar { display: none; }
 
+/* Mobile app shell — locks body to visible viewport so only inner panes scroll */
+.mobile-app-shell {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* Mobile timeline flex layout — prevents body scroll & gap above tab bar */
 .mobile-timeline-layout {
   display: flex;

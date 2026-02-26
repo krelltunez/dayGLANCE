@@ -11492,7 +11492,7 @@ const DayPlanner = () => {
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
   return (
-    <div className={`min-h-screen ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className={`${isMobile ? 'mobile-app-shell' : 'min-h-screen'} ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Safe-area cover: fills the status bar inset with the header color so
            bg-gray-900 (which has a blue tint) doesn't peek through as a visible line */}
       <div className={`fixed top-0 left-0 right-0 ${cardBg} z-[60]`} style={{ height: 'env(safe-area-inset-top, 0px)' }} />
