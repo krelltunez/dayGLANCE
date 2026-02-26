@@ -2870,6 +2870,22 @@ const DayPlanner = () => {
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#ffffff');
   }, [darkMode]);
 
+  // Lock body/html scrolling on mobile to prevent scroll chaining
+  useEffect(() => {
+    if (isMobile) {
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.height = '100dvh';
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100dvh';
+    }
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.height = '';
+      document.body.style.overflow = '';
+      document.body.style.height = '';
+    };
+  }, [isMobile]);
+
   // Persist minimizedSections to localStorage
   useEffect(() => {
     localStorage.setItem('minimizedSections', JSON.stringify(minimizedSections));

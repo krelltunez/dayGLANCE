@@ -110,6 +110,11 @@ body.using-pointer a:focus-visible {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* Mobile timeline flex layout — prevents body scroll & gap above tab bar */
@@ -118,6 +123,14 @@ body.using-pointer a:focus-visible {
   flex-direction: column;
   height: calc(100vh - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+
+/* Prevent scroll chaining on all scrollable areas inside the mobile layout */
+.mobile-timeline-layout .overflow-y-auto,
+.mobile-timeline-layout .overflow-y-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Mobile tab switch animation */
