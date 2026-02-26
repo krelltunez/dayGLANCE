@@ -15957,7 +15957,7 @@ const DayPlanner = () => {
                 {tabletActiveTab === 'inbox' && (
                   <div className="p-4">
                     {/* Inbox header with priority filter */}
-                    <div className="flex items-center justify-evenly mb-4">
+                    <div className="flex items-center gap-3 mb-4">
                         <button
                           onClick={openNewInboxTask}
                           className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
