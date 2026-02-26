@@ -15978,7 +15978,7 @@ const DayPlanner = () => {
                           </button>
                         )}
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
                         <button
                           onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                           className={`${hoverBg} rounded px-2 py-1.5 transition-colors`}
