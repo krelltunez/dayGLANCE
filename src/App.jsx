@@ -15957,7 +15957,7 @@ const DayPlanner = () => {
                 {tabletActiveTab === 'inbox' && (
                   <div className="p-4">
                     {/* Inbox header with priority filter */}
-                    <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center mb-4">
                         <button
                           onClick={openNewInboxTask}
                           className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
@@ -15969,7 +15969,7 @@ const DayPlanner = () => {
                         {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                           <button
                             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                            className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                            className="ml-3 w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                             title="AI Smart Schedule"
                           >
                             <BrainCircuit size={14} />
@@ -15978,14 +15978,14 @@ const DayPlanner = () => {
                         )}
                         <button
                           onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                          className={`${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                          className={`ml-4 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
                           title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
                         >
                           <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                         </button>
                         <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
-                          className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                          className={`ml-2 flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
                           title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
                         >
                           {[0, 1, 2].map(i => (
