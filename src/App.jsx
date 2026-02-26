@@ -11508,7 +11508,7 @@ const DayPlanner = () => {
       {isMobile ? (
         <>
           {/* Mobile Layout */}
-          <div className={mobileActiveTab === 'timeline' ? 'mobile-timeline-layout' : ''} style={mobileActiveTab !== 'timeline' ? { paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
+          <div className="mobile-timeline-layout">
             {/* Mobile Header */}
             {mobileActiveTab === 'timeline' && (
               <div className={`${cardBg} border-b ${borderClass} flex-shrink-0 relative ${showMonthView ? 'z-50' : 'z-30'}`}>
@@ -11608,11 +11608,8 @@ const DayPlanner = () => {
             )}
             {mobileActiveTab === 'inbox' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center px-4 py-3">
-                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2 flex-shrink-0`}>
-                    <Inbox size={20} /> Inbox
-                  </h2>
-                  <div className="flex-1 flex justify-center gap-2">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex gap-2">
                     <button
                       onClick={openNewInboxTask}
                       className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
@@ -11662,15 +11659,7 @@ const DayPlanner = () => {
                 </div>
               </div>
             )}
-            {mobileActiveTab === 'routines' && (
-              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
-                    <Sparkles size={20} /> Routines
-                  </h2>
-                </div>
-              </div>
-            )}
+
             {mobileActiveTab === 'settings' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-between px-4 py-3">
@@ -12557,7 +12546,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'dayglance' && (
-              <div className={`px-4 py-4 mobile-tab-fade-in`} style={{ minHeight: 'calc(100vh - 8rem - env(safe-area-inset-bottom, 0px))' }}>
+              <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
                 <div className="flex items-center gap-2 mb-4">
                   <button
                     onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
@@ -13111,7 +13100,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'inbox' && (
-              <div className={`px-4 py-4 mobile-tab-fade-in`}>
+              <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
                 <div className="space-y-2">
                   {filteredUnscheduledTasks.filter(t => !t.isExample).length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 px-6">
@@ -13309,7 +13298,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'routines' && (
-              <div className={`px-4 py-4 mobile-tab-fade-in`}>
+              <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
                 {(() => {
                   const today = new Date();
                   const todayDayName = getDayName(today);
@@ -13479,7 +13468,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'frames' && (
-              <div className={`px-4 py-4 mobile-tab-fade-in`}>
+              <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
                 {/* Tab switcher */}
                 <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5 mb-4`}>
                   <button
@@ -13588,7 +13577,7 @@ const DayPlanner = () => {
             )}
 
             {mobileActiveTab === 'settings' && (
-              <div className={`relative overflow-hidden mobile-tab-fade-in`}>
+              <div className={`relative overflow-hidden mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
                 {/* Main settings view */}
                 <div
                   className={`px-4 py-4 space-y-4 transition-transform duration-200 ${mobileSettingsView !== 'main' ? '-translate-x-full' : 'translate-x-0'}`}
