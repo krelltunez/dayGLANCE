@@ -4748,7 +4748,12 @@ const DayPlanner = () => {
           return newSet;
         });
         // Sync completion back to CalDAV server (fire-and-forget)
-        syncTaskCompletionToCalDAV(task.icalUid, newCompleted);
+        // Skip sync for recurring series — CalDAV doesn't support completing individual
+        // occurrences without RECURRENCE-ID exceptions; syncing would mark the entire
+        // series as completed on the server, breaking all future instances
+        if (!task.isRecurringSeries) {
+          syncTaskCompletionToCalDAV(task.icalUid, newCompleted);
+        }
       }
       setTasks(prev => prev.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
@@ -8593,7 +8598,7 @@ const DayPlanner = () => {
           endD.setDate(endD.getDate() + durDays);
           newDtend = fmt(endD);
         }
-        expandedEvents.push({ ...event, dtstart: newDtstart, dtend: newDtend, rrule: undefined });
+        expandedEvents.push({ ...event, dtstart: newDtstart, dtend: newDtend, rrule: undefined, isRecurringSeries: true });
       };
 
       if (rule.FREQ === 'YEARLY') {
@@ -8793,6 +8798,7 @@ const DayPlanner = () => {
         imported: true,
         isTaskCalendar: asTaskCalendar,
         isAllDay: isAllDay,
+        isRecurringSeries: !!event.isRecurringSeries,
         importSource: importSource,
         ...(event.description ? { notes: event.description } : {})
       });
