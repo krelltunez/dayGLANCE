@@ -1216,7 +1216,7 @@ const HABIT_COLORS = [
 ];
 
 // HabitRing — SVG circular progress ring component
-const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, darkMode }) => {
+const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode }) => {
   const { type, target, color, icon } = habit;
   const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
   const IconComponent = HABIT_ICONS[icon] || Target;
@@ -1258,6 +1258,8 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseLeave}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
       className="flex flex-col items-center gap-0.5 select-none active:scale-95 transition-transform"
       style={{ width: size + 8 }}
     >
@@ -1953,6 +1955,7 @@ const DayPlanner = () => {
   const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
   const [habitEditingCountId, setHabitEditingCountId] = useState(null); // ID of habit with count input open
   const habitLongPressTimer = useRef(null);
+  const tagFilterBtnRef = useRef(null);
   const editingHabitRef = useRef(editingHabit);
   editingHabitRef.current = editingHabit;
   useEffect(() => {
@@ -11847,7 +11850,7 @@ const DayPlanner = () => {
                                       )}
                                     <div
                                       data-task-id={task.id}
-                                      className={`relative ${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && !isImported ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                      className={`relative ${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={{ touchAction: 'pan-y', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -12299,7 +12302,7 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
-                                  className={`absolute pointer-events-auto ${(task.completed && !isImported) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -12707,6 +12710,8 @@ const DayPlanner = () => {
                             onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
                             onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                             onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                            onTouchStart={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                            onTouchEnd={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                           />
                           {habitLongPressId === habit.id && (
                             <>
@@ -14435,9 +14440,9 @@ const DayPlanner = () => {
           {mobileActiveTab === 'timeline' && (
             <>
               {/* GTD Frames FAB */}
-              {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.length > 0 && (
+              {gtdFrames.length > 0 && (
                 <button
-                  onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); }}
+                  onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('frames'); }}
                   className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
                   style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
                 >
@@ -14980,7 +14985,6 @@ const DayPlanner = () => {
                 {showLabels && <span className="text-[10px] font-medium">Routines</span>}
               </button>
               )}
-              {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
@@ -14992,7 +14996,6 @@ const DayPlanner = () => {
                 <LayoutGrid size={iconSize} />
                 {showLabels && <span className="text-[10px] font-medium">Frames</span>}
               </button>
-              )}
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
@@ -15476,8 +15479,9 @@ const DayPlanner = () => {
                           <span className="text-sm">Search tasks...</span>
                         </button>
                         {allTags.length > 0 && (
-                          <div className="relative flex-shrink-0 self-stretch flex items-center">
+                          <div className="flex-shrink-0 self-stretch flex items-center">
                             <button
+                              ref={tagFilterBtnRef}
                               onClick={() => setShowMobileTagFilter(v => !v)}
                               className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
                                 !allTags.every(tag => selectedTags.includes(tag))
@@ -15488,12 +15492,14 @@ const DayPlanner = () => {
                               <Filter size={16} />
                             </button>
                             {/* Tag filter popover — matching desktop */}
-                            {showMobileTagFilter && (
+                            {showMobileTagFilter && (() => {
+                              const rect = tagFilterBtnRef.current?.getBoundingClientRect();
+                              return (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowMobileTagFilter(false)} />
                                 <div
-                                  className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
-                                  style={{ width: '280px' }}
+                                  className={`fixed z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
+                                  style={{ width: '280px', top: rect ? rect.bottom + 4 : 0, left: rect ? Math.max(8, rect.right - 280) : 0 }}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'inherit' }}>
@@ -15540,7 +15546,8 @@ const DayPlanner = () => {
                                   </div>
                                 </div>
                               </>
-                            )}
+                              );
+                            })()}
                           </div>
                         )}
                         {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
@@ -15638,6 +15645,8 @@ const DayPlanner = () => {
                                   onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
                                   onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                                   onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                                  onTouchStart={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                                  onTouchEnd={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                                 />
                                 {habitLongPressId === habit.id && (
                                   <>
@@ -16252,8 +16261,9 @@ const DayPlanner = () => {
                       <span className={`ml-auto text-xs ${textSecondary}`}>Ctrl+K</span>
                     </button>
                     {allTags.length > 0 && (
-                      <div className="relative flex-shrink-0 self-stretch flex items-center">
+                      <div className="flex-shrink-0 self-stretch flex items-center">
                         <button
+                          ref={tagFilterBtnRef}
                           onClick={() => setShowMobileTagFilter(v => !v)}
                           className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
                             !allTags.every(tag => selectedTags.includes(tag))
@@ -16264,12 +16274,14 @@ const DayPlanner = () => {
                           <Filter size={16} />
                         </button>
                         {/* Desktop tag filter popover */}
-                        {showMobileTagFilter && (
+                        {showMobileTagFilter && (() => {
+                          const rect = tagFilterBtnRef.current?.getBoundingClientRect();
+                          return (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowMobileTagFilter(false)} />
                             <div
-                              className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
-                              style={{ width: '280px' }}
+                              className={`fixed z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
+                              style={{ width: '280px', top: rect ? rect.bottom + 4 : 0, left: rect ? Math.max(8, rect.right - 280) : 0 }}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'inherit' }}>
@@ -16316,7 +16328,8 @@ const DayPlanner = () => {
                               </div>
                             </div>
                           </>
-                        )}
+                          );
+                        })()}
                       </div>
                     )}
                     {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
@@ -16414,6 +16427,8 @@ const DayPlanner = () => {
                               onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
                               onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                               onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                              onTouchStart={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                              onTouchEnd={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                             />
                             {habitLongPressId === habit.id && (
                               <>
@@ -17293,7 +17308,7 @@ const DayPlanner = () => {
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
                               } : {})}
-                              className={`${!isTablet ? 'notes-panel-container' : 'select-none'} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`${!isTablet ? 'notes-panel-container' : 'select-none'} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'pan-y' } : {}) }}
                             >
                               {task.isExample && (
@@ -17879,7 +17894,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${task.completed && !task.isTaskCalendar || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -19190,7 +19205,6 @@ const DayPlanner = () => {
       {isTablet && (
         <>
           {/* GTD Frames FAB */}
-          {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
           <button
             onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg active:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
@@ -19199,7 +19213,6 @@ const DayPlanner = () => {
           >
             <LayoutGrid size={22} />
           </button>
-          )}
           {/* + New task FAB */}
           <button
             onClick={openNewTaskForm}
@@ -19293,7 +19306,6 @@ const DayPlanner = () => {
       {!isTablet && !isMobile && (
         <>
           {/* GTD Frames FAB */}
-          {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
           <button
             onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg hover:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
@@ -19301,8 +19313,7 @@ const DayPlanner = () => {
             title="GTD Frames & Smart Schedule"
           >
             <LayoutGrid size={22} />
-          </button>
-          )}
+          </button>}
           <button
             onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
