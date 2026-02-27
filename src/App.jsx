@@ -9205,10 +9205,19 @@ const DayPlanner = () => {
         // Extract the original DTSTART line from the master VTODO to preserve timezone/format.
         // The RECURRENCE-ID must match the exact format of the original DTSTART (including
         // TZID parameter) or the CalDAV server won't recognize the override.
+        // IMPORTANT: We must search within the master VTODO block only — VTIMEZONE blocks
+        // also contain DTSTART lines (e.g. DTSTART:19701101T020000) that would give wrong values.
         const datePart = date.replace(/-/g, '');
-        // Try DTSTART first, fall back to DUE (some VTODOs only have DUE)
-        const dtstartMatch = icsContent.match(/^(DTSTART[^:]*):(.*)$/m)
-          || icsContent.match(/^(DUE[^:]*):(.*)$/m);
+
+        // Find the master VTODO block (the one WITHOUT a RECURRENCE-ID line)
+        const vtodoBlocks = icsContent.match(/BEGIN:VTODO[\s\S]*?END:VTODO/g) || [];
+        const masterBlock = vtodoBlocks.find(block => !/RECURRENCE-ID/i.test(block)) || vtodoBlocks[0] || '';
+
+        // Extract DTSTART (or DUE) from the master block only
+        const dtstartMatch = masterBlock.match(/^(DTSTART[^:]*):(.*)$/m)
+          || masterBlock.match(/^(DUE[^:]*):(.*)$/m);
+        console.log('CalDAV sync-back: master VTODO DTSTART match:', dtstartMatch ? dtstartMatch[0] : 'NONE');
+        console.log('CalDAV sync-back: VTODO blocks found:', vtodoBlocks.length, 'master block length:', masterBlock.length);
         let recIdLine, dtstartLine;
 
         if (dtstartMatch) {
@@ -9233,17 +9242,19 @@ const DayPlanner = () => {
           dtstartLine = `DTSTART;VALUE=DATE:${datePart}`;
         }
 
-        // Extract SUMMARY from the master VTODO
-        const summaryMatch = icsContent.match(/^SUMMARY:(.*)$/m);
+        // Extract SUMMARY from the master VTODO (not from any override)
+        const summaryMatch = masterBlock.match(/^SUMMARY:(.*)$/m);
         const summary = summaryMatch ? summaryMatch[1] : 'Task';
 
-        // Check if an override for this instance already exists
-        const overrideRegex = new RegExp(
+        // Remove ALL existing override VTODOs for this date (any format) to clean up
+        // stale overrides from previous sync attempts that may have used different formats
+        const anyOverrideForDateRegex = new RegExp(
           'BEGIN:VTODO\\r?\\n(?:(?!END:VTODO)[\\s\\S])*?' +
-          recIdLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+          'RECURRENCE-ID[^:]*:' + datePart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
           '[\\s\\S]*?END:VTODO\\r?\\n?',
-          'm'
+          'gm'
         );
+        icsContent = icsContent.replace(anyOverrideForDateRegex, '');
 
         if (completed) {
           const overrideVtodo = [
@@ -9260,19 +9271,12 @@ const DayPlanner = () => {
             'END:VTODO'
           ].join('\r\n');
 
-          if (overrideRegex.test(icsContent)) {
-            // Replace existing override
-            icsContent = icsContent.replace(overrideRegex, overrideVtodo + '\r\n');
-          } else {
-            // Insert override before END:VCALENDAR
-            icsContent = icsContent.replace(/END:VCALENDAR/, overrideVtodo + '\r\nEND:VCALENDAR');
-          }
-        } else {
-          // Uncompleting: remove the override so the instance falls back to the master RRULE
-          if (overrideRegex.test(icsContent)) {
-            icsContent = icsContent.replace(overrideRegex, '');
-          }
+          console.log('CalDAV sync-back: override VTODO:\n' + overrideVtodo);
+
+          // Insert override before END:VCALENDAR
+          icsContent = icsContent.replace(/END:VCALENDAR/, overrideVtodo + '\r\nEND:VCALENDAR');
         }
+        // If uncompleting, we already removed the override above
       } else {
         // --- Non-recurring task: update the VTODO directly ---
         if (completed) {
