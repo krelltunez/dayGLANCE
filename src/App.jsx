@@ -9174,7 +9174,6 @@ const DayPlanner = () => {
   const syncTaskCompletionToCalDAV = async (icalUid, completed, { isRecurring = false, date, startTime, isAllDay } = {}) => {
     const { username, appPassword, caldavBaseUrl } = taskCalendarAuth;
     if (!caldavBaseUrl || !username || !appPassword) {
-      console.warn('CalDAV sync-back skipped: missing credentials', { caldavBaseUrl: !!caldavBaseUrl, username: !!username, appPassword: !!appPassword });
       return;
     }
 
@@ -9187,8 +9186,6 @@ const DayPlanner = () => {
     };
 
     try {
-      // GET the existing VTODO resource
-      console.log('CalDAV sync-back: GET', resourceUrl);
       const getRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
         method: 'GET',
         headers: authHeaders
@@ -9215,7 +9212,6 @@ const DayPlanner = () => {
         // Parse RRULE from master VTODO
         const rruleMatch = icsContent.match(/^RRULE:(.+)$/m);
         if (!rruleMatch) {
-          console.warn('CalDAV sync-back: recurring task has no RRULE, treating as non-recurring');
         } else {
           const rruleStr = rruleMatch[1].trim();
           const datePart = date.replace(/-/g, ''); // "YYYYMMDD"
@@ -9341,10 +9337,7 @@ const DayPlanner = () => {
               icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
             }
 
-            console.log(`CalDAV sync-back: recurring task — ${completed ? 'advanced' : 'reverted'} DUE by ${deltaDays} days to ${fmtDate(targetDate)}`);
           } else if (completed) {
-            // Series ended (UNTIL exceeded) — mark the master as completed
-            console.log('CalDAV sync-back: recurring series ended, marking master COMPLETED');
             // Fall through to non-recurring completion below
           }
 
@@ -9409,7 +9402,6 @@ const DayPlanner = () => {
       }
 
       // PUT the updated resource back
-      console.log('CalDAV sync-back: PUT', resourceUrl);
       const putRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
         method: 'PUT',
         headers: { ...authHeaders, 'Content-Type': 'text/calendar; charset=utf-8' },
@@ -9419,18 +9411,6 @@ const DayPlanner = () => {
       if (!putRes.ok) {
         console.error('CalDAV PUT failed:', putRes.status, resourceUrl);
         setSyncNotification({ type: 'error', title: 'CalDAV Sync', message: `Failed to update task on server (HTTP ${putRes.status})` });
-      } else {
-        console.log('CalDAV sync-back: success', icalUid, completed ? 'completed' : 'uncompleted', isRecurring ? `(instance ${date})` : '');
-        // Debug: verify what the server actually stored
-        if (isRecurring) {
-          try {
-            const verifyRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, { headers: authHeaders });
-            if (verifyRes.ok) {
-              const stored = await verifyRes.text();
-              console.log('CalDAV sync-back: VERIFY — server stored ICS:\n' + stored);
-            }
-          } catch (e) { console.warn('CalDAV verify GET failed:', e); }
-        }
       }
     } catch (err) {
       console.error('CalDAV completion sync error:', err);
