@@ -9337,6 +9337,16 @@ const DayPlanner = () => {
         setSyncNotification({ type: 'error', title: 'CalDAV Sync', message: `Failed to update task on server (HTTP ${putRes.status})` });
       } else {
         console.log('CalDAV sync-back: success', icalUid, completed ? 'completed' : 'uncompleted', isRecurring ? `(instance ${date})` : '');
+        // Debug: verify what the server actually stored
+        if (isRecurring) {
+          try {
+            const verifyRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, { headers: authHeaders });
+            if (verifyRes.ok) {
+              const stored = await verifyRes.text();
+              console.log('CalDAV sync-back: VERIFY — server stored ICS:\n' + stored);
+            }
+          } catch (e) { console.warn('CalDAV verify GET failed:', e); }
+        }
       }
     } catch (err) {
       console.error('CalDAV completion sync error:', err);
