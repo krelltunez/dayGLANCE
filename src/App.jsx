@@ -9166,7 +9166,10 @@ const DayPlanner = () => {
   // instead of modifying the master VTODO (which would complete the entire series).
   const syncTaskCompletionToCalDAV = async (icalUid, completed, { isRecurring = false, date, startTime, isAllDay } = {}) => {
     const { username, appPassword, caldavBaseUrl } = taskCalendarAuth;
-    if (!caldavBaseUrl || !username || !appPassword) return;
+    if (!caldavBaseUrl || !username || !appPassword) {
+      console.warn('CalDAV sync-back skipped: missing credentials', { caldavBaseUrl: !!caldavBaseUrl, username: !!username, appPassword: !!appPassword });
+      return;
+    }
 
     const baseUrl = caldavBaseUrl.replace(/\/+$/, '');
     // Use encodeURI (not encodeURIComponent) for the UID — CalDAV UIDs often contain
