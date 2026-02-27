@@ -9214,37 +9214,43 @@ const DayPlanner = () => {
         const masterBlock = vtodoBlocks.find(block => !/RECURRENCE-ID/i.test(block)) || vtodoBlocks[0] || '';
 
         // Extract DTSTART (or DUE) from the master block only
-        const dtstartMatch = masterBlock.match(/^(DTSTART[^:]*):(.*)$/m)
-          || masterBlock.match(/^(DUE[^:]*):(.*)$/m);
-        console.log('CalDAV sync-back: master VTODO DTSTART match:', dtstartMatch ? dtstartMatch[0] : 'NONE');
+        const dtstartMatchReal = masterBlock.match(/^(DTSTART[^:]*):(.*)$/m);
+        const dueMatchReal = masterBlock.match(/^(DUE[^:]*):(.*)$/m);
+        const dtstartMatch = dtstartMatchReal || dueMatchReal;
+        const masterUsesDue = !dtstartMatchReal && !!dueMatchReal; // master has DUE only, no DTSTART
+        console.log('CalDAV sync-back: master VTODO date match:', dtstartMatch ? dtstartMatch[0] : 'NONE', masterUsesDue ? '(DUE-based)' : '(DTSTART-based)');
         console.log('CalDAV sync-back: VTODO blocks found:', vtodoBlocks.length, 'master block length:', masterBlock.length);
-        let recIdLine, dtstartLine;
+        let recIdLine, dateLine; // dateLine = DTSTART or DUE line for the override
 
         if (dtstartMatch) {
-          const dtstartParams = dtstartMatch[1]; // e.g. "DTSTART;TZID=America/New_York" or "DTSTART;VALUE=DATE" or "DTSTART"
-          const dtstartValue = dtstartMatch[2].trim(); // e.g. "20260101T090000" or "20260101"
+          const dateParams = dtstartMatch[1]; // e.g. "DTSTART;TZID=America/New_York" or "DUE;VALUE=DATE" etc.
+          const dateValue = dtstartMatch[2].trim(); // e.g. "20260101T090000" or "20260101"
+          // Use the same property name as the master (DUE or DTSTART) for the override
+          const datePropName = masterUsesDue ? 'DUE' : 'DTSTART';
 
-          if (dtstartParams.includes('VALUE=DATE') || dtstartValue.length === 8) {
+          if (dateParams.includes('VALUE=DATE') || dateValue.length === 8) {
             // All-day: use VALUE=DATE format
             recIdLine = `RECURRENCE-ID;VALUE=DATE:${datePart}`;
-            dtstartLine = `DTSTART;VALUE=DATE:${datePart}`;
+            dateLine = `${datePropName};VALUE=DATE:${datePart}`;
           } else {
             // Has time component — extract time portion from original and preserve TZID
-            const timePortion = dtstartValue.replace(/^\d{8}/, ''); // e.g. "T090000" or "T090000Z"
-            const tzidMatch = dtstartParams.match(/;(TZID=[^;:]+)/);
+            const timePortion = dateValue.replace(/^\d{8}/, ''); // e.g. "T090000" or "T090000Z"
+            const tzidMatch = dateParams.match(/;(TZID=[^;:]+)/);
             const tzidParam = tzidMatch ? ';' + tzidMatch[1] : '';
             recIdLine = `RECURRENCE-ID${tzidParam}:${datePart}${timePortion}`;
-            dtstartLine = `DTSTART${tzidParam}:${datePart}${timePortion}`;
+            dateLine = `${datePropName}${tzidParam}:${datePart}${timePortion}`;
           }
         } else {
-          // Fallback: no DTSTART found, use date-only
+          // Fallback: no DTSTART/DUE found, use date-only
           recIdLine = `RECURRENCE-ID;VALUE=DATE:${datePart}`;
-          dtstartLine = `DTSTART;VALUE=DATE:${datePart}`;
+          dateLine = `DTSTART;VALUE=DATE:${datePart}`;
         }
 
-        // Extract SUMMARY from the master VTODO (not from any override)
+        // Extract SUMMARY and SEQUENCE from the master VTODO
         const summaryMatch = masterBlock.match(/^SUMMARY:(.*)$/m);
         const summary = summaryMatch ? summaryMatch[1] : 'Task';
+        const sequenceMatch = masterBlock.match(/^SEQUENCE:(\d+)/m);
+        const sequence = sequenceMatch ? sequenceMatch[1] : '0';
 
         // Remove ALL existing override VTODOs for this date (any format) to clean up
         // stale overrides from previous sync attempts that may have used different formats
@@ -9261,7 +9267,8 @@ const DayPlanner = () => {
             'BEGIN:VTODO',
             `UID:${icalUid}`,
             recIdLine,
-            dtstartLine,
+            dateLine,
+            `SEQUENCE:${sequence}`,
             `SUMMARY:${summary}`,
             'STATUS:COMPLETED',
             `COMPLETED:${timestamp}`,
