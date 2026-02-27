@@ -9202,27 +9202,40 @@ const DayPlanner = () => {
 
       if (isRecurring && date) {
         // --- Recurring task: add/remove a RECURRENCE-ID override for this instance ---
-        // Build the RECURRENCE-ID value from the instance date + original start time
+        // Extract the original DTSTART line from the master VTODO to preserve timezone/format.
+        // The RECURRENCE-ID must match the exact format of the original DTSTART (including
+        // TZID parameter) or the CalDAV server won't recognize the override.
         const datePart = date.replace(/-/g, '');
-        let recurrenceId;
-        if (isAllDay) {
-          recurrenceId = datePart;
+        // Try DTSTART first, fall back to DUE (some VTODOs only have DUE)
+        const dtstartMatch = icsContent.match(/^(DTSTART[^:]*):(.*)$/m)
+          || icsContent.match(/^(DUE[^:]*):(.*)$/m);
+        let recIdLine, dtstartLine;
+
+        if (dtstartMatch) {
+          const dtstartParams = dtstartMatch[1]; // e.g. "DTSTART;TZID=America/New_York" or "DTSTART;VALUE=DATE" or "DTSTART"
+          const dtstartValue = dtstartMatch[2].trim(); // e.g. "20260101T090000" or "20260101"
+
+          if (dtstartParams.includes('VALUE=DATE') || dtstartValue.length === 8) {
+            // All-day: use VALUE=DATE format
+            recIdLine = `RECURRENCE-ID;VALUE=DATE:${datePart}`;
+            dtstartLine = `DTSTART;VALUE=DATE:${datePart}`;
+          } else {
+            // Has time component — extract time portion from original and preserve TZID
+            const timePortion = dtstartValue.replace(/^\d{8}/, ''); // e.g. "T090000" or "T090000Z"
+            const tzidMatch = dtstartParams.match(/;(TZID=[^;:]+)/);
+            const tzidParam = tzidMatch ? ';' + tzidMatch[1] : '';
+            recIdLine = `RECURRENCE-ID${tzidParam}:${datePart}${timePortion}`;
+            dtstartLine = `DTSTART${tzidParam}:${datePart}${timePortion}`;
+          }
         } else {
-          const timePart = (startTime || '00:00').replace(':', '') + '00';
-          recurrenceId = datePart + 'T' + timePart;
+          // Fallback: no DTSTART found, use date-only
+          recIdLine = `RECURRENCE-ID;VALUE=DATE:${datePart}`;
+          dtstartLine = `DTSTART;VALUE=DATE:${datePart}`;
         }
 
         // Extract SUMMARY from the master VTODO
         const summaryMatch = icsContent.match(/^SUMMARY:(.*)$/m);
         const summary = summaryMatch ? summaryMatch[1] : 'Task';
-
-        // Extract the original DTSTART line format (VALUE=DATE vs datetime) for the override
-        const dtstartLine = isAllDay
-          ? `DTSTART;VALUE=DATE:${datePart}`
-          : `DTSTART:${recurrenceId}`;
-        const recIdLine = isAllDay
-          ? `RECURRENCE-ID;VALUE=DATE:${datePart}`
-          : `RECURRENCE-ID:${recurrenceId}`;
 
         // Check if an override for this instance already exists
         const overrideRegex = new RegExp(
