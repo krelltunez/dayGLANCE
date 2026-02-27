@@ -4748,12 +4748,12 @@ const DayPlanner = () => {
           return newSet;
         });
         // Sync completion back to CalDAV server (fire-and-forget)
-        // Skip sync for recurring series — CalDAV doesn't support completing individual
-        // occurrences without RECURRENCE-ID exceptions; syncing would mark the entire
-        // series as completed on the server, breaking all future instances
-        if (!task.isRecurringSeries) {
-          syncTaskCompletionToCalDAV(task.icalUid, newCompleted);
-        }
+        syncTaskCompletionToCalDAV(task.icalUid, newCompleted, {
+          isRecurring: task.isRecurringSeries,
+          date: task.date,
+          startTime: task.startTime,
+          isAllDay: task.isAllDay
+        });
       }
       setTasks(prev => prev.map(task =>
         task.id === id ? { ...task, completed: !task.completed } : task
@@ -8478,7 +8478,11 @@ const DayPlanner = () => {
           currentEvent.dtstart = currentEvent.due;
           currentEvent.isAllDay = currentEvent.dueIsAllDay;
         }
-        if (currentEvent.summary && currentEvent.dtstart) {
+        // Skip RECURRENCE-ID overrides — these are individual-instance exceptions
+        // (e.g. a single completed occurrence of a recurring VTODO). The master RRULE
+        // expansion already generates dates for each occurrence, and completion state
+        // is tracked locally via completedTaskUids.
+        if (currentEvent.summary && currentEvent.dtstart && !currentEvent.isRecurrenceOverride) {
           events.push(currentEvent);
         }
         currentEvent = null;
@@ -8526,6 +8530,8 @@ const DayPlanner = () => {
               .replace(/\\n/gi, '\n')
               .replace(/\\\\/g, '\\');
           }
+        } else if (line.startsWith('RECURRENCE-ID')) {
+          currentEvent.isRecurrenceOverride = true;
         } else if (line.startsWith('RRULE:')) {
           currentEvent.rrule = line.substring(6);
         } else if (line.startsWith('EXDATE')) {
@@ -9156,7 +9162,9 @@ const DayPlanner = () => {
   };
 
   // Sync task completion status back to CalDAV server
-  const syncTaskCompletionToCalDAV = async (icalUid, completed) => {
+  // For recurring tasks, adds/removes a RECURRENCE-ID override VTODO for the specific instance
+  // instead of modifying the master VTODO (which would complete the entire series).
+  const syncTaskCompletionToCalDAV = async (icalUid, completed, { isRecurring = false, date, startTime, isAllDay } = {}) => {
     const { username, appPassword, caldavBaseUrl } = taskCalendarAuth;
     if (!caldavBaseUrl || !username || !appPassword) return;
 
@@ -9183,46 +9191,107 @@ const DayPlanner = () => {
       }
 
       let icsContent = await getRes.text();
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
-      // Update the VTODO completion properties
-      if (completed) {
-        const now = new Date();
-        const completedStamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-        // Set STATUS to COMPLETED
-        if (/^STATUS:/m.test(icsContent)) {
-          icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
+      if (isRecurring && date) {
+        // --- Recurring task: add/remove a RECURRENCE-ID override for this instance ---
+        // Build the RECURRENCE-ID value from the instance date + original start time
+        const datePart = date.replace(/-/g, '');
+        let recurrenceId;
+        if (isAllDay) {
+          recurrenceId = datePart;
         } else {
-          icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
+          const timePart = (startTime || '00:00').replace(':', '') + '00';
+          recurrenceId = datePart + 'T' + timePart;
         }
-        // Add or update COMPLETED timestamp
-        if (/^COMPLETED:/m.test(icsContent)) {
-          icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${completedStamp}`);
+
+        // Extract SUMMARY from the master VTODO
+        const summaryMatch = icsContent.match(/^SUMMARY:(.*)$/m);
+        const summary = summaryMatch ? summaryMatch[1] : 'Task';
+
+        // Extract the original DTSTART line format (VALUE=DATE vs datetime) for the override
+        const dtstartLine = isAllDay
+          ? `DTSTART;VALUE=DATE:${datePart}`
+          : `DTSTART:${recurrenceId}`;
+        const recIdLine = isAllDay
+          ? `RECURRENCE-ID;VALUE=DATE:${datePart}`
+          : `RECURRENCE-ID:${recurrenceId}`;
+
+        // Check if an override for this instance already exists
+        const overrideRegex = new RegExp(
+          'BEGIN:VTODO\\r?\\n(?:(?!END:VTODO)[\\s\\S])*?' +
+          recIdLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+          '[\\s\\S]*?END:VTODO\\r?\\n?',
+          'm'
+        );
+
+        if (completed) {
+          const overrideVtodo = [
+            'BEGIN:VTODO',
+            `UID:${icalUid}`,
+            recIdLine,
+            dtstartLine,
+            `SUMMARY:${summary}`,
+            'STATUS:COMPLETED',
+            `COMPLETED:${timestamp}`,
+            'PERCENT-COMPLETE:100',
+            `LAST-MODIFIED:${timestamp}`,
+            `DTSTAMP:${timestamp}`,
+            'END:VTODO'
+          ].join('\r\n');
+
+          if (overrideRegex.test(icsContent)) {
+            // Replace existing override
+            icsContent = icsContent.replace(overrideRegex, overrideVtodo + '\r\n');
+          } else {
+            // Insert override before END:VCALENDAR
+            icsContent = icsContent.replace(/END:VCALENDAR/, overrideVtodo + '\r\nEND:VCALENDAR');
+          }
         } else {
-          icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${completedStamp}\r\n$1`);
-        }
-        // Set PERCENT-COMPLETE to 100
-        if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-          icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
-        } else {
-          icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
+          // Uncompleting: remove the override so the instance falls back to the master RRULE
+          if (overrideRegex.test(icsContent)) {
+            icsContent = icsContent.replace(overrideRegex, '');
+          }
         }
       } else {
-        // Revert to incomplete
-        if (/^STATUS:/m.test(icsContent)) {
-          icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
-        }
-        // Remove COMPLETED timestamp
-        icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
-        // Reset PERCENT-COMPLETE to 0
-        if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-          icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
+        // --- Non-recurring task: update the VTODO directly ---
+        if (completed) {
+          // Set STATUS to COMPLETED
+          if (/^STATUS:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
+          } else {
+            icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
+          }
+          // Add or update COMPLETED timestamp
+          if (/^COMPLETED:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${timestamp}`);
+          } else {
+            icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${timestamp}\r\n$1`);
+          }
+          // Set PERCENT-COMPLETE to 100
+          if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
+          } else {
+            icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
+          }
+        } else {
+          // Revert to incomplete
+          if (/^STATUS:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
+          }
+          // Remove COMPLETED timestamp
+          icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
+          // Reset PERCENT-COMPLETE to 0
+          if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
+          }
         }
       }
 
-      // Update LAST-MODIFIED
-      const lastMod = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      // Update LAST-MODIFIED on the master component
       if (/^LAST-MODIFIED:/m.test(icsContent)) {
-        icsContent = icsContent.replace(/^LAST-MODIFIED:.*$/m, `LAST-MODIFIED:${lastMod}`);
+        icsContent = icsContent.replace(/^LAST-MODIFIED:.*$/m, `LAST-MODIFIED:${timestamp}`);
       }
 
       // PUT the updated resource back
@@ -9237,7 +9306,7 @@ const DayPlanner = () => {
         console.error('CalDAV PUT failed:', putRes.status, resourceUrl);
         setSyncNotification({ type: 'error', title: 'CalDAV Sync', message: `Failed to update task on server (HTTP ${putRes.status})` });
       } else {
-        console.log('CalDAV sync-back: success', icalUid, completed ? 'completed' : 'uncompleted');
+        console.log('CalDAV sync-back: success', icalUid, completed ? 'completed' : 'uncompleted', isRecurring ? `(instance ${date})` : '');
       }
     } catch (err) {
       console.error('CalDAV completion sync error:', err);
