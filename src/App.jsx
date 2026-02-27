@@ -9165,8 +9165,10 @@ const DayPlanner = () => {
   };
 
   // Sync task completion status back to CalDAV server
-  // For recurring tasks, adds/removes a RECURRENCE-ID override VTODO for the specific instance
-  // instead of modifying the master VTODO (which would complete the entire series).
+  // Modifies the master VTODO directly (STATUS, COMPLETED, PERCENT-COMPLETE).
+  // For recurring tasks, Nextcloud doesn't support RECURRENCE-ID overrides for VTODOs
+  // (https://github.com/nextcloud/tasks/issues/2276), so we update the master directly
+  // and clean up any stale overrides from previous sync attempts.
   const syncTaskCompletionToCalDAV = async (icalUid, completed, { isRecurring = false, date, startTime, isAllDay } = {}) => {
     const { username, appPassword, caldavBaseUrl } = taskCalendarAuth;
     if (!caldavBaseUrl || !username || !appPassword) {
@@ -9201,121 +9203,47 @@ const DayPlanner = () => {
       const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
       if (isRecurring && date) {
-        // --- Recurring task: add/remove a RECURRENCE-ID override for this instance ---
-        // Extract the original DTSTART line from the master VTODO to preserve timezone/format.
-        // The RECURRENCE-ID must match the exact format of the original DTSTART (including
-        // TZID parameter) or the CalDAV server won't recognize the override.
-        // IMPORTANT: We must search within the master VTODO block only — VTIMEZONE blocks
-        // also contain DTSTART lines (e.g. DTSTART:19701101T020000) that would give wrong values.
-        const datePart = date.replace(/-/g, '');
-
-        // Find the master VTODO block (the one WITHOUT a RECURRENCE-ID line)
-        const vtodoBlocks = icsContent.match(/BEGIN:VTODO[\s\S]*?END:VTODO/g) || [];
-        const masterBlock = vtodoBlocks.find(block => !/RECURRENCE-ID/i.test(block)) || vtodoBlocks[0] || '';
-
-        // Extract DTSTART (or DUE) from the master block only
-        const dtstartMatchReal = masterBlock.match(/^(DTSTART[^:]*):(.*)$/m);
-        const dueMatchReal = masterBlock.match(/^(DUE[^:]*):(.*)$/m);
-        const dtstartMatch = dtstartMatchReal || dueMatchReal;
-        const masterUsesDue = !dtstartMatchReal && !!dueMatchReal; // master has DUE only, no DTSTART
-        console.log('CalDAV sync-back: master VTODO date match:', dtstartMatch ? dtstartMatch[0] : 'NONE', masterUsesDue ? '(DUE-based)' : '(DTSTART-based)');
-        console.log('CalDAV sync-back: VTODO blocks found:', vtodoBlocks.length, 'master block length:', masterBlock.length);
-        let recIdLine, dateLine; // dateLine = DTSTART or DUE line for the override
-
-        if (dtstartMatch) {
-          const dateParams = dtstartMatch[1]; // e.g. "DTSTART;TZID=America/New_York" or "DUE;VALUE=DATE" etc.
-          const dateValue = dtstartMatch[2].trim(); // e.g. "20260101T090000" or "20260101"
-          // Use the same property name as the master (DUE or DTSTART) for the override
-          const datePropName = masterUsesDue ? 'DUE' : 'DTSTART';
-
-          if (dateParams.includes('VALUE=DATE') || dateValue.length === 8) {
-            // All-day: use VALUE=DATE format
-            recIdLine = `RECURRENCE-ID;VALUE=DATE:${datePart}`;
-            dateLine = `${datePropName};VALUE=DATE:${datePart}`;
-          } else {
-            // Has time component — extract time portion from original and preserve TZID
-            const timePortion = dateValue.replace(/^\d{8}/, ''); // e.g. "T090000" or "T090000Z"
-            const tzidMatch = dateParams.match(/;(TZID=[^;:]+)/);
-            const tzidParam = tzidMatch ? ';' + tzidMatch[1] : '';
-            recIdLine = `RECURRENCE-ID${tzidParam}:${datePart}${timePortion}`;
-            dateLine = `${datePropName}${tzidParam}:${datePart}${timePortion}`;
-          }
-        } else {
-          // Fallback: no DTSTART/DUE found, use date-only
-          recIdLine = `RECURRENCE-ID;VALUE=DATE:${datePart}`;
-          dateLine = `DTSTART;VALUE=DATE:${datePart}`;
-        }
-
-        // Extract SUMMARY and SEQUENCE from the master VTODO
-        const summaryMatch = masterBlock.match(/^SUMMARY:(.*)$/m);
-        const summary = summaryMatch ? summaryMatch[1] : 'Task';
-        const sequenceMatch = masterBlock.match(/^SEQUENCE:(\d+)/m);
-        const sequence = sequenceMatch ? sequenceMatch[1] : '0';
-
-        // Remove ALL existing override VTODOs for this date (any format) to clean up
-        // stale overrides from previous sync attempts that may have used different formats
-        const anyOverrideForDateRegex = new RegExp(
-          'BEGIN:VTODO\\r?\\n(?:(?!END:VTODO)[\\s\\S])*?' +
-          'RECURRENCE-ID[^:]*:' + datePart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-          '[\\s\\S]*?END:VTODO\\r?\\n?',
-          'gm'
+        // Nextcloud Tasks doesn't support RECURRENCE-ID overrides for VTODOs
+        // (https://github.com/nextcloud/tasks/issues/2276). Previous code created
+        // per-instance overrides that Nextcloud ignored. Clean up any stale
+        // overrides, then fall through to modify the master VTODO directly.
+        console.log('CalDAV sync-back: recurring task — cleaning overrides, modifying master directly');
+        icsContent = icsContent.replace(
+          /BEGIN:VTODO\r?\n(?:(?!END:VTODO)[\s\S])*?RECURRENCE-ID[\s\S]*?END:VTODO\r?\n?/gm,
+          ''
         );
-        icsContent = icsContent.replace(anyOverrideForDateRegex, '');
+      }
 
-        if (completed) {
-          const overrideVtodo = [
-            'BEGIN:VTODO',
-            `UID:${icalUid}`,
-            recIdLine,
-            dateLine,
-            `SEQUENCE:${sequence}`,
-            `SUMMARY:${summary}`,
-            'STATUS:COMPLETED',
-            `COMPLETED:${timestamp}`,
-            'PERCENT-COMPLETE:100',
-            `LAST-MODIFIED:${timestamp}`,
-            `DTSTAMP:${timestamp}`,
-            'END:VTODO'
-          ].join('\r\n');
-
-          console.log('CalDAV sync-back: override VTODO:\n' + overrideVtodo);
-
-          // Insert override before END:VCALENDAR
-          icsContent = icsContent.replace(/END:VCALENDAR/, overrideVtodo + '\r\nEND:VCALENDAR');
-        }
-        // If uncompleting, we already removed the override above
-      } else {
-        // --- Non-recurring task: update the VTODO directly ---
-        if (completed) {
-          // Set STATUS to COMPLETED
-          if (/^STATUS:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
-          } else {
-            icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
-          }
-          // Add or update COMPLETED timestamp
-          if (/^COMPLETED:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${timestamp}`);
-          } else {
-            icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${timestamp}\r\n$1`);
-          }
-          // Set PERCENT-COMPLETE to 100
-          if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
-          } else {
-            icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
-          }
+      // --- Update the master VTODO directly ---
+      if (completed) {
+        // Set STATUS to COMPLETED
+        if (/^STATUS:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
         } else {
-          // Revert to incomplete
-          if (/^STATUS:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
-          }
-          // Remove COMPLETED timestamp
-          icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
-          // Reset PERCENT-COMPLETE to 0
-          if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
-          }
+          icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
+        }
+        // Add or update COMPLETED timestamp
+        if (/^COMPLETED:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${timestamp}`);
+        } else {
+          icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${timestamp}\r\n$1`);
+        }
+        // Set PERCENT-COMPLETE to 100
+        if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
+        } else {
+          icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
+        }
+      } else {
+        // Revert to incomplete
+        if (/^STATUS:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
+        }
+        // Remove COMPLETED timestamp
+        icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
+        // Reset PERCENT-COMPLETE to 0
+        if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
+          icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
         }
       }
 
