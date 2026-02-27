@@ -1216,7 +1216,7 @@ const HABIT_COLORS = [
 ];
 
 // HabitRing — SVG circular progress ring component
-const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, darkMode }) => {
+const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, darkMode }) => {
   const { type, target, color, icon } = habit;
   const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
   const IconComponent = HABIT_ICONS[icon] || Target;
@@ -1255,6 +1255,9 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, darkMo
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
       className="flex flex-col items-center gap-0.5 select-none active:scale-95 transition-transform"
       style={{ width: size + 8 }}
     >
@@ -4728,14 +4731,16 @@ const DayPlanner = () => {
       // Find the task to check if it's a task calendar item
       const task = tasks.find(t => t.id === id);
       if (task?.isTaskCalendar && task?.icalUid) {
-        // Persist completion state for task calendar items
+        // Persist completion state for task calendar items using composite key (UID + date)
+        // so that recurring calendar task instances are tracked independently
+        const completionKey = task.icalUid + '::' + task.date;
         const newCompleted = !task.completed;
         setCompletedTaskUids(prev => {
           const newSet = new Set(prev);
           if (task.completed) {
-            newSet.delete(task.icalUid);
+            newSet.delete(completionKey);
           } else {
-            newSet.add(task.icalUid);
+            newSet.add(completionKey);
           }
           return newSet;
         });
@@ -8781,7 +8786,7 @@ const DayPlanner = () => {
         duration: isAllDay ? 60 : (asTaskCalendar ? 15 : (duration > 0 ? duration : 60)),
         date: dateToString(taskDate),
         color: asTaskCalendar ? 'task-calendar' : (customColor || 'bg-gray-600'),
-        completed: asTaskCalendar ? freshCompletedUids.has(event.uid) : false,
+        completed: asTaskCalendar ? freshCompletedUids.has(event.uid + '::' + dateToString(taskDate)) : false,
         imported: true,
         isTaskCalendar: asTaskCalendar,
         isAllDay: isAllDay,
@@ -12699,6 +12704,9 @@ const DayPlanner = () => {
                             darkMode={darkMode}
                             onClick={() => incrementHabit(habit.id)}
                             onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
+                            onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                            onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                            onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                           />
                           {habitLongPressId === habit.id && (
                             <>
@@ -13512,7 +13520,8 @@ const DayPlanner = () => {
 
             {mobileActiveTab === 'frames' && (
               <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
-                {/* Tab switcher */}
+                {/* Tab switcher — only show when AI scheduling is enabled */}
+                {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
                 <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5 mb-4`}>
                   <button
                     onClick={() => setFramesModalTab('frames')}
@@ -13527,6 +13536,7 @@ const DayPlanner = () => {
                     Smart Schedule
                   </button>
                 </div>
+                )}
 
                 {framesModalTab === 'frames' && (
                   <>
@@ -13594,7 +13604,7 @@ const DayPlanner = () => {
                   </>
                 )}
 
-                {framesModalTab === 'schedule' && (
+                {aiConfig?.enabled && aiConfig.features?.smartScheduling && framesModalTab === 'schedule' && (
                   <SmartSchedulePanel
                     aiConfig={aiConfig}
                     inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
@@ -14425,7 +14435,7 @@ const DayPlanner = () => {
           {mobileActiveTab === 'timeline' && (
             <>
               {/* GTD Frames FAB */}
-              {gtdFrames.length > 0 && (
+              {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.length > 0 && (
                 <button
                   onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); }}
                   className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
@@ -14970,6 +14980,7 @@ const DayPlanner = () => {
                 {showLabels && <span className="text-[10px] font-medium">Routines</span>}
               </button>
               )}
+              {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
@@ -14981,6 +14992,7 @@ const DayPlanner = () => {
                 <LayoutGrid size={iconSize} />
                 {showLabels && <span className="text-[10px] font-medium">Frames</span>}
               </button>
+              )}
               <button
                 onClick={() => {
                   if (mobileActiveTab === 'routines') handleRoutinesDone();
@@ -15480,7 +15492,7 @@ const DayPlanner = () => {
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowMobileTagFilter(false)} />
                                 <div
-                                  className={`absolute top-full right-0 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
+                                  className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
                                   style={{ width: '280px' }}
                                   onClick={(e) => e.stopPropagation()}
                                 >
@@ -15623,6 +15635,9 @@ const DayPlanner = () => {
                                   darkMode={darkMode}
                                   onClick={() => incrementHabit(habit.id)}
                                   onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
+                                  onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                                  onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                                  onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                                 />
                                 {habitLongPressId === habit.id && (
                                   <>
@@ -16253,7 +16268,7 @@ const DayPlanner = () => {
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowMobileTagFilter(false)} />
                             <div
-                              className={`absolute top-full right-0 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
+                              className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${cardBg} border ${borderClass} rounded-xl shadow-xl`}
                               style={{ width: '280px' }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -16396,6 +16411,9 @@ const DayPlanner = () => {
                               darkMode={darkMode}
                               onClick={() => incrementHabit(habit.id)}
                               onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
+                              onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                              onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                              onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                             />
                             {habitLongPressId === habit.id && (
                               <>
@@ -19172,6 +19190,7 @@ const DayPlanner = () => {
       {isTablet && (
         <>
           {/* GTD Frames FAB */}
+          {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
           <button
             onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg active:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
@@ -19180,6 +19199,7 @@ const DayPlanner = () => {
           >
             <LayoutGrid size={22} />
           </button>
+          )}
           {/* + New task FAB */}
           <button
             onClick={openNewTaskForm}
@@ -19273,6 +19293,7 @@ const DayPlanner = () => {
       {!isTablet && !isMobile && (
         <>
           {/* GTD Frames FAB */}
+          {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
           <button
             onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg hover:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
@@ -19281,6 +19302,7 @@ const DayPlanner = () => {
           >
             <LayoutGrid size={22} />
           </button>
+          )}
           <button
             onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
@@ -23784,7 +23806,8 @@ const DayPlanner = () => {
                   <X size={18} className={textSecondary} />
                 </button>
               </div>
-              {/* Tab switcher */}
+              {/* Tab switcher — only show when AI scheduling is enabled */}
+              {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
               <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5`}>
                 <button
                   onClick={() => setFramesModalTab('frames')}
@@ -23799,6 +23822,7 @@ const DayPlanner = () => {
                   Smart Schedule
                 </button>
               </div>
+              )}
             </div>
 
             <div className="px-6 py-4">
@@ -23869,7 +23893,7 @@ const DayPlanner = () => {
                 </>
               )}
 
-              {framesModalTab === 'schedule' && (
+              {aiConfig?.enabled && aiConfig.features?.smartScheduling && framesModalTab === 'schedule' && (
                 <SmartSchedulePanel
                   aiConfig={aiConfig}
                   inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
