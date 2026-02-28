@@ -12862,7 +12862,7 @@ const DayPlanner = () => {
                     onClick={generateMorningSummary}
                   >
                     <Sun size={14} className="text-amber-500 flex-shrink-0" />
-                    <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see your daily briefing</span>
+                    <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see AI briefing</span>
                     <button
                       onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
                       className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
@@ -15796,7 +15796,7 @@ const DayPlanner = () => {
                           onClick={generateMorningSummary}
                         >
                           <Sun size={14} className="text-amber-500 flex-shrink-0" />
-                          <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see your daily briefing</span>
+                          <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see AI briefing</span>
                           <button
                             onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
                             className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
@@ -16578,7 +16578,7 @@ const DayPlanner = () => {
                       onClick={generateMorningSummary}
                     >
                       <Sun size={14} className="text-amber-500 flex-shrink-0" />
-                      <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see your daily briefing</span>
+                      <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see AI briefing</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
                         className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
@@ -23177,7 +23177,7 @@ const DayPlanner = () => {
                       onClick={() => generateWeeklyAISummary(weeklyAIStats)}
                     >
                       <Sparkles size={14} className="text-purple-500 flex-shrink-0" />
-                      <span className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Click here to see your weekly AI insights</span>
+                      <span className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Click here to see AI insights</span>
                     </div>
                     )
                   )}
