@@ -19,8 +19,9 @@ body {
 
 #root {
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 /* Custom scrollbar styling */
@@ -105,8 +106,8 @@ body.using-pointer a:focus-visible {
 /* Hide scrollbar on review carousel */
 .review-carousel::-webkit-scrollbar { display: none; }
 
-/* Mobile app shell — locks body to visible viewport so only inner panes scroll */
-.mobile-app-shell {
+/* App shell — locks body to visible viewport so only inner panes scroll */
+.app-shell {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;

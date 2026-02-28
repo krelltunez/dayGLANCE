@@ -2876,21 +2876,19 @@ const DayPlanner = () => {
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#ffffff');
   }, [darkMode]);
 
-  // Lock body/html scrolling on mobile to prevent scroll chaining
+  // Lock body/html scrolling to prevent scroll chaining (all devices incl. desktop PWA)
   useEffect(() => {
-    if (isMobile) {
-      document.documentElement.style.overflow = 'hidden';
-      document.documentElement.style.height = '100dvh';
-      document.body.style.overflow = 'hidden';
-      document.body.style.height = '100dvh';
-    }
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.height = '100dvh';
+    document.body.style.overflow = 'hidden';
+    document.body.style.height = '100dvh';
     return () => {
       document.documentElement.style.overflow = '';
       document.documentElement.style.height = '';
       document.body.style.overflow = '';
       document.body.style.height = '';
     };
-  }, [isMobile]);
+  }, []);
 
   // Persist minimizedSections to localStorage
   useEffect(() => {
@@ -11724,7 +11722,7 @@ const DayPlanner = () => {
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
   return (
-    <div className={`${isMobile ? 'mobile-app-shell' : 'min-h-screen'} ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className={`app-shell ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Safe-area cover: fills the status bar inset with the header color so
            bg-gray-900 (which has a blue tint) doesn't peek through as a visible line */}
       <div className={`fixed top-0 left-0 right-0 ${cardBg} z-[60]`} style={{ height: 'env(safe-area-inset-top, 0px)' }} />
