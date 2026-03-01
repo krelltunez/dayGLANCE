@@ -22865,7 +22865,12 @@ const DayPlanner = () => {
 
       {/* Frame Manually Schedule Modal */}
       {frameScheduleModal && (() => {
-        const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample).sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!t.deadline || t.deadline === frameScheduleModal.dateStr)).sort((a, b) => {
+          const aHasDeadline = a.deadline ? 1 : 0;
+          const bHasDeadline = b.deadline ? 1 : 0;
+          if (bHasDeadline !== aHasDeadline) return bHasDeadline - aHasDeadline;
+          return (b.priority || 0) - (a.priority || 0);
+        });
         const frameInstance = {
           frameId: frameScheduleModal.frameId,
           date: frameScheduleModal.dateStr,
