@@ -14317,8 +14317,8 @@ const DayPlanner = () => {
                       <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                        {(syncUrl || taskCalendarUrl) && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
+                        {(syncUrl || taskCalendarUrl) && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
                       <div>
@@ -14423,8 +14423,8 @@ const DayPlanner = () => {
                       <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
                         Cloud Sync
-                        {cloudSyncConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
+                        {cloudSyncConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.cloudSync && (<>
                       <p className={`${textSecondary} text-xs`}>Sync all your data as a JSON file to your cloud storage.</p>
@@ -22267,13 +22267,194 @@ const DayPlanner = () => {
                 <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
                   {/* Left column */}
                   <div className="space-y-6">
-                    {/* Cloud Sync Section - narrow screens only */}
-                    <div className="space-y-3 lg:hidden">
+
+                    {/* Clock Format Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Clock size={16} className={textSecondary} />
+                        Clock Format
+                      </h4>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setUse24HourClock(true)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                          }`}
+                        >
+                          24-hour
+                        </button>
+                        <button
+                          onClick={() => setUse24HourClock(false)}
+                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                            !use24HourClock
+                              ? 'bg-blue-600 text-white'
+                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                          }`}
+                        >
+                          12-hour
+                        </button>
+                      </div>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Sound Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Bell size={16} className={textSecondary} />
+                        Sound
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={soundEnabled}
+                            onChange={(e) => setSoundEnabled(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Habit Tracking Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Activity size={16} className={textSecondary} />
+                        Habit Tracking
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={habitsEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Routines Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Sparkles size={16} className={textSecondary} />
+                        Routines
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={routinesEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(e.target.checked); }}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${routinesEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable routines</span>
+                      </label>
+                    </div>
+
+                    {!isMobile && !isTablet && (<>
+                    <hr className={borderClass} />
+
+                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <MapPin size={16} className={textSecondary} />
+                        Weather Location
+                      </h4>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          ZIP code or city name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 90210 or Seattle"
+                          value={weatherZip}
+                          onChange={(e) => setWeatherZip(e.target.value)}
+                          onBlur={() => fetchWeather()}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Leave empty to hide weather
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>
+                          Temperature unit
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'fahrenheit'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            °F
+                          </button>
+                          <button
+                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weatherTempUnit === 'celsius'
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            °C
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    </>)}
+
+                    <hr className={borderClass} />
+
+                    {/* iCal Import Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Upload size={16} className={textSecondary} />
+                        iCal Import
+                      </h4>
+                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                        <Upload size={14} className={textSecondary} />
+                        Choose .ics file
+                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
+                      </label>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Import events from an iCal (.ics) file
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right column — integrations (side-by-side on desktop, stacked below on tablet) */}
+                  <div className={`space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
+                    <hr className={`${borderClass} lg:hidden`} />
+                    {/* Cloud Sync Section */}
+                    <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
                         Cloud Sync
-                        {cloudSyncConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
+                        {cloudSyncConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.cloudSync && (<>
                       <p className={`${textSecondary} text-xs`}>
@@ -22296,15 +22477,15 @@ const DayPlanner = () => {
                       </>)}
                     </div>
 
-                    <hr className={`${borderClass} lg:hidden`} />
+                    <hr className={borderClass} />
 
-                    {/* Calendar Sync Section - narrow screens only (shown in right column on desktop) */}
-                    <div className="space-y-3 lg:hidden">
+                    {/* Calendar Sync Section - wide screens */}
+                    <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                        {(syncUrl || taskCalendarUrl) && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
+                        {(syncUrl || taskCalendarUrl) && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
                       <div>
@@ -22418,110 +22599,6 @@ const DayPlanner = () => {
                       </>)}
                     </div>
 
-                    <hr className={`${borderClass} lg:hidden`} />
-
-                    {/* Clock Format Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Clock size={16} className={textSecondary} />
-                        Clock Format
-                      </h4>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setUse24HourClock(true)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          24-hour
-                        </button>
-                        <button
-                          onClick={() => setUse24HourClock(false)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            !use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          12-hour
-                        </button>
-                      </div>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Sound Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Bell size={16} className={textSecondary} />
-                        Sound
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={soundEnabled}
-                            onChange={(e) => setSoundEnabled(e.target.checked)}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${soundEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
-                      </label>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Habit Tracking Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Activity size={16} className={textSecondary} />
-                        Habit Tracking
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={habitsEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
-                      </label>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Routines Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Sparkles size={16} className={textSecondary} />
-                        Routines
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={routinesEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(e.target.checked); }}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${routinesEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable routines</span>
-                      </label>
-                    </div>
-
                     <hr className={borderClass} />
 
                     {/* AI Features Section */}
@@ -22529,8 +22606,8 @@ const DayPlanner = () => {
                       <button onClick={() => toggleSettingsSection('ai')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BrainCircuit size={16} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
                         AI Features
-                        {aiConfig.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.ai ? '' : 'rotate-180'}`} />
+                        {aiConfig.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.ai ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.ai && (<>
                       <p className={`${textSecondary} text-xs`}>
@@ -22734,69 +22811,13 @@ const DayPlanner = () => {
                     {!isMobile && !isTablet && (<>
                     <hr className={borderClass} />
 
-                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <MapPin size={16} className={textSecondary} />
-                        Weather Location
-                      </h4>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          ZIP code or city name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 90210 or Seattle"
-                          value={weatherZip}
-                          onChange={(e) => setWeatherZip(e.target.value)}
-                          onBlur={() => fetchWeather()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          Leave empty to hide weather
-                        </p>
-                      </div>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Temperature unit
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'fahrenheit'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °F
-                          </button>
-                          <button
-                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'celsius'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °C
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    </>)}
-
-                    {!isMobile && !isTablet && (<>
-                    <hr className={borderClass} />
-
                     {/* Obsidian Integration Section — desktop only (requires File System Access API) */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('obsidian')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BookOpen size={16} className={textSecondary} />
                         Obsidian Integration
-                        {obsidianConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.obsidian ? '' : 'rotate-180'}`} />
+                        {obsidianConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.obsidian ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.obsidian && (<>
                       <p className={`${textSecondary} text-xs`}>
@@ -22906,8 +22927,8 @@ const DayPlanner = () => {
                       <button onClick={() => toggleSettingsSection('trmnl')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <LayoutGrid size={16} className={textSecondary} />
                         TRMNL Dashboard
-                        {trmnlConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.trmnl ? '' : 'rotate-180'}`} />
+                        {trmnlConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.trmnl ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.trmnl && (<>
                       <p className={`${textSecondary} text-xs`}>
@@ -23008,178 +23029,6 @@ const DayPlanner = () => {
                             </button>
                           ))}
                         </div>
-                      )}
-                      </>)}
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* iCal Import Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Upload size={16} className={textSecondary} />
-                        iCal Import
-                      </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
-                        <Upload size={14} className={textSecondary} />
-                        Choose .ics file
-                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
-                      </label>
-                      <p className={`text-xs ${textSecondary}`}>
-                        Import events from an iCal (.ics) file
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Right column - wide screens only */}
-                  <div className={`hidden lg:block space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
-                    {/* Cloud Sync Section */}
-                    <div className="space-y-3">
-                      <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
-                        <Cloud size={16} className={textSecondary} />
-                        Cloud Sync
-                        {cloudSyncConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
-                      </button>
-                      {!collapsedSettings.cloudSync && (<>
-                      <p className={`${textSecondary} text-xs`}>
-                        Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage.
-                      </p>
-                      <CloudSyncSettingsForm
-                        darkMode={darkMode}
-                        textPrimary={textPrimary}
-                        textSecondary={textSecondary}
-                        borderClass={borderClass}
-                        hoverBg={hoverBg}
-                        cloudSyncConfig={cloudSyncConfig}
-                        setCloudSyncConfig={setCloudSyncConfig}
-                        cloudSyncTest={cloudSyncTest}
-                        provider={provider}
-                        currentProvider={currentProvider}
-                        onClose={() => setShowSettings(false)}
-                        cloudSyncLastSynced={cloudSyncLastSynced}
-                      />
-                      </>)}
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Calendar Sync Section - wide screens */}
-                    <div className="space-y-3">
-                      <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
-                        <RefreshCw size={16} className={textSecondary} />
-                        Calendar Sync
-                        {(syncUrl || taskCalendarUrl) && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
-                      </button>
-                      {!collapsedSettings.calSync && (<>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Calendar URL (iCal/CalDAV)
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
-                          value={syncUrl}
-                          onChange={(e) => setSyncUrl(e.target.value)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          For Nextcloud: Go to Calendar → Settings → Copy the public link
-                        </p>
-                      </div>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Task Calendar URL (iCal/CalDAV)
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
-                          value={taskCalendarUrl}
-                          onChange={(e) => setTaskCalendarUrl(e.target.value)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          Tasks appear with striped pattern; completion state persists across syncs
-                        </p>
-                      </div>
-                      {taskCalendarUrl && (
-                        <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-                          <p className={`text-xs font-medium ${textSecondary}`}>Sync completions back (optional)</p>
-                          <div>
-                            <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
-                            <input
-                              type="url"
-                              placeholder="https://cloud.example.com/remote.php/dav/calendars/user/personal/"
-                              value={taskCalendarAuth.caldavBaseUrl}
-                              onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, caldavBaseUrl: e.target.value }))}
-                              className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-                            />
-                            <p className={`text-xs ${textSecondary} mt-0.5`}>
-                              The CalDAV collection URL (without ?export). In Nextcloud, the calendar ID in the URL may differ from the display name.
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
-                              <input
-                                type="text"
-                                placeholder="username"
-                                value={taskCalendarAuth.username}
-                                onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, username: e.target.value }))}
-                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>App Password</label>
-                              <input
-                                type="password"
-                                placeholder="app-password"
-                                value={taskCalendarAuth.appPassword}
-                                onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, appPassword: e.target.value }))}
-                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-                              />
-                            </div>
-                          </div>
-                          <p className={`text-xs ${textSecondary}`}>
-                            When set, completing a task syncs the status back to your CalDAV server
-                          </p>
-                        </div>
-                      )}
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Keep past events
-                        </label>
-                        <select
-                          value={syncRetentionDays}
-                          onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
-                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        >
-                          <option value={7}>7 days</option>
-                          <option value={14}>14 days</option>
-                          <option value={30}>30 days</option>
-                          <option value={60}>60 days</option>
-                          <option value={90}>90 days</option>
-                          <option value={180}>6 months</option>
-                          <option value={365}>1 year</option>
-                          <option value={0}>All (no limit)</option>
-                        </select>
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          Older imported events are dropped to save storage. Future events are always kept.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => syncAll()}
-                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
-                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                        {isSyncing ? 'Syncing...' : 'Sync Now'}
-                      </button>
-                      {calSyncLastSynced && (
-                        <p className={`text-xs ${textSecondary}`}>
-                          Last synced: {new Date(calSyncLastSynced).toLocaleString()}
-                        </p>
                       )}
                       </>)}
                     </div>
