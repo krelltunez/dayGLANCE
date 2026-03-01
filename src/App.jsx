@@ -13120,183 +13120,275 @@ const DayPlanner = () => {
                     </div>
                   );
                 })()}
-                {(() => { const filteredAgenda = filterByTags(todayAgenda); return (
-                  <div className="space-y-1.5">
-                    {filteredAgenda.flatMap((task, idx) => {
-                      const mobileItems = [];
-                      // Insert "Now" marker at the right position (skip when inside a task/event)
-                      if (!agendaNowMarker.insideTask) {
-                        if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
-                          const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                          const gapM = agendaNowMarker.gapMinutes % 60;
-                          const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                          mobileItems.push(
-                            <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
-                              <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                {agendaNowMarker.inboxCount > 0 && (
-                                  <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        } else if (idx > 0) {
-                          // Check if we should insert marker before this task (by comparing with todayAgenda positions)
-                          const prevTask = filteredAgenda[idx - 1];
-                          const prevIdxInFull = todayAgenda.indexOf(prevTask);
-                          const curIdxInFull = todayAgenda.indexOf(task);
-                          if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
-                            const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                            const gapM = agendaNowMarker.gapMinutes % 60;
-                            const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                            mobileItems.push(
-                              <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
-                                <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                  {agendaNowMarker.inboxCount > 0 && (
-                                    <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                        }
+                {(() => {
+                  const filteredAgenda = filterByTags(todayAgenda);
+                  const today = new Date(getTodayStr() + 'T12:00:00');
+                  const todayFrames = getFrameInstancesForDate(today);
+                  const glanceBorderColorMap = {
+                    'bg-indigo-200': 'rgba(165,180,252,0.4)',
+                    'bg-amber-200': 'rgba(253,230,138,0.4)',
+                    'bg-green-200': 'rgba(167,243,208,0.4)',
+                    'bg-blue-200': 'rgba(191,219,254,0.4)',
+                    'bg-rose-200': 'rgba(254,205,211,0.4)',
+                    'bg-purple-200': 'rgba(221,214,254,0.4)',
+                    'bg-teal-200': 'rgba(153,246,228,0.4)',
+                    'bg-orange-200': 'rgba(254,215,170,0.4)',
+                  };
+                  const glanceColorMap = {
+                    'bg-indigo-200': 'rgba(165,180,252,0.08)',
+                    'bg-amber-200': 'rgba(253,230,138,0.08)',
+                    'bg-green-200': 'rgba(167,243,208,0.08)',
+                    'bg-blue-200': 'rgba(191,219,254,0.08)',
+                    'bg-rose-200': 'rgba(254,205,211,0.08)',
+                    'bg-purple-200': 'rgba(221,214,254,0.08)',
+                    'bg-teal-200': 'rgba(153,246,228,0.08)',
+                    'bg-orange-200': 'rgba(254,215,170,0.08)',
+                  };
+
+                  const taskFrameMap = new Map();
+                  for (const task of filteredAgenda) {
+                    if (task._agendaType !== 'scheduled' || !task.startTime) continue;
+                    const tStart = timeToMinutes(task.startTime);
+                    const tEnd = tStart + (task.duration || 30);
+                    for (const frame of todayFrames) {
+                      const fStart = timeToMinutes(frame.start);
+                      const fEnd = timeToMinutes(frame.end);
+                      if (tStart >= fStart && tEnd <= fEnd) {
+                        taskFrameMap.set(String(task.id), frame.frameId);
+                        break;
                       }
-                      const colorClass = task.color === 'task-calendar' ? '' : task.color;
-                      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                      let timeLabel = '';
-                      let relativeLabel = '';
-                      if (task._agendaType === 'allday') {
-                        timeLabel = 'ALL DAY';
-                      } else if (task._agendaType === 'deadline') {
-                        timeLabel = 'DUE TODAY';
-                      } else {
-                        const [h, m] = (task.startTime || '0:0').split(':').map(Number);
-                        const startMin = h * 60 + m;
-                        const endMin = startMin + (task.duration || 0);
-                        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
-                        const endM = String(endMin % 60).padStart(2, '0');
-                        timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
-                        const diff = startMin - nowMin;
-                        if (diff > 0) {
-                          relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
-                        } else if (diff === 0) {
-                          relativeLabel = 'now';
-                        } else if (nowMin < endMin && !task.completed) {
-                          relativeLabel = 'In Progress';
-                        } else if (nowMin >= endMin && !task.completed) {
-                          relativeLabel = 'Overdue';
-                        }
+                    }
+                  }
+
+                  const nonScheduled = filteredAgenda.filter(t => t._agendaType !== 'scheduled');
+                  const scheduled = filteredAgenda.filter(t => t._agendaType === 'scheduled');
+
+                  const sections = [];
+                  const sortedFrames = [...todayFrames].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+                  const assignedTaskIds = new Set();
+
+                  let scheduledIdx = 0;
+                  for (const frame of sortedFrames) {
+                    const fStart = timeToMinutes(frame.start);
+                    const beforeTasks = [];
+                    while (scheduledIdx < scheduled.length) {
+                      const t = scheduled[scheduledIdx];
+                      const tStart = timeToMinutes(t.startTime || '00:00');
+                      if (tStart < fStart && !taskFrameMap.has(String(t.id))) {
+                        beforeTasks.push(t);
+                        assignedTaskIds.add(String(t.id));
+                        scheduledIdx++;
+                      } else break;
+                    }
+                    if (beforeTasks.length > 0) sections.push({ type: 'unframed', tasks: beforeTasks });
+
+                    const frameTasks = scheduled.filter(t => taskFrameMap.get(String(t.id)) === frame.frameId);
+                    const availSlots = computeAvailableSlots(frame, today);
+                    const totalAvail = availSlots.reduce((sum, s) => sum + s.minutes, 0);
+                    sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                    frameTasks.forEach(t => assignedTaskIds.add(String(t.id)));
+                    while (scheduledIdx < scheduled.length && assignedTaskIds.has(String(scheduled[scheduledIdx].id))) scheduledIdx++;
+                  }
+                  const remaining = scheduled.filter(t => !assignedTaskIds.has(String(t.id)));
+                  if (remaining.length > 0) sections.push({ type: 'unframed', tasks: remaining });
+
+                  const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+                  const renderMobileTaskItem = (task, keyPrefix) => {
+                    const colorClass = task.color === 'task-calendar' ? '' : task.color;
+                    let timeLabel = '';
+                    let relativeLabel = '';
+                    if (task._agendaType === 'allday') {
+                      timeLabel = 'ALL DAY';
+                    } else if (task._agendaType === 'deadline') {
+                      timeLabel = 'DUE TODAY';
+                    } else {
+                      const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                      const startMin = h * 60 + m;
+                      const endMin = startMin + (task.duration || 0);
+                      const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                      const endM = String(endMin % 60).padStart(2, '0');
+                      timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                      const diff = startMin - nowMin;
+                      if (diff > 0) {
+                        relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                      } else if (diff === 0) {
+                        relativeLabel = 'now';
+                      } else if (nowMin < endMin && !task.completed) {
+                        relativeLabel = 'In Progress';
+                      } else if (nowMin >= endMin && !task.completed) {
+                        relativeLabel = 'Overdue';
                       }
-                      mobileItems.push(
-                        <div
-                          key={`mobile-glance-${task._agendaType}-${task.id}`}
-                          className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
-                          onClick={() => {
-                            setMobileActiveTab('timeline');
-                            setTimeout(() => {
-                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                              if (el) {
-                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                el.classList.add('ring-2', 'ring-blue-400');
-                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-                              }
-                            }, 150);
-                          }}
-                        >
-                          <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
-                          <div className="min-w-0 flex-1">
-                            <div className={`text-base font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
-                              {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
-                              <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
-                              {hasNotesOrSubtasks(task) && (
-                                <button
-                                  onMouseDown={() => {
-                                    if (isLinkOnlyTask(task)) {
-                                      longPressTriggeredRef.current = false;
-                                      longPressTimerRef.current = setTimeout(() => {
-                                        longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
-                                      }, 500);
-                                    }
-                                  }}
-                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                  onTouchStart={(e) => {
-                                    e.stopPropagation();
-                                    if (isLinkOnlyTask(task)) {
-                                      longPressTriggeredRef.current = false;
-                                      longPressTimerRef.current = setTimeout(() => {
-                                        longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
-                                      }, 500);
-                                    }
-                                  }}
-                                  onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isLinkOnlyTask(task)) {
-                                      if (!longPressTriggeredRef.current) {
-                                        window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
-                                      }
-                                      longPressTriggeredRef.current = false;
-                                    } else {
+                    }
+                    return (
+                      <div
+                        key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+                        className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
+                        onClick={() => {
+                          setMobileActiveTab('timeline');
+                          setTimeout(() => {
+                            const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              el.classList.add('ring-2', 'ring-blue-400');
+                              setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                            }
+                          }, 150);
+                        }}
+                      >
+                        <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                        <div className="min-w-0 flex-1">
+                          <div className={`text-base font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
+                            {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
+                            <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                            {hasNotesOrSubtasks(task) && (
+                              <button
+                                onMouseDown={() => {
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
                                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  if (isLinkOnlyTask(task)) {
+                                    longPressTriggeredRef.current = false;
+                                    longPressTimerRef.current = setTimeout(() => {
+                                      longPressTriggeredRef.current = true;
+                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                    }, 500);
+                                  }
+                                }}
+                                onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isLinkOnlyTask(task)) {
+                                    if (!longPressTriggeredRef.current) {
+                                      window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
                                     }
-                                  }}
-                                  className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-stone-500'}`}
-                                  title={isLinkOnlyTask(task) ? getLinkUrl(task) : "Notes & subtasks"}
-                                >
-                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
-                                </button>
+                                    longPressTriggeredRef.current = false;
+                                  } else {
+                                    setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                  }
+                                }}
+                                className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-stone-500'}`}
+                                title={isLinkOnlyTask(task) ? getLinkUrl(task) : "Notes & subtasks"}
+                              >
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                              </button>
+                            )}
+                          </div>
+                          <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                            {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                            {relativeLabel === 'In Progress' && focusModeAvailable && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                title="Enter Focus Mode"
+                              >
+                                <Target size={16} className="animate-pulse" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {relativeLabel === 'Overdue' && !task.completed && (
+                          <div className="flex items-center gap-1 flex-shrink-0 mr-5">
+                            {!task.isRecurring && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pushUndo();
+                                  setTasks(prev => prev.filter(t => t.id !== task.id));
+                                  const { startTime, date, _agendaType, ...rest } = task;
+                                  setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                  playUISound('slide');
+                                  setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                }}
+                                className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                                title="Move to Inbox"
+                              >
+                                <Inbox size={14} />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                              className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                              title="Mark complete"
+                            >
+                              <CheckCircle size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  return (
+                  <div className="space-y-1.5">
+                    {/* Now marker before first task */}
+                    {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
+                      const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                      const gapM = agendaNowMarker.gapMinutes % 60;
+                      const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                      return (
+                        <div key="mobile-now-marker" className="flex gap-2.5 py-2.5">
+                          <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                            {agendaNowMarker.inboxCount > 0 && (
+                              <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {/* Non-scheduled items (all-day, deadlines) */}
+                    {nonScheduled.map(task => renderMobileTaskItem(task, 'mobile-glance'))}
+                    {/* Frame-grouped and unframed sections */}
+                    {sections.map((section, si) => {
+                      if (section.type === 'frame') {
+                        const borderColor = glanceBorderColorMap[section.frame.color] || 'rgba(165,180,252,0.4)';
+                        const bgColor = glanceColorMap[section.frame.color] || 'rgba(165,180,252,0.08)';
+                        const availH = Math.floor(section.totalAvail / 60);
+                        const availM = section.totalAvail % 60;
+                        const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
+                        return (
+                          <div
+                            key={`mobile-frame-section-${section.frame.frameId}`}
+                            className="rounded-md overflow-hidden"
+                            style={{
+                              borderLeft: `3px solid ${borderColor}`,
+                              background: bgColor,
+                            }}
+                          >
+                            <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                              <div className="flex items-center gap-1.5">
+                                <LayoutGrid size={12} style={{ color: borderColor }} />
+                                <span className="text-xs font-semibold" style={{ color: borderColor }}>{section.frame.label}</span>
+                                <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
+                              </div>
+                              {section.totalAvail > 0 && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: borderColor, border: `1px dashed ${borderColor}`, opacity: 0.7 }}>
+                                  {availStr} free
+                                </span>
                               )}
                             </div>
-                            <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
-                              {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
-                              {relativeLabel === 'In Progress' && focusModeAvailable && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
-                                  className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
-                                  title="Enter Focus Mode"
-                                >
-                                  <Target size={16} className="animate-pulse" />
-                                </button>
+                            <div className="px-2 pb-1.5">
+                              {section.tasks.length === 0 ? (
+                                <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
+                              ) : (
+                                section.tasks.map(task => renderMobileTaskItem(task, 'mobile-frame'))
                               )}
                             </div>
                           </div>
-                          {relativeLabel === 'Overdue' && !task.completed && (
-                            <div className="flex items-center gap-1 flex-shrink-0 mr-5">
-                              {!task.isRecurring && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    pushUndo();
-                                    setTasks(prev => prev.filter(t => t.id !== task.id));
-                                    const { startTime, date, _agendaType, ...rest } = task;
-                                    setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                    playUISound('slide');
-                                    setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                  }}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
-                                  title="Move to Inbox"
-                                >
-                                  <Inbox size={14} />
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
-                                title="Mark complete"
-                              >
-                                <CheckCircle size={14} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                      return mobileItems;
+                        );
+                      }
+                      return section.tasks.map(task => renderMobileTaskItem(task, 'mobile-glance'));
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
                     {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
@@ -16050,142 +16142,246 @@ const DayPlanner = () => {
                         );
                       })()}
 
-                      {/* Today's agenda */}
-                      {(() => { const filteredAgenda = filterByTags(todayAgenda); return (
+                      {/* Today's agenda — grouped by frames */}
+                      {(() => {
+                        const filteredAgenda = filterByTags(todayAgenda);
+                        const today = new Date(getTodayStr() + 'T12:00:00');
+                        const todayFrames = getFrameInstancesForDate(today);
+                        const glanceBorderColorMap = {
+                          'bg-indigo-200': 'rgba(165,180,252,0.4)',
+                          'bg-amber-200': 'rgba(253,230,138,0.4)',
+                          'bg-green-200': 'rgba(167,243,208,0.4)',
+                          'bg-blue-200': 'rgba(191,219,254,0.4)',
+                          'bg-rose-200': 'rgba(254,205,211,0.4)',
+                          'bg-purple-200': 'rgba(221,214,254,0.4)',
+                          'bg-teal-200': 'rgba(153,246,228,0.4)',
+                          'bg-orange-200': 'rgba(254,215,170,0.4)',
+                        };
+                        const glanceColorMap = {
+                          'bg-indigo-200': 'rgba(165,180,252,0.08)',
+                          'bg-amber-200': 'rgba(253,230,138,0.08)',
+                          'bg-green-200': 'rgba(167,243,208,0.08)',
+                          'bg-blue-200': 'rgba(191,219,254,0.08)',
+                          'bg-rose-200': 'rgba(254,205,211,0.08)',
+                          'bg-purple-200': 'rgba(221,214,254,0.08)',
+                          'bg-teal-200': 'rgba(153,246,228,0.08)',
+                          'bg-orange-200': 'rgba(254,215,170,0.08)',
+                        };
+
+                        // Classify each agenda task into a frame or "unframed"
+                        const taskFrameMap = new Map(); // taskId -> frameId
+                        for (const task of filteredAgenda) {
+                          if (task._agendaType !== 'scheduled' || !task.startTime) continue;
+                          const tStart = timeToMinutes(task.startTime);
+                          const tEnd = tStart + (task.duration || 30);
+                          for (const frame of todayFrames) {
+                            const fStart = timeToMinutes(frame.start);
+                            const fEnd = timeToMinutes(frame.end);
+                            if (tStart >= fStart && tEnd <= fEnd) {
+                              taskFrameMap.set(String(task.id), frame.frameId);
+                              break;
+                            }
+                          }
+                        }
+
+                        // Build ordered sections: non-scheduled tasks first, then chronological frame/unframed groups
+                        const nonScheduled = filteredAgenda.filter(t => t._agendaType !== 'scheduled');
+                        const scheduled = filteredAgenda.filter(t => t._agendaType === 'scheduled');
+
+                        // Group scheduled tasks into sections in time order
+                        const sections = []; // { type: 'frame' | 'unframed', frame?, tasks[] }
+                        const framedIds = new Set(taskFrameMap.values());
+                        // Sort frames by start time
+                        const sortedFrames = [...todayFrames].filter(f => framedIds.has(f.frameId) || true).sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+                        const assignedTaskIds = new Set();
+
+                        // Interleave frames and unframed tasks in time order
+                        let scheduledIdx = 0;
+                        for (const frame of sortedFrames) {
+                          const fStart = timeToMinutes(frame.start);
+                          // Add unframed tasks before this frame
+                          const beforeTasks = [];
+                          while (scheduledIdx < scheduled.length) {
+                            const t = scheduled[scheduledIdx];
+                            const tStart = timeToMinutes(t.startTime || '00:00');
+                            if (tStart < fStart && !taskFrameMap.has(String(t.id))) {
+                              beforeTasks.push(t);
+                              assignedTaskIds.add(String(t.id));
+                              scheduledIdx++;
+                            } else break;
+                          }
+                          if (beforeTasks.length > 0) sections.push({ type: 'unframed', tasks: beforeTasks });
+
+                          // Add this frame's tasks
+                          const frameTasks = scheduled.filter(t => taskFrameMap.get(String(t.id)) === frame.frameId);
+                          const availSlots = computeAvailableSlots(frame, today);
+                          const totalAvail = availSlots.reduce((sum, s) => sum + s.minutes, 0);
+                          sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                          frameTasks.forEach(t => assignedTaskIds.add(String(t.id)));
+                          // Advance scheduledIdx past frame tasks
+                          while (scheduledIdx < scheduled.length && assignedTaskIds.has(String(scheduled[scheduledIdx].id))) scheduledIdx++;
+                        }
+                        // Remaining unframed tasks after all frames
+                        const remaining = scheduled.filter(t => !assignedTaskIds.has(String(t.id)));
+                        if (remaining.length > 0) sections.push({ type: 'unframed', tasks: remaining });
+
+                        const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+                        const renderTaskItem = (task, keyPrefix) => {
+                          const colorClass = task.color === 'task-calendar' ? '' : task.color;
+                          let timeLabel = '';
+                          let relativeLabel = '';
+                          if (task._agendaType === 'allday') {
+                            timeLabel = 'ALL DAY';
+                          } else if (task._agendaType === 'deadline') {
+                            timeLabel = 'DUE TODAY';
+                          } else {
+                            const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                            const startMin = h * 60 + m;
+                            const endMin = startMin + (task.duration || 0);
+                            const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                            const endM = String(endMin % 60).padStart(2, '0');
+                            timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                            const diff = startMin - nowMin;
+                            if (diff > 0) {
+                              relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                            } else if (diff === 0) {
+                              relativeLabel = 'now';
+                            } else if (nowMin < endMin && !task.completed) {
+                              relativeLabel = 'In Progress';
+                            } else if (nowMin >= endMin && !task.completed) {
+                              relativeLabel = 'Overdue';
+                            }
+                          }
+                          return (
+                            <div
+                              key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+                              className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
+                              onClick={() => {
+                                const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                                if (el) {
+                                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  el.classList.add('ring-2', 'ring-blue-400');
+                                  setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                                }
+                              }}
+                            >
+                              <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                              <div className="min-w-0 flex-1">
+                                <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
+                                  {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
+                                  <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                                </div>
+                                <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                                  {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                                  {relativeLabel === 'In Progress' && focusModeAvailable && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                      className="ml-1 p-1.5 rounded text-purple-500 active:text-purple-400 active:bg-purple-500/20 transition-colors"
+                                      title="Enter Focus Mode"
+                                    >
+                                      <Target size={16} className="animate-pulse" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {relativeLabel === 'Overdue' && !task.completed && (
+                                <div className="flex items-center gap-1 flex-shrink-0 mr-5">
+                                  {!task.isRecurring && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        pushUndo();
+                                        setTasks(prev => prev.filter(t => t.id !== task.id));
+                                        const { startTime, date, _agendaType, ...rest } = task;
+                                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                        playUISound('slide');
+                                        setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                      }}
+                                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                                      title="Move to Inbox"
+                                    >
+                                      <Inbox size={14} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                                    title="Mark complete"
+                                  >
+                                    <CheckCircle size={14} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        };
+
+                        return (
                         <div className="space-y-1.5">
                           {filteredAgenda.length === 0 && (
                             <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
                           )}
-                          {filteredAgenda.flatMap((task, idx) => {
-                            const items = [];
-                            // Insert "Now" marker (skip when inside a task/event)
-                            if (!agendaNowMarker.insideTask) {
-                              if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
-                                const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                                const gapM = agendaNowMarker.gapMinutes % 60;
-                                const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                                items.push(
-                                  <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
-                                    <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                                    <div className="min-w-0 flex-1">
-                                      <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                      {agendaNowMarker.inboxCount > 0 && (
-                                        <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              } else if (idx > 0) {
-                                const prevTask = filteredAgenda[idx - 1];
-                                const prevIdxInFull = todayAgenda.indexOf(prevTask);
-                                const curIdxInFull = todayAgenda.indexOf(task);
-                                if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
-                                  const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                                  const gapM = agendaNowMarker.gapMinutes % 60;
-                                  const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                                  items.push(
-                                    <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
-                                      <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                                      <div className="min-w-0 flex-1">
-                                        <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                        {agendaNowMarker.inboxCount > 0 && (
-                                          <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                              }
-                            }
-                            const colorClass = task.color === 'task-calendar' ? '' : task.color;
-                            const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                            let timeLabel = '';
-                            let relativeLabel = '';
-                            if (task._agendaType === 'allday') {
-                              timeLabel = 'ALL DAY';
-                            } else if (task._agendaType === 'deadline') {
-                              timeLabel = 'DUE TODAY';
-                            } else {
-                              const [h, m] = (task.startTime || '0:0').split(':').map(Number);
-                              const startMin = h * 60 + m;
-                              const endMin = startMin + (task.duration || 0);
-                              const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
-                              const endM = String(endMin % 60).padStart(2, '0');
-                              timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
-                              const diff = startMin - nowMin;
-                              if (diff > 0) {
-                                relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
-                              } else if (diff === 0) {
-                                relativeLabel = 'now';
-                              } else if (nowMin < endMin && !task.completed) {
-                                relativeLabel = 'In Progress';
-                              } else if (nowMin >= endMin && !task.completed) {
-                                relativeLabel = 'Overdue';
-                              }
-                            }
-                            items.push(
-                              <div
-                                key={`tablet-glance-${task._agendaType}-${task.id}`}
-                                className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
-                                onClick={() => {
-                                  const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                                  if (el) {
-                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    el.classList.add('ring-2', 'ring-blue-400');
-                                    setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-                                  }
-                                }}
-                              >
-                                <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                          {/* Now marker before first task */}
+                          {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
+                            const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                            const gapM = agendaNowMarker.gapMinutes % 60;
+                            const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                            return (
+                              <div key="tablet-now-marker" className="flex gap-2.5 py-2.5">
+                                <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
                                 <div className="min-w-0 flex-1">
-                                  <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
-                                    {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
-                                    <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                                  <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                  {agendaNowMarker.inboxCount > 0 && (
+                                    <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {/* Non-scheduled items (all-day, deadlines) */}
+                          {nonScheduled.map(task => renderTaskItem(task, 'tablet-glance'))}
+                          {/* Frame-grouped and unframed sections */}
+                          {sections.map((section, si) => {
+                            if (section.type === 'frame') {
+                              const borderColor = glanceBorderColorMap[section.frame.color] || 'rgba(165,180,252,0.4)';
+                              const bgColor = glanceColorMap[section.frame.color] || 'rgba(165,180,252,0.08)';
+                              const availH = Math.floor(section.totalAvail / 60);
+                              const availM = section.totalAvail % 60;
+                              const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
+                              return (
+                                <div
+                                  key={`tablet-frame-section-${section.frame.frameId}`}
+                                  className="rounded-md overflow-hidden"
+                                  style={{
+                                    borderLeft: `3px solid ${borderColor}`,
+                                    background: bgColor,
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <LayoutGrid size={12} style={{ color: borderColor }} />
+                                      <span className="text-xs font-semibold" style={{ color: borderColor }}>{section.frame.label}</span>
+                                      <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
+                                    </div>
+                                    {section.totalAvail > 0 && (
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: borderColor, border: `1px dashed ${borderColor}`, opacity: 0.7 }}>
+                                        {availStr} free
+                                      </span>
+                                    )}
                                   </div>
-                                  <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
-                                    {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
-                                    {relativeLabel === 'In Progress' && focusModeAvailable && (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
-                                        className="ml-1 p-1.5 rounded text-purple-500 active:text-purple-400 active:bg-purple-500/20 transition-colors"
-                                        title="Enter Focus Mode"
-                                      >
-                                        <Target size={16} className="animate-pulse" />
-                                      </button>
+                                  <div className="px-2 pb-1.5">
+                                    {section.tasks.length === 0 ? (
+                                      <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
+                                    ) : (
+                                      section.tasks.map(task => renderTaskItem(task, 'tablet-frame'))
                                     )}
                                   </div>
                                 </div>
-                                {relativeLabel === 'Overdue' && !task.completed && (
-                                  <div className="flex items-center gap-1 flex-shrink-0 mr-5">
-                                    {!task.isRecurring && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          pushUndo();
-                                          setTasks(prev => prev.filter(t => t.id !== task.id));
-                                          const { startTime, date, _agendaType, ...rest } = task;
-                                          setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                          playUISound('slide');
-                                          setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                        }}
-                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
-                                        title="Move to Inbox"
-                                      >
-                                        <Inbox size={14} />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
-                                      title="Mark complete"
-                                    >
-                                      <CheckCircle size={14} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                            return items;
+                              );
+                            }
+                            // Unframed tasks
+                            return section.tasks.map(task => renderTaskItem(task, 'tablet-glance'));
                           })}
                           {/* Now marker after all tasks */}
                           {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
@@ -16832,142 +17028,237 @@ const DayPlanner = () => {
                     );
                   })()}
 
-                  {/* Today's agenda — matching tablet landscape */}
-                  {(() => { const filteredAgenda = filterByTags(todayAgenda); return (
+                  {/* Today's agenda — grouped by frames, matching tablet landscape */}
+                  {(() => {
+                    const filteredAgenda = filterByTags(todayAgenda);
+                    const today = new Date(getTodayStr() + 'T12:00:00');
+                    const todayFrames = getFrameInstancesForDate(today);
+                    const glanceBorderColorMap = {
+                      'bg-indigo-200': 'rgba(165,180,252,0.4)',
+                      'bg-amber-200': 'rgba(253,230,138,0.4)',
+                      'bg-green-200': 'rgba(167,243,208,0.4)',
+                      'bg-blue-200': 'rgba(191,219,254,0.4)',
+                      'bg-rose-200': 'rgba(254,205,211,0.4)',
+                      'bg-purple-200': 'rgba(221,214,254,0.4)',
+                      'bg-teal-200': 'rgba(153,246,228,0.4)',
+                      'bg-orange-200': 'rgba(254,215,170,0.4)',
+                    };
+                    const glanceColorMap = {
+                      'bg-indigo-200': 'rgba(165,180,252,0.08)',
+                      'bg-amber-200': 'rgba(253,230,138,0.08)',
+                      'bg-green-200': 'rgba(167,243,208,0.08)',
+                      'bg-blue-200': 'rgba(191,219,254,0.08)',
+                      'bg-rose-200': 'rgba(254,205,211,0.08)',
+                      'bg-purple-200': 'rgba(221,214,254,0.08)',
+                      'bg-teal-200': 'rgba(153,246,228,0.08)',
+                      'bg-orange-200': 'rgba(254,215,170,0.08)',
+                    };
+
+                    // Classify each agenda task into a frame or "unframed"
+                    const taskFrameMap = new Map();
+                    for (const task of filteredAgenda) {
+                      if (task._agendaType !== 'scheduled' || !task.startTime) continue;
+                      const tStart = timeToMinutes(task.startTime);
+                      const tEnd = tStart + (task.duration || 30);
+                      for (const frame of todayFrames) {
+                        const fStart = timeToMinutes(frame.start);
+                        const fEnd = timeToMinutes(frame.end);
+                        if (tStart >= fStart && tEnd <= fEnd) {
+                          taskFrameMap.set(String(task.id), frame.frameId);
+                          break;
+                        }
+                      }
+                    }
+
+                    const nonScheduled = filteredAgenda.filter(t => t._agendaType !== 'scheduled');
+                    const scheduled = filteredAgenda.filter(t => t._agendaType === 'scheduled');
+
+                    const sections = [];
+                    const framedIds = new Set(taskFrameMap.values());
+                    const sortedFrames = [...todayFrames].filter(f => framedIds.has(f.frameId) || true).sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+                    const assignedTaskIds = new Set();
+
+                    let scheduledIdx = 0;
+                    for (const frame of sortedFrames) {
+                      const fStart = timeToMinutes(frame.start);
+                      const beforeTasks = [];
+                      while (scheduledIdx < scheduled.length) {
+                        const t = scheduled[scheduledIdx];
+                        const tStart = timeToMinutes(t.startTime || '00:00');
+                        if (tStart < fStart && !taskFrameMap.has(String(t.id))) {
+                          beforeTasks.push(t);
+                          assignedTaskIds.add(String(t.id));
+                          scheduledIdx++;
+                        } else break;
+                      }
+                      if (beforeTasks.length > 0) sections.push({ type: 'unframed', tasks: beforeTasks });
+
+                      const frameTasks = scheduled.filter(t => taskFrameMap.get(String(t.id)) === frame.frameId);
+                      const availSlots = computeAvailableSlots(frame, today);
+                      const totalAvail = availSlots.reduce((sum, s) => sum + s.minutes, 0);
+                      sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                      frameTasks.forEach(t => assignedTaskIds.add(String(t.id)));
+                      while (scheduledIdx < scheduled.length && assignedTaskIds.has(String(scheduled[scheduledIdx].id))) scheduledIdx++;
+                    }
+                    const remaining = scheduled.filter(t => !assignedTaskIds.has(String(t.id)));
+                    if (remaining.length > 0) sections.push({ type: 'unframed', tasks: remaining });
+
+                    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+                    const renderTaskItem = (task, keyPrefix) => {
+                      const colorClass = task.color === 'task-calendar' ? '' : task.color;
+                      let timeLabel = '';
+                      let relativeLabel = '';
+                      if (task._agendaType === 'allday') {
+                        timeLabel = 'ALL DAY';
+                      } else if (task._agendaType === 'deadline') {
+                        timeLabel = 'DUE TODAY';
+                      } else {
+                        const [h, m] = (task.startTime || '0:0').split(':').map(Number);
+                        const startMin = h * 60 + m;
+                        const endMin = startMin + (task.duration || 0);
+                        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+                        const endM = String(endMin % 60).padStart(2, '0');
+                        timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                        const diff = startMin - nowMin;
+                        if (diff > 0) {
+                          relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+                        } else if (diff === 0) {
+                          relativeLabel = 'now';
+                        } else if (nowMin < endMin && !task.completed) {
+                          relativeLabel = 'In Progress';
+                        } else if (nowMin >= endMin && !task.completed) {
+                          relativeLabel = 'Overdue';
+                        }
+                      }
+                      return (
+                        <div
+                          key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+                          className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer hover:bg-white/5 rounded-lg transition-colors`}
+                          onClick={() => {
+                            const el = document.querySelector(`[data-task-id="${task.id}"]`);
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              el.classList.add('ring-2', 'ring-blue-400');
+                              setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
+                            }
+                          }}
+                        >
+                          <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                          <div className="min-w-0 flex-1">
+                            <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
+                              {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
+                              <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                            </div>
+                            <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                              {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                              {relativeLabel === 'In Progress' && focusModeAvailable && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                                  className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                  title="Enter Focus Mode"
+                                >
+                                  <Target size={16} className="animate-pulse" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {relativeLabel === 'Overdue' && !task.completed && (
+                            <div className="flex items-center gap-1 flex-shrink-0 mr-5">
+                              {!task.isRecurring && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    pushUndo();
+                                    setTasks(prev => prev.filter(t => t.id !== task.id));
+                                    const { startTime, date, _agendaType, ...rest } = task;
+                                    setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                    playUISound('slide');
+                                    setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                  }}
+                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
+                                  title="Move to Inbox"
+                                >
+                                  <Inbox size={14} />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                                className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
+                                title="Mark complete"
+                              >
+                                <CheckCircle size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    };
+
+                    return (
                     <div className="space-y-1.5">
                       {filteredAgenda.length === 0 && (
                         <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
                       )}
-                      {filteredAgenda.flatMap((task, idx) => {
-                        const items = [];
-                        // Insert "Now" marker (skip when inside a task/event)
-                        if (!agendaNowMarker.insideTask) {
-                          if (idx === 0 && agendaNowMarker.insertAfterIndex < 0) {
-                            const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                            const gapM = agendaNowMarker.gapMinutes % 60;
-                            const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                            items.push(
-                              <div key="desktop-now-marker" className="flex gap-2.5 py-2.5">
-                                <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                  {agendaNowMarker.inboxCount > 0 && (
-                                    <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          } else if (idx > 0) {
-                            const prevTask = filteredAgenda[idx - 1];
-                            const prevIdxInFull = todayAgenda.indexOf(prevTask);
-                            const curIdxInFull = todayAgenda.indexOf(task);
-                            if (prevIdxInFull <= agendaNowMarker.insertAfterIndex && curIdxInFull > agendaNowMarker.insertAfterIndex) {
-                              const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-                              const gapM = agendaNowMarker.gapMinutes % 60;
-                              const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
-                              items.push(
-                                <div key="desktop-now-marker" className="flex gap-2.5 py-2.5">
-                                  <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
-                                  <div className="min-w-0 flex-1">
-                                    <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                    {agendaNowMarker.inboxCount > 0 && (
-                                      <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            }
-                          }
-                        }
-                        const colorClass = task.color === 'task-calendar' ? '' : task.color;
-                        const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-                        let timeLabel = '';
-                        let relativeLabel = '';
-                        if (task._agendaType === 'allday') {
-                          timeLabel = 'ALL DAY';
-                        } else if (task._agendaType === 'deadline') {
-                          timeLabel = 'DUE TODAY';
-                        } else {
-                          const [h, m] = (task.startTime || '0:0').split(':').map(Number);
-                          const startMin = h * 60 + m;
-                          const endMin = startMin + (task.duration || 0);
-                          const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
-                          const endM = String(endMin % 60).padStart(2, '0');
-                          timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
-                          const diff = startMin - nowMin;
-                          if (diff > 0) {
-                            relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
-                          } else if (diff === 0) {
-                            relativeLabel = 'now';
-                          } else if (nowMin < endMin && !task.completed) {
-                            relativeLabel = 'In Progress';
-                          } else if (nowMin >= endMin && !task.completed) {
-                            relativeLabel = 'Overdue';
-                          }
-                        }
-                        items.push(
-                          <div
-                            key={`desktop-glance-${task._agendaType}-${task.id}`}
-                            className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer hover:bg-white/5 rounded-lg transition-colors`}
-                            onClick={() => {
-                              const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                              if (el) {
-                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                el.classList.add('ring-2', 'ring-blue-400');
-                                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-                              }
-                            }}
-                          >
-                            <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                      {/* Now marker before first task */}
+                      {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
+                        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                        const gapM = agendaNowMarker.gapMinutes % 60;
+                        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                        return (
+                          <div key="desktop-now-marker" className="flex gap-2.5 py-2.5">
+                            <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
                             <div className="min-w-0 flex-1">
-                              <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
-                                {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
-                                <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                              <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                              {agendaNowMarker.inboxCount > 0 && (
+                                <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {/* Non-scheduled items (all-day, deadlines) */}
+                      {nonScheduled.map(task => renderTaskItem(task, 'desktop-glance'))}
+                      {/* Frame-grouped and unframed sections */}
+                      {sections.map((section, si) => {
+                        if (section.type === 'frame') {
+                          const borderColor = glanceBorderColorMap[section.frame.color] || 'rgba(165,180,252,0.4)';
+                          const bgColor = glanceColorMap[section.frame.color] || 'rgba(165,180,252,0.08)';
+                          const availH = Math.floor(section.totalAvail / 60);
+                          const availM = section.totalAvail % 60;
+                          const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
+                          return (
+                            <div
+                              key={`desktop-frame-section-${section.frame.frameId}`}
+                              className="rounded-md overflow-hidden"
+                              style={{
+                                borderLeft: `3px solid ${borderColor}`,
+                                background: bgColor,
+                              }}
+                            >
+                              <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                                <div className="flex items-center gap-1.5">
+                                  <LayoutGrid size={12} style={{ color: borderColor }} />
+                                  <span className="text-xs font-semibold" style={{ color: borderColor }}>{section.frame.label}</span>
+                                  <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
+                                </div>
+                                {section.totalAvail > 0 && (
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: borderColor, border: `1px dashed ${borderColor}`, opacity: 0.7 }}>
+                                    {availStr} free
+                                  </span>
+                                )}
                               </div>
-                              <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
-                                {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
-                                {relativeLabel === 'In Progress' && focusModeAvailable && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
-                                    className="ml-1 p-1.5 rounded text-purple-500 hover:text-purple-400 hover:bg-purple-500/20 transition-colors"
-                                    title="Enter Focus Mode"
-                                  >
-                                    <Target size={16} className="animate-pulse" />
-                                  </button>
+                              <div className="px-2 pb-1.5">
+                                {section.tasks.length === 0 ? (
+                                  <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
+                                ) : (
+                                  section.tasks.map(task => renderTaskItem(task, 'desktop-frame'))
                                 )}
                               </div>
                             </div>
-                            {relativeLabel === 'Overdue' && !task.completed && (
-                              <div className="flex items-center gap-1 flex-shrink-0 mr-5">
-                                {!task.isRecurring && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      pushUndo();
-                                      setTasks(prev => prev.filter(t => t.id !== task.id));
-                                      const { startTime, date, _agendaType, ...rest } = task;
-                                      setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                      playUISound('slide');
-                                      setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                    }}
-                                    className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
-                                    title="Move to Inbox"
-                                  >
-                                    <Inbox size={14} />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
-                                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
-                                  title="Mark complete"
-                                >
-                                  <CheckCircle size={14} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                        return items;
+                          );
+                        }
+                        return section.tasks.map(task => renderTaskItem(task, 'desktop-glance'));
                       })}
                       {/* Now marker after all tasks */}
                       {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
