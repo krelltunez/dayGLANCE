@@ -12360,17 +12360,26 @@ const DayPlanner = () => {
                               const top = Math.round(minutesToPosition(frameStartMin));
                               const bottom = Math.round(minutesToPosition(frameEndMin));
                               const height = bottom - top;
-                              const colorMap = {
-                                'bg-indigo-200': 'rgba(165,180,252,0.15)',
-                                'bg-amber-200': 'rgba(253,230,138,0.15)',
-                                'bg-green-200': 'rgba(167,243,208,0.15)',
-                                'bg-blue-200': 'rgba(191,219,254,0.15)',
-                                'bg-rose-200': 'rgba(254,205,211,0.15)',
-                                'bg-purple-200': 'rgba(221,214,254,0.15)',
-                                'bg-teal-200': 'rgba(153,246,228,0.15)',
-                                'bg-orange-200': 'rgba(254,215,170,0.15)',
+                              const colorMap = darkMode ? {
+                                'bg-indigo-200': 'rgba(165,180,252,0.08)',
+                                'bg-amber-200': 'rgba(253,230,138,0.08)',
+                                'bg-green-200': 'rgba(167,243,208,0.08)',
+                                'bg-blue-200': 'rgba(191,219,254,0.08)',
+                                'bg-rose-200': 'rgba(254,205,211,0.08)',
+                                'bg-purple-200': 'rgba(221,214,254,0.08)',
+                                'bg-teal-200': 'rgba(153,246,228,0.08)',
+                                'bg-orange-200': 'rgba(254,215,170,0.08)',
+                              } : {
+                                'bg-indigo-200': 'rgba(165,180,252,0.18)',
+                                'bg-amber-200': 'rgba(253,230,138,0.18)',
+                                'bg-green-200': 'rgba(167,243,208,0.18)',
+                                'bg-blue-200': 'rgba(191,219,254,0.18)',
+                                'bg-rose-200': 'rgba(254,205,211,0.18)',
+                                'bg-purple-200': 'rgba(221,214,254,0.18)',
+                                'bg-teal-200': 'rgba(153,246,228,0.18)',
+                                'bg-orange-200': 'rgba(254,215,170,0.18)',
                               };
-                              const borderColorMap = {
+                              const borderColorMap = darkMode ? {
                                 'bg-indigo-200': 'rgba(165,180,252,0.4)',
                                 'bg-amber-200': 'rgba(253,230,138,0.4)',
                                 'bg-green-200': 'rgba(167,243,208,0.4)',
@@ -12379,6 +12388,15 @@ const DayPlanner = () => {
                                 'bg-purple-200': 'rgba(221,214,254,0.4)',
                                 'bg-teal-200': 'rgba(153,246,228,0.4)',
                                 'bg-orange-200': 'rgba(254,215,170,0.4)',
+                              } : {
+                                'bg-indigo-200': 'rgba(79,70,229,0.75)',
+                                'bg-amber-200': 'rgba(217,119,6,0.75)',
+                                'bg-green-200': 'rgba(22,163,74,0.75)',
+                                'bg-blue-200': 'rgba(37,99,235,0.75)',
+                                'bg-rose-200': 'rgba(225,29,72,0.75)',
+                                'bg-purple-200': 'rgba(147,51,234,0.75)',
+                                'bg-teal-200': 'rgba(13,148,136,0.75)',
+                                'bg-orange-200': 'rgba(234,88,12,0.75)',
                               };
                               const availableSlots = computeAvailableSlots(frame, date);
                               return (
@@ -12388,12 +12406,12 @@ const DayPlanner = () => {
                                     style={{
                                       top: `${top}px`,
                                       height: `${height}px`,
-                                      background: colorMap[frame.color] || 'rgba(165,180,252,0.15)',
-                                      borderLeft: `2px solid ${borderColorMap[frame.color] || 'rgba(165,180,252,0.4)'}`,
+                                      background: colorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)'),
+                                      borderLeft: `2px solid ${borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)')}`,
                                     }}
                                     onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
                                   >
-                                    <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || 'rgba(165,180,252,0.6)', opacity: 0.8 }}>
+                                    <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                       {frame.label}
                                     </span>
                                   </div>
@@ -12410,7 +12428,7 @@ const DayPlanner = () => {
                                         style={{
                                           top: `${slotTop}px`,
                                           height: `${slotHeight}px`,
-                                          border: `1.5px dashed ${borderColorMap[frame.color] || 'rgba(165,180,252,0.4)'}`,
+                                          border: `1.5px dashed ${borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)')}`,
                                           opacity: 0.5,
                                         }}
                                       />
@@ -18525,17 +18543,26 @@ const DayPlanner = () => {
                           const top = Math.round(minutesToPosition(frameStartMin));
                           const bottom = Math.round(minutesToPosition(frameEndMin));
                           const height = bottom - top;
-                          const colorMap = {
-                            'bg-indigo-200': 'rgba(165,180,252,0.15)',
-                            'bg-amber-200': 'rgba(253,230,138,0.15)',
-                            'bg-green-200': 'rgba(167,243,208,0.15)',
-                            'bg-blue-200': 'rgba(191,219,254,0.15)',
-                            'bg-rose-200': 'rgba(254,205,211,0.15)',
-                            'bg-purple-200': 'rgba(221,214,254,0.15)',
-                            'bg-teal-200': 'rgba(153,246,228,0.15)',
-                            'bg-orange-200': 'rgba(254,215,170,0.15)',
+                          const colorMap = darkMode ? {
+                            'bg-indigo-200': 'rgba(165,180,252,0.08)',
+                            'bg-amber-200': 'rgba(253,230,138,0.08)',
+                            'bg-green-200': 'rgba(167,243,208,0.08)',
+                            'bg-blue-200': 'rgba(191,219,254,0.08)',
+                            'bg-rose-200': 'rgba(254,205,211,0.08)',
+                            'bg-purple-200': 'rgba(221,214,254,0.08)',
+                            'bg-teal-200': 'rgba(153,246,228,0.08)',
+                            'bg-orange-200': 'rgba(254,215,170,0.08)',
+                          } : {
+                            'bg-indigo-200': 'rgba(165,180,252,0.18)',
+                            'bg-amber-200': 'rgba(253,230,138,0.18)',
+                            'bg-green-200': 'rgba(167,243,208,0.18)',
+                            'bg-blue-200': 'rgba(191,219,254,0.18)',
+                            'bg-rose-200': 'rgba(254,205,211,0.18)',
+                            'bg-purple-200': 'rgba(221,214,254,0.18)',
+                            'bg-teal-200': 'rgba(153,246,228,0.18)',
+                            'bg-orange-200': 'rgba(254,215,170,0.18)',
                           };
-                          const borderColorMap = {
+                          const borderColorMap = darkMode ? {
                             'bg-indigo-200': 'rgba(165,180,252,0.4)',
                             'bg-amber-200': 'rgba(253,230,138,0.4)',
                             'bg-green-200': 'rgba(167,243,208,0.4)',
@@ -18544,6 +18571,15 @@ const DayPlanner = () => {
                             'bg-purple-200': 'rgba(221,214,254,0.4)',
                             'bg-teal-200': 'rgba(153,246,228,0.4)',
                             'bg-orange-200': 'rgba(254,215,170,0.4)',
+                          } : {
+                            'bg-indigo-200': 'rgba(79,70,229,0.75)',
+                            'bg-amber-200': 'rgba(217,119,6,0.75)',
+                            'bg-green-200': 'rgba(22,163,74,0.75)',
+                            'bg-blue-200': 'rgba(37,99,235,0.75)',
+                            'bg-rose-200': 'rgba(225,29,72,0.75)',
+                            'bg-purple-200': 'rgba(147,51,234,0.75)',
+                            'bg-teal-200': 'rgba(13,148,136,0.75)',
+                            'bg-orange-200': 'rgba(234,88,12,0.75)',
                           };
                           const availableSlots = computeAvailableSlots(frame, date);
                           return (
@@ -18553,12 +18589,12 @@ const DayPlanner = () => {
                                 style={{
                                   top: `${top}px`,
                                   height: `${height}px`,
-                                  background: colorMap[frame.color] || 'rgba(165,180,252,0.15)',
-                                  borderLeft: `3px solid ${borderColorMap[frame.color] || 'rgba(165,180,252,0.4)'}`,
+                                  background: colorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)'),
+                                  borderLeft: `3px solid ${borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)')}`,
                                 }}
                                 onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
                               >
-                                <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || 'rgba(165,180,252,0.6)', opacity: 0.8 }}>
+                                <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                   {frame.label}
                                 </span>
                                 {/* Resize handles */}
@@ -18584,7 +18620,7 @@ const DayPlanner = () => {
                                     style={{
                                       top: `${slotTop}px`,
                                       height: `${slotHeight}px`,
-                                      border: `1.5px dashed ${borderColorMap[frame.color] || 'rgba(165,180,252,0.4)'}`,
+                                      border: `1.5px dashed ${borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)')}`,
                                       opacity: 0.5,
                                     }}
                                   />
