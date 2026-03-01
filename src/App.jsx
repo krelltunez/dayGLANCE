@@ -13445,16 +13445,18 @@ const DayPlanner = () => {
                               background: bgColor,
                             }}
                           >
-                            <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                            <div className="px-3 pt-2 pb-1">
                               <div className="flex items-center gap-1.5">
                                 <LayoutGrid size={12} style={{ color: borderColor }} />
                                 <span className="text-xs font-semibold" style={{ color: borderColor }}>{section.frame.label}</span>
                                 <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
                               </div>
                               {section.totalAvail > 0 && (
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: borderColor, border: `1px dashed ${borderColor}`, opacity: 0.7 }}>
-                                  {availStr} free
-                                </span>
+                                <p className="mt-1">
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                                    {availStr} available
+                                  </span>
+                                </p>
                               )}
                             </div>
                             <div className="px-2 pb-1.5">
@@ -16537,16 +16539,18 @@ const DayPlanner = () => {
                                     background: bgColor,
                                   }}
                                 >
-                                  <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                                  <div className="px-3 pt-2 pb-1">
                                     <div className="flex items-center gap-1.5">
                                       <LayoutGrid size={12} style={{ color: borderColor }} />
                                       <span className="text-xs font-semibold" style={{ color: borderColor }}>{section.frame.label}</span>
                                       <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
                                     </div>
                                     {section.totalAvail > 0 && (
-                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: borderColor, border: `1px dashed ${borderColor}`, opacity: 0.7 }}>
-                                        {availStr} free
-                                      </span>
+                                      <p className="mt-1">
+                                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                                          {availStr} available
+                                        </span>
+                                      </p>
                                     )}
                                   </div>
                                   <div className="px-2 pb-1.5">
@@ -17515,16 +17519,18 @@ const DayPlanner = () => {
                                 background: bgColor,
                               }}
                             >
-                              <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                              <div className="px-3 pt-2 pb-1">
                                 <div className="flex items-center gap-1.5">
                                   <LayoutGrid size={12} style={{ color: borderColor }} />
                                   <span className="text-xs font-semibold" style={{ color: borderColor }}>{section.frame.label}</span>
                                   <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
                                 </div>
                                 {section.totalAvail > 0 && (
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: borderColor, border: `1px dashed ${borderColor}`, opacity: 0.7 }}>
-                                    {availStr} free
-                                  </span>
+                                  <p className="mt-1">
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                                      {availStr} available
+                                    </span>
+                                  </p>
                                 )}
                               </div>
                               <div className="px-2 pb-1.5">
