@@ -12480,6 +12480,8 @@ const DayPlanner = () => {
                                       borderLeft: `2px solid ${borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)')}`,
                                     }}
                                     onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
+                                    onDragOver={(e) => handleDragOver(e, date)}
+                                    onDrop={(e) => handleDropOnCalendar(e, date)}
                                   >
                                     <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                       {frame.label}
@@ -18674,6 +18676,8 @@ const DayPlanner = () => {
                                   borderLeft: `3px solid ${borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)')}`,
                                 }}
                                 onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
+                                onDragOver={(e) => handleDragOver(e, date)}
+                                onDrop={(e) => handleDropOnCalendar(e, date)}
                               >
                                 <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                   {frame.label}
