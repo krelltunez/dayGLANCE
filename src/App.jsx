@@ -2131,6 +2131,7 @@ const DayPlanner = () => {
   const [smartScheduleAccepted, setSmartScheduleAccepted] = useState({}); // { taskId: true/false }
   const [frameContextMenu, setFrameContextMenu] = useState(null); // { x, y, frameId, dateStr }
   const [frameAdjustModal, setFrameAdjustModal] = useState(null); // { frameId, dateStr, start, end }
+  const [frameScheduleModal, setFrameScheduleModal] = useState(null); // { frameId, dateStr, frame }
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -5773,6 +5774,11 @@ const DayPlanner = () => {
           setFrameAdjustModal(null);
           return;
         }
+        if (frameScheduleModal) {
+          e.preventDefault();
+          setFrameScheduleModal(null);
+          return;
+        }
         if (showFramesModal) {
           e.preventDefault();
           setShowFramesModal(false);
@@ -6032,7 +6038,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, frameContextMenu, frameAdjustModal, showFramesModal, gtdFrames]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -11310,6 +11316,65 @@ const DayPlanner = () => {
     }));
     setFrameAdjustModal(null);
     playUISound('click');
+  };
+
+  // Frame context menu: open manually schedule modal
+  const openFrameSchedule = (frameId, dateStr) => {
+    const frame = gtdFrames.find(f => f.id === frameId);
+    if (!frame) return;
+    const exception = frame.exceptions?.[dateStr];
+    setFrameScheduleModal({
+      frameId,
+      dateStr,
+      frame: {
+        ...frame,
+        start: exception?.start || frame.start,
+        end: exception?.end || frame.end,
+      },
+    });
+    setFrameContextMenu(null);
+  };
+
+  // Manually schedule an inbox task into a frame at the first available slot
+  const manuallyScheduleTask = (taskId) => {
+    if (!frameScheduleModal) return;
+    const { frameId, dateStr, frame } = frameScheduleModal;
+    const task = unscheduledTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // Build a frame instance for computeAvailableSlots
+    const frameInstance = {
+      frameId,
+      date: dateStr,
+      start: frame.start,
+      end: frame.end,
+      bufferMinutes: frame.bufferMinutes ?? 5,
+    };
+    const slots = computeAvailableSlots(frameInstance, new Date(dateStr + 'T12:00:00'));
+    const taskDuration = task.duration || 30;
+
+    // Find first slot that fits
+    const slot = slots.find(s => s.minutes >= taskDuration);
+    const startTime = slot ? slot.start : frame.start;
+
+    pushUndo();
+    const { priority, deadline, ...preserved } = task;
+    setTasks(prev => [...prev, {
+      ...preserved,
+      date: dateStr,
+      startTime,
+      duration: taskDuration,
+      color: task.color || 'bg-blue-500',
+      isAllDay: false,
+    }]);
+    setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
+    setFrameScheduleModal(null);
+    playUISound('pop');
+    setSyncNotification({
+      type: 'success',
+      title: 'Task Scheduled',
+      message: `"${task.title}" placed at ${startTime} in ${frame.label}`,
+    });
   };
 
   // Frame resize via drag on top/bottom edge
@@ -22747,6 +22812,13 @@ const DayPlanner = () => {
               Adjust time
             </button>
             <button
+              className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+              onClick={() => openFrameSchedule(frameContextMenu.frameId, frameContextMenu.dateStr)}
+            >
+              <ListChecks size={14} />
+              Manually schedule
+            </button>
+            <button
               className={`w-full text-left px-3 py-2 text-sm text-red-500 ${hoverBg} transition-colors flex items-center gap-2`}
               onClick={() => skipFrameForDay(frameContextMenu.frameId, frameContextMenu.dateStr)}
             >
@@ -22790,6 +22862,65 @@ const DayPlanner = () => {
           </div>
         </div>
       )}
+
+      {/* Frame Manually Schedule Modal */}
+      {frameScheduleModal && (() => {
+        const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+        const frameInstance = {
+          frameId: frameScheduleModal.frameId,
+          date: frameScheduleModal.dateStr,
+          start: frameScheduleModal.frame.start,
+          end: frameScheduleModal.frame.end,
+          bufferMinutes: frameScheduleModal.frame.bufferMinutes ?? 5,
+        };
+        const availableSlots = computeAvailableSlots(frameInstance, new Date(frameScheduleModal.dateStr + 'T12:00:00'));
+        const totalAvailable = availableSlots.reduce((sum, s) => sum + s.minutes, 0);
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setFrameScheduleModal(null)}>
+            <div className={`${cardBg} rounded-lg shadow-xl border ${borderClass} w-80 max-h-[70vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
+              <div className={`p-4 border-b ${borderClass}`}>
+                <h3 className={`font-semibold ${textPrimary}`}>Manually Schedule</h3>
+                <p className={`text-xs ${textSecondary} mt-1`}>
+                  {frameScheduleModal.frame.label} &middot; {frameScheduleModal.dateStr} &middot; {totalAvailable}min available
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2">
+                {inboxTasks.length === 0 ? (
+                  <div className={`text-center py-8 ${textSecondary} text-sm`}>
+                    <Inbox size={24} className="mx-auto mb-2 opacity-50" />
+                    No inbox tasks to schedule
+                  </div>
+                ) : (
+                  inboxTasks.map(task => {
+                    const fits = availableSlots.some(s => s.minutes >= (task.duration || 30));
+                    return (
+                      <button
+                        key={task.id}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg mb-1 transition-colors flex items-start gap-2 ${hoverBg} ${!fits ? 'opacity-50' : ''}`}
+                        onClick={() => manuallyScheduleTask(task.id)}
+                        title={!fits ? `No slot large enough for ${task.duration || 30}min task` : `Schedule in ${frameScheduleModal.frame.label}`}
+                      >
+                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm ${textPrimary} truncate`}>{task.title}</div>
+                          <div className={`text-xs ${textSecondary} flex items-center gap-2 mt-0.5`}>
+                            <span>{task.duration || 30}min</span>
+                            {task.priority >= 1 && <span className={task.priority >= 2 ? 'text-red-500' : 'text-amber-500'}>P{task.priority}</span>}
+                            {task.deadline && <span className="flex items-center gap-0.5"><Calendar size={10} />{task.deadline}</span>}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div className={`p-3 border-t ${borderClass}`}>
+                <button onClick={() => setFrameScheduleModal(null)} className={`w-full px-3 py-2 rounded-lg text-sm ${textSecondary} ${hoverBg} transition-colors`}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Weekly Review Modal */}
       {showWeeklyReview && (() => {
