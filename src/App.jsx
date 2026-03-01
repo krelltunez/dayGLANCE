@@ -4976,7 +4976,7 @@ const DayPlanner = () => {
     if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl) return;
     setTrmnlSyncStatus('syncing');
     try {
-      const today = selectedDate || new Date().toISOString().slice(0, 10);
+      const today = selectedDate ? dateToString(selectedDate) : new Date().toISOString().slice(0, 10);
       const mergeVars = gatherTrmnlData({
         tasks,
         unscheduledTasks,
