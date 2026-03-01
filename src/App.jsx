@@ -4810,12 +4810,15 @@ const DayPlanner = () => {
     if (!task || task.imported) return;
 
     // Remove scheduling info and move to inbox
+    // Explicitly stamp lastModified so this version wins over any stale
+    // scheduled copy that may still exist on a remote device during sync.
     const unscheduledTask = {
       ...task,
       startTime: null,
       date: null,
       isAllDay: false,
-      priority: task.priority || 0
+      priority: task.priority || 0,
+      lastModified: new Date().toISOString(),
     };
 
     setTasks(prev => prev.filter(t => t.id !== id));
