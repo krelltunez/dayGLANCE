@@ -48,6 +48,8 @@ const priorityLabel = (p) => ['', 'Low', 'Med', 'High'][p] || '';
  * @param {Object} opts.habitLogs      - { "YYYY-MM-DD": { habitId: count } }
  * @param {string} opts.weatherSummary - Optional weather string
  * @param {Object} opts.dailyNotes     - { "YYYY-MM-DD": { text } }
+ * @param {Array}  opts.todayRoutines  - Today's routine chips
+ * @param {boolean} opts.routinesEnabled - Whether routines feature is on
  * @returns {Object} merge_variables payload (kept under 2 KB for free-tier)
  */
 export function gatherTrmnlData({
@@ -59,6 +61,8 @@ export function gatherTrmnlData({
   habitLogs = {},
   weatherSummary = '',
   dailyNotes = {},
+  todayRoutines = [],
+  routinesEnabled = false,
 }) {
   const today = selectedDate || new Date().toISOString().slice(0, 10);
   const now = new Date();
@@ -118,6 +122,24 @@ export function gatherTrmnlData({
   // Daily note snippet
   const noteSnippet = (dailyNotes[today]?.text || '').slice(0, 80);
 
+  // Routines — today's scheduled routine chips with time slots
+  const routineItems = routinesEnabled
+    ? todayRoutines
+        .filter((r) => !String(r.id).startsWith('example-'))
+        .sort((a, b) => {
+          // All-day routines first, then by startTime
+          if (a.isAllDay && !b.isAllDay) return -1;
+          if (!a.isAllDay && b.isAllDay) return 1;
+          return (a.startTime || '').localeCompare(b.startTime || '');
+        })
+        .slice(0, 8)
+        .map((r) => ({
+          name: (r.name || '').slice(0, 30),
+          time: r.isAllDay ? 'All day' : fmtTime(r.startTime, use24HourClock),
+          dur: r.isAllDay ? '' : fmtDuration(r.duration),
+        }))
+    : [];
+
   // Friendly date
   const dateObj = new Date(today + 'T12:00:00');
   const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
@@ -142,6 +164,7 @@ export function gatherTrmnlData({
     next_task: nextTask,
     inbox_count: inboxCount,
     habits: habitItems,
+    routines: routineItems,
     note: noteSnippet,
   };
 }
@@ -221,6 +244,15 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
         <span class="label label--gray">UP NEXT</span>
         <span class="title title--small">{{ next_task.title }}</span>
         <span class="label">{{ next_task.time }}</span>
+      </div>
+      {% endif %}
+
+      {% if routines.size > 0 %}
+      <div style="margin-top:12px">
+        <span class="label label--gray">ROUTINES</span>
+        {% for r in routines %}
+        <span class="description">{{ r.time }}{% if r.dur != blank %} · {{ r.dur }}{% endif %} {{ r.name }}</span>
+        {% endfor %}
       </div>
       {% endif %}
 

@@ -3281,7 +3281,7 @@ const DayPlanner = () => {
       performTrmnlSync();
     }, 5 * 60 * 1000); // 5-minute debounce to stay well under rate limits
     return () => { if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current); };
-  }, [tasks, unscheduledTasks, habits, habitLogs, trmnlConfig?.enabled, dataLoaded]);
+  }, [tasks, unscheduledTasks, habits, habitLogs, todayRoutines, routinesEnabled, trmnlConfig?.enabled, dataLoaded]);
 
   // Persist Obsidian config
   useEffect(() => {
@@ -4984,6 +4984,8 @@ const DayPlanner = () => {
         habitLogs,
         weatherSummary: weather ? `${weather.temp}°${weatherTempUnit === 'celsius' ? 'C' : 'F'} ${weather.description || ''}`.trim() : '',
         dailyNotes,
+        todayRoutines,
+        routinesEnabled,
       });
       const result = await pushToTrmnl(trmnlConfig, mergeVars);
       if (result.success) {
