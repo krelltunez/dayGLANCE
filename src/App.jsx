@@ -13212,6 +13212,59 @@ const DayPlanner = () => {
 
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
 
+                  // Compute now marker position within sections (for "middle" case)
+                  const showMiddleNowMarker = filteredAgenda.length > 0 && !agendaNowMarker.insideTask &&
+                    agendaNowMarker.insertAfterIndex >= 0 && agendaNowMarker.insertAfterIndex < todayAgenda.length - 1;
+                  let nowMarkerSectionInfo = null;
+                  if (showMiddleNowMarker) {
+                    for (let si = 0; si < sections.length; si++) {
+                      const section = sections[si];
+                      let sStart, sEnd;
+                      if (section.type === 'frame') {
+                        sStart = timeToMinutes(section.frame.start);
+                        sEnd = timeToMinutes(section.frame.end);
+                      } else {
+                        if (section.tasks.length === 0) continue;
+                        sStart = Math.min(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00')));
+                        sEnd = Math.max(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00') + (t.duration || 0)));
+                      }
+                      if (nowMin >= sStart && nowMin < sEnd) {
+                        let afterTaskIdx = -1;
+                        for (let ti = 0; ti < section.tasks.length; ti++) {
+                          const taskEnd = timeToMinutes(section.tasks[ti].startTime || '00:00') + (section.tasks[ti].duration || 0);
+                          if (nowMin >= taskEnd) afterTaskIdx = ti;
+                        }
+                        nowMarkerSectionInfo = { si, inSection: true, afterTaskIdx };
+                        break;
+                      } else if (nowMin < sStart) {
+                        nowMarkerSectionInfo = { si, inSection: false };
+                        break;
+                      }
+                    }
+                    if (!nowMarkerSectionInfo) {
+                      nowMarkerSectionInfo = { si: sections.length, inSection: false };
+                    }
+                  }
+
+                  const renderMobileNowMarker = (key) => {
+                    const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                    const gapM = agendaNowMarker.gapMinutes % 60;
+                    const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                    return (
+                      <div key={key} className="flex gap-2.5 py-2.5">
+                        <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                          {agendaNowMarker.gapMinutes < 30 ? (
+                            <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                          ) : agendaNowMarker.inboxCount > 0 ? (
+                            <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  };
+
                   const renderMobileTaskItem = (task, keyPrefix) => {
                     const colorClass = task.color === 'task-calendar' ? '' : task.color;
                     let timeLabel = '';
@@ -13371,13 +13424,19 @@ const DayPlanner = () => {
                     {nonScheduled.map(task => renderMobileTaskItem(task, 'mobile-glance'))}
                     {/* Frame-grouped and unframed sections */}
                     {sections.map((section, si) => {
+                      const elements = [];
+                      // Now marker between sections (before this section)
+                      if (nowMarkerSectionInfo && !nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si) {
+                        elements.push(renderMobileNowMarker(`mobile-now-mid-${si}`));
+                      }
                       if (section.type === 'frame') {
-                        const borderColor = glanceBorderColorMap[section.frame.color] || 'rgba(165,180,252,0.4)';
-                        const bgColor = glanceColorMap[section.frame.color] || 'rgba(165,180,252,0.08)';
+                        const borderColor = glanceBorderColorMap[section.frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)');
+                        const bgColor = glanceColorMap[section.frame.color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)');
                         const availH = Math.floor(section.totalAvail / 60);
                         const availM = section.totalAvail % 60;
                         const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
-                        return (
+                        const markerInThisFrame = nowMarkerSectionInfo && nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si;
+                        elements.push(
                           <div
                             key={`mobile-frame-section-${section.frame.frameId}`}
                             className="rounded-md overflow-hidden"
@@ -13399,16 +13458,37 @@ const DayPlanner = () => {
                               )}
                             </div>
                             <div className="px-2 pb-1.5">
-                              {section.tasks.length === 0 ? (
+                              {section.tasks.length === 0 && !markerInThisFrame ? (
                                 <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
-                              ) : (
-                                section.tasks.map(task => renderMobileTaskItem(task, 'mobile-frame'))
-                              )}
+                              ) : (() => {
+                                const items = [];
+                                if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx < 0) {
+                                  items.push(renderMobileNowMarker(`mobile-now-frame-${si}`));
+                                }
+                                section.tasks.forEach((task, ti) => {
+                                  items.push(renderMobileTaskItem(task, 'mobile-frame'));
+                                  if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx === ti) {
+                                    items.push(renderMobileNowMarker(`mobile-now-frame-${si}-${ti}`));
+                                  }
+                                });
+                                return items;
+                              })()}
                             </div>
                           </div>
                         );
+                      } else {
+                        const markerInThisSection = nowMarkerSectionInfo && nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si;
+                        if (markerInThisSection && nowMarkerSectionInfo.afterTaskIdx < 0) {
+                          elements.push(renderMobileNowMarker(`mobile-now-unframed-${si}`));
+                        }
+                        section.tasks.forEach((task, ti) => {
+                          elements.push(renderMobileTaskItem(task, 'mobile-glance'));
+                          if (markerInThisSection && nowMarkerSectionInfo.afterTaskIdx === ti) {
+                            elements.push(renderMobileNowMarker(`mobile-now-unframed-${si}-${ti}`));
+                          }
+                        });
                       }
-                      return section.tasks.map(task => renderMobileTaskItem(task, 'mobile-glance'));
+                      return <React.Fragment key={`mobile-section-${si}`}>{elements}</React.Fragment>;
                     })}
                     {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
                     {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
@@ -16265,6 +16345,59 @@ const DayPlanner = () => {
 
                         const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
 
+                        // Compute now marker position within sections (for "middle" case)
+                        const showMiddleNowMarker = filteredAgenda.length > 0 && !agendaNowMarker.insideTask &&
+                          agendaNowMarker.insertAfterIndex >= 0 && agendaNowMarker.insertAfterIndex < todayAgenda.length - 1;
+                        let nowMarkerSectionInfo = null;
+                        if (showMiddleNowMarker) {
+                          for (let si = 0; si < sections.length; si++) {
+                            const section = sections[si];
+                            let sStart, sEnd;
+                            if (section.type === 'frame') {
+                              sStart = timeToMinutes(section.frame.start);
+                              sEnd = timeToMinutes(section.frame.end);
+                            } else {
+                              if (section.tasks.length === 0) continue;
+                              sStart = Math.min(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00')));
+                              sEnd = Math.max(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00') + (t.duration || 0)));
+                            }
+                            if (nowMin >= sStart && nowMin < sEnd) {
+                              let afterTaskIdx = -1;
+                              for (let ti = 0; ti < section.tasks.length; ti++) {
+                                const taskEnd = timeToMinutes(section.tasks[ti].startTime || '00:00') + (section.tasks[ti].duration || 0);
+                                if (nowMin >= taskEnd) afterTaskIdx = ti;
+                              }
+                              nowMarkerSectionInfo = { si, inSection: true, afterTaskIdx };
+                              break;
+                            } else if (nowMin < sStart) {
+                              nowMarkerSectionInfo = { si, inSection: false };
+                              break;
+                            }
+                          }
+                          if (!nowMarkerSectionInfo) {
+                            nowMarkerSectionInfo = { si: sections.length, inSection: false };
+                          }
+                        }
+
+                        const renderTabletNowMarker = (key) => {
+                          const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                          const gapM = agendaNowMarker.gapMinutes % 60;
+                          const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                          return (
+                            <div key={key} className="flex gap-2.5 py-2">
+                              <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                                {agendaNowMarker.gapMinutes < 30 ? (
+                                  <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                                ) : agendaNowMarker.inboxCount > 0 ? (
+                                  <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        };
+
                         const renderTaskItem = (task, keyPrefix) => {
                           const colorClass = task.color === 'task-calendar' ? '' : task.color;
                           let timeLabel = '';
@@ -16383,13 +16516,19 @@ const DayPlanner = () => {
                           {nonScheduled.map(task => renderTaskItem(task, 'tablet-glance'))}
                           {/* Frame-grouped and unframed sections */}
                           {sections.map((section, si) => {
+                            const elements = [];
+                            // Now marker between sections (before this section)
+                            if (nowMarkerSectionInfo && !nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si) {
+                              elements.push(renderTabletNowMarker(`tablet-now-mid-${si}`));
+                            }
                             if (section.type === 'frame') {
-                              const borderColor = glanceBorderColorMap[section.frame.color] || 'rgba(165,180,252,0.4)';
-                              const bgColor = glanceColorMap[section.frame.color] || 'rgba(165,180,252,0.08)';
+                              const borderColor = glanceBorderColorMap[section.frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)');
+                              const bgColor = glanceColorMap[section.frame.color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)');
                               const availH = Math.floor(section.totalAvail / 60);
                               const availM = section.totalAvail % 60;
                               const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
-                              return (
+                              const markerInThisFrame = nowMarkerSectionInfo && nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si;
+                              elements.push(
                                 <div
                                   key={`tablet-frame-section-${section.frame.frameId}`}
                                   className="rounded-md overflow-hidden"
@@ -16411,17 +16550,38 @@ const DayPlanner = () => {
                                     )}
                                   </div>
                                   <div className="px-2 pb-1.5">
-                                    {section.tasks.length === 0 ? (
+                                    {section.tasks.length === 0 && !markerInThisFrame ? (
                                       <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
-                                    ) : (
-                                      section.tasks.map(task => renderTaskItem(task, 'tablet-frame'))
-                                    )}
+                                    ) : (() => {
+                                      const items = [];
+                                      if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx < 0) {
+                                        items.push(renderTabletNowMarker(`tablet-now-frame-${si}`));
+                                      }
+                                      section.tasks.forEach((task, ti) => {
+                                        items.push(renderTaskItem(task, 'tablet-frame'));
+                                        if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx === ti) {
+                                          items.push(renderTabletNowMarker(`tablet-now-frame-${si}-${ti}`));
+                                        }
+                                      });
+                                      return items;
+                                    })()}
                                   </div>
                                 </div>
                               );
+                            } else {
+                              // Unframed tasks
+                              const markerInThisSection = nowMarkerSectionInfo && nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si;
+                              if (markerInThisSection && nowMarkerSectionInfo.afterTaskIdx < 0) {
+                                elements.push(renderTabletNowMarker(`tablet-now-unframed-${si}`));
+                              }
+                              section.tasks.forEach((task, ti) => {
+                                elements.push(renderTaskItem(task, 'tablet-glance'));
+                                if (markerInThisSection && nowMarkerSectionInfo.afterTaskIdx === ti) {
+                                  elements.push(renderTabletNowMarker(`tablet-now-unframed-${si}-${ti}`));
+                                }
+                              });
                             }
-                            // Unframed tasks
-                            return section.tasks.map(task => renderTaskItem(task, 'tablet-glance'));
+                            return <React.Fragment key={`tablet-section-${si}`}>{elements}</React.Fragment>;
                           })}
                           {/* Now marker after all tasks */}
                           {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
@@ -17163,6 +17323,59 @@ const DayPlanner = () => {
 
                     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
 
+                    // Compute now marker position within sections (for "middle" case)
+                    const showMiddleNowMarker = filteredAgenda.length > 0 && !agendaNowMarker.insideTask &&
+                      agendaNowMarker.insertAfterIndex >= 0 && agendaNowMarker.insertAfterIndex < todayAgenda.length - 1;
+                    let nowMarkerSectionInfo = null;
+                    if (showMiddleNowMarker) {
+                      for (let si = 0; si < sections.length; si++) {
+                        const section = sections[si];
+                        let sStart, sEnd;
+                        if (section.type === 'frame') {
+                          sStart = timeToMinutes(section.frame.start);
+                          sEnd = timeToMinutes(section.frame.end);
+                        } else {
+                          if (section.tasks.length === 0) continue;
+                          sStart = Math.min(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00')));
+                          sEnd = Math.max(...section.tasks.map(t => timeToMinutes(t.startTime || '00:00') + (t.duration || 0)));
+                        }
+                        if (nowMin >= sStart && nowMin < sEnd) {
+                          let afterTaskIdx = -1;
+                          for (let ti = 0; ti < section.tasks.length; ti++) {
+                            const taskEnd = timeToMinutes(section.tasks[ti].startTime || '00:00') + (section.tasks[ti].duration || 0);
+                            if (nowMin >= taskEnd) afterTaskIdx = ti;
+                          }
+                          nowMarkerSectionInfo = { si, inSection: true, afterTaskIdx };
+                          break;
+                        } else if (nowMin < sStart) {
+                          nowMarkerSectionInfo = { si, inSection: false };
+                          break;
+                        }
+                      }
+                      if (!nowMarkerSectionInfo) {
+                        nowMarkerSectionInfo = { si: sections.length, inSection: false };
+                      }
+                    }
+
+                    const renderDesktopNowMarker = (key) => {
+                      const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
+                      const gapM = agendaNowMarker.gapMinutes % 60;
+                      const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+                      return (
+                        <div key={key} className="flex gap-2.5 py-2">
+                          <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+                            {agendaNowMarker.gapMinutes < 30 ? (
+                              <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                            ) : agendaNowMarker.inboxCount > 0 ? (
+                              <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    };
+
                     const renderTaskItem = (task, keyPrefix) => {
                       const colorClass = task.color === 'task-calendar' ? '' : task.color;
                       let timeLabel = '';
@@ -17281,13 +17494,19 @@ const DayPlanner = () => {
                       {nonScheduled.map(task => renderTaskItem(task, 'desktop-glance'))}
                       {/* Frame-grouped and unframed sections */}
                       {sections.map((section, si) => {
+                        const elements = [];
+                        // Now marker between sections (before this section)
+                        if (nowMarkerSectionInfo && !nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si) {
+                          elements.push(renderDesktopNowMarker(`desktop-now-mid-${si}`));
+                        }
                         if (section.type === 'frame') {
-                          const borderColor = glanceBorderColorMap[section.frame.color] || 'rgba(165,180,252,0.4)';
-                          const bgColor = glanceColorMap[section.frame.color] || 'rgba(165,180,252,0.08)';
+                          const borderColor = glanceBorderColorMap[section.frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)');
+                          const bgColor = glanceColorMap[section.frame.color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)');
                           const availH = Math.floor(section.totalAvail / 60);
                           const availM = section.totalAvail % 60;
                           const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
-                          return (
+                          const markerInThisFrame = nowMarkerSectionInfo && nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si;
+                          elements.push(
                             <div
                               key={`desktop-frame-section-${section.frame.frameId}`}
                               className="rounded-md overflow-hidden"
@@ -17309,16 +17528,37 @@ const DayPlanner = () => {
                                 )}
                               </div>
                               <div className="px-2 pb-1.5">
-                                {section.tasks.length === 0 ? (
+                                {section.tasks.length === 0 && !markerInThisFrame ? (
                                   <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
-                                ) : (
-                                  section.tasks.map(task => renderTaskItem(task, 'desktop-frame'))
-                                )}
+                                ) : (() => {
+                                  const items = [];
+                                  if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx < 0) {
+                                    items.push(renderDesktopNowMarker(`desktop-now-frame-${si}`));
+                                  }
+                                  section.tasks.forEach((task, ti) => {
+                                    items.push(renderTaskItem(task, 'desktop-frame'));
+                                    if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx === ti) {
+                                      items.push(renderDesktopNowMarker(`desktop-now-frame-${si}-${ti}`));
+                                    }
+                                  });
+                                  return items;
+                                })()}
                               </div>
                             </div>
                           );
+                        } else {
+                          const markerInThisSection = nowMarkerSectionInfo && nowMarkerSectionInfo.inSection && nowMarkerSectionInfo.si === si;
+                          if (markerInThisSection && nowMarkerSectionInfo.afterTaskIdx < 0) {
+                            elements.push(renderDesktopNowMarker(`desktop-now-unframed-${si}`));
+                          }
+                          section.tasks.forEach((task, ti) => {
+                            elements.push(renderTaskItem(task, 'desktop-glance'));
+                            if (markerInThisSection && nowMarkerSectionInfo.afterTaskIdx === ti) {
+                              elements.push(renderDesktopNowMarker(`desktop-now-unframed-${si}-${ti}`));
+                            }
+                          });
                         }
-                        return section.tasks.map(task => renderTaskItem(task, 'desktop-glance'));
+                        return <React.Fragment key={`desktop-section-${si}`}>{elements}</React.Fragment>;
                       })}
                       {/* Now marker after all tasks */}
                       {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
