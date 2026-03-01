@@ -13211,7 +13211,8 @@ const DayPlanner = () => {
                 {(() => {
                   const filteredAgenda = filterByTags(todayAgenda);
                   const today = new Date(getTodayStr() + 'T12:00:00');
-                  const todayFrames = getFrameInstancesForDate(today);
+                  const nowMinGlance = currentTime.getHours() * 60 + currentTime.getMinutes();
+                  const todayFrames = getFrameInstancesForDate(today).filter(f => timeToMinutes(f.end) > nowMinGlance);
                   const glanceBorderColorMap = darkMode ? {
                     'bg-indigo-200': 'rgba(165,180,252,0.4)',
                     'bg-amber-200': 'rgba(253,230,138,0.4)',
@@ -16344,7 +16345,8 @@ const DayPlanner = () => {
                       {(() => {
                         const filteredAgenda = filterByTags(todayAgenda);
                         const today = new Date(getTodayStr() + 'T12:00:00');
-                        const todayFrames = getFrameInstancesForDate(today);
+                        const nowMinGlance = currentTime.getHours() * 60 + currentTime.getMinutes();
+                        const todayFrames = getFrameInstancesForDate(today).filter(f => timeToMinutes(f.end) > nowMinGlance);
                         const glanceBorderColorMap = darkMode ? {
                           'bg-indigo-200': 'rgba(165,180,252,0.4)',
                           'bg-amber-200': 'rgba(253,230,138,0.4)',
@@ -17332,7 +17334,8 @@ const DayPlanner = () => {
                   {(() => {
                     const filteredAgenda = filterByTags(todayAgenda);
                     const today = new Date(getTodayStr() + 'T12:00:00');
-                    const todayFrames = getFrameInstancesForDate(today);
+                    const nowMinGlance = currentTime.getHours() * 60 + currentTime.getMinutes();
+                    const todayFrames = getFrameInstancesForDate(today).filter(f => timeToMinutes(f.end) > nowMinGlance);
                     const glanceBorderColorMap = darkMode ? {
                       'bg-indigo-200': 'rgba(165,180,252,0.4)',
                       'bg-amber-200': 'rgba(253,230,138,0.4)',
