@@ -2069,6 +2069,8 @@ const DayPlanner = () => {
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
+  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, trmnl: true });
+  const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
   const [showRemindersSettings, setShowRemindersSettings] = useState(false);
   const [reminderSettings, setReminderSettings] = useState(() => {
     const defaults = {
@@ -14312,10 +14314,13 @@ const DayPlanner = () => {
 
                     {/* Calendar Sync */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                      </h4>
+                        {(syncUrl || taskCalendarUrl) && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.calSync && (<>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>Calendar URL (iCal/CalDAV)</label>
                         <input
@@ -14408,16 +14413,20 @@ const DayPlanner = () => {
                       {calSyncLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(calSyncLastSynced).toLocaleString()}</p>
                       )}
+                      </>)}
                     </div>
 
                     <hr className={borderClass} />
 
                     {/* Cloud Sync */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
                         Cloud Sync
-                      </h4>
+                        {cloudSyncConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.cloudSync && (<>
                       <p className={`${textSecondary} text-xs`}>Sync all your data as a JSON file to your cloud storage.</p>
                       <CloudSyncSettingsForm
                         darkMode={darkMode}
@@ -14433,6 +14442,7 @@ const DayPlanner = () => {
                         onClose={() => setMobileSettingsView('main')}
                         cloudSyncLastSynced={cloudSyncLastSynced}
                       />
+                      </>)}
                     </div>
 
                     <hr className={borderClass} />
@@ -22259,10 +22269,13 @@ const DayPlanner = () => {
                   <div className="space-y-6">
                     {/* Cloud Sync Section - narrow screens only */}
                     <div className="space-y-3 lg:hidden">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
                         Cloud Sync
-                      </h4>
+                        {cloudSyncConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.cloudSync && (<>
                       <p className={`${textSecondary} text-xs`}>
                         Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage.
                       </p>
@@ -22280,16 +22293,20 @@ const DayPlanner = () => {
                         onClose={() => setShowSettings(false)}
                         cloudSyncLastSynced={cloudSyncLastSynced}
                       />
+                      </>)}
                     </div>
 
                     <hr className={`${borderClass} lg:hidden`} />
 
                     {/* Calendar Sync Section - narrow screens only (shown in right column on desktop) */}
                     <div className="space-y-3 lg:hidden">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                      </h4>
+                        {(syncUrl || taskCalendarUrl) && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.calSync && (<>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           Calendar URL (iCal/CalDAV)
@@ -22398,6 +22415,7 @@ const DayPlanner = () => {
                           Last synced: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
                       )}
+                      </>)}
                     </div>
 
                     <hr className={`${borderClass} lg:hidden`} />
@@ -22508,10 +22526,13 @@ const DayPlanner = () => {
 
                     {/* AI Features Section */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('ai')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BrainCircuit size={16} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
                         AI Features
-                      </h4>
+                        {aiConfig.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.ai ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.ai && (<>
                       <p className={`${textSecondary} text-xs`}>
                         BYO API key — all calls go directly from your browser to your provider. No data leaves your device unless you enable AI.
                       </p>
@@ -22707,6 +22728,7 @@ const DayPlanner = () => {
                           </div>
                         </div>
                       )}
+                      </>)}
                     </div>
 
                     {!isMobile && !isTablet && (<>
@@ -22770,10 +22792,13 @@ const DayPlanner = () => {
 
                     {/* Obsidian Integration Section — desktop only (requires File System Access API) */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('obsidian')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BookOpen size={16} className={textSecondary} />
                         Obsidian Integration
-                      </h4>
+                        {obsidianConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.obsidian ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.obsidian && (<>
                       <p className={`${textSecondary} text-xs`}>
                         Import tasks and sync daily notes with your Obsidian vault.
                       </p>
@@ -22870,6 +22895,7 @@ const DayPlanner = () => {
                           Select Vault Folder
                         </button>
                       )}
+                      </>)}
                     </div>
                     </>)}
 
@@ -22877,10 +22903,13 @@ const DayPlanner = () => {
 
                     {/* TRMNL E-Ink Dashboard Section */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('trmnl')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <LayoutGrid size={16} className={textSecondary} />
                         TRMNL Dashboard
-                      </h4>
+                        {trmnlConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.trmnl ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.trmnl && (<>
                       <p className={`${textSecondary} text-xs`}>
                         Push your daily schedule to a <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> e-ink display via webhook.
                       </p>
@@ -22980,6 +23009,7 @@ const DayPlanner = () => {
                           ))}
                         </div>
                       )}
+                      </>)}
                     </div>
 
                     <hr className={borderClass} />
@@ -23005,10 +23035,13 @@ const DayPlanner = () => {
                   <div className={`hidden lg:block space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
                     {/* Cloud Sync Section */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
                         Cloud Sync
-                      </h4>
+                        {cloudSyncConfig?.enabled && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.cloudSync && (<>
                       <p className={`${textSecondary} text-xs`}>
                         Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage.
                       </p>
@@ -23026,16 +23059,20 @@ const DayPlanner = () => {
                         onClose={() => setShowSettings(false)}
                         cloudSyncLastSynced={cloudSyncLastSynced}
                       />
+                      </>)}
                     </div>
 
                     <hr className={borderClass} />
 
                     {/* Calendar Sync Section - wide screens */}
                     <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                      </h4>
+                        {(syncUrl || taskCalendarUrl) && <span className="ml-auto mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.calSync && (<>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           Calendar URL (iCal/CalDAV)
@@ -23144,6 +23181,7 @@ const DayPlanner = () => {
                           Last synced: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
                       )}
+                      </>)}
                     </div>
 
                   </div>
