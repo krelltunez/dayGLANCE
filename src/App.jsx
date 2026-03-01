@@ -13340,9 +13340,11 @@ const DayPlanner = () => {
                           <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                            {agendaNowMarker.inboxCount > 0 && (
+                            {agendaNowMarker.gapMinutes < 30 ? (
+                              <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                            ) : agendaNowMarker.inboxCount > 0 ? (
                               <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -16332,9 +16334,11 @@ const DayPlanner = () => {
                                 <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
                                 <div className="min-w-0 flex-1">
                                   <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                                  {agendaNowMarker.inboxCount > 0 && (
+                                  {agendaNowMarker.gapMinutes < 30 ? (
+                                    <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                                  ) : agendaNowMarker.inboxCount > 0 ? (
                                     <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                                  )}
+                                  ) : null}
                                 </div>
                               </div>
                             );
@@ -17210,9 +17214,11 @@ const DayPlanner = () => {
                             <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
-                              {agendaNowMarker.inboxCount > 0 && (
+                              {agendaNowMarker.gapMinutes < 30 ? (
+                                <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                              ) : agendaNowMarker.inboxCount > 0 ? (
                                 <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         );
