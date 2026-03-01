@@ -1,0 +1,284 @@
+/**
+ * TRMNL e-ink dashboard integration for dayGLANCE.
+ *
+ * Gathers the current day's planner data and pushes it to a TRMNL
+ * private-plugin webhook so it can be rendered on an 800×480 e-ink display.
+ *
+ * TRMNL docs: https://docs.usetrmnl.com/go/private-plugins/webhooks
+ */
+
+// ---------------------------------------------------------------------------
+// Data helpers
+// ---------------------------------------------------------------------------
+
+/** Format minutes as "Xh Ym" or "Ym" */
+const fmtDuration = (mins) => {
+  if (!mins || mins <= 0) return '0m';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+};
+
+/** Format "HH:MM" 24-h string into display time */
+const fmtTime = (t, use24h) => {
+  if (!t) return '';
+  const [hh, mm] = t.split(':').map(Number);
+  if (use24h) return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  const h12 = hh % 12 || 12;
+  return `${h12}:${String(mm).padStart(2, '0')} ${ampm}`;
+};
+
+/** Priority label */
+const priorityLabel = (p) => ['', 'Low', 'Med', 'High'][p] || '';
+
+// ---------------------------------------------------------------------------
+// Gather planner data for TRMNL
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect a snapshot of today's planner data suitable for TRMNL merge variables.
+ *
+ * @param {Object} opts
+ * @param {Array}  opts.tasks          - Scheduled tasks array
+ * @param {Array}  opts.unscheduledTasks - Inbox tasks array
+ * @param {string} opts.selectedDate   - "YYYY-MM-DD"
+ * @param {boolean} opts.use24HourClock
+ * @param {Array}  opts.habits         - Habit definitions
+ * @param {Object} opts.habitLogs      - { "YYYY-MM-DD": { habitId: count } }
+ * @param {string} opts.weatherSummary - Optional weather string
+ * @param {Object} opts.dailyNotes     - { "YYYY-MM-DD": { text } }
+ * @returns {Object} merge_variables payload (kept under 2 KB for free-tier)
+ */
+export function gatherTrmnlData({
+  tasks = [],
+  unscheduledTasks = [],
+  selectedDate,
+  use24HourClock = false,
+  habits = [],
+  habitLogs = {},
+  weatherSummary = '',
+  dailyNotes = {},
+}) {
+  const today = selectedDate || new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // Today's scheduled tasks, sorted by start time
+  const todayTasks = tasks
+    .filter((t) => t.date === today)
+    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+  // Build compact task list (keep payload small)
+  const schedule = todayTasks.map((t) => ({
+    time: fmtTime(t.startTime, use24HourClock),
+    dur: fmtDuration(t.duration),
+    title: (t.title || '').slice(0, 40),
+    done: !!t.completed,
+    pri: priorityLabel(t.priority),
+    allDay: !!t.allDay,
+  }));
+
+  // Stats
+  const total = todayTasks.length;
+  const completed = todayTasks.filter((t) => t.completed).length;
+  const overdue = todayTasks.filter(
+    (t) => !t.completed && t.startTime && t.startTime < currentTime && !t.allDay
+  ).length;
+  const totalMinutes = todayTasks.reduce((s, t) => s + (t.duration || 0), 0);
+
+  // Upcoming (next 3 uncompleted tasks from now)
+  const upcoming = todayTasks
+    .filter((t) => !t.completed && t.startTime && t.startTime >= currentTime && !t.allDay)
+    .slice(0, 3)
+    .map((t) => ({
+      time: fmtTime(t.startTime, use24HourClock),
+      title: (t.title || '').slice(0, 32),
+    }));
+
+  // Next task
+  const nextTask = upcoming[0] || null;
+
+  // Inbox count
+  const inboxCount = unscheduledTasks.filter((t) => !t.completed).length;
+
+  // Habits summary
+  const todayLogs = habitLogs[today] || {};
+  const habitItems = habits.slice(0, 5).map((h) => {
+    const count = todayLogs[h.id] || 0;
+    const target = h.target || 1;
+    return {
+      name: (h.name || '').slice(0, 20),
+      count,
+      target,
+      pct: Math.min(100, Math.round((count / target) * 100)),
+    };
+  });
+
+  // Daily note snippet
+  const noteSnippet = (dailyNotes[today]?.text || '').slice(0, 80);
+
+  // Friendly date
+  const dateObj = new Date(today + 'T12:00:00');
+  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+  const dateLabel = dateObj.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+
+  return {
+    date: today,
+    day_name: dayName,
+    date_label: dateLabel,
+    current_time: fmtTime(currentTime, use24HourClock),
+    weather: weatherSummary || '',
+    schedule,
+    total,
+    completed,
+    overdue,
+    pct: total > 0 ? Math.round((completed / total) * 100) : 0,
+    time_planned: fmtDuration(totalMinutes),
+    upcoming,
+    next_task: nextTask,
+    inbox_count: inboxCount,
+    habits: habitItems,
+    note: noteSnippet,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Push data to TRMNL webhook
+// ---------------------------------------------------------------------------
+
+/**
+ * Send merge_variables to a TRMNL private-plugin webhook.
+ *
+ * @param {Object} config
+ * @param {string} config.webhookUrl - Full TRMNL webhook URL
+ * @param {string} [config.apiKey]   - Optional Bearer token
+ * @param {Object} mergeVars         - The merge_variables payload
+ * @returns {{ success: boolean, error?: string }}
+ */
+export async function pushToTrmnl({ webhookUrl, apiKey }, mergeVars) {
+  if (!webhookUrl) return { success: false, error: 'No webhook URL configured' };
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ merge_variables: mergeVars }),
+    });
+
+    if (res.status === 429) return { success: false, error: 'Rate limited — try again later' };
+    if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TRMNL markup templates
+// ---------------------------------------------------------------------------
+// These are pasted by the user into their TRMNL private-plugin Markup Editor.
+// They use Liquid {{ variable }} syntax and TRMNL Design System classes.
+// ---------------------------------------------------------------------------
+
+export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
+  <div class="columns">
+    <div class="column" style="flex:2">
+      <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
+      {% if weather != blank %}<span class="label label--gray">{{ weather }}</span>{% endif %}
+
+      <div class="gap--small" style="margin-top:8px">
+        {% for t in schedule %}
+        <div class="item">
+          <div class="meta"><span class="index">{% if t.done %}✓{% else %}{{ forloop.index }}{% endif %}</span></div>
+          <div class="content">
+            <span class="title title--small"{% if t.done %} style="text-decoration:line-through;opacity:.5"{% endif %}>{{ t.title }}</span>
+            <span class="label">{% if t.allDay %}All day{% else %}{{ t.time }} · {{ t.dur }}{% endif %}{% if t.pri != blank %} · {{ t.pri }}{% endif %}</span>
+          </div>
+        </div>
+        {% endfor %}
+        {% if schedule.size == 0 %}
+        <span class="description">No tasks scheduled</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="column" style="flex:1">
+      <span class="value value--large">{{ pct }}%</span>
+      <span class="label">{{ completed }}/{{ total }} done</span>
+      {% if overdue > 0 %}<span class="label" style="font-weight:bold">{{ overdue }} overdue</span>{% endif %}
+      <span class="label label--gray">{{ time_planned }} planned</span>
+      {% if inbox_count > 0 %}<span class="label label--gray">{{ inbox_count }} in inbox</span>{% endif %}
+
+      {% if next_task %}
+      <div style="margin-top:12px">
+        <span class="label label--gray">UP NEXT</span>
+        <span class="title title--small">{{ next_task.title }}</span>
+        <span class="label">{{ next_task.time }}</span>
+      </div>
+      {% endif %}
+
+      {% if habits.size > 0 %}
+      <div style="margin-top:12px">
+        <span class="label label--gray">HABITS</span>
+        {% for h in habits %}
+        <span class="description">{{ h.name }}: {{ h.count }}/{{ h.target }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="title_bar">
+    <span class="title_bar__title">dayGLANCE</span>
+    <span class="instance">{{ current_time }}</span>
+  </div>
+</div>`;
+
+export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
+  <div style="display:flex;justify-content:space-between;align-items:baseline">
+    <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
+    <span class="label">{{ completed }}/{{ total }} · {{ pct }}%</span>
+  </div>
+  <div class="gap--small" style="margin-top:4px">
+    {% for t in schedule limit:5 %}
+    <div class="item">
+      <div class="meta"><span class="index">{% if t.done %}✓{% else %}{{ forloop.index }}{% endif %}</span></div>
+      <div class="content">
+        <span class="title title--small"{% if t.done %} style="text-decoration:line-through;opacity:.5"{% endif %}>{{ t.title }}</span>
+        <span class="label">{% if t.allDay %}All day{% else %}{{ t.time }}{% endif %}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% if schedule.size == 0 %}<span class="description">No tasks scheduled</span>{% endif %}
+  </div>
+  <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
+</div>`;
+
+export const TRMNL_MARKUP_HALF_VERTICAL = `<div class="layout layout--col">
+  <span class="title title--small">{{ day_name }}</span>
+  <span class="label">{{ date_label }}{% if weather != blank %} · {{ weather }}{% endif %}</span>
+  <span class="value value--large" style="margin:4px 0">{{ pct }}%</span>
+  <span class="label">{{ completed }}/{{ total }} done</span>
+  {% if overdue > 0 %}<span class="label" style="font-weight:bold">{{ overdue }} overdue</span>{% endif %}
+  {% if next_task %}
+  <div style="margin-top:8px">
+    <span class="label label--gray">NEXT</span>
+    <span class="description">{{ next_task.time }} {{ next_task.title }}</span>
+  </div>
+  {% endif %}
+  <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
+</div>`;
+
+export const TRMNL_MARKUP_QUADRANT = `<div class="layout layout--col layout--center">
+  <span class="value value--large">{{ pct }}%</span>
+  <span class="label">{{ completed }}/{{ total }}</span>
+  {% if next_task %}<span class="description" style="margin-top:4px">{{ next_task.time }} {{ next_task.title }}</span>{% endif %}
+  <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
+</div>`;

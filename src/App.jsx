@@ -4,6 +4,7 @@ import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
+import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -2003,6 +2004,20 @@ const DayPlanner = () => {
     return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks\n';
   });
 
+  // TRMNL e-ink dashboard state
+  const [trmnlConfig, setTrmnlConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-trmnl-config');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [trmnlSyncStatus, setTrmnlSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
+  const [trmnlLastSynced, setTrmnlLastSynced] = useState(() =>
+    localStorage.getItem('day-planner-trmnl-last-synced') || null
+  );
+  const trmnlSyncTimerRef = useRef(null);
+  const [trmnlMarkupCopied, setTrmnlMarkupCopied] = useState('');
+
   // Obsidian Integration state
   const [obsidianConfig, setObsidianConfig] = useState(() => {
     try {
@@ -3248,6 +3263,25 @@ const DayPlanner = () => {
       localStorage.removeItem('day-planner-cloud-sync-config');
     }
   }, [cloudSyncConfig]);
+
+  // Persist TRMNL config
+  useEffect(() => {
+    if (trmnlConfig) {
+      localStorage.setItem('day-planner-trmnl-config', JSON.stringify(trmnlConfig));
+    } else {
+      localStorage.removeItem('day-planner-trmnl-config');
+    }
+  }, [trmnlConfig]);
+
+  // TRMNL auto-sync: push data when tasks/habits change (debounced, max 12x/hr)
+  useEffect(() => {
+    if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl || !dataLoaded) return;
+    if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current);
+    trmnlSyncTimerRef.current = setTimeout(() => {
+      performTrmnlSync();
+    }, 5 * 60 * 1000); // 5-minute debounce to stay well under rate limits
+    return () => { if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current); };
+  }, [tasks, unscheduledTasks, habits, habitLogs, trmnlConfig?.enabled, dataLoaded]);
 
   // Persist Obsidian config
   useEffect(() => {
@@ -4932,6 +4966,38 @@ const DayPlanner = () => {
         dateStr,
         text || ''
       ).catch(err => console.error('Obsidian: failed to write daily note', err));
+    }
+  };
+
+  // TRMNL e-ink dashboard sync — push today's data to TRMNL webhook
+  const performTrmnlSync = async () => {
+    if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl) return;
+    setTrmnlSyncStatus('syncing');
+    try {
+      const today = selectedDate || new Date().toISOString().slice(0, 10);
+      const mergeVars = gatherTrmnlData({
+        tasks,
+        unscheduledTasks,
+        selectedDate: today,
+        use24HourClock: use24HourClock,
+        habits,
+        habitLogs,
+        weatherSummary: weather ? `${weather.temp}°${weatherTempUnit === 'celsius' ? 'C' : 'F'} ${weather.description || ''}`.trim() : '',
+        dailyNotes,
+      });
+      const result = await pushToTrmnl(trmnlConfig, mergeVars);
+      if (result.success) {
+        setTrmnlSyncStatus('success');
+        const ts = new Date().toISOString();
+        setTrmnlLastSynced(ts);
+        localStorage.setItem('day-planner-trmnl-last-synced', ts);
+      } else {
+        setTrmnlSyncStatus('error');
+        console.warn('TRMNL sync failed:', result.error);
+      }
+    } catch (err) {
+      setTrmnlSyncStatus('error');
+      console.error('TRMNL sync error:', err);
     }
   };
 
@@ -22804,6 +22870,115 @@ const DayPlanner = () => {
                       )}
                     </div>
                     </>)}
+
+                    <hr className={borderClass} />
+
+                    {/* TRMNL E-Ink Dashboard Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <LayoutGrid size={16} className={textSecondary} />
+                        TRMNL Dashboard
+                      </h4>
+                      <p className={`${textSecondary} text-xs`}>
+                        Push your daily schedule to a <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> e-ink display via webhook.
+                      </p>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>Webhook URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://usetrmnl.com/api/custom_plugins/your-uuid"
+                          value={trmnlConfig?.webhookUrl || ''}
+                          onChange={(e) => setTrmnlConfig(prev => ({ ...prev, webhookUrl: e.target.value }))}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        />
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          Create a Private Plugin in TRMNL, then copy the Webhook URL
+                        </p>
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>API Key (optional)</label>
+                        <input
+                          type="password"
+                          placeholder="Bearer token"
+                          value={trmnlConfig?.apiKey || ''}
+                          onChange={(e) => setTrmnlConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {trmnlConfig?.enabled ? (
+                          <>
+                            <button
+                              onClick={() => performTrmnlSync()}
+                              disabled={trmnlSyncStatus === 'syncing'}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+                            >
+                              <RefreshCw size={14} className={trmnlSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                              {trmnlSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                            </button>
+                            <button
+                              onClick={() => setTrmnlConfig(prev => ({ ...prev, enabled: false }))}
+                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                            >
+                              Disable
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              if (!trmnlConfig?.webhookUrl) return;
+                              setTrmnlConfig(prev => ({ ...prev, enabled: true }));
+                              setTimeout(() => performTrmnlSync(), 100);
+                            }}
+                            disabled={!trmnlConfig?.webhookUrl}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                          >
+                            <Wifi size={14} />
+                            Enable & Sync
+                          </button>
+                        )}
+                      </div>
+                      {trmnlSyncStatus === 'success' && <p className="text-xs text-green-500">Data sent to TRMNL</p>}
+                      {trmnlSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed — check console</p>}
+                      {trmnlLastSynced && (
+                        <p className={`text-xs ${textSecondary}`}>
+                          Last synced: {new Date(trmnlLastSynced).toLocaleString()}
+                        </p>
+                      )}
+
+                      {/* Markup templates - copy to TRMNL editor */}
+                      {trmnlConfig?.enabled && (
+                        <div className="space-y-2 mt-2">
+                          <p className={`text-xs font-medium ${textSecondary}`}>Markup Templates</p>
+                          <p className={`text-xs ${textSecondary}`}>
+                            Copy a template below and paste it into your TRMNL plugin's Markup Editor.
+                          </p>
+                          {[
+                            ['full', 'Full', TRMNL_MARKUP_FULL],
+                            ['half_h', 'Half Horizontal', TRMNL_MARKUP_HALF_HORIZONTAL],
+                            ['half_v', 'Half Vertical', TRMNL_MARKUP_HALF_VERTICAL],
+                            ['quad', 'Quadrant', TRMNL_MARKUP_QUADRANT],
+                          ].map(([key, label, markup]) => (
+                            <button
+                              key={key}
+                              onClick={() => {
+                                navigator.clipboard.writeText(markup).then(() => {
+                                  setTrmnlMarkupCopied(key);
+                                  setTimeout(() => setTrmnlMarkupCopied(''), 2000);
+                                });
+                              }}
+                              className={`mr-1 mb-1 px-2.5 py-1 text-xs rounded transition-colors ${
+                                trmnlMarkupCopied === key
+                                  ? 'bg-green-600 text-white'
+                                  : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                              }`}
+                            >
+                              {trmnlMarkupCopied === key ? `${label} ✓` : label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     <hr className={borderClass} />
 
