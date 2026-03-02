@@ -15,10 +15,10 @@ function compareVersions(a, b) {
 }
 
 export async function checkForUpdate(currentVersion) {
-  // Check cache first
+  // Check cache first (invalidate if app version changed, e.g. after upgrade)
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    if (cached && cached.version === currentVersion && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.result;
     }
   } catch {}
@@ -52,7 +52,7 @@ export async function checkForUpdate(currentVersion) {
 
     // Cache the result
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), result }));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), version: currentVersion, result }));
     } catch {}
 
     return result;
