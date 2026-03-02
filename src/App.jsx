@@ -13982,6 +13982,18 @@ const DayPlanner = () => {
                             Edit<Settings size={14} className="ml-1" />
                           </div>
                         <div
+                          data-ctx-menu
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setTaskContextMenu({
+                              x: e.clientX, y: e.clientY,
+                              taskId: task.id,
+                              isRecurring: false,
+                              isImported: false,
+                              isAllDay: false,
+                              dateStr: dateToString(new Date()),
+                            });
+                          }}
                           className={`relative select-none ${task.color} rounded-lg px-3 py-4 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'inbox')}
                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -17108,6 +17120,18 @@ const DayPlanner = () => {
                                 Edit<Settings size={14} className="ml-1" />
                               </div>
                             <div
+                              data-ctx-menu
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setTaskContextMenu({
+                                  x: e.clientX, y: e.clientY,
+                                  taskId: task.id,
+                                  isRecurring: false,
+                                  isImported: false,
+                                  isAllDay: false,
+                                  dateStr: dateToString(new Date()),
+                                });
+                              }}
                               className={`relative select-none ${task.color} rounded-lg px-3 py-4 shadow-sm ${task.completed ? 'opacity-50' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'inbox')}
                               onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -18090,6 +18114,18 @@ const DayPlanner = () => {
                         className="notes-panel-container"
                       >
                         <div
+                          data-ctx-menu
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setTaskContextMenu({
+                              x: e.clientX, y: e.clientY,
+                              taskId: task.id,
+                              isRecurring: false,
+                              isImported: false,
+                              isAllDay: false,
+                              dateStr: dateToString(new Date()),
+                            });
+                          }}
                           draggable
                           onDragStart={(e) => handleDragStart(task, 'inbox', e)}
                           onDragEnd={handleDragEnd}
@@ -23852,8 +23888,10 @@ const DayPlanner = () => {
       {taskContextMenu && (() => {
         const { x, y, taskId, isRecurring, isImported, isAllDay, dateStr: ctxDateStr } = taskContextMenu;
         const ctxDate = new Date(ctxDateStr + 'T12:00:00');
-        const ctxTask = getTasksForDate(ctxDate).find(t => t.id === taskId)
-          || unscheduledTasks.find(t => t.id === taskId);
+        const scheduledMatch = getTasksForDate(ctxDate).find(t => t.id === taskId);
+        const inboxMatch = !scheduledMatch && unscheduledTasks.find(t => t.id === taskId);
+        const ctxTask = scheduledMatch || inboxMatch;
+        const isInbox = !!inboxMatch;
         const isCompleted = ctxTask?.completed || false;
         const isTaskCalendar = ctxTask?.isTaskCalendar || false;
         const isCalendarEvent = isImported && !isTaskCalendar;
@@ -23869,7 +23907,7 @@ const DayPlanner = () => {
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
-                    if (ctxTask) openMobileEditTask(ctxTask, false);
+                    if (ctxTask) openMobileEditTask(ctxTask, isInbox);
                     setTaskContextMenu(null);
                   }}
                 >
@@ -23904,7 +23942,7 @@ const DayPlanner = () => {
                   Notes / subtasks
                 </button>
               )}
-              {!isRecurring && !isImported && (
+              {!isRecurring && !isImported && !isInbox && (
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
@@ -23916,7 +23954,7 @@ const DayPlanner = () => {
                   Move to tomorrow
                 </button>
               )}
-              {!isRecurring && !isImported && !isAllDay && (
+              {!isRecurring && !isImported && !isAllDay && !isInbox && (
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
@@ -23932,7 +23970,7 @@ const DayPlanner = () => {
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
-                    toggleComplete(taskId);
+                    toggleComplete(taskId, isInbox);
                     setTaskContextMenu(null);
                   }}
                 >
@@ -23944,7 +23982,7 @@ const DayPlanner = () => {
                 <button
                   className={`w-full text-left px-3 py-2 text-sm text-red-500 ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
-                    moveToRecycleBin(taskId);
+                    moveToRecycleBin(taskId, isInbox);
                     setTaskContextMenu(null);
                   }}
                 >
