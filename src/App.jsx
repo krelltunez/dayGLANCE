@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
@@ -1254,6 +1254,7 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
 
   return (
     <button
+      data-ctx-menu
       onClick={onClick}
       onContextMenu={onContextMenu}
       onMouseDown={onMouseDown}
@@ -1364,6 +1365,7 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   const [energyLevel, setEnergyLevel] = useState(frame?.energyLevel || 'medium');
   const [bufferMinutes, setBufferMinutes] = useState(frame?.bufferMinutes ?? 5);
   const [enabled, setEnabled] = useState(frame?.enabled ?? true);
+  const [singleDate, setSingleDate] = useState(frame?.singleDate || null);
   const [error, setError] = useState('');
 
   const toggleDay = (d) => {
@@ -1376,15 +1378,24 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
 
   const validate = () => {
     if (!label.trim()) return 'Frame needs a name';
-    if (days.length === 0) return 'Select at least one day';
+    if (!singleDate && days.length === 0) return 'Select at least one day';
     if (start >= end) return 'End time must be after start time';
     // Check overlap with existing frames (same day)
     const otherFrames = existingFrames.filter(f => f.id !== frame?.id && f.enabled);
     for (const other of otherFrames) {
-      const sharedDays = days.filter(d => other.days.includes(d));
-      if (sharedDays.length > 0) {
-        if (start < other.end && end > other.start) {
-          return `Overlaps with "${other.label}" on ${sharedDays.map(d => DAY_LABELS[d]).join(', ')}`;
+      if (singleDate) {
+        // For single-date frames, check overlap on that specific date
+        if (other.singleDate === singleDate || (!other.singleDate && other.days.includes(new Date(singleDate + 'T12:00:00').getDay()))) {
+          if (start < other.end && end > other.start) {
+            return `Overlaps with "${other.label}"`;
+          }
+        }
+      } else {
+        const sharedDays = days.filter(d => other.days.includes(d));
+        if (sharedDays.length > 0) {
+          if (start < other.end && end > other.start) {
+            return `Overlaps with "${other.label}" on ${sharedDays.map(d => DAY_LABELS[d]).join(', ')}`;
+          }
         }
       }
     }
@@ -1394,7 +1405,7 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   const handleSave = () => {
     const err = validate();
     if (err) { setError(err); return; }
-    onSave({
+    const frameData = {
       ...(frame || {}),
       id: frame?.id || undefined,
       label: label.trim(),
@@ -1407,7 +1418,13 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
       bufferMinutes,
       enabled,
       exceptions: frame?.exceptions || {},
-    });
+    };
+    if (singleDate) {
+      frameData.singleDate = singleDate;
+    } else {
+      delete frameData.singleDate;
+    }
+    onSave(frameData);
   };
 
   return (
@@ -1434,21 +1451,38 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
         />
       </div>
 
-      {/* Days */}
-      <div>
-        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Days</label>
-        <div className="flex gap-1">
-          {DAY_LABELS.map((d, i) => (
+      {/* Days / Single Date */}
+      {singleDate ? (
+        <div>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Schedule</label>
+          <div className={`flex items-center justify-between px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800' : 'bg-stone-50'}`}>
+            <span className={`text-sm ${textPrimary}`}>
+              {new Date(singleDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} only
+            </span>
             <button
-              key={i}
-              onClick={() => toggleDay(i)}
-              className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${days.includes(i) ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
+              onClick={() => { setSingleDate(null); setDays([new Date(singleDate + 'T12:00:00').getDay()]); }}
+              className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
             >
-              {d}
+              Make recurring
             </button>
-          ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Days</label>
+          <div className="flex gap-1">
+            {DAY_LABELS.map((d, i) => (
+              <button
+                key={i}
+                onClick={() => toggleDay(i)}
+                className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${days.includes(i) ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Time range */}
       <div className="flex gap-3">
@@ -1542,6 +1576,129 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
           </button>
         )}
       </div>
+    </div>
+  );
+};
+
+// Quick Add Frame form — compact modal for creating single-day frames from timeline right-click
+const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, defaultColor, existingFrames, getFrameInstancesForDate, onSave, onCancel, darkMode, textPrimary, textSecondary, borderClass, hoverBg, formatTime }) => {
+  const [label, setLabel] = useState('');
+  const [start, setStart] = useState(defaultStart);
+  const [end, setEnd] = useState(defaultEnd);
+  const [color, setColor] = useState(defaultColor);
+  const [energyLevel, setEnergyLevel] = useState('medium');
+  const [bufferMinutes, setBufferMinutes] = useState(5);
+  const [error, setError] = useState('');
+  const labelRef = useRef(null);
+
+  useEffect(() => {
+    if (labelRef.current) labelRef.current.focus();
+  }, []);
+
+  const validate = () => {
+    if (!label.trim()) return 'Frame needs a name';
+    if (start >= end) return 'End time must be after start time';
+    // Check overlap with existing frames on this date
+    const date = new Date(dateStr + 'T12:00:00');
+    const existingInstances = getFrameInstancesForDate(date);
+    for (const inst of existingInstances) {
+      if (start < inst.end && end > inst.start) {
+        return `Overlaps with "${inst.label}"`;
+      }
+    }
+    return '';
+  };
+
+  const handleSave = () => {
+    const err = validate();
+    if (err) { setError(err); return; }
+    onSave({
+      label: label.trim(),
+      days: [],
+      start,
+      end,
+      color,
+      tagAffinity: [],
+      energyLevel,
+      bufferMinutes,
+      enabled: true,
+      exceptions: {},
+      singleDate: dateStr,
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>New Frame</h3>
+        <button onClick={onCancel} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+          <X size={18} className={textSecondary} />
+        </button>
+      </div>
+
+      <div className={`text-xs ${textSecondary} px-1`}>{dateDisplay} only</div>
+
+      {error && <div className="p-2 rounded-lg bg-red-500/10 text-red-500 text-sm">{error}</div>}
+
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Name</label>
+        <input
+          ref={labelRef}
+          type="text"
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+          placeholder="e.g. Afternoon Focus"
+          className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`}
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start</label>
+          <input type="time" value={start} onChange={e => setStart(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+        </div>
+        <div className="flex-1">
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End</label>
+          <input type="time" value={end} onChange={e => setEnd(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+        </div>
+      </div>
+
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Color</label>
+        <div className="flex gap-2 flex-wrap">
+          {FRAME_COLORS.map(c => (
+            <button
+              key={c.class}
+              onClick={() => setColor(c.class)}
+              className={`w-7 h-7 rounded-full ${c.class} ${color === c.class ? 'ring-2 ring-blue-500 ring-offset-2' : ''} transition-all`}
+              style={darkMode ? { ringOffsetColor: '#1f2937' } : {}}
+              title={c.name}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Energy Level</label>
+        <div className="flex gap-1">
+          {['low', 'medium', 'high'].map(level => (
+            <button
+              key={level}
+              onClick={() => setEnergyLevel(level)}
+              className={`flex-1 py-1.5 rounded text-xs font-medium capitalize transition-colors ${energyLevel === level ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
+            >
+              {level}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button onClick={handleSave} className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+        Create Frame
+      </button>
     </div>
   );
 };
@@ -2147,6 +2304,9 @@ const DayPlanner = () => {
   const [smartScheduleError, setSmartScheduleError] = useState('');
   const [smartScheduleAccepted, setSmartScheduleAccepted] = useState({}); // { taskId: true/false }
   const [frameContextMenu, setFrameContextMenu] = useState(null); // { x, y, frameId, dateStr }
+  const [taskContextMenu, setTaskContextMenu] = useState(null); // { x, y, taskId, isRecurring, isImported, isAllDay, dateStr }
+  const [timelineContextMenu, setTimelineContextMenu] = useState(null); // { x, y, dateStr, timeMinutes }
+  const [quickAddFrameModal, setQuickAddFrameModal] = useState(null); // { dateStr, startMinutes, endMinutes }
   const [frameAdjustModal, setFrameAdjustModal] = useState(null); // { frameId, dateStr, start, end }
   const [frameScheduleModal, setFrameScheduleModal] = useState(null); // { frameId, dateStr, frame }
 
@@ -3115,6 +3275,17 @@ const DayPlanner = () => {
 
     return () => clearTimeout(midnightTimer);
   }, []);
+
+  // Cleanup expired single-day frames (older than 7 days)
+  useEffect(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoff = dateToString(sevenDaysAgo);
+    setGtdFrames(prev => {
+      const filtered = prev.filter(f => !f.singleDate || f.singleDate >= cutoff);
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, []); // Run once on app start
 
   // Auto-sync calendars every 15 minutes when URLs are configured
   useEffect(() => {
@@ -5837,6 +6008,21 @@ const DayPlanner = () => {
     const handleGlobalKeyDown = (e) => {
       // Escape to close modals/dialogs (works even when focus is on body)
       if (e.key === 'Escape') {
+        if (taskContextMenu) {
+          e.preventDefault();
+          setTaskContextMenu(null);
+          return;
+        }
+        if (timelineContextMenu) {
+          e.preventDefault();
+          setTimelineContextMenu(null);
+          return;
+        }
+        if (quickAddFrameModal) {
+          e.preventDefault();
+          setQuickAddFrameModal(null);
+          return;
+        }
         if (frameContextMenu) {
           e.preventDefault();
           setFrameContextMenu(null);
@@ -6111,7 +6297,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -11250,7 +11436,11 @@ const DayPlanner = () => {
     const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
     const dateStr = dateToString(date);
     return gtdFrames
-      .filter(f => f.enabled && f.days.includes(dayOfWeek))
+      .filter(f => {
+        if (!f.enabled) return false;
+        if (f.singleDate) return f.singleDate === dateStr;
+        return f.days.includes(dayOfWeek);
+      })
       .map(f => {
         // Check for per-day exceptions
         const exception = f.exceptions?.[dateStr];
@@ -11860,7 +12050,15 @@ const DayPlanner = () => {
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
   return (
-    <div className={`app-shell ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className={`app-shell ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      onContextMenu={(e) => {
+        // Allow native context menu on inputs/textareas/contenteditable
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable) return;
+        // Allow elements that explicitly opt-in via data-ctx-menu
+        if (e.target.closest('[data-ctx-menu]')) return;
+        e.preventDefault();
+      }}
+    >
       {/* Safe-area cover: fills the status bar inset with the header color so
            bg-gray-900 (which has a blue tint) doesn't peek through as a visible line */}
       <div className={`fixed top-0 left-0 right-0 ${cardBg} z-[60]`} style={{ height: 'env(safe-area-inset-top, 0px)' }} />
@@ -12133,7 +12331,20 @@ const DayPlanner = () => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                                   const isImported = task.imported;
                                   return (
-                                    <div key={task.id} className="relative" style={!isImported ? { marginLeft: '12px' } : {}}>
+                                    <div key={task.id} className="relative" style={!isImported ? { marginLeft: '12px' } : {}}
+                                      data-ctx-menu
+                                      onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setTaskContextMenu({
+                                          x: e.clientX, y: e.clientY,
+                                          taskId: task.id,
+                                          isRecurring: !!(typeof task.id === 'string' && task.id.startsWith('recurring-')),
+                                          isImported: !!isImported,
+                                          isAllDay: true,
+                                          dateStr,
+                                        });
+                                      }}
+                                    >
                                       {/* Protruding drag tab */}
                                       {!isImported && (
                                         <div
@@ -12385,6 +12596,7 @@ const DayPlanner = () => {
                           {visibleDates.map((date, idx) => (
                             <div
                               key={dateToString(date)}
+                              data-ctx-menu
                               className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''}`}
                               data-date={dateToString(date)}
                               onClick={(e) => {
@@ -12393,6 +12605,14 @@ const DayPlanner = () => {
                                   setHoverPreviewTime(time);
                                   setHoverPreviewDate(date);
                                 }
+                              }}
+                              onContextMenu={(e) => {
+                                if (!e.target.classList.contains('calendar-slot')) return;
+                                e.preventDefault();
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+                                const minutes = Math.round(positionToMinutes(y) / 15) * 15;
+                                setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr: dateToString(date), timeMinutes: minutes });
                               }}
                             ></div>
                           ))}
@@ -12472,6 +12692,7 @@ const DayPlanner = () => {
                               return (
                                 <div key={frame.frameId}>
                                   <div
+                                    data-ctx-menu
                                     className="absolute left-0 right-0 rounded-sm pointer-events-auto"
                                     style={{
                                       top: `${top}px`,
@@ -12639,6 +12860,18 @@ const DayPlanner = () => {
                                   key={task.id}
                                   ref={setTaskRef(task.id)}
                                   data-task-id={task.id}
+                                  data-ctx-menu
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    setTaskContextMenu({
+                                      x: e.clientX, y: e.clientY,
+                                      taskId: task.id,
+                                      isRecurring: !!isRecurring,
+                                      isImported: !!isImported,
+                                      isAllDay: !!task.isAllDay,
+                                      dateStr,
+                                    });
+                                  }}
                                   className={`absolute pointer-events-auto ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                   style={{
                                     top: `${top}px`,
@@ -13385,6 +13618,18 @@ const DayPlanner = () => {
                     return (
                       <div
                         key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+                        data-ctx-menu
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setTaskContextMenu({
+                            x: e.clientX, y: e.clientY,
+                            taskId: task.id,
+                            isRecurring: !!task.isRecurring,
+                            isImported: !!task.imported,
+                            isAllDay: !!task.isAllDay || task._agendaType === 'allday',
+                            dateStr: dateToString(new Date()),
+                          });
+                        }}
                         className={`flex gap-2.5 py-2.5 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
                         onClick={() => {
                           setMobileActiveTab('timeline');
@@ -14120,10 +14365,13 @@ const DayPlanner = () => {
                                 <div className="flex items-center gap-2">
                                   <div className={`w-3 h-3 rounded-full ${frame.color}`} />
                                   <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
+                                  {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>one-time</span>}
                                   {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
                                 </div>
                                 <div className={`text-xs ${textSecondary} mt-1`}>
-                                  {frame.start} – {frame.end} · {frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
+                                  {frame.start} – {frame.end} · {frame.singleDate
+                                    ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                    : frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
                                 </div>
                               </div>
                             ))}
@@ -16529,6 +16777,18 @@ const DayPlanner = () => {
                           return (
                             <div
                               key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+                              data-ctx-menu
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setTaskContextMenu({
+                                  x: e.clientX, y: e.clientY,
+                                  taskId: task.id,
+                                  isRecurring: !!task.isRecurring,
+                                  isImported: !!task.imported,
+                                  isAllDay: !!task.isAllDay || task._agendaType === 'allday',
+                                  dateStr: dateToString(new Date()),
+                                });
+                              }}
                               className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
                               onClick={() => {
                                 const el = document.querySelector(`[data-task-id="${task.id}"]`);
@@ -17510,6 +17770,18 @@ const DayPlanner = () => {
                       return (
                         <div
                           key={`${keyPrefix}-${task._agendaType}-${task.id}`}
+                          data-ctx-menu
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setTaskContextMenu({
+                              x: e.clientX, y: e.clientY,
+                              taskId: task.id,
+                              isRecurring: !!task.isRecurring,
+                              isImported: !!task.imported,
+                              isAllDay: !!task.isAllDay || task._agendaType === 'allday',
+                              dateStr: dateToString(new Date()),
+                            });
+                          }}
                           className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer hover:bg-white/5 rounded-lg transition-colors`}
                           onClick={() => {
                             const el = document.querySelector(`[data-task-id="${task.id}"]`);
@@ -18203,6 +18475,18 @@ const DayPlanner = () => {
                               key={task.id}
                               ref={setTaskRef(task.id)}
                               data-task-id={task.id}
+                              data-ctx-menu
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setTaskContextMenu({
+                                  x: e.clientX, y: e.clientY,
+                                  taskId: task.id,
+                                  isRecurring: !!isRecurringAllDay,
+                                  isImported: !!isImported,
+                                  isAllDay: true,
+                                  dateStr,
+                                });
+                              }}
                               draggable={!isImported && !isTablet}
                               onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
@@ -18583,6 +18867,7 @@ const DayPlanner = () => {
                       {visibleDates.map((date, idx) => (
                         <div
                           key={dateToString(date)}
+                          data-ctx-menu
                           className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''}`}
                           data-date={dateToString(date)}
                           onDragOver={(e) => handleDragOver(e, date)}
@@ -18590,6 +18875,14 @@ const DayPlanner = () => {
                           onClick={(e) => openNewTaskAtTime(e, date)}
                           onMouseMove={(e) => handleCalendarMouseMove(e, date)}
                           onMouseLeave={handleCalendarMouseLeave}
+                          onContextMenu={(e) => {
+                            if (!e.target.classList.contains('calendar-slot')) return;
+                            e.preventDefault();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+                            const minutes = Math.round(positionToMinutes(y) / 15) * 15;
+                            setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr: dateToString(date), timeMinutes: minutes });
+                          }}
                         ></div>
                       ))}
                     </div>
@@ -18668,6 +18961,7 @@ const DayPlanner = () => {
                           return (
                             <div key={frame.frameId}>
                               <div
+                                data-ctx-menu
                                 className="absolute left-0 right-0 rounded-sm pointer-events-auto"
                                 style={{
                                   top: `${top}px`,
@@ -18854,6 +19148,18 @@ const DayPlanner = () => {
                               key={task.id}
                               ref={setTaskRef(task.id)}
                               data-task-id={task.id}
+                              data-ctx-menu
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setTaskContextMenu({
+                                  x: e.clientX, y: e.clientY,
+                                  taskId: task.id,
+                                  isRecurring: !!isRecurringTask,
+                                  isImported: !!isImported,
+                                  isAllDay: !!task.isAllDay,
+                                  dateStr,
+                                });
+                              }}
                               draggable={(!isImported || task.isTaskCalendar) && !isTablet}
                               onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
@@ -23536,6 +23842,163 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* Task Context Menu */}
+      {taskContextMenu && (() => {
+        const { x, y, taskId, isRecurring, isImported, isAllDay, dateStr: ctxDateStr } = taskContextMenu;
+        const ctxDate = new Date(ctxDateStr + 'T12:00:00');
+        const ctxTask = getTasksForDate(ctxDate).find(t => t.id === taskId)
+          || unscheduledTasks.find(t => t.id === taskId);
+        const isCompleted = ctxTask?.completed || false;
+        return (
+          <div className="fixed inset-0 z-[70]" onClick={() => setTaskContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); }}>
+            <div
+              className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[180px]`}
+              style={{ left: `${x}px`, top: `${y}px` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {!isImported && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    if (ctxTask) openMobileEditTask(ctxTask, false);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <Pencil size={14} />
+                  Edit
+                </button>
+              )}
+              <button
+                className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                onClick={() => {
+                  setExpandedNotesTaskId(prev => prev === taskId ? null : taskId);
+                  setTaskContextMenu(null);
+                }}
+              >
+                <FileText size={14} />
+                Notes / subtasks
+              </button>
+              {!isRecurring && !isImported && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    postponeTask(taskId);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <SkipForward size={14} />
+                  Move to tomorrow
+                </button>
+              )}
+              {!isRecurring && !isImported && !isAllDay && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    moveToInbox(taskId);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <Inbox size={14} />
+                  Move to inbox
+                </button>
+              )}
+              {!isImported && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    toggleComplete(taskId);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  {isCompleted ? <RotateCcw size={14} /> : <Check size={14} />}
+                  {isCompleted ? 'Uncomplete' : 'Complete'}
+                </button>
+              )}
+              <button
+                className={`w-full text-left px-3 py-2 text-sm text-red-500 ${hoverBg} transition-colors flex items-center gap-2`}
+                onClick={() => {
+                  moveToRecycleBin(taskId);
+                  setTaskContextMenu(null);
+                }}
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Timeline Context Menu (right-click on empty timeline area) */}
+      {timelineContextMenu && (() => {
+        const { x, y, dateStr: ctxDateStr, timeMinutes } = timelineContextMenu;
+        const endMinutes = Math.min(timeMinutes + 60, 1440);
+        const startH = String(Math.floor(timeMinutes / 60)).padStart(2, '0');
+        const startM = String(timeMinutes % 60).padStart(2, '0');
+        const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
+        const endM = String(endMinutes % 60).padStart(2, '0');
+        return (
+          <div className="fixed inset-0 z-[70]" onClick={() => setTimelineContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTimelineContextMenu(null); }}>
+            <div
+              className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[200px]`}
+              style={{ left: `${x}px`, top: `${y}px` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                onClick={() => {
+                  setQuickAddFrameModal({
+                    dateStr: ctxDateStr,
+                    startMinutes: timeMinutes,
+                    endMinutes,
+                  });
+                  setTimelineContextMenu(null);
+                }}
+              >
+                <Plus size={14} />
+                Add a Frame ({formatTime(`${startH}:${startM}`)} – {formatTime(`${endH}:${endM}`)})
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Quick Add Frame Modal (from timeline right-click) */}
+      {quickAddFrameModal && (() => {
+        const { dateStr: qDateStr, startMinutes: qStart, endMinutes: qEnd } = quickAddFrameModal;
+        const qDate = new Date(qDateStr + 'T12:00:00');
+        const dateDisplay = qDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        // Pick first color not already used on that date
+        const usedColors = getFrameInstancesForDate(qDate).map(f => f.color);
+        const defaultColor = FRAME_COLORS.find(c => !usedColors.includes(c.class))?.class || FRAME_COLORS[0].class;
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setQuickAddFrameModal(null)}>
+            <div className={`${cardBg} rounded-lg shadow-xl p-5 border ${borderClass} w-80`} onClick={(e) => e.stopPropagation()}>
+              <QuickAddFrameForm
+                dateStr={qDateStr}
+                dateDisplay={dateDisplay}
+                defaultStart={minutesToTime(qStart)}
+                defaultEnd={minutesToTime(qEnd)}
+                defaultColor={defaultColor}
+                existingFrames={gtdFrames}
+                getFrameInstancesForDate={getFrameInstancesForDate}
+                onSave={(frame) => {
+                  saveFrame(frame);
+                  setQuickAddFrameModal(null);
+                }}
+                onCancel={() => setQuickAddFrameModal(null)}
+                darkMode={darkMode}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+                borderClass={borderClass}
+                hoverBg={hoverBg}
+                formatTime={formatTime}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Frame Adjust Time Modal */}
       {frameAdjustModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setFrameAdjustModal(null)}>
@@ -24908,10 +25371,13 @@ const DayPlanner = () => {
                               <div className="flex items-center gap-2">
                                 <div className={`w-3 h-3 rounded-full ${frame.color}`} />
                                 <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
+                                {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>one-time</span>}
                                 {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
                               </div>
                               <div className={`text-xs ${textSecondary} mt-1`}>
-                                {frame.start} – {frame.end} · {frame.days.map(d => DAY_LABELS[d]).join(', ')}
+                                {frame.start} – {frame.end} · {frame.singleDate
+                                  ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                  : frame.days.map(d => DAY_LABELS[d]).join(', ')}
                                 {frame.energyLevel !== 'medium' && ` · ${frame.energyLevel} energy`}
                               </div>
                             </div>
