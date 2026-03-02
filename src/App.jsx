@@ -23855,6 +23855,9 @@ const DayPlanner = () => {
         const ctxTask = getTasksForDate(ctxDate).find(t => t.id === taskId)
           || unscheduledTasks.find(t => t.id === taskId);
         const isCompleted = ctxTask?.completed || false;
+        const isTaskCalendar = ctxTask?.isTaskCalendar || false;
+        const isCalendarEvent = isImported && !isTaskCalendar;
+        const ctxHasNotes = ctxTask?.notes && ctxTask.notes.trim();
         return (
           <div className="fixed inset-0 z-[70]" onClick={() => setTaskContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); }}>
             <div
@@ -23874,16 +23877,33 @@ const DayPlanner = () => {
                   Edit
                 </button>
               )}
-              <button
-                className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
-                onClick={() => {
-                  setExpandedNotesTaskId(prev => prev === taskId ? null : taskId);
-                  setTaskContextMenu(null);
-                }}
-              >
-                <FileText size={14} />
-                Notes / subtasks
-              </button>
+              {/* Imported: only show Notes if the task actually has notes (no subtask support) */}
+              {/* Non-imported: always show Notes / subtasks */}
+              {isImported ? (
+                ctxHasNotes && (
+                  <button
+                    className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                    onClick={() => {
+                      setExpandedNotesTaskId(prev => prev === taskId ? null : taskId);
+                      setTaskContextMenu(null);
+                    }}
+                  >
+                    <FileText size={14} />
+                    Notes
+                  </button>
+                )
+              ) : (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    setExpandedNotesTaskId(prev => prev === taskId ? null : taskId);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <FileText size={14} />
+                  Notes / subtasks
+                </button>
+              )}
               {!isRecurring && !isImported && (
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
@@ -23908,7 +23928,7 @@ const DayPlanner = () => {
                   Move to inbox
                 </button>
               )}
-              {!isImported && (
+              {(!isImported || isTaskCalendar) && (
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
@@ -23920,16 +23940,18 @@ const DayPlanner = () => {
                   {isCompleted ? 'Uncomplete' : 'Complete'}
                 </button>
               )}
-              <button
-                className={`w-full text-left px-3 py-2 text-sm text-red-500 ${hoverBg} transition-colors flex items-center gap-2`}
-                onClick={() => {
-                  moveToRecycleBin(taskId);
-                  setTaskContextMenu(null);
-                }}
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
+              {!isImported && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm text-red-500 ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    moveToRecycleBin(taskId);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         );
