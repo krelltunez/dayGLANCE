@@ -12491,8 +12491,20 @@ const DayPlanner = () => {
                                     </div>
                                   <div
                                     data-task-id={task.id}
+                                    data-ctx-menu
                                     className={`relative ${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{ touchAction: 'pan-y' }}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      setTaskContextMenu({
+                                        x: e.clientX, y: e.clientY,
+                                        taskId: task.id,
+                                        isRecurring: false,
+                                        isImported: false,
+                                        isAllDay: true,
+                                        dateStr,
+                                      });
+                                    }}
                                     onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                     onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                     onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
@@ -18755,6 +18767,8 @@ const DayPlanner = () => {
                               Edit<Settings size={14} className="ml-1" />
                             </div>
                           <div
+                            data-task-id={task.id}
+                            data-ctx-menu
                             draggable
                             onDragStart={(e) => handleDragStart(task, 'inbox', e)}
                             onDragEnd={handleDragEnd}
@@ -18765,6 +18779,17 @@ const DayPlanner = () => {
                               setDragPreviewTime(null);
                             }}
                             onDrop={(e) => handleDropOnDateHeader(e, date)}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              setTaskContextMenu({
+                                x: e.clientX, y: e.clientY,
+                                taskId: task.id,
+                                isRecurring: false,
+                                isImported: false,
+                                isAllDay: true,
+                                dateStr,
+                              });
+                            }}
                             onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                             onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                             onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
@@ -23878,11 +23903,14 @@ const DayPlanner = () => {
       )}
 
       {/* Frame Context Menu */}
-      {frameContextMenu && (
+      {frameContextMenu && (() => {
+        const fmX = Math.min(frameContextMenu.x, window.innerWidth - 168);
+        const fmY = Math.min(frameContextMenu.y, window.innerHeight - 3 * 36 - 16);
+        return (
         <div className="fixed inset-0 z-[70]" onClick={() => setFrameContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu(null); }}>
           <div
             className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[160px]`}
-            style={{ left: `${frameContextMenu.x}px`, top: `${frameContextMenu.y}px` }}
+            style={{ left: `${fmX}px`, top: `${fmY}px` }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -23908,7 +23936,8 @@ const DayPlanner = () => {
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Task Context Menu */}
       {taskContextMenu && (() => {
@@ -23922,11 +23951,26 @@ const DayPlanner = () => {
         const isTaskCalendar = ctxTask?.isTaskCalendar || false;
         const isCalendarEvent = isImported && !isTaskCalendar;
         const ctxHasNotes = ctxTask?.notes && ctxTask.notes.trim();
+        // Check if any menu items would be visible; if not, don't show the menu
+        const hasEdit = !isImported;
+        const hasNotes = isImported ? !!ctxHasNotes : true;
+        const hasMoveTomorrow = !isRecurring && !isImported && !isInbox;
+        const hasMoveInbox = !isRecurring && !isImported && !isAllDay && !isInbox;
+        const hasComplete = !isImported || isTaskCalendar;
+        const hasDelete = !isImported;
+        if (!hasEdit && !hasNotes && !hasMoveTomorrow && !hasMoveInbox && !hasComplete && !hasDelete) return null;
+        // Clamp menu position to stay within viewport
+        const menuWidth = 180;
+        const menuItemHeight = 36;
+        const menuItems = [hasEdit, hasNotes, hasMoveTomorrow, hasMoveInbox, hasComplete, hasDelete].filter(Boolean).length;
+        const menuHeight = menuItems * menuItemHeight + 8;
+        const clampedX = Math.min(x, window.innerWidth - menuWidth - 8);
+        const clampedY = Math.min(y, window.innerHeight - menuHeight - 8);
         return (
           <div className="fixed inset-0 z-[70]" onClick={() => setTaskContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu(null); }}>
             <div
               className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[180px]`}
-              style={{ left: `${x}px`, top: `${y}px` }}
+              style={{ left: `${clampedX}px`, top: `${clampedY}px` }}
               onClick={(e) => e.stopPropagation()}
             >
               {!isImported && (
@@ -24029,11 +24073,13 @@ const DayPlanner = () => {
         const startM = String(timeMinutes % 60).padStart(2, '0');
         const endH = String(Math.floor(endMinutes / 60)).padStart(2, '0');
         const endM = String(endMinutes % 60).padStart(2, '0');
+        const tlX = Math.min(x, window.innerWidth - 208);
+        const tlY = Math.min(y, window.innerHeight - 44);
         return (
           <div className="fixed inset-0 z-[70]" onClick={() => setTimelineContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTimelineContextMenu(null); }}>
             <div
               className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[200px]`}
-              style={{ left: `${x}px`, top: `${y}px` }}
+              style={{ left: `${tlX}px`, top: `${tlY}px` }}
               onClick={(e) => e.stopPropagation()}
             >
               <button
