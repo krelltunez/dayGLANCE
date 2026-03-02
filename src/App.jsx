@@ -9052,7 +9052,7 @@ const DayPlanner = () => {
       const rule = {};
       event.rrule.split(';').forEach(part => {
         const eq = part.indexOf('=');
-        if (eq !== -1) rule[part.substring(0, eq)] = part.substring(eq + 1);
+        if (eq !== -1) rule[part.substring(0, eq).trim().toUpperCase()] = part.substring(eq + 1).trim().toUpperCase();
       });
 
       // Common setup for all frequencies
@@ -9719,7 +9719,7 @@ const DayPlanner = () => {
             const rule = {};
             rruleStr.split(';').forEach(part => {
               const eq = part.indexOf('=');
-              if (eq !== -1) rule[part.substring(0, eq)] = part.substring(eq + 1);
+              if (eq !== -1) rule[part.substring(0, eq).trim().toUpperCase()] = part.substring(eq + 1).trim().toUpperCase();
             });
             const interval = parseInt(rule.INTERVAL || '1');
             const dayMap = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 };

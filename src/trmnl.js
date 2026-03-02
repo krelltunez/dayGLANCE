@@ -32,6 +32,13 @@ const fmtTime = (t, use24h) => {
 /** Priority label */
 const priorityLabel = (p) => ['', 'Low', 'Med', 'High'][p] || '';
 
+/** Convert "HH:MM" to total minutes since midnight */
+const toMinutes = (t) => {
+  if (!t) return -1;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+
 // ---------------------------------------------------------------------------
 // Gather planner data for TRMNL
 // ---------------------------------------------------------------------------
@@ -46,7 +53,7 @@ const priorityLabel = (p) => ['', 'Low', 'Med', 'High'][p] || '';
  * @param {boolean} opts.use24HourClock
  * @param {Array}  opts.habits         - Habit definitions
  * @param {Object} opts.habitLogs      - { "YYYY-MM-DD": { habitId: count } }
- * @param {string} opts.weatherSummary - Optional weather string
+ * @param {string} opts.weatherSummary - (unused, kept for backward compat)
  * @param {Object} opts.dailyNotes     - { "YYYY-MM-DD": { text } }
  * @param {Array}  opts.todayRoutines  - Today's routine chips
  * @param {boolean} opts.routinesEnabled - Whether routines feature is on
@@ -67,6 +74,7 @@ export function gatherTrmnlData({
   const today = selectedDate || new Date().toISOString().slice(0, 10);
   const now = new Date();
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const nowMins = now.getHours() * 60 + now.getMinutes();
 
   // Today's scheduled tasks, sorted by start time
   const todayTasks = tasks
@@ -74,22 +82,30 @@ export function gatherTrmnlData({
     .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
   // Build compact task list (keep payload small)
-  const schedule = todayTasks.map((t) => ({
-    time: fmtTime(t.startTime, use24HourClock),
-    dur: fmtDuration(t.duration),
-    title: (t.title || '').slice(0, 40),
-    done: !!t.completed,
-    pri: priorityLabel(t.priority),
-    allDay: !!t.allDay,
-  }));
+  // Add `past` flag for calendar events whose time has passed
+  const schedule = todayTasks.map((t) => {
+    const isEvent = !!(t.imported && !t.isTaskCalendar);
+    const startMins = toMinutes(t.startTime);
+    const endMins = startMins >= 0 ? startMins + (t.duration || 0) : -1;
+    return {
+      time: fmtTime(t.startTime, use24HourClock),
+      dur: fmtDuration(t.duration),
+      title: (t.title || '').slice(0, 40),
+      done: !!t.completed,
+      pri: priorityLabel(t.priority),
+      allDay: !!t.allDay,
+      past: isEvent && !t.allDay && startMins >= 0 && endMins <= nowMins,
+    };
+  });
 
-  // Stats
-  const total = todayTasks.length;
-  const completed = todayTasks.filter((t) => t.completed).length;
-  const overdue = todayTasks.filter(
+  // Stats — only count app tasks and task calendar items (not calendar events)
+  const countable = todayTasks.filter((t) => !(t.imported && !t.isTaskCalendar));
+  const total = countable.length;
+  const completed = countable.filter((t) => t.completed).length;
+  const overdue = countable.filter(
     (t) => !t.completed && t.startTime && t.startTime < currentTime && !t.allDay
   ).length;
-  const totalMinutes = todayTasks.reduce((s, t) => s + (t.duration || 0), 0);
+  const totalMinutes = countable.reduce((s, t) => s + (t.duration || 0), 0);
 
   // Upcoming (next 3 uncompleted tasks from now)
   const upcoming = todayTasks
@@ -153,7 +169,7 @@ export function gatherTrmnlData({
     day_name: dayName,
     date_label: dateLabel,
     current_time: fmtTime(currentTime, use24HourClock),
-    weather: weatherSummary || '',
+    weather: '',
     schedule,
     total,
     completed,
@@ -214,15 +230,14 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
   <div class="columns">
     <div class="column" style="flex:2">
       <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
-      {% if weather != blank %}<span class="label label--gray">{{ weather }}</span>{% endif %}
 
       <div class="gap--small" style="margin-top:8px">
         {% for t in schedule %}
         <div class="item">
           <div class="meta"><span class="index">{% if t.done %}✓{% else %}{{ forloop.index }}{% endif %}</span></div>
           <div class="content">
-            <span class="title title--small"{% if t.done %} style="text-decoration:line-through;opacity:.5"{% endif %}>{{ t.title }}</span>
-            <span class="label">{% if t.allDay %}All day{% else %}{{ t.time }} · {{ t.dur }}{% endif %}{% if t.pri != blank %} · {{ t.pri }}{% endif %}</span>
+            <span class="title title--small"{% if t.done or t.past %} style="text-decoration:line-through;opacity:.5"{% endif %}>{{ t.title }}</span>
+            <span class="label"{% if t.done or t.past %} style="text-decoration:line-through;opacity:.5"{% endif %}>{% if t.allDay %}All day{% else %}{{ t.time }} · {{ t.dur }}{% endif %}{% if t.pri != blank %} · {{ t.pri }}{% endif %}</span>
           </div>
         </div>
         {% endfor %}
@@ -230,10 +245,20 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
         <span class="description">No tasks scheduled</span>
         {% endif %}
       </div>
+
+      {% if routines.size > 0 %}
+      <div style="margin-top:12px">
+        <span class="label label--gray">ROUTINES</span>
+        {% for r in routines %}
+        {% if forloop.index > 1 %}<div style="border-top:1px solid #ccc;margin:4px 0"></div>{% endif %}
+        <span class="description">{{ r.time }}{% if r.dur != blank %} · {{ r.dur }}{% endif %} {{ r.name }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
 
     <div class="column" style="flex:1">
-      <span class="value value--large">{{ pct }}%</span>
+      <span class="value">{{ pct }}%</span>
       <span class="label">{{ completed }}/{{ total }} done</span>
       {% if overdue > 0 %}<span class="label" style="font-weight:bold">{{ overdue }} overdue</span>{% endif %}
       <span class="label label--gray">{{ time_planned }} planned</span>
@@ -244,15 +269,6 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
         <span class="label label--gray">UP NEXT</span>
         <span class="title title--small">{{ next_task.title }}</span>
         <span class="label">{{ next_task.time }}</span>
-      </div>
-      {% endif %}
-
-      {% if routines.size > 0 %}
-      <div style="margin-top:12px">
-        <span class="label label--gray">ROUTINES</span>
-        {% for r in routines %}
-        <span class="description">{{ r.time }}{% if r.dur != blank %} · {{ r.dur }}{% endif %} {{ r.name }}</span>
-        {% endfor %}
       </div>
       {% endif %}
 
@@ -279,12 +295,12 @@ export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
     <span class="label">{{ completed }}/{{ total }} · {{ pct }}%</span>
   </div>
   <div class="gap--small" style="margin-top:4px">
-    {% for t in schedule limit:5 %}
+    {% for t in schedule limit:4 %}
     <div class="item">
       <div class="meta"><span class="index">{% if t.done %}✓{% else %}{{ forloop.index }}{% endif %}</span></div>
       <div class="content">
-        <span class="title title--small"{% if t.done %} style="text-decoration:line-through;opacity:.5"{% endif %}>{{ t.title }}</span>
-        <span class="label">{% if t.allDay %}All day{% else %}{{ t.time }}{% endif %}</span>
+        <span class="title title--small"{% if t.done or t.past %} style="text-decoration:line-through;opacity:.5"{% endif %}>{{ t.title }}</span>
+        <span class="label"{% if t.done or t.past %} style="text-decoration:line-through;opacity:.5"{% endif %}>{% if t.allDay %}All day{% else %}{{ t.time }}{% endif %}</span>
       </div>
     </div>
     {% endfor %}
@@ -295,8 +311,8 @@ export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
 
 export const TRMNL_MARKUP_HALF_VERTICAL = `<div class="layout layout--col">
   <span class="title title--small">{{ day_name }}</span>
-  <span class="label">{{ date_label }}{% if weather != blank %} · {{ weather }}{% endif %}</span>
-  <span class="value value--large" style="margin:4px 0">{{ pct }}%</span>
+  <span class="label">{{ date_label }}</span>
+  <span class="value" style="margin:4px 0">{{ pct }}%</span>
   <span class="label">{{ completed }}/{{ total }} done</span>
   {% if overdue > 0 %}<span class="label" style="font-weight:bold">{{ overdue }} overdue</span>{% endif %}
   {% if next_task %}
@@ -309,7 +325,7 @@ export const TRMNL_MARKUP_HALF_VERTICAL = `<div class="layout layout--col">
 </div>`;
 
 export const TRMNL_MARKUP_QUADRANT = `<div class="layout layout--col layout--center">
-  <span class="value value--large">{{ pct }}%</span>
+  <span class="value">{{ pct }}%</span>
   <span class="label">{{ completed }}/{{ total }}</span>
   {% if next_task %}<span class="description" style="margin-top:4px">{{ next_task.time }} {{ next_task.title }}</span>{% endif %}
   <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
