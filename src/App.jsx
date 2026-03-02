@@ -1846,6 +1846,209 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
   );
 };
 
+const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24HourClock }) => {
+  const [selectedHour, setSelectedHour] = useState(parseInt(value.split(':')[0]));
+  const [selectedMinute, setSelectedMinute] = useState(parseInt(value.split(':')[1]));
+  const [isAM, setIsAM] = useState(parseInt(value.split(':')[0]) < 12);
+  const [mode, setMode] = useState('hour');
+
+  const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
+  const borderClass = darkMode ? 'border-gray-700' : 'border-stone-300';
+  const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
+  const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-600';
+  const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
+
+  // Tablet-scaled sizes
+  const clockSize = isTablet ? 320 : 240;
+  const clockRadius = isTablet ? 130 : 100;
+  const clockCenter = isTablet ? 160 : 120;
+  const btnSize = isTablet ? 52 : 40;
+  const btnHalf = btnSize / 2;
+
+  const handleConfirm = () => {
+    const timeStr = `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')}`;
+    onChange(timeStr);
+    onClose();
+  };
+
+  const handleHourSelect = (hour24) => {
+    setSelectedHour(hour24);
+    setIsAM(hour24 < 12);
+    setMode('minute');
+  };
+
+  const toggleAMPM = () => {
+    const newIsAM = !isAM;
+    setIsAM(newIsAM);
+    if (newIsAM && selectedHour >= 12) {
+      setSelectedHour(selectedHour - 12);
+    } else if (!newIsAM && selectedHour < 12) {
+      setSelectedHour(selectedHour + 12);
+    }
+  };
+
+  const displayHour = use24HourClock
+    ? selectedHour.toString().padStart(2, '0')
+    : (selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour).toString();
+
+  const renderClock = () => {
+    const numbers = mode === 'hour'
+      ? (use24HourClock ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: 12 }, (_, i) => i + 1))
+      : [0, 15, 30, 45];
+    const radius = clockRadius;
+    const centerX = clockCenter;
+    const centerY = clockCenter;
+
+    // For 12h mode: map display hour (1-12) to angle
+    const getHourAngle = (num) => {
+      if (use24HourClock) return num * 15 - 90;
+      return num * 30 - 90; // 12 hours * 30 degrees each
+    };
+
+    const selectedAngle = mode === 'hour'
+      ? (use24HourClock
+        ? selectedHour * 15
+        : ((selectedHour % 12 || 12) * 30))
+      : selectedMinute * 6;
+
+    return (
+      <div className="relative" style={{ width: `${clockSize}px`, height: `${clockSize}px` }}>
+        <svg width={clockSize} height={clockSize} className="absolute top-0 left-0">
+          <circle cx={centerX} cy={centerY} r={radius} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
+
+          {/* Selected time indicator */}
+          <line
+            x1={centerX}
+            y1={centerY}
+            x2={centerX + radius * Math.sin(selectedAngle * Math.PI / 180)}
+            y2={centerY - radius * Math.cos(selectedAngle * Math.PI / 180)}
+            stroke="#3b82f6"
+            strokeWidth="2"
+          />
+
+          {/* Center dot */}
+          <circle cx={centerX} cy={centerY} r="4" fill="#3b82f6" />
+        </svg>
+
+        {numbers.map((num) => {
+          const angle = mode === 'hour' ? getHourAngle(num) : (num * 6 - 90);
+          const x = centerX + radius * Math.cos(angle * Math.PI / 180);
+          const y = centerY + radius * Math.sin(angle * Math.PI / 180);
+          const isSelected = mode === 'hour'
+            ? (use24HourClock ? num === selectedHour : num === (selectedHour % 12 || 12))
+            : num === selectedMinute;
+
+          return (
+            <button
+              key={num}
+              onClick={() => {
+                if (mode === 'hour') {
+                  if (use24HourClock) {
+                    handleHourSelect(num);
+                  } else {
+                    // Convert 12h display to 24h internal
+                    let hour24;
+                    if (isAM) {
+                      hour24 = num === 12 ? 0 : num;
+                    } else {
+                      hour24 = num === 12 ? 12 : num + 12;
+                    }
+                    handleHourSelect(hour24);
+                  }
+                } else {
+                  setSelectedMinute(num);
+                }
+              }}
+              className={`absolute rounded-full flex items-center justify-center transition-colors ${
+                isTablet ? 'text-base' : 'text-sm'
+              } ${
+                isSelected
+                  ? 'bg-blue-600 text-white'
+                  : darkMode
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'hover:bg-stone-200 text-stone-700'
+              }`}
+              style={{
+                width: `${btnSize}px`,
+                height: `${btnSize}px`,
+                left: `${x - btnHalf}px`,
+                top: `${y - btnHalf}px`,
+              }}
+            >
+              {mode === 'hour' ? num : num.toString().padStart(2, '0')}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
+      <div
+        className={`${cardBg} rounded-lg shadow-xl ${isTablet ? 'p-8' : 'p-6'} ${borderClass} border`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className={`${isTablet ? 'text-xl' : 'text-lg'} font-semibold ${textPrimary}`}>Select Time</h3>
+          <button onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded ${hoverBg}`}>
+            <X size={isTablet ? 24 : 20} className={textSecondary} />
+          </button>
+        </div>
+
+        <div className="flex justify-center mb-4">
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={() => setMode('hour')}
+              className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${
+                mode === 'hour' ? 'bg-blue-600 text-white' : textSecondary
+              }`}
+            >
+              {displayHour}
+            </button>
+            <span className={`${isTablet ? 'text-4xl' : 'text-3xl'} ${textPrimary}`}>:</span>
+            <button
+              onClick={() => setMode('minute')}
+              className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${
+                mode === 'minute' ? 'bg-blue-600 text-white' : textSecondary
+              }`}
+            >
+              {selectedMinute.toString().padStart(2, '0')}
+            </button>
+            {!use24HourClock && (
+              <button
+                onClick={toggleAMPM}
+                className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+              >
+                {isAM ? 'AM' : 'PM'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-center mb-4">
+          {renderClock()}
+        </div>
+
+        <div className={`flex justify-end ${isTablet ? 'gap-3' : 'gap-2'}`}>
+          <button
+            onClick={onClose}
+            className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} bg-blue-600 text-white rounded-lg hover:bg-blue-700`}
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
@@ -10197,202 +10400,6 @@ const DayPlanner = () => {
     );
   };
 
-  const ClockTimePicker = ({ value, onChange, onClose }) => {
-    const [selectedHour, setSelectedHour] = useState(parseInt(value.split(':')[0]));
-    const [selectedMinute, setSelectedMinute] = useState(parseInt(value.split(':')[1]));
-    const [isAM, setIsAM] = useState(parseInt(value.split(':')[0]) < 12);
-    const [mode, setMode] = useState('hour');
-
-    // Tablet-scaled sizes
-    const clockSize = isTablet ? 320 : 240;
-    const clockRadius = isTablet ? 130 : 100;
-    const clockCenter = isTablet ? 160 : 120;
-    const btnSize = isTablet ? 52 : 40;
-    const btnHalf = btnSize / 2;
-
-    const handleConfirm = () => {
-      const timeStr = `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')}`;
-      onChange(timeStr);
-      onClose();
-    };
-
-    const handleHourSelect = (hour24) => {
-      setSelectedHour(hour24);
-      setIsAM(hour24 < 12);
-      setMode('minute');
-    };
-
-    const toggleAMPM = () => {
-      const newIsAM = !isAM;
-      setIsAM(newIsAM);
-      if (newIsAM && selectedHour >= 12) {
-        setSelectedHour(selectedHour - 12);
-      } else if (!newIsAM && selectedHour < 12) {
-        setSelectedHour(selectedHour + 12);
-      }
-    };
-
-    const displayHour = use24HourClock
-      ? selectedHour.toString().padStart(2, '0')
-      : (selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour).toString();
-
-    const renderClock = () => {
-      const numbers = mode === 'hour'
-        ? (use24HourClock ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: 12 }, (_, i) => i + 1))
-        : [0, 15, 30, 45];
-      const radius = clockRadius;
-      const centerX = clockCenter;
-      const centerY = clockCenter;
-
-      // For 12h mode: map display hour (1-12) to angle
-      const getHourAngle = (num) => {
-        if (use24HourClock) return num * 15 - 90;
-        return num * 30 - 90; // 12 hours * 30 degrees each
-      };
-
-      const selectedAngle = mode === 'hour'
-        ? (use24HourClock
-          ? selectedHour * 15
-          : ((selectedHour % 12 || 12) * 30))
-        : selectedMinute * 6;
-
-      return (
-        <div className="relative" style={{ width: `${clockSize}px`, height: `${clockSize}px` }}>
-          <svg width={clockSize} height={clockSize} className="absolute top-0 left-0">
-            <circle cx={centerX} cy={centerY} r={radius} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
-
-            {/* Selected time indicator */}
-            <line
-              x1={centerX}
-              y1={centerY}
-              x2={centerX + radius * Math.sin(selectedAngle * Math.PI / 180)}
-              y2={centerY - radius * Math.cos(selectedAngle * Math.PI / 180)}
-              stroke="#3b82f6"
-              strokeWidth="2"
-            />
-
-            {/* Center dot */}
-            <circle cx={centerX} cy={centerY} r="4" fill="#3b82f6" />
-          </svg>
-
-          {numbers.map((num) => {
-            const angle = mode === 'hour' ? getHourAngle(num) : (num * 6 - 90);
-            const x = centerX + radius * Math.cos(angle * Math.PI / 180);
-            const y = centerY + radius * Math.sin(angle * Math.PI / 180);
-            const isSelected = mode === 'hour'
-              ? (use24HourClock ? num === selectedHour : num === (selectedHour % 12 || 12))
-              : num === selectedMinute;
-
-            return (
-              <button
-                key={num}
-                onClick={() => {
-                  if (mode === 'hour') {
-                    if (use24HourClock) {
-                      handleHourSelect(num);
-                    } else {
-                      // Convert 12h display to 24h internal
-                      let hour24;
-                      if (isAM) {
-                        hour24 = num === 12 ? 0 : num;
-                      } else {
-                        hour24 = num === 12 ? 12 : num + 12;
-                      }
-                      handleHourSelect(hour24);
-                    }
-                  } else {
-                    setSelectedMinute(num);
-                  }
-                }}
-                className={`absolute rounded-full flex items-center justify-center transition-colors ${
-                  isTablet ? 'text-base' : 'text-sm'
-                } ${
-                  isSelected
-                    ? 'bg-blue-600 text-white'
-                    : darkMode
-                      ? 'hover:bg-gray-700 text-gray-300'
-                      : 'hover:bg-stone-200 text-stone-700'
-                }`}
-                style={{
-                  width: `${btnSize}px`,
-                  height: `${btnSize}px`,
-                  left: `${x - btnHalf}px`,
-                  top: `${y - btnHalf}px`,
-                }}
-              >
-                {mode === 'hour' ? num : num.toString().padStart(2, '0')}
-              </button>
-            );
-          })}
-        </div>
-      );
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
-        <div
-          className={`${cardBg} rounded-lg shadow-xl ${isTablet ? 'p-8' : 'p-6'} ${borderClass} border`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`${isTablet ? 'text-xl' : 'text-lg'} font-semibold ${textPrimary}`}>Select Time</h3>
-            <button onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded ${hoverBg}`}>
-              <X size={isTablet ? 24 : 20} className={textSecondary} />
-            </button>
-          </div>
-
-          <div className="flex justify-center mb-4">
-            <div className="flex gap-2 items-center">
-              <button
-                onClick={() => setMode('hour')}
-                className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${
-                  mode === 'hour' ? 'bg-blue-600 text-white' : textSecondary
-                }`}
-              >
-                {displayHour}
-              </button>
-              <span className={`${isTablet ? 'text-4xl' : 'text-3xl'} ${textPrimary}`}>:</span>
-              <button
-                onClick={() => setMode('minute')}
-                className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${
-                  mode === 'minute' ? 'bg-blue-600 text-white' : textSecondary
-                }`}
-              >
-                {selectedMinute.toString().padStart(2, '0')}
-              </button>
-              {!use24HourClock && (
-                <button
-                  onClick={toggleAMPM}
-                  className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
-                >
-                  {isAM ? 'AM' : 'PM'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-center mb-4">
-            {renderClock()}
-          </div>
-
-          <div className={`flex justify-end ${isTablet ? 'gap-3' : 'gap-2'}`}>
-            <button
-              onClick={onClose}
-              className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirm}
-              className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} bg-blue-600 text-white rounded-lg hover:bg-blue-700`}
-            >
-              Confirm
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   // FIX 2: Add missing DatePicker component
   const DatePicker = ({ value, onChange, onClose }) => {
@@ -19706,6 +19713,7 @@ const DayPlanner = () => {
           value={newTask.startTime}
           onChange={(time) => setNewTask({ ...newTask, startTime: time })}
           onClose={() => setShowTimePicker(false)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
         />
       )}
 
@@ -22276,6 +22284,7 @@ const DayPlanner = () => {
               setRoutineTimePickerChipId(null);
             }}
             onClose={() => setRoutineTimePickerChipId(null)}
+            darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
           />
         )}
       </>)}
@@ -23651,6 +23660,7 @@ const DayPlanner = () => {
           value={reminderSettings.morningReminderTime}
           onChange={(time) => setReminderSettings(prev => ({ ...prev, morningReminderTime: time }))}
           onClose={() => setShowMorningTimePicker(false)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
         />
       )}
 
@@ -23659,6 +23669,7 @@ const DayPlanner = () => {
           value={reminderSettings.weeklyReview?.time || '19:00'}
           onChange={(time) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, time } }))}
           onClose={() => setShowWeeklyReviewTimePicker(false)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
         />
       )}
 
@@ -24634,6 +24645,7 @@ const DayPlanner = () => {
             setRoutineTimePickerChipId(null);
           }}
           onClose={() => setRoutineTimePickerChipId(null)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
         />
       )}
 
