@@ -12609,8 +12609,11 @@ const DayPlanner = () => {
                               onContextMenu={(e) => {
                                 if (!e.target.classList.contains('calendar-slot')) return;
                                 e.preventDefault();
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+                                if (!calendarRef.current || !timeGridRef.current) return;
+                                const rect = calendarRef.current.getBoundingClientRect();
+                                const scrollTop = calendarRef.current.scrollTop;
+                                const headerHeight = timeGridRef.current.offsetTop;
+                                const y = Math.max(0, e.clientY - rect.top + scrollTop - headerHeight);
                                 const minutes = Math.round(positionToMinutes(y) / 15) * 15;
                                 setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr: dateToString(date), timeMinutes: minutes });
                               }}
@@ -18878,8 +18881,11 @@ const DayPlanner = () => {
                           onContextMenu={(e) => {
                             if (!e.target.classList.contains('calendar-slot')) return;
                             e.preventDefault();
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+                            if (!calendarRef.current || !timeGridRef.current) return;
+                            const rect = calendarRef.current.getBoundingClientRect();
+                            const scrollTop = calendarRef.current.scrollTop;
+                            const headerHeight = timeGridRef.current.offsetTop;
+                            const y = Math.max(0, e.clientY - rect.top + scrollTop - headerHeight);
                             const minutes = Math.round(positionToMinutes(y) / 15) * 15;
                             setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr: dateToString(date), timeMinutes: minutes });
                           }}
