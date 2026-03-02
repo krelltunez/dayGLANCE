@@ -6530,8 +6530,11 @@ const DayPlanner = () => {
     const scrollAndHighlight = (selector, delay = 300) => {
       setTimeout(() => {
         const el = document.querySelector(selector);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (el && calendarRef.current) {
+          const container = calendarRef.current;
+          const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+          const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
+          container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
           el.classList.add('ring-2', 'ring-blue-400');
           setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
         }
@@ -13638,8 +13641,11 @@ const DayPlanner = () => {
                           setMobileActiveTab('timeline');
                           setTimeout(() => {
                             const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                            if (el) {
-                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            if (el && calendarRef.current) {
+                              const container = calendarRef.current;
+                              const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+                              const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
+                              container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
                               el.classList.add('ring-2', 'ring-blue-400');
                               setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
                             }
@@ -16807,8 +16813,11 @@ const DayPlanner = () => {
                               className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer active:bg-white/5 rounded-lg transition-colors`}
                               onClick={() => {
                                 const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                                if (el) {
-                                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                if (el && calendarRef.current) {
+                                  const container = calendarRef.current;
+                                  const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+                                  const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
+                                  container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
                                   el.classList.add('ring-2', 'ring-blue-400');
                                   setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
                                 }
@@ -17812,8 +17821,11 @@ const DayPlanner = () => {
                           className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer hover:bg-white/5 rounded-lg transition-colors`}
                           onClick={() => {
                             const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                            if (el) {
-                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            if (el && calendarRef.current) {
+                              const container = calendarRef.current;
+                              const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+                              const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
+                              container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
                               el.classList.add('ring-2', 'ring-blue-400');
                               setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
                             }
@@ -23689,8 +23701,11 @@ const DayPlanner = () => {
                             setMobileActiveTab('timeline');
                             setTimeout(() => {
                               const el = document.querySelector(`[data-task-id="${task.id}"]`);
-                              if (el) {
-                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              if (el && calendarRef.current) {
+                                const container = calendarRef.current;
+                                const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+                                const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
+                                container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
                                 el.classList.add('ring-2', 'ring-blue-400');
                                 setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
                               }
