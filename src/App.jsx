@@ -5,6 +5,7 @@ import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, discon
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
+import { checkForUpdate } from './versionCheck.js';
 
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
@@ -2431,6 +2432,8 @@ const DayPlanner = () => {
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
   const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, trmnl: true });
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
   const [showRemindersSettings, setShowRemindersSettings] = useState(false);
   const [reminderSettings, setReminderSettings] = useState(() => {
@@ -2584,6 +2587,22 @@ const DayPlanner = () => {
       screen.orientation.lock('portrait').catch(() => {});
     }
   }, [isPhone]);
+
+  // Check for app updates on mount and every 6 hours
+  useEffect(() => {
+    const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+    const doCheck = async () => {
+      const result = await checkForUpdate(currentVersion);
+      if (result.updateAvailable && result.latestVersion !== updateDismissedVersion) {
+        setUpdateInfo(result);
+      } else {
+        setUpdateInfo(null);
+      }
+    };
+    doCheck();
+    const interval = setInterval(doCheck, 6 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [updateDismissedVersion]);
 
   // Track mouse vs keyboard input to suppress focus rings after mouse clicks
   useEffect(() => {
@@ -14587,7 +14606,7 @@ const DayPlanner = () => {
                       );
                     })()}
                     <div className={`text-center text-[10px] ${textSecondary} opacity-50`}>
-                      Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
+                      {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__} · ` : ''}Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
                     </div>
                   </div>
                 </div>
@@ -16045,10 +16064,13 @@ const DayPlanner = () => {
           )}
           <button
             onClick={() => setShowSettings(true)}
-            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
+            className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title="Settings"
           >
             <Settings size={18} className={textSecondary} />
+            {updateInfo && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-red-500`} />
+            )}
           </button>
           <button
             onClick={() => setShowRemindersSettings(true)}
@@ -16177,11 +16199,14 @@ const DayPlanner = () => {
             )}
             <button
               onClick={() => setShowSettings(true)}
-              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title="Settings"
               aria-label="Settings"
             >
               <Settings size={18} className={textSecondary} />
+              {updateInfo && (
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-red-500`} />
+              )}
             </button>
             <button
               onClick={() => setShowRemindersSettings(true)}
@@ -22666,6 +22691,47 @@ const DayPlanner = () => {
                   <h3 className={`text-lg font-semibold ${textPrimary}`}>Settings</h3>
                 </div>
 
+                {updateInfo && (
+                  <div className={`mb-4 p-3 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+                          Update available: v{updateInfo.latestVersion}
+                        </div>
+                        <div className={`text-xs mt-1 ${darkMode ? 'text-blue-400/70' : 'text-blue-600/70'}`}>
+                          You're on v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'}
+                        </div>
+                        <div className={`text-xs mt-2 space-y-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-700/80'}`}>
+                          <div><strong>Vercel / Web:</strong> Refresh the page to update</div>
+                          <div><strong>Docker:</strong> <code className={`text-[11px] px-1 py-0.5 rounded ${darkMode ? 'bg-blue-900/50' : 'bg-blue-100'}`}>docker compose pull && docker compose up -d</code></div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <a
+                            href={updateInfo.releaseUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`text-xs font-medium ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} flex items-center gap-1`}
+                          >
+                            <ExternalLink size={12} />
+                            Release notes
+                          </a>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setUpdateDismissedVersion(updateInfo.latestVersion);
+                          localStorage.setItem('dayglance-update-dismissed', updateInfo.latestVersion);
+                          setUpdateInfo(null);
+                        }}
+                        className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 flex-shrink-0`}
+                        title="Dismiss"
+                      >
+                        <X size={14} className={darkMode ? 'text-blue-400' : 'text-blue-600'} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-6 lg:space-y-0">
                   {/* Left column */}
                   <div className="space-y-6">
@@ -23443,7 +23509,7 @@ const DayPlanner = () => {
                   Storage: {formatBytes(storageUsage.totalBytes)} / ~5 MB
                 </button>
                 <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-1`}>
-                  Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
+                  {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__} · ` : ''}Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
                 </div>
                 <button
                   onClick={() => setShowSettings(false)}
