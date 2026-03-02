@@ -2376,6 +2376,7 @@ const DayPlanner = () => {
     localStorage.getItem('day-planner-trmnl-last-synced') || null
   );
   const trmnlSyncTimerRef = useRef(null);
+  const performTrmnlSyncRef = useRef(null);
   const [trmnlMarkupCopied, setTrmnlMarkupCopied] = useState('');
 
   // Obsidian Integration state
@@ -3649,13 +3650,16 @@ const DayPlanner = () => {
     }
   }, [trmnlConfig]);
 
-  // TRMNL auto-sync: push data when tasks/habits change (debounced, max 12x/hr)
+  // TRMNL auto-sync: push data when tasks/habits change (debounced)
+  useEffect(() => {
+    performTrmnlSyncRef.current = performTrmnlSync;
+  });
   useEffect(() => {
     if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl || !dataLoaded) return;
     if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current);
     trmnlSyncTimerRef.current = setTimeout(() => {
-      performTrmnlSync();
-    }, 5 * 60 * 1000); // 5-minute debounce to stay well under rate limits
+      if (performTrmnlSyncRef.current) performTrmnlSyncRef.current();
+    }, 10 * 1000); // 10-second debounce after last change
     return () => { if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current); };
   }, [tasks, unscheduledTasks, habits, habitLogs, todayRoutines, routinesEnabled, trmnlConfig?.enabled, dataLoaded]);
 
@@ -13561,11 +13565,10 @@ const DayPlanner = () => {
 
                   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
 
-                  // Compute now marker position within sections (for "middle" case)
-                  const showMiddleNowMarker = filteredAgenda.length > 0 && !agendaNowMarker.insideTask &&
-                    agendaNowMarker.insertAfterIndex >= 0 && agendaNowMarker.insertAfterIndex < todayAgenda.length - 1;
+                  // Compute now marker position within sections (frame-aware)
                   let nowMarkerSectionInfo = null;
-                  if (showMiddleNowMarker) {
+                  let nowIsAfterAllSections = false;
+                  if (sections.length > 0 && !agendaNowMarker.insideTask) {
                     for (let si = 0; si < sections.length; si++) {
                       const section = sections[si];
                       let sStart, sEnd;
@@ -13591,7 +13594,7 @@ const DayPlanner = () => {
                       }
                     }
                     if (!nowMarkerSectionInfo) {
-                      nowMarkerSectionInfo = { si: sections.length, inSection: false };
+                      nowIsAfterAllSections = true;
                     }
                   }
 
@@ -13765,8 +13768,8 @@ const DayPlanner = () => {
 
                   return (
                   <div className="space-y-1.5">
-                    {/* Now marker before first task */}
-                    {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
+                    {/* Now marker before first task (only when no frame sections handle positioning) */}
+                    {filteredAgenda.length > 0 && sections.length === 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
                       const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                       const gapM = agendaNowMarker.gapMinutes % 60;
                       const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -13856,8 +13859,8 @@ const DayPlanner = () => {
                       }
                       return <React.Fragment key={`mobile-section-${si}`}>{elements}</React.Fragment>;
                     })}
-                    {/* Now marker after all tasks (when "now" is past the last scheduled task) */}
-                    {agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
+                    {/* Now marker after all tasks (when "now" is past the last scheduled task/frame) */}
+                    {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && (sections.length > 0 ? nowIsAfterAllSections : agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1) && (() => {
                       const hr = currentTime.getHours();
                       const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
                       const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
@@ -16735,11 +16738,10 @@ const DayPlanner = () => {
 
                         const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
 
-                        // Compute now marker position within sections (for "middle" case)
-                        const showMiddleNowMarker = filteredAgenda.length > 0 && !agendaNowMarker.insideTask &&
-                          agendaNowMarker.insertAfterIndex >= 0 && agendaNowMarker.insertAfterIndex < todayAgenda.length - 1;
+                        // Compute now marker position within sections (frame-aware)
                         let nowMarkerSectionInfo = null;
-                        if (showMiddleNowMarker) {
+                        let nowIsAfterAllSections = false;
+                        if (sections.length > 0 && !agendaNowMarker.insideTask) {
                           for (let si = 0; si < sections.length; si++) {
                             const section = sections[si];
                             let sStart, sEnd;
@@ -16765,7 +16767,7 @@ const DayPlanner = () => {
                             }
                           }
                           if (!nowMarkerSectionInfo) {
-                            nowMarkerSectionInfo = { si: sections.length, inSection: false };
+                            nowIsAfterAllSections = true;
                           }
                         }
 
@@ -16898,8 +16900,8 @@ const DayPlanner = () => {
                           {filteredAgenda.length === 0 && (
                             <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
                           )}
-                          {/* Now marker before first task */}
-                          {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
+                          {/* Now marker before first task (only when no frame sections handle positioning) */}
+                          {filteredAgenda.length > 0 && sections.length === 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
                             const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                             const gapM = agendaNowMarker.gapMinutes % 60;
                             const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -16990,8 +16992,8 @@ const DayPlanner = () => {
                             }
                             return <React.Fragment key={`tablet-section-${si}`}>{elements}</React.Fragment>;
                           })}
-                          {/* Now marker after all tasks */}
-                          {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
+                          {/* Now marker after all tasks/frames */}
+                          {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && (sections.length > 0 ? nowIsAfterAllSections : agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1) && (() => {
                             const hr = currentTime.getHours();
                             const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
                             const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
@@ -17743,11 +17745,10 @@ const DayPlanner = () => {
 
                     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
 
-                    // Compute now marker position within sections (for "middle" case)
-                    const showMiddleNowMarker = filteredAgenda.length > 0 && !agendaNowMarker.insideTask &&
-                      agendaNowMarker.insertAfterIndex >= 0 && agendaNowMarker.insertAfterIndex < todayAgenda.length - 1;
+                    // Compute now marker position within sections (frame-aware)
                     let nowMarkerSectionInfo = null;
-                    if (showMiddleNowMarker) {
+                    let nowIsAfterAllSections = false;
+                    if (sections.length > 0 && !agendaNowMarker.insideTask) {
                       for (let si = 0; si < sections.length; si++) {
                         const section = sections[si];
                         let sStart, sEnd;
@@ -17773,7 +17774,7 @@ const DayPlanner = () => {
                         }
                       }
                       if (!nowMarkerSectionInfo) {
-                        nowMarkerSectionInfo = { si: sections.length, inSection: false };
+                        nowIsAfterAllSections = true;
                       }
                     }
 
@@ -17906,8 +17907,8 @@ const DayPlanner = () => {
                       {filteredAgenda.length === 0 && (
                         <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
                       )}
-                      {/* Now marker before first task */}
-                      {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
+                      {/* Now marker before first task (only when no frame sections handle positioning) */}
+                      {filteredAgenda.length > 0 && sections.length === 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
                         const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
                         const gapM = agendaNowMarker.gapMinutes % 60;
                         const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
@@ -17997,8 +17998,8 @@ const DayPlanner = () => {
                         }
                         return <React.Fragment key={`desktop-section-${si}`}>{elements}</React.Fragment>;
                       })}
-                      {/* Now marker after all tasks */}
-                      {filteredAgenda.length > 0 && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1 && (() => {
+                      {/* Now marker after all tasks/frames */}
+                      {filteredAgenda.length > 0 && !agendaNowMarker.insideTask && (sections.length > 0 ? nowIsAfterAllSections : agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1) && (() => {
                         const hr = currentTime.getHours();
                         const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
                         const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
