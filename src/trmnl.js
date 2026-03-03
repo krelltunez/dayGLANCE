@@ -301,7 +301,8 @@ export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
     <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
     <span class="label">{{ completed }}/{{ total }} · {{ pct }}%</span>
   </div>
-  <div class="gap--small" style="margin-top:4px">
+  <div style="border-top:1px solid #ccc;margin:4px 0"></div>
+  <div class="gap--small">
     {% for t in schedule limit:4 %}
     <div class="item">
       <div class="meta"><span class="index">{% if t.done %}✓{% else %}{{ forloop.index }}{% endif %}</span></div>
