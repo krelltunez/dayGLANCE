@@ -289,8 +289,8 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
       </div>
       {% endif %}
 
-      <div style="margin-top:auto;padding-top:12px">
-        <span class="label label--gray">dayGLANCE</span>
+      <div style="margin-top:auto">
+        <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
       </div>
     </div>
   </div>
@@ -299,7 +299,7 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
 export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
   <div style="display:flex;justify-content:space-between;align-items:baseline">
     <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
-    <span class="label">{{ completed }}/{{ total }} · {{ pct }}%</span>
+    <span class="label" style="white-space:nowrap">| {{ completed }}/{{ total }} · {{ pct }}%</span>
   </div>
   <div style="border-top:1px solid #ccc;margin:4px 0"></div>
   <div class="gap--small">
