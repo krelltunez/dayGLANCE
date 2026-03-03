@@ -139,9 +139,17 @@ export function gatherTrmnlData({
   const noteSnippet = (dailyNotes[today]?.text || '').slice(0, 80);
 
   // Routines — today's scheduled routine chips with time slots
+  // Hide routines whose end time has already passed
   const routineItems = routinesEnabled
     ? todayRoutines
-        .filter((r) => !String(r.id).startsWith('example-'))
+        .filter((r) => {
+          if (String(r.id).startsWith('example-')) return false;
+          if (r.isAllDay) return true;
+          const rStart = toMinutes(r.startTime);
+          if (rStart < 0) return true;
+          const rEnd = rStart + (r.duration || 0);
+          return rEnd > nowMins;
+        })
         .sort((a, b) => {
           // All-day routines first, then by startTime
           if (a.isAllDay && !b.isAllDay) return -1;
@@ -227,11 +235,9 @@ export async function pushToTrmnl({ webhookUrl, apiKey }, mergeVars) {
 // ---------------------------------------------------------------------------
 
 export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
-  <div class="columns">
+  <div class="columns" style="flex:1">
     <div class="column" style="flex:2">
-      <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
-
-      <div class="gap--small" style="margin-top:8px">
+      <div class="gap--small">
         {% for t in schedule %}
         <div class="item">
           <div class="meta"><span class="index">{% if t.done %}✓{% else %}{{ forloop.index }}{% endif %}</span></div>
@@ -250,19 +256,21 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
       <div style="margin-top:12px">
         <span class="label label--gray">ROUTINES</span>
         {% for r in routines %}
-        {% if forloop.index > 1 %}<div style="border-top:1px solid #ccc;margin:4px 0"></div>{% endif %}
+        <div style="border-top:1px solid #ccc;margin:4px 0"></div>
         <span class="description">{{ r.time }}{% if r.dur != blank %} · {{ r.dur }}{% endif %} {{ r.name }}</span>
         {% endfor %}
       </div>
       {% endif %}
     </div>
 
-    <div class="column" style="flex:1">
-      <span class="value">{{ pct }}%</span>
+    <div class="column" style="flex:1;display:flex;flex-direction:column">
+      <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
+
+      <span class="value" style="margin-top:8px">{{ pct }}%</span>
       <span class="label">{{ completed }}/{{ total }} done</span>
       {% if overdue > 0 %}<span class="label" style="font-weight:bold">{{ overdue }} overdue</span>{% endif %}
       <span class="label label--gray">{{ time_planned }} planned</span>
-      {% if inbox_count > 0 %}<span class="label label--gray">{{ inbox_count }} in inbox</span>{% endif %}
+      {% if inbox_count > 0 %}<span class="label label--gray">{{ inbox_count }} tasks in inbox</span>{% endif %}
 
       {% if next_task %}
       <div style="margin-top:12px">
@@ -280,12 +288,11 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
         {% endfor %}
       </div>
       {% endif %}
-    </div>
-  </div>
 
-  <div class="title_bar">
-    <span class="title_bar__title">dayGLANCE</span>
-    <span class="instance">{{ current_time }}</span>
+      <div style="margin-top:auto;padding-top:12px">
+        <span class="label label--gray">dayGLANCE</span>
+      </div>
+    </div>
   </div>
 </div>`;
 
