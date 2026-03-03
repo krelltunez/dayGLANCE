@@ -2377,6 +2377,8 @@ const DayPlanner = () => {
     localStorage.getItem('day-planner-trmnl-last-synced') || null
   );
   const trmnlSyncTimerRef = useRef(null);
+  const trmnlLastPushRef = useRef(0); // timestamp of last successful push
+  const trmnlBackoffUntilRef = useRef(0); // timestamp: skip auto-sync until this time (429 backoff)
   const performTrmnlSyncRef = useRef(null);
   const [trmnlMarkupCopied, setTrmnlMarkupCopied] = useState('');
 
@@ -3669,7 +3671,10 @@ const DayPlanner = () => {
     }
   }, [trmnlConfig]);
 
-  // TRMNL auto-sync: push data when tasks/habits change (debounced)
+  // TRMNL auto-sync: push data when tasks/habits change
+  // Debounce 10s to batch rapid edits, then throttle to at most once per 2 min.
+  // On 429 backoff the cooldown extends to 5 min.
+  const TRMNL_THROTTLE_MS = 2 * 60 * 1000; // 2 minutes between pushes
   useEffect(() => {
     performTrmnlSyncRef.current = performTrmnlSync;
   });
@@ -3677,7 +3682,19 @@ const DayPlanner = () => {
     if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl || !dataLoaded) return;
     if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current);
     trmnlSyncTimerRef.current = setTimeout(() => {
-      if (performTrmnlSyncRef.current) performTrmnlSyncRef.current();
+      const now = Date.now();
+      const earliest = Math.max(
+        trmnlLastPushRef.current + TRMNL_THROTTLE_MS,
+        trmnlBackoffUntilRef.current,
+      );
+      if (now >= earliest) {
+        if (performTrmnlSyncRef.current) performTrmnlSyncRef.current();
+      } else {
+        // Schedule for when the cooldown expires
+        trmnlSyncTimerRef.current = setTimeout(() => {
+          if (performTrmnlSyncRef.current) performTrmnlSyncRef.current();
+        }, earliest - now);
+      }
     }, 10 * 1000); // 10-second debounce after last change
     return () => { if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current); };
   }, [tasks, unscheduledTasks, habits, habitLogs, todayRoutines, routinesEnabled, trmnlConfig?.enabled, dataLoaded]);
@@ -5387,6 +5404,7 @@ const DayPlanner = () => {
         routinesEnabled,
       });
       const result = await pushToTrmnl(trmnlConfig, mergeVars);
+      trmnlLastPushRef.current = Date.now();
       if (result.success) {
         setTrmnlSyncStatus('success');
         const ts = new Date().toISOString();
@@ -5395,6 +5413,9 @@ const DayPlanner = () => {
       } else {
         setTrmnlSyncStatus('error');
         console.warn('TRMNL sync failed:', result.error);
+        if (result.rateLimited) {
+          trmnlBackoffUntilRef.current = Date.now() + 5 * 60 * 1000; // 5-min backoff
+        }
       }
     } catch (err) {
       setTrmnlSyncStatus('error');

@@ -219,7 +219,7 @@ export async function pushToTrmnl({ webhookUrl, apiKey }, mergeVars) {
       body: JSON.stringify({ merge_variables: mergeVars }),
     });
 
-    if (res.status === 429) return { success: false, error: 'Rate limited — try again later' };
+    if (res.status === 429) return { success: false, error: 'Rate limited — try again later', rateLimited: true };
     if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
     return { success: true };
   } catch (err) {
