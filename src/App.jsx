@@ -13575,7 +13575,10 @@ const DayPlanner = () => {
                     const frameTasks = scheduled.filter(t => taskFrameMap.get(String(t.id)) === frame.frameId);
                     const availSlots = computeAvailableSlots(frame, today);
                     const totalAvail = availSlots.reduce((sum, s) => sum + s.minutes, 0);
-                    sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                    // Hide frames with no availability and no tasks (fully blocked by calendar events)
+                    if (totalAvail > 0 || frameTasks.length > 0) {
+                      sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                    }
                     frameTasks.forEach(t => assignedTaskIds.add(String(t.id)));
                     while (scheduledIdx < scheduled.length && assignedTaskIds.has(String(scheduled[scheduledIdx].id))) scheduledIdx++;
                   }
@@ -16752,7 +16755,10 @@ const DayPlanner = () => {
                           const frameTasks = scheduled.filter(t => taskFrameMap.get(String(t.id)) === frame.frameId);
                           const availSlots = computeAvailableSlots(frame, today);
                           const totalAvail = availSlots.reduce((sum, s) => sum + s.minutes, 0);
-                          sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                          // Hide frames with no availability and no tasks (fully blocked by calendar events)
+                          if (totalAvail > 0 || frameTasks.length > 0) {
+                            sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                          }
                           frameTasks.forEach(t => assignedTaskIds.add(String(t.id)));
                           // Advance scheduledIdx past frame tasks
                           while (scheduledIdx < scheduled.length && assignedTaskIds.has(String(scheduled[scheduledIdx].id))) scheduledIdx++;
@@ -17761,7 +17767,10 @@ const DayPlanner = () => {
                       const frameTasks = scheduled.filter(t => taskFrameMap.get(String(t.id)) === frame.frameId);
                       const availSlots = computeAvailableSlots(frame, today);
                       const totalAvail = availSlots.reduce((sum, s) => sum + s.minutes, 0);
-                      sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                      // Hide frames with no availability and no tasks (fully blocked by calendar events)
+                      if (totalAvail > 0 || frameTasks.length > 0) {
+                        sections.push({ type: 'frame', frame, tasks: frameTasks, totalAvail });
+                      }
                       frameTasks.forEach(t => assignedTaskIds.add(String(t.id)));
                       while (scheduledIdx < scheduled.length && assignedTaskIds.has(String(scheduled[scheduledIdx].id))) scheduledIdx++;
                     }
