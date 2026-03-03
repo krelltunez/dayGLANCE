@@ -12483,6 +12483,18 @@ const DayPlanner = () => {
                                             </button>
                                           </>
                                         )}
+                                        {isImported && !task.isTaskCalendar && task.notes && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                            }}
+                                            className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                            title="View description"
+                                          >
+                                            <FileText size={14} />
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
                                     </div>
@@ -12980,12 +12992,26 @@ const DayPlanner = () => {
                                       <span className="text-sm font-semibold truncate flex-1 min-w-0">
                                         {renderTitle(task.title)}
                                       </span>
-                                      {!isNarrowWidth && (
-                                        <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
-                                          <Clock size={10} />
-                                          {formatTime(task.startTime)} • {task.duration}m
-                                        </div>
-                                      )}
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        {task.notes && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                            }}
+                                            className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
+                                            title="View description"
+                                          >
+                                            <FileText size={12} />
+                                          </button>
+                                        )}
+                                        {!isNarrowWidth && (
+                                          <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
+                                            <Clock size={10} />
+                                            {formatTime(task.startTime)} • {task.duration}m
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   ) : isImported ? (
                                     <div className="h-full px-2 py-1.5 flex items-start gap-1.5 text-white">
@@ -13195,17 +13221,26 @@ const DayPlanner = () => {
                           </button>
                         </div>
                         <div className="p-4">
-                          <NotesSubtasksPanel
-                            task={noteTask}
-                            isInbox={!!deadlineTask}
-                            darkMode={darkMode}
-                            updateTaskNotes={updateTaskNotes}
-                            addSubtask={addSubtask}
-                            toggleSubtask={toggleSubtask}
-                            deleteSubtask={deleteSubtask}
-                            updateSubtaskTitle={updateSubtaskTitle}
-                            noAutoFocus
-                          />
+                          {noteTask.imported && !noteTask.isTaskCalendar ? (
+                            <div>
+                              <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
+                              <div className={`text-sm whitespace-pre-wrap p-3 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-black/5'} ${textPrimary}`}>
+                                {renderFormattedText(noteTask.notes)}
+                              </div>
+                            </div>
+                          ) : (
+                            <NotesSubtasksPanel
+                              task={noteTask}
+                              isInbox={!!deadlineTask}
+                              darkMode={darkMode}
+                              updateTaskNotes={updateTaskNotes}
+                              addSubtask={addSubtask}
+                              toggleSubtask={toggleSubtask}
+                              deleteSubtask={deleteSubtask}
+                              updateSubtaskTitle={updateSubtaskTitle}
+                              noAutoFocus
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -13966,17 +14001,26 @@ const DayPlanner = () => {
                           </button>
                         </div>
                         <div className="p-4">
-                          <NotesSubtasksPanel
-                            task={agendaTask}
-                            isInbox={isInbox}
-                            darkMode={darkMode}
-                            updateTaskNotes={updateTaskNotes}
-                            addSubtask={addSubtask}
-                            toggleSubtask={toggleSubtask}
-                            deleteSubtask={deleteSubtask}
-                            updateSubtaskTitle={updateSubtaskTitle}
-                            noAutoFocus
-                          />
+                          {agendaTask.imported && !agendaTask.isTaskCalendar ? (
+                            <div>
+                              <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
+                              <div className={`text-sm whitespace-pre-wrap p-3 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-black/5'} ${textPrimary}`}>
+                                {renderFormattedText(agendaTask.notes)}
+                              </div>
+                            </div>
+                          ) : (
+                            <NotesSubtasksPanel
+                              task={agendaTask}
+                              isInbox={isInbox}
+                              darkMode={darkMode}
+                              updateTaskNotes={updateTaskNotes}
+                              addSubtask={addSubtask}
+                              toggleSubtask={toggleSubtask}
+                              deleteSubtask={deleteSubtask}
+                              updateSubtaskTitle={updateSubtaskTitle}
+                              noAutoFocus
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
