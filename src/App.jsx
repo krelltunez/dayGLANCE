@@ -2317,6 +2317,14 @@ const DayPlanner = () => {
   const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
   const [habitEditingCountId, setHabitEditingCountId] = useState(null); // ID of habit with count input open
   const habitLongPressTimer = useRef(null);
+  useEffect(() => {
+    if (!habitLongPressId) return;
+    const handler = (e) => {
+      if (e.key === 'Escape') { setHabitLongPressId(null); setHabitEditingCountId(null); }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [habitLongPressId]);
   const tagFilterBtnRef = useRef(null);
   const editingHabitRef = useRef(editingHabit);
   editingHabitRef.current = editingHabit;
@@ -10746,8 +10754,7 @@ const DayPlanner = () => {
             break;
           }
           case 'delete': {
-            if (isInbox) setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
-            else setTasks(prev => prev.filter(t => t.id !== id));
+            moveToRecycleBin(id, isInbox);
             break;
           }
           case 'complete': {
@@ -12799,7 +12806,7 @@ const DayPlanner = () => {
                                 <div key={frame.frameId}>
                                   <div
                                     data-ctx-menu
-                                    className="absolute left-0 right-0 rounded-sm pointer-events-auto"
+                                    className="absolute left-0 right-0 rounded-sm pointer-events-auto select-none"
                                     style={{
                                       top: `${top}px`,
                                       height: `${height}px`,
@@ -12810,7 +12817,7 @@ const DayPlanner = () => {
                                     onDragOver={(e) => handleDragOver(e, date)}
                                     onDrop={(e) => handleDropOnCalendar(e, date)}
                                   >
-                                    <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
+                                    <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none select-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                       {frame.label}
                                     </span>
                                   </div>
@@ -19180,7 +19187,7 @@ const DayPlanner = () => {
                             <div key={frame.frameId}>
                               <div
                                 data-ctx-menu
-                                className="absolute left-0 right-0 rounded-sm pointer-events-auto"
+                                className="absolute left-0 right-0 rounded-sm pointer-events-auto select-none"
                                 style={{
                                   top: `${top}px`,
                                   height: `${height}px`,
@@ -19191,7 +19198,7 @@ const DayPlanner = () => {
                                 onDragOver={(e) => handleDragOver(e, date)}
                                 onDrop={(e) => handleDropOnCalendar(e, date)}
                               >
-                                <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
+                                <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none select-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                   {frame.label}
                                 </span>
                                 {/* Resize handles */}
