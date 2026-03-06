@@ -12231,10 +12231,13 @@ const DayPlanner = () => {
             {mobileActiveTab === 'inbox' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-between px-4 py-3">
-                  <div className="flex gap-2">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                    <Inbox size={20} /> Inbox
+                  </h2>
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={openNewInboxTask}
-                      className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                      className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                       title="New Inbox Task"
                     >
                       <Plus size={14} strokeWidth={3} />
@@ -12243,15 +12246,13 @@ const DayPlanner = () => {
                     {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                       <button
                         onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                        className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                         title="AI Smart Schedule"
                       >
                         <BrainCircuit size={14} />
                         <span className="text-xs font-medium">Schedule</span>
                       </button>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
@@ -12282,6 +12283,24 @@ const DayPlanner = () => {
               </div>
             )}
 
+            {mobileActiveTab === 'routines' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                    <Sparkles size={20} /> Routines
+                  </h2>
+                </div>
+              </div>
+            )}
+            {mobileActiveTab === 'frames' && (
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
+                    <LayoutGrid size={20} /> Frames
+                  </h2>
+                </div>
+              </div>
+            )}
             {mobileActiveTab === 'settings' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-between px-4 py-3">
