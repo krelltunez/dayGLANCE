@@ -13372,7 +13372,7 @@ const DayPlanner = () => {
                 {habitsEnabled && activeHabits.length > 0 && (
                   <div className="mb-4 relative">
                     <div className="flex items-start gap-1 justify-center">
-                      {activeHabits.slice(0, 5).map(habit => (
+                      {activeHabits.slice(0, 5).map((habit, habitIdx) => (
                         <div key={habit.id} className="relative">
                           <HabitRing
                             size={44}
@@ -13390,7 +13390,7 @@ const DayPlanner = () => {
                           {habitLongPressId === habit.id && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
-                              <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
+                              <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(activeHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                                 <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                                 <div className="flex items-center justify-center gap-3">
                                   <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
@@ -16557,7 +16557,7 @@ const DayPlanner = () => {
                       {habitsEnabled && activeHabits.length > 0 && (
                         <div className="relative">
                           <div className="flex items-start gap-1 justify-center">
-                            {activeHabits.slice(0, 5).map(habit => (
+                            {activeHabits.slice(0, 5).map((habit, habitIdx) => (
                               <div key={habit.id} className="relative">
                                 <HabitRing
                                   size={44}
@@ -16575,7 +16575,7 @@ const DayPlanner = () => {
                                 {habitLongPressId === habit.id && (
                                   <>
                                     <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
-                                    <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
+                                    <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(activeHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                                       <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                                       <div className="flex items-center justify-center gap-3">
                                         <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
@@ -17575,7 +17575,7 @@ const DayPlanner = () => {
                   {habitsEnabled && activeHabits.length > 0 && (
                     <div className="relative">
                       <div className="flex items-start gap-1 justify-center">
-                        {activeHabits.slice(0, 5).map(habit => (
+                        {activeHabits.slice(0, 5).map((habit, habitIdx) => (
                           <div key={habit.id} className="relative">
                             <HabitRing
                               size={44}
@@ -17593,7 +17593,7 @@ const DayPlanner = () => {
                             {habitLongPressId === habit.id && (
                               <>
                                 <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
-                                <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px]`}>
+                                <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(activeHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                                   <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                                   <div className="flex items-center justify-center gap-3">
                                     <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
