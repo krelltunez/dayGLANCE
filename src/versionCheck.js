@@ -31,6 +31,7 @@ export async function checkForUpdate(currentVersion) {
 
     if (res.ok) {
       const data = await res.json();
+      if (!data.tag_name) return { updateAvailable: false };
       latestVersion = data.tag_name.replace(/^v/, '');
       releaseUrl = data.html_url;
       releaseNotes = data.body || '';
@@ -39,7 +40,7 @@ export async function checkForUpdate(currentVersion) {
       const tagsRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/tags?per_page=1`);
       if (!tagsRes.ok) return { updateAvailable: false };
       const tags = await tagsRes.json();
-      if (!tags.length) return { updateAvailable: false };
+      if (!tags.length || !tags[0]?.name) return { updateAvailable: false };
       latestVersion = tags[0].name.replace(/^v/, '');
       releaseUrl = `https://github.com/${GITHUB_REPO}/releases`;
       releaseNotes = '';

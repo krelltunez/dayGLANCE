@@ -141,7 +141,9 @@ async function _aiComplete(systemPrompt, userMessage, config) {
         throw new Error(err.error?.message || `OpenAI API error: ${res.status}`);
       }
       const data = await res.json();
-      return data.choices[0].message.content;
+      const content = data.choices?.[0]?.message?.content;
+      if (content == null) throw new Error('Unexpected response format from OpenAI API');
+      return content;
     }
 
     case 'anthropic': {
@@ -167,7 +169,9 @@ async function _aiComplete(systemPrompt, userMessage, config) {
         throw new Error(err.error?.message || `Anthropic API error: ${res.status}`);
       }
       const data = await res.json();
-      return data.content[0].text;
+      const text = data.content?.[0]?.text;
+      if (text == null) throw new Error('Unexpected response format from Anthropic API');
+      return text;
     }
 
     case 'gemini': {
@@ -186,7 +190,9 @@ async function _aiComplete(systemPrompt, userMessage, config) {
         throw new Error(err.error?.message || `Gemini API error: ${res.status}`);
       }
       const data = await res.json();
-      return data.candidates[0].content.parts[0].text;
+      const geminiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (geminiText == null) throw new Error('Unexpected response format from Gemini API');
+      return geminiText;
     }
 
     case 'ollama': {
@@ -295,7 +301,9 @@ async function _aiTranscribe(audioBlob, config) {
         throw new Error(err.error?.message || `Gemini transcription error: ${res.status}`);
       }
       const data = await res.json();
-      return data.candidates[0].content.parts[0].text;
+      const transcribedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (transcribedText == null) throw new Error('Unexpected response format from Gemini transcription API');
+      return transcribedText;
     }
 
     default:
