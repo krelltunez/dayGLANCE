@@ -14469,7 +14469,10 @@ const DayPlanner = () => {
                       />
                     ) : (
                       <>
-                        {gtdFrames.length === 0 ? (
+                        {(() => {
+                          const todayStr = getTodayStr();
+                          const visibleFrames = gtdFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
+                          return visibleFrames.length === 0 ? (
                           <div className="flex flex-col items-center justify-center py-12 gap-3">
                             <LayoutGrid size={48} className={textSecondary} />
                             <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
@@ -14486,7 +14489,7 @@ const DayPlanner = () => {
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            {gtdFrames.map(frame => (
+                            {visibleFrames.map(frame => (
                               <div
                                 key={frame.id}
                                 onClick={() => setEditingFrame(frame)}
@@ -14513,7 +14516,8 @@ const DayPlanner = () => {
                               Add Frame
                             </button>
                           </div>
-                        )}
+                        );
+                        })()}
                       </>
                     )}
                   </>
@@ -25625,7 +25629,10 @@ const DayPlanner = () => {
                     />
                   ) : (
                     <>
-                      {gtdFrames.length === 0 ? (
+                      {(() => {
+                        const todayStr = getTodayStr();
+                        const visibleFrames = gtdFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
+                        return visibleFrames.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 gap-3">
                           <LayoutGrid size={48} className={textSecondary} />
                           <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
@@ -25642,7 +25649,7 @@ const DayPlanner = () => {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {gtdFrames.map(frame => (
+                          {visibleFrames.map(frame => (
                             <div
                               key={frame.id}
                               onClick={() => setEditingFrame(frame)}
@@ -25670,7 +25677,8 @@ const DayPlanner = () => {
                             Add Frame
                           </button>
                         </div>
-                      )}
+                      );
+                      })()}
                     </>
                   )}
                 </>
