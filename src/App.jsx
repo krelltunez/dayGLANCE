@@ -15603,12 +15603,13 @@ const DayPlanner = () => {
                     }
                     return allTags.map(tag => {
                     const tagCount = tagCounts[tag] || 0;
-                    if (tagCount === 0) return null;
                     return (
                       <button
                         key={tag}
                         onClick={() => toggleTag(tag)}
                         className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
+                          tagCount === 0 ? 'opacity-40' : ''
+                        } ${
                           selectedTags.includes(tag)
                             ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
                             : darkMode ? 'active:bg-white/5' : 'active:bg-stone-50'
@@ -15623,7 +15624,7 @@ const DayPlanner = () => {
                         </div>
                         <Hash size={14} className={textSecondary} />
                         <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
-                        <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                        {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
                       </button>
                     );
                   });
@@ -16451,12 +16452,13 @@ const DayPlanner = () => {
                                       const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
                                       const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
                                       const tagCount = regularCount + recurringCount;
-                                      if (tagCount === 0) return null;
                                       return (
                                         <button
                                           key={tag}
                                           onClick={() => toggleTag(tag)}
                                           className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
+                                            tagCount === 0 ? 'opacity-40' : ''
+                                          } ${
                                             selectedTags.includes(tag)
                                               ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
                                               : darkMode ? 'hover:bg-white/5' : 'hover:bg-stone-50'
@@ -16469,7 +16471,7 @@ const DayPlanner = () => {
                                           </div>
                                           <Hash size={12} className={textSecondary} />
                                           <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
-                                          <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                                          {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
                                         </button>
                                       );
                                     })}
@@ -17469,12 +17471,13 @@ const DayPlanner = () => {
                                   const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
                                   const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
                                   const tagCount = regularCount + recurringCount;
-                                  if (tagCount === 0) return null;
                                   return (
                                     <button
                                       key={tag}
                                       onClick={() => toggleTag(tag)}
                                       className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
+                                        tagCount === 0 ? 'opacity-40' : ''
+                                      } ${
                                         selectedTags.includes(tag)
                                           ? darkMode ? 'bg-blue-500/20' : 'bg-blue-50'
                                           : darkMode ? 'hover:bg-white/5' : 'hover:bg-stone-50'
@@ -17487,7 +17490,7 @@ const DayPlanner = () => {
                                       </div>
                                       <Hash size={12} className={textSecondary} />
                                       <span className={`flex-1 text-left text-sm ${textPrimary}`}>{tag}</span>
-                                      <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>
+                                      {tagCount > 0 && <span className={`text-xs ${textSecondary} tabular-nums`}>{tagCount}</span>}
                                     </button>
                                   );
                                 })}
