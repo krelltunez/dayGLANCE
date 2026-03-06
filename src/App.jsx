@@ -5240,9 +5240,11 @@ const DayPlanner = () => {
     }
 
     // Update the task with the new date (same time)
+    pushUndo();
     setTasks(prev => prev.map(t =>
       t.id === id ? { ...t, date: nextDateStr } : t
     ));
+    setUndoToast({ message: 'Task postponed to tomorrow', actionable: true });
 
     playUISound('slide');
 
