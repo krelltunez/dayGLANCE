@@ -12230,10 +12230,12 @@ const DayPlanner = () => {
             )}
             {mobileActiveTab === 'inbox' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center justify-between px-4 py-3">
+                <div className="px-4 pt-3 pb-1">
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
                     <Inbox size={20} /> Inbox
                   </h2>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2">
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={openNewInboxTask}
