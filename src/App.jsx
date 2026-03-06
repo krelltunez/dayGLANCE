@@ -12236,7 +12236,7 @@ const DayPlanner = () => {
                   </h2>
                 </div>
                 <div className="flex items-center justify-between px-4 py-2">
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={openNewInboxTask}
                       className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
@@ -12255,6 +12255,8 @@ const DayPlanner = () => {
                         <span className="text-xs font-medium">Schedule</span>
                       </button>
                     )}
+                  </div>
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
                       className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
