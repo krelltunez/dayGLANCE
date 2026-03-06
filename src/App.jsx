@@ -12440,6 +12440,7 @@ const DayPlanner = () => {
                                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
+                                          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                         >
                                           <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                           <div className="absolute top-0 border-t border-white/20 pointer-events-none" style={{ left: '12px', width: '2px' }} />
@@ -12564,6 +12565,7 @@ const DayPlanner = () => {
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
+                                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                     >
                                       <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
                                       <div className="absolute top-0 border-t-2 border-dashed border-white/60 pointer-events-none" style={{ left: '12px', width: '2px' }} />
@@ -13022,6 +13024,7 @@ const DayPlanner = () => {
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
+                                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                     >
                                       <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                       <div className="absolute top-0 border-t border-white/20 pointer-events-none" style={{ left: '12px', width: '2px' }} />
@@ -18718,6 +18721,7 @@ const DayPlanner = () => {
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
+                                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                 >
                                   <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                   <div className="absolute top-0 border-t border-white/20 pointer-events-none" style={{ left: '12px', width: '2px' }} />
@@ -18891,6 +18895,7 @@ const DayPlanner = () => {
                                 onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                 onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                 onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
+                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                               >
                                 <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
                                 <div className="absolute top-0 border-t-2 border-dashed border-white/60 pointer-events-none" style={{ left: '12px', width: '2px' }} />
@@ -19433,6 +19438,7 @@ const DayPlanner = () => {
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
+                                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                 >
                                   <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
                                   <div className="absolute top-0 border-t border-white/20 pointer-events-none" style={{ left: '12px', width: '2px' }} />
