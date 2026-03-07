@@ -3,7 +3,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
-import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 
@@ -2284,6 +2284,8 @@ const DayPlanner = () => {
   const [showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker] = useState(null); // { source: 'edit' | 'new', templateId?: number }
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
+  const [taskAISuggestion, setTaskAISuggestion] = useState(null); // { duration, tags }
+  const [taskAISuggestionLoading, setTaskAISuggestionLoading] = useState(false);
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
@@ -11195,6 +11197,42 @@ const DayPlanner = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [aiConfig.enabled, aiConfig.features.eveningReflection]);
 
+  // --- AI Task Suggestion (duration + tags debounce) ---
+  useEffect(() => {
+    // Clear suggestion when form closes or when editing an existing task
+    if (!showAddTask || mobileEditingTask) {
+      setTaskAISuggestion(null);
+      setTaskAISuggestionLoading(false);
+      return;
+    }
+    // Strip inline tags/shorthands so we query the clean title words
+    const cleanedTitle = newTask.title.replace(/#\w+|@\S+|~\S+|%\d+|\^\S*/g, '').trim();
+    if (
+      cleanedTitle.length < 3 ||
+      !aiConfig.enabled ||
+      !aiConfig.features?.durationEstimate ||
+      (!aiConfig.apiKey && aiConfig.provider !== 'ollama')
+    ) {
+      setTaskAISuggestion(null);
+      return;
+    }
+    setTaskAISuggestionLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await aiJSON(
+          taskSuggestSystemPrompt(),
+          taskSuggestUserPrompt({ title: cleanedTitle, existingTags: allTags }),
+          aiConfig
+        );
+        if (result && typeof result.duration === 'number') {
+          setTaskAISuggestion(result);
+        }
+      } catch {}
+      setTaskAISuggestionLoading(false);
+    }, 650);
+    return () => { clearTimeout(timer); setTaskAISuggestionLoading(false); };
+  }, [newTask.title, showAddTask, mobileEditingTask, aiConfig, allTags]);
+
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.weeklySummary) return;
@@ -15704,6 +15742,7 @@ const DayPlanner = () => {
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
                               { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
                               { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={14} /> },
+                              { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={14} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
                             ].map(f => (
@@ -21743,6 +21782,44 @@ const DayPlanner = () => {
                   autoFocus={!mobileEditingTask && !newTask.title}
                   className={`w-full px-3 py-3 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-base`}
                 />
+                {/* AI duration + tag suggestion pill */}
+                {aiConfig.enabled && aiConfig.features?.durationEstimate && !mobileEditingTask && (
+                  taskAISuggestionLoading ? (
+                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                      <Loader size={11} className="animate-spin" />
+                      <span>Estimating...</span>
+                    </div>
+                  ) : taskAISuggestion ? (
+                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                      <Sparkles size={11} className="text-purple-400 flex-shrink-0" />
+                      <span className="font-medium">{taskAISuggestion.duration} min</span>
+                      {taskAISuggestion.tags?.length > 0 && (
+                        <>
+                          <span className={textSecondary}>·</span>
+                          <span className="opacity-75">{taskAISuggestion.tags.map(t => '#' + t).join(' ')}</span>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewTask(prev => {
+                            const existing = extractTags(prev.title);
+                            const newTags = (taskAISuggestion.tags || []).filter(t => !existing.includes(t));
+                            const title = newTags.length > 0 ? prev.title.trimEnd() + ' ' + newTags.map(t => '#' + t).join(' ') : prev.title;
+                            return { ...prev, duration: taskAISuggestion.duration, title };
+                          });
+                          setTaskAISuggestion(null);
+                        }}
+                        className={`ml-auto px-2 py-0.5 rounded text-xs font-medium transition-colors ${darkMode ? 'bg-purple-900/60 hover:bg-purple-800/60 text-purple-200' : 'bg-purple-100 hover:bg-purple-200 text-purple-700'}`}
+                      >
+                        Apply
+                      </button>
+                      <button type="button" onClick={() => setTaskAISuggestion(null)} className={`p-0.5 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
+                        <X size={11} className={textSecondary} />
+                      </button>
+                    </div>
+                  ) : null
+                )}
               </div>
 
               {/* Color row */}
@@ -22068,6 +22145,44 @@ const DayPlanner = () => {
                     selectedIndex={selectedSuggestionIndex}
                     onSelect={applySuggestionForNewTask}
                   />
+                )}
+                {/* AI duration + tag suggestion pill */}
+                {aiConfig.enabled && aiConfig.features?.durationEstimate && !mobileEditingTask && (
+                  taskAISuggestionLoading ? (
+                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                      <Loader size={11} className="animate-spin" />
+                      <span>Estimating...</span>
+                    </div>
+                  ) : taskAISuggestion ? (
+                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
+                      <Sparkles size={11} className="text-purple-400 flex-shrink-0" />
+                      <span className="font-medium">{taskAISuggestion.duration} min</span>
+                      {taskAISuggestion.tags?.length > 0 && (
+                        <>
+                          <span className={textSecondary}>·</span>
+                          <span className="opacity-75">{taskAISuggestion.tags.map(t => '#' + t).join(' ')}</span>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewTask(prev => {
+                            const existing = extractTags(prev.title);
+                            const newTags = (taskAISuggestion.tags || []).filter(t => !existing.includes(t));
+                            const title = newTags.length > 0 ? prev.title.trimEnd() + ' ' + newTags.map(t => '#' + t).join(' ') : prev.title;
+                            return { ...prev, duration: taskAISuggestion.duration, title };
+                          });
+                          setTaskAISuggestion(null);
+                        }}
+                        className={`ml-auto px-2 py-0.5 rounded text-xs font-medium transition-colors ${darkMode ? 'bg-purple-900/60 hover:bg-purple-800/60 text-purple-200' : 'bg-purple-100 hover:bg-purple-200 text-purple-700'}`}
+                      >
+                        Apply
+                      </button>
+                      <button type="button" onClick={() => setTaskAISuggestion(null)} className={`p-0.5 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
+                        <X size={11} className={textSecondary} />
+                      </button>
+                    </div>
+                  ) : null
                 )}
               </div>
               <div className="grid grid-cols-3 gap-3">
@@ -23820,6 +23935,7 @@ const DayPlanner = () => {
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
                               { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
                               { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={12} /> },
+                              { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={12} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
                             ].map(f => (

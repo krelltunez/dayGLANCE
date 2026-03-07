@@ -1,5 +1,20 @@
 // AI Prompt templates for each feature
 
+// --- AI Task Suggestion (duration + tags) ---
+
+export function taskSuggestSystemPrompt() {
+  return `You are a task duration estimator for a day planner app. Given a task title and the user's existing tag vocabulary, return a JSON object with:
+- "duration": estimated minutes. Must be one of: 15, 30, 45, 60, 90, 120, 180, 240
+- "tags": array of 1-3 relevant tags. Prefer tags from the known list. If none fit well, create short lowercase single-word or hyphenated tags.
+
+Return ONLY valid JSON, no explanation. Example: {"duration": 30, "tags": ["work", "email"]}`;
+}
+
+export function taskSuggestUserPrompt({ title, existingTags }) {
+  const tagList = existingTags.length > 0 ? existingTags.join(', ') : 'none yet';
+  return `Task: "${title}"\nKnown tags: ${tagList}`;
+}
+
 export function voiceParseSystemPrompt(context) {
   const { todayDate, existingTags, timezone, existingTasks } = context;
   return `You are a task assistant for a day planner app. The user will give you a voice transcript (natural language). Determine their intent:

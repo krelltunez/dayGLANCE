@@ -13,6 +13,7 @@ const DEFAULT_CONFIG = {
     eveningReflection: true,
     weeklySummary: true,
     smartScheduling: true,
+    durationEstimate: true,
   }
 };
 
