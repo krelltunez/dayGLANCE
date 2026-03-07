@@ -1361,8 +1361,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
   if (use24HourClock) {
     return <input type="time" value={value} onChange={e => onChange(e.target.value)} className={`w-full ${cls}`} />;
   }
-  const [h, rawM] = value ? value.split(':').map(Number) : [9, 0];
-  const m = Math.round(rawM / 5) * 5 % 60;
+  const [h, m] = value ? value.split(':').map(Number) : [9, 0];
   const ampm = h >= 12 ? 'PM' : 'AM';
   const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
   const set = (newH, newM) => onChange(`${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
@@ -15037,7 +15036,13 @@ const DayPlanner = () => {
                               />
                               <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
                             </label>
-                            <TimePicker value={reminderSettings.morningReminderTime} onChange={(time) => setReminderSettings(prev => ({ ...prev, morningReminderTime: time }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                            <button
+                              type="button"
+                              onClick={() => setShowMorningTimePicker(true)}
+                              className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
+                            >
+                              {formatTime(reminderSettings.morningReminderTime)}
+                            </button>
                           </div>
                         </div>
 
@@ -15076,7 +15081,13 @@ const DayPlanner = () => {
                               </div>
                               <div>
                                 <p className={`text-xs ${textSecondary} mb-1.5`}>Time</p>
-                                <TimePicker value={reminderSettings.weeklyReview.time} onChange={(time) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, time } }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowWeeklyReviewTimePicker(true)}
+                                  className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
+                                >
+                                  {formatTime(reminderSettings.weeklyReview.time)}
+                                </button>
                               </div>
                             </div>
                           )}
@@ -19896,6 +19907,15 @@ const DayPlanner = () => {
       </>
       )}
 
+      {showTimePicker && (
+        <ClockTimePicker
+          value={newTask.startTime}
+          onChange={(time) => setNewTask({ ...newTask, startTime: time })}
+          onClose={() => setShowTimePicker(false)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+        />
+      )}
+
       {showDatePicker && (
         <DatePicker
           value={newTask.date}
@@ -21392,10 +21412,14 @@ const DayPlanner = () => {
                   </div>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
-                    {newTask.isAllDay
-                      ? <div className={`px-3 py-2 border ${borderClass} rounded-lg text-sm opacity-50 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}>All Day</div>
-                      : <TimePicker value={newTask.startTime} onChange={(t) => setNewTask(prev => ({ ...prev, startTime: t }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
-                    }
+                    <button
+                      type="button"
+                      onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
+                      disabled={newTask.isAllDay}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                    >
+                      {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
+                    </button>
                   </div>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
@@ -21905,10 +21929,14 @@ const DayPlanner = () => {
                     {/* Row 2: Time, Duration, All Day */}
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
-                      {newTask.isAllDay
-                        ? <div className={`px-3 py-2 border ${borderClass} rounded-lg text-sm opacity-50 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}>All Day</div>
-                        : <TimePicker value={newTask.startTime} onChange={(t) => setNewTask(prev => ({ ...prev, startTime: t }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
-                      }
+                      <button
+                        type="button"
+                        onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
+                        disabled={newTask.isAllDay}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
+                      </button>
                     </div>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
@@ -22448,17 +22476,15 @@ const DayPlanner = () => {
           </div>
         </div>
         {routineTimePickerChipId !== null && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setRoutineTimePickerChipId(null)}>
-            <div className={`${cardBg} rounded-xl shadow-xl p-5 border ${borderClass} w-72`} onClick={e => e.stopPropagation()}>
-              <h3 className={`font-semibold ${textPrimary} mb-4`}>Set Start Time</h3>
-              <TimePicker
-                value={dashboardSelectedChips.find(c => c.id === routineTimePickerChipId)?.startTime || '09:00'}
-                onChange={(time) => setDashboardSelectedChips(prev => prev.map(c => c.id === routineTimePickerChipId ? { ...c, startTime: time } : c))}
-                use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode}
-              />
-              <button onClick={() => setRoutineTimePickerChipId(null)} className={`mt-4 w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors`}>Done</button>
-            </div>
-          </div>
+          <ClockTimePicker
+            value={dashboardSelectedChips.find(c => c.id === routineTimePickerChipId)?.startTime || '09:00'}
+            onChange={(time) => {
+              setDashboardSelectedChips(prev => prev.map(c => c.id === routineTimePickerChipId ? { ...c, startTime: time } : c));
+              setRoutineTimePickerChipId(null);
+            }}
+            onClose={() => setRoutineTimePickerChipId(null)}
+            darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+          />
         )}
       </>)}
 
@@ -23793,7 +23819,13 @@ const DayPlanner = () => {
                       />
                       <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
                     </label>
-                    <TimePicker value={reminderSettings.morningReminderTime} onChange={(time) => setReminderSettings(prev => ({ ...prev, morningReminderTime: time }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                    <button
+                      type="button"
+                      onClick={() => setShowMorningTimePicker(true)}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
+                    >
+                      {formatTime(reminderSettings.morningReminderTime)}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -23841,7 +23873,13 @@ const DayPlanner = () => {
                   </div>
                   <div>
                     <p className={`text-xs ${textSecondary} mb-1.5`}>Time</p>
-                    <TimePicker value={reminderSettings.weeklyReview.time} onChange={(time) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, time } }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                    <button
+                      type="button"
+                      onClick={() => setShowWeeklyReviewTimePicker(true)}
+                      className={`text-xs px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-700'}`}
+                    >
+                      {formatTime(reminderSettings.weeklyReview.time)}
+                    </button>
                   </div>
                 </div>
               )}
@@ -23857,6 +23895,23 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {showMorningTimePicker && (
+        <ClockTimePicker
+          value={reminderSettings.morningReminderTime}
+          onChange={(time) => setReminderSettings(prev => ({ ...prev, morningReminderTime: time }))}
+          onClose={() => setShowMorningTimePicker(false)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+        />
+      )}
+
+      {showWeeklyReviewTimePicker && (
+        <ClockTimePicker
+          value={reminderSettings.weeklyReview?.time || '19:00'}
+          onChange={(time) => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, time } }))}
+          onClose={() => setShowWeeklyReviewTimePicker(false)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+        />
+      )}
 
       {/* Incomplete Tasks Modal */}
       {showIncompleteTasks && (() => {
@@ -24305,12 +24360,22 @@ const DayPlanner = () => {
             <p className={`text-xs ${textSecondary} mb-3`}>For {frameAdjustModal.dateStr} only</p>
             <div className="space-y-3">
               <div>
-                <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start</label>
-                <TimePicker value={frameAdjustModal.start} onChange={(t) => setFrameAdjustModal(prev => ({ ...prev, start: t }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                <label className={`text-xs font-medium ${textSecondary}`}>Start</label>
+                <input
+                  type="time"
+                  value={frameAdjustModal.start}
+                  onChange={(e) => setFrameAdjustModal(prev => ({ ...prev, start: e.target.value }))}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border ${borderClass} ${cardBg} ${textPrimary} text-sm`}
+                />
               </div>
               <div>
-                <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End</label>
-                <TimePicker value={frameAdjustModal.end} onChange={(t) => setFrameAdjustModal(prev => ({ ...prev, end: t }))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                <label className={`text-xs font-medium ${textSecondary}`}>End</label>
+                <input
+                  type="time"
+                  value={frameAdjustModal.end}
+                  onChange={(e) => setFrameAdjustModal(prev => ({ ...prev, end: e.target.value }))}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border ${borderClass} ${cardBg} ${textPrimary} text-sm`}
+                />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -24834,17 +24899,15 @@ const DayPlanner = () => {
 
       {/* Mobile Routine Time Picker (outside routines dashboard modal) */}
       {isMobile && routineTimePickerChipId !== null && !showRoutinesDashboard && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setRoutineTimePickerChipId(null)}>
-          <div className={`${cardBg} rounded-xl shadow-xl p-5 border ${borderClass} w-72`} onClick={e => e.stopPropagation()}>
-            <h3 className={`font-semibold ${textPrimary} mb-4`}>Set Start Time</h3>
-            <TimePicker
-              value={dashboardSelectedChips.find(c => c.id === routineTimePickerChipId)?.startTime || '09:00'}
-              onChange={(time) => setDashboardSelectedChips(prev => prev.map(c => c.id === routineTimePickerChipId ? { ...c, startTime: time } : c))}
-              use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode}
-            />
-            <button onClick={() => setRoutineTimePickerChipId(null)} className="mt-4 w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors">Done</button>
-          </div>
-        </div>
+        <ClockTimePicker
+          value={dashboardSelectedChips.find(c => c.id === routineTimePickerChipId)?.startTime || '09:00'}
+          onChange={(time) => {
+            setDashboardSelectedChips(prev => prev.map(c => c.id === routineTimePickerChipId ? { ...c, startTime: time } : c));
+            setRoutineTimePickerChipId(null);
+          }}
+          onClose={() => setRoutineTimePickerChipId(null)}
+          darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+        />
       )}
 
       {/* Welcome Modal for New Users */}
@@ -25416,7 +25479,12 @@ const DayPlanner = () => {
                                   onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, date: e.target.value || null } : t))}
                                   className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                                 />
-                                <TimePicker value={task.time || '09:00'} onChange={(t) => setVoiceParsedTasks(prev => prev.map((v, i) => i === idx ? { ...v, time: t } : v))} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
+                                <input
+                                  type="time"
+                                  value={task.time || ''}
+                                  onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, time: e.target.value || null } : t))}
+                                  className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                />
                                 <select
                                   value={task.duration}
                                   onChange={(e) => setVoiceParsedTasks(prev => prev.map((t, i) => i === idx ? { ...t, duration: Number(e.target.value) } : t))}
