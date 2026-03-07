@@ -3,7 +3,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
-import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 
@@ -2772,6 +2772,24 @@ const DayPlanner = () => {
     } catch { return false; }
   });
   const [morningGlanceError, setMorningGlanceError] = useState('');
+
+  // Evening reflection state
+  const [eveningGlanceText, setEveningGlanceText] = useState(() => {
+    try {
+      const cached = localStorage.getItem('day-planner-evening-glance');
+      if (cached) {
+        const { date, text } = JSON.parse(cached);
+        if (date === localDateStr()) return text;
+      }
+    } catch {}
+    return null;
+  });
+  const [eveningGlanceLoading, setEveningGlanceLoading] = useState(false);
+  const [eveningGlanceDismissed, setEveningGlanceDismissed] = useState(() => {
+    try { return localStorage.getItem('day-planner-eg-dismissed') === localDateStr(); }
+    catch { return false; }
+  });
+  const [eveningGlanceError, setEveningGlanceError] = useState('');
 
   // Weekly AI summary (enhanced weekly review)
   const [weeklyAISummary, setWeeklyAISummary] = useState(null);
@@ -11106,6 +11124,77 @@ const DayPlanner = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [aiConfig.enabled, aiConfig.features.morningSummary]);
 
+  // --- Evening Reflection ---
+  const generateEveningReflection = useCallback(async () => {
+    if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.eveningReflection) return;
+    const todayStr = dateToString(new Date());
+    try {
+      const cached = localStorage.getItem('day-planner-evening-glance');
+      if (cached) {
+        const { date, text } = JSON.parse(cached);
+        if (date === todayStr) { setEveningGlanceText(text); return; }
+      }
+    } catch {}
+
+    setEveningGlanceLoading(true);
+    setEveningGlanceError('');
+    try {
+      const todayDate = new Date();
+      const dayOfWeek = todayDate.toLocaleDateString('en-US', { weekday: 'long' });
+      const tomorrow = new Date(todayDate);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = dateToString(tomorrow);
+
+      const completedToday = tasks.filter(t => t.date === todayStr && t.completed && !t.imported && !t.isExample);
+      const incompleteToday = tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample);
+      const tomorrowTasks = tasks.filter(t => t.date === tomorrowStr && !t.imported && !t.isExample);
+      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+
+      const total = completedToday.length + incompleteToday.length;
+      const completionRate = total > 0 ? Math.round((completedToday.length / total) * 100) : 0;
+
+      const data = {
+        todayDate: todayStr,
+        dayOfWeek,
+        completedTasks: completedToday.map(t => ({ title: t.title, priority: t.priority || 0 })),
+        incompleteTasks: incompleteToday.map(t => ({ title: t.title })),
+        completionRate,
+        tomorrowTasks: tomorrowTasks.map(t => ({ title: t.title, time: t.startTime })),
+        inboxSuggestions: inboxItems.slice(0, 3).map(t => ({ title: t.title })),
+      };
+
+      const text = await aiComplete(eveningReflectionSystemPrompt(), eveningReflectionUserPrompt(data), aiConfig);
+      const cleaned = text.trim();
+      setEveningGlanceText(cleaned);
+      localStorage.setItem('day-planner-evening-glance', JSON.stringify({ date: todayStr, text: cleaned }));
+    } catch (err) {
+      setEveningGlanceError(err.message);
+    }
+    setEveningGlanceLoading(false);
+  }, [aiConfig, tasks, unscheduledTasks]);
+
+  const dismissEveningGlance = useCallback(() => {
+    setEveningGlanceDismissed(true);
+    localStorage.setItem('day-planner-eg-dismissed', localDateStr());
+  }, []);
+
+  // Reset evening reflection on day rollover
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || !aiConfig.enabled || !aiConfig.features.eveningReflection) return;
+      const todayStr = dateToString(new Date());
+      try {
+        const cached = localStorage.getItem('day-planner-evening-glance');
+        if (cached && JSON.parse(cached).date === todayStr) return;
+      } catch {}
+      if (localStorage.getItem('day-planner-eg-dismissed') === todayStr) return;
+      setEveningGlanceDismissed(false);
+      setEveningGlanceText(null);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [aiConfig.enabled, aiConfig.features.eveningReflection]);
+
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.weeklySummary) return;
@@ -13625,6 +13714,48 @@ const DayPlanner = () => {
                   </div>
                   )
                 )}
+                {/* Evening Reflection — AI end-of-day card (mobile) */}
+                {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && (
+                  (eveningGlanceText || eveningGlanceLoading || eveningGlanceError) ? (
+                  <div className={`mb-4 rounded-lg border p-3 ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Moon size={16} className="text-indigo-400" />
+                        <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Evening Reflection</span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={generateEveningReflection} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
+                          <RefreshCw size={12} className={`${eveningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
+                        </button>
+                        <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss for today">
+                          <X size={12} className={textSecondary} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      {eveningGlanceLoading && (
+                        <div className="flex items-center gap-2">
+                          <Loader size={14} className={`animate-spin ${textSecondary}`} />
+                          <span className={`text-xs ${textSecondary}`}>Reflecting on your day...</span>
+                        </div>
+                      )}
+                      {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
+                      {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
+                    </div>
+                  </div>
+                  ) : (
+                  <div
+                    className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20 hover:bg-indigo-900/30' : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100'}`}
+                    onClick={generateEveningReflection}
+                  >
+                    <Moon size={14} className="text-indigo-400 flex-shrink-0" />
+                    <span className={`text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Click here for evening reflection</span>
+                    <button onClick={(e) => { e.stopPropagation(); dismissEveningGlance(); }} className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`} title="Dismiss for today">
+                      <X size={12} className={textSecondary} />
+                    </button>
+                  </div>
+                  )
+                )}
                 {/* Habit rings row */}
                 {habitsEnabled && activeHabits.length > 0 && (
                   <div className="mb-4 relative">
@@ -15572,6 +15703,7 @@ const DayPlanner = () => {
                             {[
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
                               { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
+                              { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={14} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
                             ].map(f => (
@@ -16826,6 +16958,49 @@ const DayPlanner = () => {
                         )
                       )}
 
+                      {/* Evening Reflection — AI end-of-day card */}
+                      {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && (
+                        (eveningGlanceText || eveningGlanceLoading || eveningGlanceError) ? (
+                        <div className={`rounded-lg border p-3 ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Moon size={16} className="text-indigo-400" />
+                              <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Evening Reflection</span>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button onClick={generateEveningReflection} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
+                                <RefreshCw size={12} className={`${eveningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
+                              </button>
+                              <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss for today">
+                                <X size={12} className={textSecondary} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            {eveningGlanceLoading && (
+                              <div className="flex items-center gap-2">
+                                <Loader size={14} className={`animate-spin ${textSecondary}`} />
+                                <span className={`text-xs ${textSecondary}`}>Reflecting on your day...</span>
+                              </div>
+                            )}
+                            {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
+                            {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
+                          </div>
+                        </div>
+                        ) : (
+                        <div
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20 hover:bg-indigo-900/30' : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100'}`}
+                          onClick={generateEveningReflection}
+                        >
+                          <Moon size={14} className="text-indigo-400 flex-shrink-0" />
+                          <span className={`text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Click here for evening reflection</span>
+                          <button onClick={(e) => { e.stopPropagation(); dismissEveningGlance(); }} className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`} title="Dismiss for today">
+                            <X size={12} className={textSecondary} />
+                          </button>
+                        </div>
+                        )
+                      )}
+
                       {/* Habit rings row */}
                       {habitsEnabled && activeHabits.length > 0 && (
                         <div className="relative">
@@ -17839,6 +18014,49 @@ const DayPlanner = () => {
                         className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
                         title="Dismiss for today"
                       >
+                        <X size={12} className={textSecondary} />
+                      </button>
+                    </div>
+                    )
+                  )}
+
+                  {/* Evening Reflection — AI end-of-day card (desktop) */}
+                  {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && (
+                    (eveningGlanceText || eveningGlanceLoading || eveningGlanceError) ? (
+                    <div className={`rounded-lg border p-3 ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Moon size={16} className="text-indigo-400" />
+                          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Evening Reflection</span>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={generateEveningReflection} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
+                            <RefreshCw size={12} className={`${eveningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
+                          </button>
+                          <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss for today">
+                            <X size={12} className={textSecondary} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        {eveningGlanceLoading && (
+                          <div className="flex items-center gap-2">
+                            <Loader size={14} className={`animate-spin ${textSecondary}`} />
+                            <span className={`text-xs ${textSecondary}`}>Reflecting on your day...</span>
+                          </div>
+                        )}
+                        {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
+                        {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
+                      </div>
+                    </div>
+                    ) : (
+                    <div
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20 hover:bg-indigo-900/30' : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100'}`}
+                      onClick={generateEveningReflection}
+                    >
+                      <Moon size={14} className="text-indigo-400 flex-shrink-0" />
+                      <span className={`text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Click here for evening reflection</span>
+                      <button onClick={(e) => { e.stopPropagation(); dismissEveningGlance(); }} className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`} title="Dismiss for today">
                         <X size={12} className={textSecondary} />
                       </button>
                     </div>
@@ -23601,6 +23819,7 @@ const DayPlanner = () => {
                             {[
                               { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
                               { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
+                              { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={12} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
                             ].map(f => (

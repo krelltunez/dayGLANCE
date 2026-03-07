@@ -10,6 +10,7 @@ const DEFAULT_CONFIG = {
   features: {
     voiceTaskInput: true,
     morningSummary: true,
+    eveningReflection: true,
     weeklySummary: true,
     smartScheduling: true,
   }

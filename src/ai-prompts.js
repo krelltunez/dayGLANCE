@@ -130,6 +130,53 @@ export function morningSummaryUserPrompt(data) {
   return lines.join('\n');
 }
 
+// --- Evening Reflection ---
+
+export function eveningReflectionSystemPrompt() {
+  return `You are a warm productivity assistant helping a user close out their day. Generate a brief, grounded evening reflection based on their schedule data. Write in second person ("You finished...").
+
+Rules:
+- Keep it to 2-4 short sentences
+- Open by acknowledging what was accomplished — be specific about high-priority completions if any
+- If tasks went undone, note it briefly and neutrally (not critically)
+- Suggest 1-2 concrete things worth putting on tomorrow's plate from the inbox or incomplete list, if any exist
+- If tomorrow already has tasks scheduled, briefly acknowledge what's coming
+- Close with a brief, natural wind-down note — not motivational-poster cheesy, just human
+- Do NOT use markdown, bullet points, or formatting — plain text only
+- Do NOT use emojis`;
+}
+
+export function eveningReflectionUserPrompt(data) {
+  const { todayDate, dayOfWeek, completedTasks, incompleteTasks, completionRate, tomorrowTasks, inboxSuggestions } = data;
+  const lines = [`Today is ${dayOfWeek}, ${todayDate}.`];
+
+  if (completedTasks.length > 0) {
+    lines.push(`Completed today (${completedTasks.length}): ${completedTasks.map(t => {
+      let s = t.title;
+      if (t.priority === 3) s += ' [HIGH PRIORITY]';
+      return s;
+    }).join('; ')}.`);
+  } else {
+    lines.push('No tasks were completed today.');
+  }
+
+  if (incompleteTasks.length > 0) {
+    lines.push(`Left incomplete (${incompleteTasks.length}): ${incompleteTasks.map(t => t.title).join('; ')}.`);
+  }
+
+  lines.push(`Completion rate: ${completionRate}%.`);
+
+  if (tomorrowTasks.length > 0) {
+    lines.push(`Already scheduled for tomorrow (${tomorrowTasks.length}): ${tomorrowTasks.map(t => t.title + (t.time ? ` at ${t.time}` : '')).join('; ')}.`);
+  }
+
+  if (inboxSuggestions.length > 0) {
+    lines.push(`Top unscheduled inbox items to consider for tomorrow: ${inboxSuggestions.map(t => t.title).join('; ')}.`);
+  }
+
+  return lines.join('\n');
+}
+
 // --- Phase 3: Enhanced Weekly dayGLANCE ---
 
 export function weeklySummarySystemPrompt() {
