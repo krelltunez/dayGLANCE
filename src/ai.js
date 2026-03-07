@@ -16,6 +16,7 @@ const DEFAULT_CONFIG = {
     durationEstimate: true,
     frameNudge: true,
     aiReschedule: true,
+    aiSubtasks: true,
   }
 };
 

@@ -3,7 +3,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
-import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 
@@ -285,8 +285,12 @@ const NotesSubtasksPanel = ({
   deleteSubtask,
   updateSubtaskTitle,
   compact = true, // Use compact mode for inbox, expanded for timeline
-  noAutoFocus = false
+  noAutoFocus = false,
+  aiConfig,
+  aiSubtasksLoadingForTask,
+  onGenerateSubtasks,
 }) => {
+  const isGeneratingSubtasks = aiSubtasksLoadingForTask === task.id;
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [editingSubtaskText, setEditingSubtaskText] = useState('');
   const [localNotes, setLocalNotes] = useState(task.notes || '');
@@ -424,8 +428,22 @@ const NotesSubtasksPanel = ({
 
       {/* Subtasks section */}
       <div>
-        <div className="text-xs font-semibold opacity-75 mb-1">
-          Subtasks {task.subtasks?.length > 0 && `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`}
+        <div className="text-xs font-semibold opacity-75 mb-1 flex items-center gap-1.5">
+          <span>Subtasks {task.subtasks?.length > 0 && `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`}</span>
+          {aiConfig?.enabled && aiConfig.features?.aiSubtasks && onGenerateSubtasks && (
+            <button
+              type="button"
+              onClick={() => onGenerateSubtasks(task.id, task.title, task.notes, isInbox)}
+              disabled={isGeneratingSubtasks}
+              title="Generate subtasks with AI"
+              className="ml-auto flex items-center gap-1 text-white/60 hover:text-white/90 transition-colors disabled:opacity-40"
+            >
+              {isGeneratingSubtasks
+                ? <Loader size={11} className="animate-spin" />
+                : <Sparkles size={11} />}
+              <span className="text-[10px] font-normal">AI</span>
+            </button>
+          )}
         </div>
 
         {/* Subtasks list */}
@@ -464,6 +482,11 @@ const NotesSubtasksPanel = ({
                     onDoubleClick={() => startEditingSubtask(subtask)}
                   >
                     {subtask.title}
+                    {subtask.duration && (
+                      <span className="opacity-40 text-xs ml-1.5">
+                        · {subtask.duration < 60 ? `${subtask.duration}m` : `${Math.round(subtask.duration / 60 * 10) / 10}h`}
+                      </span>
+                    )}
                   </span>
                 )}
                 <button
@@ -2358,6 +2381,7 @@ const DayPlanner = () => {
   const [frameNudgeLoading, setFrameNudgeLoading] = useState(false);
   const [frameNudgeError, setFrameNudgeError] = useState('');
   const [frameNudgeDismissedKey, setFrameNudgeDismissedKey] = useState(''); // key = todayStr-frameId
+  const [aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask] = useState(null); // taskId while loading
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [conflicts, setConflicts] = useState([]);
@@ -5854,13 +5878,14 @@ const DayPlanner = () => {
     }));
   };
 
-  const addSubtask = (taskId, title, isInbox) => {
+  const addSubtask = (taskId, title, isInbox, extraFields = {}) => {
     if (!title.trim()) return;
     pushUndo();
     const newSubtask = {
       id: crypto.randomUUID(),
       title: title.trim(),
-      completed: false
+      completed: false,
+      ...extraFields,
     };
     if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
       updateRecurringTemplate(taskId, t => ({ ...t, subtasks: [...(t.subtasks || []), newSubtask] }));
@@ -12508,6 +12533,35 @@ const DayPlanner = () => {
     }
   };
 
+  // --- AI Subtask Generation ---
+  const generateAISubtasks = useCallback(async (taskId, taskTitle, taskNotes, isInbox) => {
+    if (!aiConfig?.enabled || !aiConfig.features?.aiSubtasks || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) return;
+    setAiSubtasksLoadingForTask(taskId);
+    try {
+      const result = await aiJSON(aiSubtasksSystemPrompt(), aiSubtasksUserPrompt({ title: taskTitle, notes: taskNotes }), aiConfig);
+      const newSubtasks = (result?.subtasks || [])
+        .filter(st => st?.title?.trim())
+        .map(st => ({
+          id: crypto.randomUUID(),
+          title: st.title.trim(),
+          completed: false,
+          ...(st.duration ? { duration: st.duration } : {}),
+        }));
+      if (newSubtasks.length > 0) {
+        pushUndo();
+        const updater = t => t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), ...newSubtasks] } : t;
+        if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+          updateRecurringTemplate(taskId, updater);
+        } else if (isInbox) {
+          setUnscheduledTasks(prev => prev.map(updater));
+        } else {
+          setTasks(prev => prev.map(updater));
+        }
+      }
+    } catch {}
+    setAiSubtasksLoadingForTask(null);
+  }, [aiConfig, pushUndo, updateRecurringTemplate]);
+
   // Focus mode availability: current task or back-to-back block >= 45 min remaining
   const focusModeAvailable = useMemo(() => {
     const now = currentTime;
@@ -13905,6 +13959,9 @@ const DayPlanner = () => {
                               deleteSubtask={deleteSubtask}
                               updateSubtaskTitle={updateSubtaskTitle}
                               noAutoFocus
+                              aiConfig={aiConfig}
+                              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                              onGenerateSubtasks={generateAISubtasks}
                             />
                           )}
                         </div>
@@ -14751,6 +14808,9 @@ const DayPlanner = () => {
                               deleteSubtask={deleteSubtask}
                               updateSubtaskTitle={updateSubtaskTitle}
                               noAutoFocus
+                              aiConfig={aiConfig}
+                              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                              onGenerateSubtasks={generateAISubtasks}
                             />
                           )}
                         </div>
@@ -14962,6 +15022,9 @@ const DayPlanner = () => {
                             deleteSubtask={deleteSubtask}
                             updateSubtaskTitle={updateSubtaskTitle}
                             noAutoFocus
+                            aiConfig={aiConfig}
+                            aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                            onGenerateSubtasks={generateAISubtasks}
                           />
                         </div>
                       </div>
@@ -16030,6 +16093,7 @@ const DayPlanner = () => {
                               { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={14} /> },
                               { key: 'frameNudge', label: 'Frame nudges', icon: <Zap size={14} /> },
                               { key: 'aiReschedule', label: 'End-of-day reschedule', icon: <CalendarDays size={14} /> },
+                              { key: 'aiSubtasks', label: 'AI subtask generation', icon: <CheckSquare size={14} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
                             ].map(f => (
@@ -19281,6 +19345,9 @@ const DayPlanner = () => {
                               toggleSubtask={toggleSubtask}
                               deleteSubtask={deleteSubtask}
                               updateSubtaskTitle={updateSubtaskTitle}
+                              aiConfig={aiConfig}
+                              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                              onGenerateSubtasks={generateAISubtasks}
                             />
                           )}
                         </div>
@@ -19685,6 +19752,9 @@ const DayPlanner = () => {
                                     deleteSubtask={deleteSubtask}
                                     updateSubtaskTitle={updateSubtaskTitle}
                                     compact={false}
+                                    aiConfig={aiConfig}
+                                    aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                                    onGenerateSubtasks={generateAISubtasks}
                                   />
                                 </div>
                               )}
@@ -19860,6 +19930,9 @@ const DayPlanner = () => {
                                   toggleSubtask={toggleSubtask}
                                   deleteSubtask={deleteSubtask}
                                   updateSubtaskTitle={updateSubtaskTitle}
+                                  aiConfig={aiConfig}
+                                  aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                                  onGenerateSubtasks={generateAISubtasks}
                                 />
                               </div>
                             )}
@@ -20504,6 +20577,9 @@ const DayPlanner = () => {
                                           deleteSubtask={deleteSubtask}
                                           updateSubtaskTitle={updateSubtaskTitle}
                                           compact={false}
+                                          aiConfig={aiConfig}
+                                          aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                                          onGenerateSubtasks={generateAISubtasks}
                                         />
                                       </div>
                                     </div>
@@ -23559,6 +23635,9 @@ const DayPlanner = () => {
                               updateSubtaskTitle={focusUpdateSubtaskTitle}
                               compact={false}
                               noAutoFocus
+                              aiConfig={aiConfig}
+                              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                              onGenerateSubtasks={generateAISubtasks}
                             />
                           </div>
                         )}
@@ -24315,6 +24394,7 @@ const DayPlanner = () => {
                               { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={12} /> },
                               { key: 'frameNudge', label: 'Frame nudges', icon: <Zap size={12} /> },
                               { key: 'aiReschedule', label: 'End-of-day reschedule', icon: <CalendarDays size={12} /> },
+                              { key: 'aiSubtasks', label: 'AI subtask generation', icon: <CheckSquare size={12} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
                             ].map(f => (
@@ -25249,6 +25329,19 @@ const DayPlanner = () => {
                 >
                   <FileText size={14} />
                   Notes / subtasks
+                </button>
+              )}
+              {!isImported && aiConfig?.enabled && aiConfig.features?.aiSubtasks && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    setExpandedNotesTaskId(prev => prev === taskId ? prev : taskId);
+                    generateAISubtasks(taskId, ctxTask?.title, ctxTask?.notes, isInbox);
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <Sparkles size={14} />
+                  Generate subtasks (AI)
                 </button>
               )}
               {!isRecurring && !isImported && !isInbox && (

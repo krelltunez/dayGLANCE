@@ -1,5 +1,26 @@
 // AI Prompt templates for each feature
 
+// --- AI Subtask Generation ---
+
+export function aiSubtasksSystemPrompt() {
+  return `You are a project decomposition assistant. Break a task into 3–8 concrete, actionable subtasks. Each subtask must be completable in one focused work session.
+
+Return ONLY valid JSON with this exact structure:
+{
+  "subtasks": [
+    { "title": "Short actionable step", "duration": 30 }
+  ]
+}
+
+"duration" is estimated minutes (whole numbers: 15, 20, 30, 45, 60, 90, 120). Be concise — subtask titles should be 2–8 words. No preamble or explanation outside the JSON.`;
+}
+
+export function aiSubtasksUserPrompt({ title, notes }) {
+  const lines = [`Task: "${title}"`];
+  if (notes && notes.trim()) lines.push(`Notes: "${notes.trim()}"`);
+  return lines.join('\n');
+}
+
 // --- AI Rescheduling (incomplete tasks → future frame slots) ---
 
 export function rescheduleSystemPrompt() {
