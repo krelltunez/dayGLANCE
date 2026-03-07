@@ -69,27 +69,32 @@ export function rescheduleUserPrompt({ todayDate, slots, tasks }) {
 // --- Frame Nudge (contextual "what to do now" suggestion) ---
 
 export function frameNudgeSystemPrompt() {
-  return `You are a concise day-planning assistant. Given the user's current time, active time block (Frame), remaining time, upcoming deadlines, and what they've completed today, write a single short actionable nudge (1-2 sentences, max 140 chars). Be direct and encouraging. No preamble, no sign-off.`;
+  return `You are a task-matching assistant for a day planner. Given the user's active time block and a list of candidate tasks, pick the single best task to work on right now.
+
+Consider:
+- Energy level match (high energy → deep/complex work, low energy → admin/easy tasks)
+- Tag affinity (prefer tasks whose tags match the frame's tag affinity)
+- Task duration vs remaining frame time
+
+Return ONLY valid JSON with this structure:
+{ "taskId": "<id from candidates>", "taskTitle": "<task title>", "reason": "<one short sentence why this task fits now>" }`;
 }
 
-export function frameNudgeUserPrompt({ currentTimeStr, activeFrame, nextFrame, completedToday, dueTodayTasks, inboxCount }) {
-  const lines = [`Current time: ${currentTimeStr}`];
-  if (activeFrame) {
-    lines.push(`Active frame: "${activeFrame.label}" (${activeFrame.energyLevel} energy, ends ${activeFrame.end}, ${activeFrame.minutesRemaining} min remaining)`);
-  } else if (nextFrame) {
-    lines.push(`No active frame. Next: "${nextFrame.label}" starts ${nextFrame.start} (in ${nextFrame.minutesUntil} min)`);
-  } else {
-    lines.push('No frames scheduled for the rest of today.');
+export function frameNudgeUserPrompt({ currentTimeStr, activeFrame, candidates }) {
+  const lines = [
+    `Current time: ${currentTimeStr}`,
+    `Active frame: "${activeFrame.label}" (${activeFrame.energyLevel} energy, ${activeFrame.minutesRemaining} min remaining)`,
+  ];
+  if (activeFrame.tagAffinity?.length > 0) {
+    lines.push(`Frame tag affinity: ${activeFrame.tagAffinity.join(', ')}`);
   }
-  if (dueTodayTasks.length > 0) {
-    lines.push(`Due today: ${dueTodayTasks.slice(0, 3).join(', ')}`);
-  }
-  if (completedToday.length > 0) {
-    lines.push(`Completed today: ${completedToday.slice(0, 4).join(', ')}`);
-  }
-  if (inboxCount > 0) {
-    lines.push(`Inbox: ${inboxCount} pending item${inboxCount > 1 ? 's' : ''}`);
-  }
+  lines.push(`\nCandidate tasks (pick one):`);
+  candidates.forEach(t => {
+    let line = `- id: ${t.id} | "${t.title}"`;
+    if (t.duration) line += ` | ~${t.duration}min`;
+    if (t.isInbox) line += ' | (inbox)';
+    lines.push(line);
+  });
   return lines.join('\n');
 }
 

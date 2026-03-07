@@ -1940,64 +1940,48 @@ const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, def
 
 // Smart Schedule panel — shows AI scheduling UI
 // --- Frame Nudge Card ---
-const FrameNudgeCard = ({ text, loading, error, activeFrame, darkMode, textPrimary, textSecondary, borderClass, onRefresh, onDismiss }) => {
-  const hasContent = text || loading || error;
+const FrameNudgeCard = ({ suggestion, loading, error, activeFrame, darkMode, textPrimary, textSecondary, onRefresh, onDismiss, onStartTask }) => {
   const borderCol = darkMode ? 'border-teal-800/50' : 'border-teal-200';
   const bgCol = darkMode ? 'bg-teal-900/20' : 'bg-teal-50';
-  const hoverBgCol = darkMode ? 'hover:bg-teal-900/30' : 'hover:bg-teal-100';
   const labelCol = darkMode ? 'text-teal-300' : 'text-teal-700';
   const iconCol = 'text-teal-500';
-  if (!hasContent) {
-    return (
-      <div
-        className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors mb-3 ${borderCol} ${bgCol} ${hoverBgCol}`}
-        onClick={onRefresh}
-      >
-        <Zap size={14} className={`${iconCol} flex-shrink-0`} />
-        <span className={`text-sm ${labelCol}`}>
-          {activeFrame ? `Get a nudge for "${activeFrame.label}"` : 'Get an AI nudge for right now'}
-        </span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-          className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
-          title="Dismiss"
-        >
-          <X size={12} className={textSecondary} />
-        </button>
-      </div>
-    );
-  }
   return (
     <div className={`rounded-lg border p-3 mb-3 ${borderCol} ${bgCol}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Zap size={14} className={iconCol} />
-          <span className={`text-xs font-semibold uppercase tracking-wider ${labelCol}`}>
-            {activeFrame ? activeFrame.label : 'Right Now'}
-          </span>
-          {activeFrame && (
-            <span className={`text-xs ${textSecondary}`}>{activeFrame.minutesRemaining} min left</span>
-          )}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Zap size={13} className={`${iconCol} flex-shrink-0`} />
+          <span className={`text-xs font-semibold uppercase tracking-wider ${labelCol} truncate`}>{activeFrame.label}</span>
+          <span className={`text-xs ${textSecondary} flex-shrink-0`}>{activeFrame.minutesRemaining}m left</span>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={onRefresh} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Refresh nudge">
-            <RefreshCw size={12} className={`${loading ? 'animate-spin' : ''} ${textSecondary}`} />
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <button onClick={onRefresh} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="New suggestion">
+            <RefreshCw size={11} className={`${loading ? 'animate-spin' : ''} ${textSecondary}`} />
           </button>
           <button onClick={onDismiss} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss">
-            <X size={12} className={textSecondary} />
+            <X size={11} className={textSecondary} />
           </button>
         </div>
       </div>
-      <div className="mt-2">
-        {loading && (
-          <div className="flex items-center gap-2">
-            <Loader size={14} className={`animate-spin ${textSecondary}`} />
-            <span className={`text-xs ${textSecondary}`}>Thinking...</span>
-          </div>
-        )}
-        {error && !loading && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{error}</p>}
-        {text && !loading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{text}</p>}
-      </div>
+      {loading && (
+        <div className="flex items-center gap-2">
+          <Loader size={13} className={`animate-spin ${textSecondary}`} />
+          <span className={`text-xs ${textSecondary}`}>Finding best task…</span>
+        </div>
+      )}
+      {error && !loading && (
+        <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{error}</p>
+      )}
+      {suggestion && !loading && (
+        <button
+          onClick={() => onStartTask(suggestion.taskId, suggestion.isInbox)}
+          className={`w-full text-left rounded-md px-2.5 py-2 transition-colors ${darkMode ? 'bg-teal-900/40 hover:bg-teal-800/60' : 'bg-white hover:bg-teal-50'} border ${borderCol}`}
+        >
+          <div className={`text-sm font-medium ${textPrimary} leading-snug`}>{suggestion.taskTitle}</div>
+          {suggestion.reason && (
+            <div className={`text-xs mt-0.5 ${textSecondary}`}>{suggestion.reason}</div>
+          )}
+        </button>
+      )}
     </div>
   );
 };
@@ -2377,7 +2361,7 @@ const DayPlanner = () => {
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
   const [taskAISuggestion, setTaskAISuggestion] = useState(null); // { duration, tags }
   const [taskAISuggestionLoading, setTaskAISuggestionLoading] = useState(false);
-  const [frameNudgeText, setFrameNudgeText] = useState('');
+  const [frameNudgeSuggestion, setFrameNudgeSuggestion] = useState(null); // { taskId, taskTitle, reason, isInbox }
   const [frameNudgeLoading, setFrameNudgeLoading] = useState(false);
   const [frameNudgeError, setFrameNudgeError] = useState('');
   const [frameNudgeDismissedKey, setFrameNudgeDismissedKey] = useState(''); // key = todayStr-frameId
@@ -11990,11 +11974,13 @@ const DayPlanner = () => {
   const activeFrameForNudge = useMemo(() => {
     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
     const today = new Date();
-    return getFrameInstancesForDate(today).find(f => {
+    const frame = getFrameInstancesForDate(today).find(f => {
       const fStart = timeToMinutes(f.start);
       const fEnd = timeToMinutes(f.end);
       return nowMin >= fStart && nowMin < fEnd;
     }) || null;
+    if (!frame) return null;
+    return { ...frame, minutesRemaining: timeToMinutes(frame.end) - nowMin };
   }, [currentTime, getFrameInstancesForDate]);
 
   const activeFrameNudgeKey = useMemo(() => {
@@ -12006,54 +11992,58 @@ const DayPlanner = () => {
 
   const generateFrameNudge = useCallback(async () => {
     if (!aiConfig.enabled || !aiConfig.features?.frameNudge || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) return;
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const today = new Date();
+    const todayStr = dateToString(today);
+
+    // Only fire when inside an active frame with >30 min remaining
+    const allFramesToday = getFrameInstancesForDate(today).sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+    const activeF = allFramesToday.find(f => nowMin >= timeToMinutes(f.start) && nowMin < timeToMinutes(f.end));
+    if (!activeF) return;
+    const minutesRemaining = timeToMinutes(activeF.end) - nowMin;
+    if (minutesRemaining <= 30) return;
+
     setFrameNudgeLoading(true);
     setFrameNudgeError('');
-    setFrameNudgeText('');
+    setFrameNudgeSuggestion(null);
     try {
-      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-      const today = new Date();
-      const todayStr = dateToString(today);
+      // Candidate tasks: inbox + today's uncompleted scheduled tasks
+      const todayScheduled = getTasksForDate(today).filter(t => !t.completed && !t.imported && !t.isExample);
+      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      const candidates = [
+        ...inboxItems.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), duration: t.duration || null, isInbox: true })),
+        ...todayScheduled.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), duration: t.duration || null, isInbox: false })),
+      ].slice(0, 20);
+
+      if (candidates.length === 0) { setFrameNudgeLoading(false); return; }
+
       const currentTimeStr = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
-
-      const allFramesToday = getFrameInstancesForDate(today).sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-      const activeF = allFramesToday.find(f => {
-        const fStart = timeToMinutes(f.start);
-        const fEnd = timeToMinutes(f.end);
-        return nowMin >= fStart && nowMin < fEnd;
-      });
-      const nextF = allFramesToday.find(f => timeToMinutes(f.start) > nowMin);
-
-      const completedToday = getTasksForDate(today).filter(t => t.completed).map(t => renderTitleWithoutTags(t.title));
-      const dueTodayTasks = [...tasks, ...unscheduledTasks]
-        .filter(t => !t.completed && t.deadline === todayStr)
-        .map(t => renderTitleWithoutTags(t.title));
-
       const ctx = {
         currentTimeStr,
-        activeFrame: activeF ? {
+        activeFrame: {
           label: activeF.label,
           energyLevel: activeF.energyLevel,
-          start: formatTime(activeF.start),
-          end: formatTime(activeF.end),
-          minutesRemaining: timeToMinutes(activeF.end) - nowMin,
-        } : null,
-        nextFrame: nextF ? {
-          label: nextF.label,
-          start: formatTime(nextF.start),
-          minutesUntil: timeToMinutes(nextF.start) - nowMin,
-        } : null,
-        completedToday,
-        dueTodayTasks,
-        inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
+          minutesRemaining,
+          tagAffinity: activeF.tagAffinity || [],
+        },
+        candidates,
       };
 
-      const text = await aiComplete(frameNudgeSystemPrompt(), frameNudgeUserPrompt(ctx), aiConfig);
-      setFrameNudgeText(text?.trim() || '');
+      const result = await aiJSON(frameNudgeSystemPrompt(), frameNudgeUserPrompt(ctx), aiConfig);
+      if (result?.taskId) {
+        const matched = candidates.find(t => t.id === result.taskId || String(t.id) === String(result.taskId));
+        setFrameNudgeSuggestion({
+          taskId: result.taskId,
+          taskTitle: matched ? matched.title : (result.taskTitle || ''),
+          reason: result.reason || '',
+          isInbox: matched ? matched.isInbox : (result.isInbox ?? true),
+        });
+      }
     } catch {
-      setFrameNudgeError('Could not generate nudge.');
+      setFrameNudgeError('Could not get suggestion.');
     }
     setFrameNudgeLoading(false);
-  }, [aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks, formatTime]);
+  }, [aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
 
   // Auto-trigger frame nudge when entering a new Frame
   const prevFrameNudgeKeyRef = useRef(null);
@@ -14130,18 +14120,18 @@ const DayPlanner = () => {
                   )
                 )}
                 {/* Frame Nudge card (mobile) */}
-                {aiConfig.enabled && aiConfig.features?.frameNudge && gtdFrames.filter(f => f.enabled).length > 0 && frameNudgeDismissedKey !== activeFrameNudgeKey && (
+                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
                   <FrameNudgeCard
-                    text={frameNudgeText}
+                    suggestion={frameNudgeSuggestion}
                     loading={frameNudgeLoading}
                     error={frameNudgeError}
                     activeFrame={activeFrameForNudge}
                     darkMode={darkMode}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
-                    borderClass={borderClass}
                     onRefresh={generateFrameNudge}
                     onDismiss={() => setFrameNudgeDismissedKey(activeFrameNudgeKey)}
+                    onStartTask={(taskId, isInbox) => setExpandedNotesTaskId(taskId)}
                   />
                 )}
                 {/* Habit rings row */}
@@ -17409,18 +17399,18 @@ const DayPlanner = () => {
                       )}
 
                       {/* Frame Nudge card (tablet) */}
-                      {aiConfig.enabled && aiConfig.features?.frameNudge && gtdFrames.filter(f => f.enabled).length > 0 && frameNudgeDismissedKey !== activeFrameNudgeKey && (
+                      {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
                         <FrameNudgeCard
-                          text={frameNudgeText}
+                          suggestion={frameNudgeSuggestion}
                           loading={frameNudgeLoading}
                           error={frameNudgeError}
                           activeFrame={activeFrameForNudge}
                           darkMode={darkMode}
                           textPrimary={textPrimary}
                           textSecondary={textSecondary}
-                          borderClass={borderClass}
                           onRefresh={generateFrameNudge}
                           onDismiss={() => setFrameNudgeDismissedKey(activeFrameNudgeKey)}
+                          onStartTask={(taskId) => setExpandedNotesTaskId(taskId)}
                         />
                       )}
 
@@ -18496,18 +18486,18 @@ const DayPlanner = () => {
                   )}
 
                   {/* Frame Nudge card (desktop) */}
-                  {aiConfig.enabled && aiConfig.features?.frameNudge && gtdFrames.filter(f => f.enabled).length > 0 && frameNudgeDismissedKey !== activeFrameNudgeKey && (
+                  {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
                     <FrameNudgeCard
-                      text={frameNudgeText}
+                      suggestion={frameNudgeSuggestion}
                       loading={frameNudgeLoading}
                       error={frameNudgeError}
                       activeFrame={activeFrameForNudge}
                       darkMode={darkMode}
                       textPrimary={textPrimary}
                       textSecondary={textSecondary}
-                      borderClass={borderClass}
                       onRefresh={generateFrameNudge}
                       onDismiss={() => setFrameNudgeDismissedKey(activeFrameNudgeKey)}
+                      onStartTask={(taskId) => setExpandedNotesTaskId(taskId)}
                     />
                   )}
 
