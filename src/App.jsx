@@ -386,12 +386,12 @@ const NotesSubtasksPanel = ({
 
   return (
     <div
-      className={`mt-2 p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`}
+      className={`mt-2 p-3 rounded-lg ${darkMode ? 'bg-black/50' : 'bg-white/60'} text-white`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Notes section */}
       <div className="mb-3">
-        <div className="text-xs font-semibold opacity-75 mb-1">Notes</div>
+        <div className="text-xs font-semibold opacity-90 mb-1">Notes</div>
         {isEditingNotes ? (
           <textarea
             value={localNotes}
@@ -428,7 +428,7 @@ const NotesSubtasksPanel = ({
 
       {/* Subtasks section */}
       <div>
-        <div className="text-xs font-semibold opacity-75 mb-1 flex items-center gap-1.5">
+        <div className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5">
           <span>Subtasks {task.subtasks?.length > 0 && `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`}</span>
           {aiConfig?.enabled && aiConfig.features?.aiSubtasks && onGenerateSubtasks && (
             <button
@@ -436,7 +436,7 @@ const NotesSubtasksPanel = ({
               onClick={() => onGenerateSubtasks(task.id, task.title, task.notes, isInbox)}
               disabled={isGeneratingSubtasks}
               title="Generate subtasks with AI"
-              className="ml-auto flex items-center gap-1 text-white/60 hover:text-white/90 transition-colors disabled:opacity-40"
+              className="flex items-center gap-1 text-white/60 hover:text-white/90 transition-colors disabled:opacity-40"
             >
               {isGeneratingSubtasks
                 ? <Loader size={11} className="animate-spin" />
