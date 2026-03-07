@@ -189,6 +189,7 @@ Rules:
 - Keep it to 2-4 short sentences
 - Lead with the most important thing (deadlines, high-priority tasks, heavy/light day)
 - Mention the number of tasks and approximate time commitment
+- If there are calendar events (meetings, appointments), weave them into the briefing naturally
 - If there are deadlines today or upcoming, highlight them
 - If the day is light, note the free time positively
 - If there are overdue/incomplete tasks from yesterday, mention them gently
@@ -199,8 +200,15 @@ Rules:
 }
 
 export function morningSummaryUserPrompt(data) {
-  const { todayDate, dayOfWeek, scheduledTasks, recurringTasks, inboxCount, overdueTasks, deadlinesToday, upcomingDeadlines, totalMinutes } = data;
+  const { todayDate, dayOfWeek, scheduledTasks, recurringTasks, calendarEvents = [], inboxCount, overdueTasks, deadlinesToday, upcomingDeadlines, totalMinutes } = data;
   const lines = [`Today is ${dayOfWeek}, ${todayDate}.`];
+
+  if (calendarEvents.length > 0) {
+    lines.push(`Calendar events today (${calendarEvents.length}): ${calendarEvents.map(t => {
+      if (t.isAllDay) return `${t.title} (all day)`;
+      return t.time ? `${t.title} at ${t.time}` : t.title;
+    }).join('; ')}.`);
+  }
 
   if (scheduledTasks.length > 0) {
     lines.push(`Scheduled tasks (${scheduledTasks.length}): ${scheduledTasks.map(t => {

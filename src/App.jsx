@@ -11166,6 +11166,10 @@ const DayPlanner = () => {
 
       // Gather today's scheduled tasks
       const scheduledToday = tasks.filter(t => t.date === todayStr && !t.imported && !t.isExample);
+      // Gather imported calendar events for today
+      const calendarEventsToday = tasks.filter(t => t.date === todayStr && t.imported && !t.isTaskCalendar)
+        .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false }))
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       // Gather today's recurring tasks
       const todayRecurring = recurringTasks.flatMap(t => {
         const occs = getOccurrencesInRange(t, todayStr, todayStr);
@@ -11191,6 +11195,7 @@ const DayPlanner = () => {
         dayOfWeek,
         scheduledTasks: scheduledToday.map(t => ({ title: t.title, time: t.startTime, priority: t.priority || 0 })),
         recurringTasks: todayRecurring.map(t => ({ title: t.title, time: t.time })),
+        calendarEvents: calendarEventsToday,
         inboxCount,
         overdueTasks: overdueTasks.map(t => ({ title: t.title })),
         deadlinesToday: deadlinesToday.map(t => ({ title: t.title })),
