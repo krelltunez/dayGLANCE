@@ -10930,11 +10930,14 @@ const DayPlanner = () => {
     tasks.filter(t => !t.imported).forEach(task => {
       extractTags(task.title).forEach(tag => tagSet.add(tag));
     });
+    unscheduledTasks.filter(t => !t.imported).forEach(task => {
+      extractTags(task.title).forEach(tag => tagSet.add(tag));
+    });
     recurringTasks.forEach(template => {
       extractTags(template.title).forEach(tag => tagSet.add(tag));
     });
     return Array.from(tagSet).sort();
-  }, [tasks, recurringTasks]);
+  }, [tasks, unscheduledTasks, recurringTasks]);
 
   // Incomplete scheduled tasks from today (used by rescheduling feature)
   const incompleteTodayTasks = useMemo(() => {
