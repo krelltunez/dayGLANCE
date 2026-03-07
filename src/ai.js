@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
     weeklySummary: true,
     smartScheduling: true,
     durationEstimate: true,
+    frameNudge: true,
   }
 };
 

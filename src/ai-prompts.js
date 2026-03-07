@@ -1,5 +1,32 @@
 // AI Prompt templates for each feature
 
+// --- Frame Nudge (contextual "what to do now" suggestion) ---
+
+export function frameNudgeSystemPrompt() {
+  return `You are a concise day-planning assistant. Given the user's current time, active time block (Frame), remaining time, upcoming deadlines, and what they've completed today, write a single short actionable nudge (1-2 sentences, max 140 chars). Be direct and encouraging. No preamble, no sign-off.`;
+}
+
+export function frameNudgeUserPrompt({ currentTimeStr, activeFrame, nextFrame, completedToday, dueTodayTasks, inboxCount }) {
+  const lines = [`Current time: ${currentTimeStr}`];
+  if (activeFrame) {
+    lines.push(`Active frame: "${activeFrame.label}" (${activeFrame.energyLevel} energy, ends ${activeFrame.end}, ${activeFrame.minutesRemaining} min remaining)`);
+  } else if (nextFrame) {
+    lines.push(`No active frame. Next: "${nextFrame.label}" starts ${nextFrame.start} (in ${nextFrame.minutesUntil} min)`);
+  } else {
+    lines.push('No frames scheduled for the rest of today.');
+  }
+  if (dueTodayTasks.length > 0) {
+    lines.push(`Due today: ${dueTodayTasks.slice(0, 3).join(', ')}`);
+  }
+  if (completedToday.length > 0) {
+    lines.push(`Completed today: ${completedToday.slice(0, 4).join(', ')}`);
+  }
+  if (inboxCount > 0) {
+    lines.push(`Inbox: ${inboxCount} pending item${inboxCount > 1 ? 's' : ''}`);
+  }
+  return lines.join('\n');
+}
+
 // --- AI Task Suggestion (duration + tags) ---
 
 export function taskSuggestSystemPrompt() {
