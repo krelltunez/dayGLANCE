@@ -14924,21 +14924,14 @@ const DayPlanner = () => {
                       <span className={`font-medium ${textPrimary} flex-1 text-left`}>Backups</span>
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
-                  </div>
-                  <div className="pt-2 space-y-1">
-                    {(() => {
-                      const su = getStorageUsage();
-                      const warn = su.totalBytes > 4 * 1024 * 1024;
-                      return (
-                        <button onClick={() => setShowStorageBreakdown(true)} className={`text-center text-[10px] ${warn ? 'text-orange-500' : textSecondary} opacity-50 flex items-center justify-center gap-1 w-full hover:opacity-75 active:opacity-75 transition-opacity`}>
-                          {warn && <AlertTriangle size={10} />}
-                          Storage: {formatBytes(su.totalBytes)} / ~5 MB
-                        </button>
-                      );
-                    })()}
-                    <div className={`text-center text-[10px] ${textSecondary} opacity-50`}>
-                      {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__} · ` : ''}Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
-                    </div>
+                    <button
+                      onClick={() => setShowHelpModal(true)}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <HelpCircle size={20} className={textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>Help & Feedback</span>
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
                   </div>
                 </div>
 
@@ -23865,13 +23858,6 @@ const DayPlanner = () => {
                   </div>
                 </div>
 
-                <button onClick={() => setShowStorageBreakdown(true)} className={`mt-4 text-center text-[10px] ${storageWarning ? 'text-orange-500' : textSecondary} opacity-50 flex items-center justify-center gap-1 w-full hover:opacity-75 transition-opacity cursor-pointer`}>
-                  {storageWarning && <AlertTriangle size={10} />}
-                  Storage: {formatBytes(storageUsage.totalBytes)} / ~5 MB
-                </button>
-                <div className={`text-center text-[10px] ${textSecondary} opacity-50 mt-1`}>
-                  {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__} · ` : ''}Build: {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? new Date(__BUILD_TIMESTAMP__).toLocaleString() : 'dev'}
-                </div>
                 <button
                   onClick={() => setShowSettings(false)}
                   className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
@@ -24296,17 +24282,33 @@ const DayPlanner = () => {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className={`pt-3 border-t ${borderClass} flex items-center justify-between`}>
-                <p className={`text-xs ${textSecondary}`}>
-                  {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__}` : 'dayGLANCE'}
-                </p>
-                <button
-                  onClick={() => { setShowHelpModal(false); setShowShortcutHelp(true); }}
-                  className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
-                >
-                  Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} border ${borderClass}`}>?</kbd> for keyboard shortcuts
-                </button>
+              {/* About / build info */}
+              <div className={`pt-4 border-t ${borderClass} space-y-2`}>
+                {(() => {
+                  const su = getStorageUsage();
+                  const warn = su.totalBytes > 4 * 1024 * 1024;
+                  return (
+                    <button
+                      onClick={() => { setShowHelpModal(false); setShowStorageBreakdown(true); }}
+                      className={`flex items-center gap-1.5 text-xs ${warn ? 'text-orange-500' : textSecondary} hover:opacity-75 transition-opacity w-full`}
+                    >
+                      {warn && <AlertTriangle size={11} />}
+                      Storage: {formatBytes(su.totalBytes)} / ~5 MB
+                    </button>
+                  );
+                })()}
+                <div className={`flex items-center justify-between`}>
+                  <p className={`text-xs ${textSecondary}`}>
+                    {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__}` : 'dayGLANCE'}
+                    {typeof __BUILD_TIMESTAMP__ !== 'undefined' ? ` · ${new Date(__BUILD_TIMESTAMP__).toLocaleString()}` : ''}
+                  </p>
+                  <button
+                    onClick={() => { setShowHelpModal(false); setShowShortcutHelp(true); }}
+                    className={`text-xs ${textSecondary} hover:opacity-75 transition-opacity`}
+                  >
+                    <kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} border ${borderClass}`}>?</kbd> shortcuts
+                  </button>
+                </div>
               </div>
             </div>
           </div>
