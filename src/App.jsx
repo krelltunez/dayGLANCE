@@ -744,7 +744,65 @@ const cloudSyncProviders = {
       { key: 'nextcloudUrl', label: 'Nextcloud URL', type: 'url', placeholder: 'https://cloud.example.com' },
       { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
       { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx' }
-    ]
+    ],
+    helpText: 'Go to Nextcloud Settings → Security → Devices & sessions → Create new app password'
+  },
+  webdav: {
+    name: 'Generic WebDAV',
+    getFileUrl: (config) =>
+      `${config.webdavUrl.replace(/\/+$/, '')}/dayglance-sync.json`,
+    getDirUrl: (config) =>
+      `${config.webdavUrl.replace(/\/+$/, '')}/`,
+    getAuthHeaders: (config) => ({
+      'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword)
+    }),
+    async upload(config, data) {
+      const fileUrl = this.getFileUrl(config);
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const body = JSON.stringify(data);
+      const doUpload = () =>
+        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body
+        });
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return true;
+    },
+    async download(config) {
+      const fileUrl = this.getFileUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+      return res.json();
+    },
+    async test(config) {
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '0' }
+      });
+      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and password.' };
+      return { success: false, error: `Unexpected response: ${res.status} ${res.statusText}` };
+    },
+    configFields: [
+      { key: 'webdavUrl', label: 'WebDAV URL', type: 'url', placeholder: 'https://app.koofr.net/dav/Koofr/dayGLANCE/' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'Password / App Password', type: 'password', placeholder: 'your-password' }
+    ],
+    helpText: 'Enter the full URL of the WebDAV folder where dayGLANCE should store its sync file. Koofr, pCloud, Seafile, and most WebDAV providers are supported.'
   }
 };
 
@@ -752,24 +810,28 @@ const cloudSyncProviders = {
 const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced }) => {
   const [formData, setFormData] = useState(() => {
     const initial = { provider: currentProvider };
-    provider.configFields.forEach(f => {
-      initial[f.key] = cloudSyncConfig?.[f.key] || '';
+    // Populate fields from all providers so switching preserves filled values
+    Object.values(cloudSyncProviders).forEach(p => {
+      p.configFields.forEach(f => { initial[f.key] = cloudSyncConfig?.[f.key] || ''; });
     });
     return initial;
   });
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
 
+  const activeProvider = cloudSyncProviders[formData.provider] || provider;
+  const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]);
+
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
-    const result = await cloudSyncTest({ ...formData, provider: currentProvider });
+    const result = await cloudSyncTest({ ...formData, provider: formData.provider });
     setTestResult(result);
     setTesting(false);
   };
 
   const handleSave = () => {
-    setCloudSyncConfig({ ...formData, provider: currentProvider, enabled: true });
+    setCloudSyncConfig({ ...formData, provider: formData.provider, enabled: true });
     onClose();
   };
 
@@ -783,8 +845,8 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
       <div>
         <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Provider</label>
         <select
-          value={currentProvider}
-          disabled
+          value={formData.provider}
+          onChange={(e) => setFormData(prev => ({ ...prev, provider: e.target.value }))}
           className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100 text-stone-900'}`}
         >
           {Object.entries(cloudSyncProviders).map(([key, p]) => (
@@ -793,7 +855,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         </select>
       </div>
 
-      {provider.configFields.map(field => (
+      {activeProvider.configFields.map(field => (
         <div key={field.key}>
           <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{field.label}</label>
           <input
@@ -806,14 +868,14 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         </div>
       ))}
 
-      <p className={`text-xs ${textSecondary}`}>
-        Go to Nextcloud Settings &rarr; Security &rarr; Devices & sessions &rarr; Create new app password
-      </p>
+      {activeProvider.helpText && (
+        <p className={`text-xs ${textSecondary}`}>{activeProvider.helpText}</p>
+      )}
 
       <div className="flex items-center gap-2">
         <button
           onClick={handleTest}
-          disabled={testing || !formData.nextcloudUrl || !formData.username || !formData.appPassword}
+          disabled={testing || !requiredFieldsFilled}
           className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
         >
           {testing ? 'Testing...' : 'Test Connection'}
@@ -848,7 +910,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         )}
         <button
           onClick={handleSave}
-          disabled={!formData.nextcloudUrl || !formData.username || !formData.appPassword}
+          disabled={!requiredFieldsFilled}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           {cloudSyncConfig?.enabled ? 'Save' : 'Save & Enable'}
@@ -1030,6 +1092,96 @@ const autoBackupProviders = {
       if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
       return { success: false, error: `Unexpected response: ${res.status}` };
     }
+  },
+  webdav: {
+    name: 'Generic WebDAV',
+    configFields: [
+      { key: 'webdavUrl', label: 'WebDAV URL', type: 'url', placeholder: 'https://app.koofr.net/dav/Koofr/dayGLANCE/' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'Password / App Password', type: 'password', placeholder: 'your-password' }
+    ],
+    _getBackupDirUrl(config) {
+      return `${config.webdavUrl.replace(/\/+$/, '')}/`;
+    },
+    _getAuthHeaders(config) {
+      return { 'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword) };
+    },
+    async uploadBackup(config, data) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `dayglance-backup-${timestamp}.json`;
+      const fileUrl = dirUrl + filename;
+      const body = JSON.stringify(data);
+      const doUpload = () =>
+        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body
+        });
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return filename;
+    },
+    async listBackups(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '1' }
+      });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error(`List failed: ${res.status}`);
+      const xml = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'application/xml');
+      const responses = doc.querySelectorAll('response');
+      const files = [];
+      responses.forEach(r => {
+        const href = r.querySelector('href')?.textContent || '';
+        const filename = decodeURIComponent(href.split('/').filter(Boolean).pop());
+        if (filename.startsWith('dayglance-backup-') && filename.endsWith('.json')) {
+          const lastModified = r.querySelector('getlastmodified')?.textContent;
+          files.push({ filename, lastModified: lastModified ? new Date(lastModified).toISOString() : null });
+        }
+      });
+      return files.sort((a, b) => (b.lastModified || '').localeCompare(a.lastModified || ''));
+    },
+    async downloadBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      return res.json();
+    },
+    async deleteBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
+    },
+    async testConnection(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '0' }
+      });
+      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
+      return { success: false, error: `Unexpected response: ${res.status}` };
+    }
   }
 };
 
@@ -1046,6 +1198,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
   const remoteConfig = config.remote;
   const providerKey = remoteConfig.provider || 'nextcloud';
   const provider = autoBackupProviders[providerKey];
+  const remoteFieldsFilled = provider.configFields.every(f => remoteConfig[f.key]);
 
   const updateLocal = (updates) => setConfig(prev => ({ ...prev, local: { ...prev.local, ...updates } }));
   const updateRemote = (updates) => setConfig(prev => ({ ...prev, remote: { ...prev.remote, ...updates } }));
@@ -1165,14 +1318,14 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleTest}
-                  disabled={testing || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
+                  disabled={testing || !remoteFieldsFilled}
                   className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
                   {testing ? 'Testing...' : 'Test Connection'}
                 </button>
                 <button
                   onClick={() => onRemoteBackupNow(remoteConfig.frequency)}
-                  disabled={status.remote.status === 'backing-up' || !remoteConfig.nextcloudUrl || !remoteConfig.username || !remoteConfig.appPassword}
+                  disabled={status.remote.status === 'backing-up' || !remoteFieldsFilled}
                   className={`px-3 py-1.5 ${darkMode ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
                   {status.remote.status === 'backing-up' ? 'Backing up...' : 'Backup Now'}
