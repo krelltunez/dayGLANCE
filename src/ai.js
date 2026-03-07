@@ -15,6 +15,7 @@ const DEFAULT_CONFIG = {
     smartScheduling: true,
     durationEstimate: true,
     frameNudge: true,
+    aiReschedule: true,
   }
 };
 

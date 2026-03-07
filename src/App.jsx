@@ -3,7 +3,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
-import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
+import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 
@@ -1979,8 +1979,9 @@ const FrameNudgeCard = ({ text, loading, error, activeFrame, darkMode, textPrima
   );
 };
 
-const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartScheduleLoading, smartScheduleError, smartScheduleAccepted, setSmartScheduleAccepted, onRun, onApply, onCancel, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, gtdFrames, formatTime }) => {
-  if (!aiConfig?.enabled || !aiConfig.features?.smartScheduling) {
+const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartScheduleLoading, smartScheduleError, smartScheduleAccepted, setSmartScheduleAccepted, onRun, onApply, onCancel, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, gtdFrames, formatTime, mode = 'inbox' }) => {
+  const isReschedule = mode === 'reschedule';
+  if (!aiConfig?.enabled || (!aiConfig.features?.smartScheduling && !isReschedule)) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <BrainCircuit size={48} className={textSecondary} />
@@ -2008,9 +2009,11 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <Inbox size={48} className={textSecondary} />
-        <h3 className={`text-lg font-semibold ${textPrimary}`}>Inbox Empty</h3>
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{isReschedule ? 'All Caught Up!' : 'Inbox Empty'}</h3>
         <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
-          Add tasks to your inbox first, then Smart Schedule will place them in your frames.
+          {isReschedule
+            ? 'No incomplete tasks from today — nothing to reschedule.'
+            : 'Add tasks to your inbox first, then Smart Schedule will place them in your frames.'}
         </p>
       </div>
     );
@@ -2094,9 +2097,11 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
     <div className="space-y-4">
       <div className="flex flex-col items-center py-8 gap-3">
         <CalendarDays size={48} className="text-blue-500" />
-        <h3 className={`text-lg font-semibold ${textPrimary}`}>Smart Schedule</h3>
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{isReschedule ? 'Reschedule Tasks' : 'Smart Schedule'}</h3>
         <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
-          AI will place your {inboxTasks.length} inbox task{inboxTasks.length !== 1 ? 's' : ''} into available frame slots for the next 3 days.
+          {isReschedule
+            ? `AI will find slots for your ${inboxTasks.length} incomplete task${inboxTasks.length !== 1 ? 's' : ''} in the next 3 days.`
+            : `AI will place your ${inboxTasks.length} inbox task${inboxTasks.length !== 1 ? 's' : ''} into available frame slots for the next 3 days.`}
         </p>
 
         {smartScheduleError && (
@@ -2111,9 +2116,9 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
           className="mt-2 px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
         >
           {smartScheduleLoading ? (
-            <><Loader size={16} className="animate-spin" /> Scheduling...</>
+            <><Loader size={16} className="animate-spin" /> {isReschedule ? 'Rescheduling...' : 'Scheduling...'}</>
           ) : (
-            <><BrainCircuit size={16} /> Run Smart Schedule</>
+            <><BrainCircuit size={16} /> {isReschedule ? 'Reschedule Tasks' : 'Run Smart Schedule'}</>
           )}
         </button>
       </div>
@@ -2797,6 +2802,11 @@ const DayPlanner = () => {
   const [smartScheduleLoading, setSmartScheduleLoading] = useState(false);
   const [smartScheduleError, setSmartScheduleError] = useState('');
   const [smartScheduleAccepted, setSmartScheduleAccepted] = useState({}); // { taskId: true/false }
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleResults, setRescheduleResults] = useState(null);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [rescheduleAccepted, setRescheduleAccepted] = useState({});
   const [frameContextMenu, setFrameContextMenu] = useState(null); // { x, y, frameId, dateStr }
   const [taskContextMenu, setTaskContextMenu] = useState(null); // { x, y, taskId, isRecurring, isImported, isAllDay, dateStr }
   const [timelineContextMenu, setTimelineContextMenu] = useState(null); // { x, y, dateStr, timeMinutes }
@@ -10900,6 +10910,12 @@ const DayPlanner = () => {
     });
     return Array.from(tagSet).sort();
   }, [tasks, recurringTasks]);
+
+  // Incomplete scheduled tasks from today (used by rescheduling feature)
+  const incompleteTodayTasks = useMemo(() => {
+    const todayStr = dateToString(new Date());
+    return tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample);
+  }, [tasks]);
   voiceAllTagsRef.current = allTags;
 
   // Voice input — parse and add callbacks (must be after allTags is defined)
@@ -12393,6 +12409,101 @@ const DayPlanner = () => {
         type: 'success',
         title: 'Tasks Scheduled',
         message: `${movedIds.size} task${movedIds.size === 1 ? '' : 's'} placed on your timeline`
+      });
+    }
+  };
+
+  // --- AI Rescheduling ---
+  const runReschedule = async () => {
+    if (!aiConfig?.enabled || !aiConfig.features?.aiReschedule) return;
+    setRescheduleLoading(true);
+    setRescheduleError('');
+    setRescheduleResults(null);
+    setRescheduleAccepted({});
+    try {
+      const today = new Date();
+      const todayStr = dateToString(today);
+      const tasksToReschedule = tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample);
+      if (tasksToReschedule.length === 0) {
+        setRescheduleError('No incomplete tasks from today to reschedule.');
+        setRescheduleLoading(false);
+        return;
+      }
+
+      // Gather available slots starting from tomorrow (3-day window)
+      const slotsContext = [];
+      for (let d = 1; d <= 3; d++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + d);
+        const dateStr = dateToString(date);
+        const frames = getFrameInstancesForDate(date);
+        for (const frame of frames) {
+          const slots = computeAvailableSlots(frame, date);
+          for (const slot of slots) {
+            slotsContext.push({
+              date: dateStr,
+              frameLabel: frame.label,
+              energyLevel: frame.energyLevel,
+              tagAffinity: frame.tagAffinity,
+              start: slot.start,
+              end: slot.end,
+              minutes: slot.minutes,
+            });
+          }
+        }
+      }
+
+      if (slotsContext.length === 0) {
+        setRescheduleError('No available frame slots found for the next 3 days. Adjust your GTD Frames first.');
+        setRescheduleLoading(false);
+        return;
+      }
+
+      const taskData = tasksToReschedule.map(t => ({
+        id: t.id,
+        title: t.title,
+        duration: t.duration || 30,
+        priority: t.priority || 0,
+        deadline: t.deadline || null,
+        tags: extractTags(t.title),
+      }));
+
+      const result = await aiJSON(rescheduleSystemPrompt(), rescheduleUserPrompt({ todayDate: todayStr, slots: slotsContext, tasks: taskData }), aiConfig);
+      setRescheduleResults(result);
+      const accepted = {};
+      if (result?.placements) {
+        result.placements.forEach(p => { accepted[p.taskId] = true; });
+      }
+      setRescheduleAccepted(accepted);
+    } catch (err) {
+      setRescheduleError(err.message || 'Failed to generate reschedule');
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
+  const applyReschedule = () => {
+    if (!rescheduleResults?.placements) return;
+    pushUndo();
+    const accepted = rescheduleResults.placements.filter(p => rescheduleAccepted[p.taskId]);
+    let appliedCount = 0;
+    for (const placement of accepted) {
+      setTasks(prev => prev.map(t => {
+        if (t.id === placement.taskId || String(t.id) === String(placement.taskId)) {
+          return { ...t, date: placement.date, startTime: placement.time, isAllDay: false };
+        }
+        return t;
+      }));
+      appliedCount++;
+    }
+    setRescheduleResults(null);
+    setRescheduleAccepted({});
+    setShowRescheduleModal(false);
+    if (appliedCount > 0) {
+      setSyncNotification({
+        type: 'success',
+        title: 'Tasks Rescheduled',
+        message: `${appliedCount} task${appliedCount === 1 ? '' : 's'} moved to future slots`,
       });
     }
   };
@@ -13929,6 +14040,15 @@ const DayPlanner = () => {
                       )}
                       {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
                       {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
+                      {eveningGlanceText && !eveningGlanceLoading && incompleteTodayTasks.length > 0 && gtdFrames.filter(f => f.enabled).length > 0 && aiConfig.features?.aiReschedule && (
+                        <button
+                          onClick={() => { setShowRescheduleModal(true); setRescheduleResults(null); setRescheduleError(''); }}
+                          className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-orange-400 hover:text-orange-300' : 'text-orange-600 hover:text-orange-700'}`}
+                        >
+                          <CalendarDays size={12} />
+                          Reschedule {incompleteTodayTasks.length} incomplete task{incompleteTodayTasks.length !== 1 ? 's' : ''} →
+                        </button>
+                      )}
                     </div>
                   </div>
                   ) : (
@@ -15909,6 +16029,7 @@ const DayPlanner = () => {
                               { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={14} /> },
                               { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={14} /> },
                               { key: 'frameNudge', label: 'Frame nudges', icon: <Zap size={14} /> },
+                              { key: 'aiReschedule', label: 'End-of-day reschedule', icon: <CalendarDays size={14} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
                             ].map(f => (
@@ -17190,6 +17311,15 @@ const DayPlanner = () => {
                             )}
                             {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
                             {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
+                            {eveningGlanceText && !eveningGlanceLoading && incompleteTodayTasks.length > 0 && gtdFrames.filter(f => f.enabled).length > 0 && aiConfig.features?.aiReschedule && (
+                              <button
+                                onClick={() => { setShowRescheduleModal(true); setRescheduleResults(null); setRescheduleError(''); }}
+                                className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-orange-400 hover:text-orange-300' : 'text-orange-600 hover:text-orange-700'}`}
+                              >
+                                <CalendarDays size={12} />
+                                Reschedule {incompleteTodayTasks.length} incomplete task{incompleteTodayTasks.length !== 1 ? 's' : ''} →
+                              </button>
+                            )}
                           </div>
                         </div>
                         ) : (
@@ -18268,6 +18398,15 @@ const DayPlanner = () => {
                         )}
                         {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
                         {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
+                        {eveningGlanceText && !eveningGlanceLoading && incompleteTodayTasks.length > 0 && gtdFrames.filter(f => f.enabled).length > 0 && aiConfig.features?.aiReschedule && (
+                          <button
+                            onClick={() => { setShowRescheduleModal(true); setRescheduleResults(null); setRescheduleError(''); }}
+                            className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-orange-400 hover:text-orange-300' : 'text-orange-600 hover:text-orange-700'}`}
+                          >
+                            <CalendarDays size={12} />
+                            Reschedule {incompleteTodayTasks.length} incomplete task{incompleteTodayTasks.length !== 1 ? 's' : ''} →
+                          </button>
+                        )}
                       </div>
                     </div>
                     ) : (
@@ -22742,6 +22881,46 @@ const DayPlanner = () => {
         </div>
       )}
 
+      {/* AI Reschedule Modal */}
+      {showRescheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRescheduleModal(false)}>
+          <div className={`${cardBg} rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
+            <div className={`px-5 py-4 border-b ${borderClass} flex items-center justify-between`}>
+              <div className="flex items-center gap-2">
+                <CalendarDays size={18} className="text-orange-500" />
+                <h2 className={`text-lg font-bold ${textPrimary}`}>Reschedule Incomplete Tasks</h2>
+              </div>
+              <button onClick={() => setShowRescheduleModal(false)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+                <X size={20} className={textSecondary} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <SmartSchedulePanel
+                mode="reschedule"
+                aiConfig={aiConfig}
+                inboxTasks={incompleteTodayTasks}
+                smartScheduleResults={rescheduleResults}
+                smartScheduleLoading={rescheduleLoading}
+                smartScheduleError={rescheduleError}
+                smartScheduleAccepted={rescheduleAccepted}
+                setSmartScheduleAccepted={setRescheduleAccepted}
+                onRun={runReschedule}
+                onApply={applyReschedule}
+                onCancel={() => { setRescheduleResults(null); setRescheduleError(''); setShowRescheduleModal(false); }}
+                darkMode={darkMode}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+                borderClass={borderClass}
+                cardBg={cardBg}
+                hoverBg={hoverBg}
+                gtdFrames={gtdFrames}
+                formatTime={formatTime}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Habit Management Modal */}
       {showHabitModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
@@ -24135,6 +24314,7 @@ const DayPlanner = () => {
                               { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={12} /> },
                               { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={12} /> },
                               { key: 'frameNudge', label: 'Frame nudges', icon: <Zap size={12} /> },
+                              { key: 'aiReschedule', label: 'End-of-day reschedule', icon: <CalendarDays size={12} /> },
                               { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
                             ].map(f => (

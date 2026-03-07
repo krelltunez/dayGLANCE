@@ -1,5 +1,50 @@
 // AI Prompt templates for each feature
 
+// --- AI Rescheduling (incomplete tasks → future frame slots) ---
+
+export function rescheduleSystemPrompt() {
+  return `You are a GTD scheduling assistant for a day planner app. Reschedule incomplete tasks from today into available future time slots following these heuristics:
+
+HEURISTICS:
+- Only use future dates (tomorrow and beyond) — never today
+- Spread across days: Distribute tasks across available days — do NOT cram everything into a single day
+- Deadline-first: Tasks with approaching deadlines get earliest placement
+- Tag grouping: Batch tasks with similar tags into the same frame when possible
+- Priority weighting: High-priority tasks (3) go in high-energy frames first
+- Energy matching: Tasks with complex/deep-work tags go in high-energy frames, routine tasks in low-energy
+- Duration fitting: Don't split tasks; only place a task if its full duration fits in the slot
+- Buffer respect: The buffer time between tasks is already accounted for in the available slots
+- Don't overfill: Leave breathing room — don't schedule more than 75% of any single day's available frame time
+- If a task doesn't fit any available slot, mark it as unplaceable with a clear reason
+
+Return ONLY valid JSON (no markdown fences, no explanation text outside the JSON) with this exact structure:
+{
+  "placements": [
+    { "taskId": "...", "date": "YYYY-MM-DD", "time": "HH:MM", "frameLabel": "...", "reasoning": "one sentence" }
+  ],
+  "unplaceable": [
+    { "taskId": "...", "reason": "why it can't be placed" }
+  ]
+}`;
+}
+
+export function rescheduleUserPrompt({ todayDate, slots, tasks }) {
+  const slotLines = slots.map(s => {
+    let line = `- ${s.date} | ${s.start}-${s.end} (${s.minutes}min) | Frame: "${s.frameLabel}" | Energy: ${s.energyLevel}`;
+    if (s.tagAffinity && s.tagAffinity.length) line += ` | Tags: ${s.tagAffinity.join(', ')}`;
+    return line;
+  }).join('\n');
+
+  const taskLines = tasks.map(t => {
+    let line = `- ID: ${t.id} | "${t.title}" | ${t.duration}min | Priority: ${t.priority}/3`;
+    if (t.deadline) line += ` | Deadline: ${t.deadline}`;
+    if (t.tags && t.tags.length) line += ` | Tags: ${t.tags.join(', ')}`;
+    return line;
+  }).join('\n');
+
+  return `Today is ${todayDate}.\n\nAVAILABLE FUTURE SLOTS (tomorrow and beyond):\n${slotLines || 'No slots available.'}\n\nINCOMPLETE TASKS TO RESCHEDULE:\n${taskLines || 'No tasks.'}\n\nReschedule as many tasks as possible into future slots. Return ONLY the JSON.`;
+}
+
 // --- Frame Nudge (contextual "what to do now" suggestion) ---
 
 export function frameNudgeSystemPrompt() {
