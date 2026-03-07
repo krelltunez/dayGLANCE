@@ -2490,6 +2490,7 @@ const DayPlanner = () => {
 
   // Keyboard shortcut cheat sheet
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Focus Mode state
   const [showFocusMode, setShowFocusMode] = useState(false);
@@ -6514,6 +6515,11 @@ const DayPlanner = () => {
           setShowSpotlight(false);
           return;
         }
+        if (showHelpModal) {
+          e.preventDefault();
+          setShowHelpModal(false);
+          return;
+        }
         if (showShortcutHelp) {
           e.preventDefault();
           setShowShortcutHelp(false);
@@ -6767,7 +6773,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showHelpModal, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -16422,6 +16428,13 @@ const DayPlanner = () => {
           >
             <Save size={18} className={textSecondary} />
           </button>
+          <button
+            onClick={() => setShowHelpModal(true)}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
+            title="Help & Feedback"
+          >
+            <HelpCircle size={18} className={textSecondary} />
+          </button>
         </div>
       </div>
       )}
@@ -16560,6 +16573,14 @@ const DayPlanner = () => {
               aria-label="Backup or restore data"
             >
               <Save size={18} className={textSecondary} />
+            </button>
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              title="Help & Feedback"
+              aria-label="Help & Feedback"
+            >
+              <HelpCircle size={18} className={textSecondary} />
             </button>
           </div>
           {/* Tablet month view popup */}
@@ -24196,6 +24217,101 @@ const DayPlanner = () => {
           </div>
         );
       })()}
+
+      {/* Help & Feedback Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHelpModal(false)}>
+          <div
+            className={`${cardBg} rounded-xl shadow-xl border ${borderClass} w-full max-w-sm mx-4 overflow-hidden`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${borderClass}`}>
+              <div className="flex items-center gap-2">
+                <HelpCircle size={18} className="text-blue-500" />
+                <h2 className={`font-semibold ${textPrimary}`}>Help & Feedback</h2>
+              </div>
+              <button onClick={() => setShowHelpModal(false)} className={`p-1 rounded-lg ${darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'}`}>
+                <X size={18} className={textSecondary} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-5">
+              {/* Docs */}
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Documentation</p>
+                <a
+                  href="https://docs.dayglance.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium"
+                >
+                  <ExternalLink size={14} />
+                  docs.dayglance.app
+                </a>
+                <p className={`text-xs ${textSecondary} mt-1`}>Full documentation is on the way — check back soon.</p>
+              </div>
+
+              {/* Contact */}
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Contact & Issues</p>
+                <a
+                  href="mailto:admin@dayglance.app"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium"
+                >
+                  <ExternalLink size={14} />
+                  admin@dayglance.app
+                </a>
+                <a
+                  href="https://github.com/krelltunez/day-planner/issues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium mt-1.5"
+                >
+                  <ExternalLink size={14} />
+                  Report an issue on GitHub
+                </a>
+              </div>
+
+              {/* Getting Started toggle */}
+              <div className={`pt-4 border-t ${borderClass}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-medium ${textPrimary}`}>Getting Started checklist</p>
+                    <p className={`text-xs ${textSecondary} mt-0.5`}>Show the guided checklist in the sidebar</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (gettingStartedDismissed) {
+                        localStorage.removeItem('gettingStartedDismissed');
+                        setGettingStartedDismissed(false);
+                      } else {
+                        setGettingStartedDismissed(true);
+                      }
+                    }}
+                    className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${!gettingStartedDismissed ? 'bg-blue-500' : (darkMode ? 'bg-gray-600' : 'bg-stone-300')}`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${!gettingStartedDismissed ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className={`pt-3 border-t ${borderClass} flex items-center justify-between`}>
+                <p className={`text-xs ${textSecondary}`}>
+                  {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__}` : 'dayGLANCE'}
+                </p>
+                <button
+                  onClick={() => { setShowHelpModal(false); setShowShortcutHelp(true); }}
+                  className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
+                >
+                  Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} border ${borderClass}`}>?</kbd> for keyboard shortcuts
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Keyboard Shortcut Cheat Sheet */}
       {showShortcutHelp && (
