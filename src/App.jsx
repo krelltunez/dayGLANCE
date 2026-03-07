@@ -1911,6 +1911,14 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
   const [isAM, setIsAM] = useState(parseInt(value.split(':')[0]) < 12);
   const [mode, setMode] = useState('hour');
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [onClose]);
+
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
   const borderClass = darkMode ? 'border-gray-700' : 'border-stone-300';
   const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
