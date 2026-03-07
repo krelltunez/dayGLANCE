@@ -2526,6 +2526,7 @@ const DayPlanner = () => {
   const currentTimeRef = useRef(null);
   const priorityTimeouts = useRef({});
   const autoScrollInterval = useRef(null); // For drag auto-scroll
+  const frameResizingRef = useRef(false); // Suppress click-to-add-task after frame resize drag
   const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
   const taskElementRefs = useRef({});
   const [taskWidths, setTaskWidths] = useState({});
@@ -8191,6 +8192,7 @@ const DayPlanner = () => {
   };
 
   const openNewTaskAtTime = (e, targetDate = null, skipCalendarSlotCheck = false) => {
+    if (frameResizingRef.current) return;
     // Only trigger if clicking on the empty calendar area, not on tasks
     if (skipCalendarSlotCheck || e.target.classList.contains('calendar-slot')) {
       const clickedTime = getTimeFromCursorPosition(e);
@@ -12251,6 +12253,7 @@ const DayPlanner = () => {
     const startY = e.clientY;
 
     const handleMouseMove = (moveEvent) => {
+      frameResizingRef.current = true;
       const deltaY = moveEvent.clientY - startY;
       // Use approximate 80px per hour for desktop
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
@@ -12281,7 +12284,11 @@ const DayPlanner = () => {
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-      playUISound('tick');
+      if (frameResizingRef.current) {
+        playUISound('tick');
+        // Clear after click event has fired so openNewTaskAtTime can check it
+        setTimeout(() => { frameResizingRef.current = false; }, 0);
+      }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
