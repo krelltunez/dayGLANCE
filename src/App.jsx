@@ -24407,19 +24407,24 @@ const DayPlanner = () => {
                               { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
                             ].map(f => (
                               <label key={f.key} className={`flex items-center gap-2 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={f.comingSoon ? false : aiConfig.features[f.key]}
-                                  onChange={(e) => {
-                                    if (f.comingSoon) return;
-                                    setAiConfig(prev => ({
-                                      ...prev,
-                                      features: { ...prev.features, [f.key]: e.target.checked }
-                                    }));
-                                  }}
-                                  disabled={f.comingSoon}
-                                  className="rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-                                />
+                                <div className="relative flex-shrink-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={f.comingSoon ? false : aiConfig.features[f.key]}
+                                    onChange={(e) => {
+                                      if (f.comingSoon) return;
+                                      setAiConfig(prev => ({
+                                        ...prev,
+                                        features: { ...prev.features, [f.key]: e.target.checked }
+                                      }));
+                                    }}
+                                    disabled={f.comingSoon}
+                                    className="sr-only"
+                                  />
+                                  <div className={`w-8 h-4 rounded-full transition-colors ${!f.comingSoon && aiConfig.features[f.key] ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${!f.comingSoon && aiConfig.features[f.key] ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                  </div>
+                                </div>
                                 <span className={`text-xs ${textPrimary} flex items-center gap-1.5`}>
                                   {f.icon} {f.label}
                                   {f.comingSoon && <span className={`${textSecondary} italic`}>Coming soon</span>}
