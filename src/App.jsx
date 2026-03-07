@@ -1947,22 +1947,31 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
   });
 
   const renderClock = () => {
+    const faceStyle = {
+      background: darkMode
+        ? 'radial-gradient(circle at 38% 33%, #374151 0%, #1a2233 80%)'
+        : 'radial-gradient(circle at 38% 33%, #ffffff 0%, #dde1e7 80%)',
+      boxShadow: darkMode
+        ? 'inset 0 3px 12px rgba(0,0,0,0.55), inset 0 -1px 4px rgba(255,255,255,0.04)'
+        : 'inset 0 3px 12px rgba(0,0,0,0.09), inset 0 -1px 4px rgba(255,255,255,0.95)',
+    };
+
     if (mode === 'minute') {
       const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
       const handDeg = selectedMinute * 6;
       const { x: hx, y: hy } = pos(handDeg, outerR);
       return (
-        <div className="relative" style={{ width: clockSize, height: clockSize }}>
-          <svg width={clockSize} height={clockSize} className="absolute inset-0">
-            <circle cx={cx} cy={cx} r={outerR} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
-            <line x1={cx} y1={cx} x2={hx} y2={hy} stroke="#3b82f6" strokeWidth="2" />
-            <circle cx={cx} cy={cx} r="4" fill="#3b82f6" />
+        <div className="relative rounded-full" style={{ width: clockSize, height: clockSize, ...faceStyle }}>
+          <svg width={clockSize} height={clockSize} className="absolute inset-0 pointer-events-none">
+            <line x1={cx} y1={cx} x2={hx} y2={hy} stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" opacity="0.65" />
+            <circle cx={hx} cy={hy} r="5" fill="#3b82f6" opacity="0.35" />
+            <circle cx={cx} cy={cx} r="5" fill="#3b82f6" />
           </svg>
           {minutes.map(min => {
             const { x, y } = pos(min * 6, outerR);
             return (
               <button key={min} onClick={() => setSelectedMinute(min)}
-                className={`absolute rounded-full flex items-center justify-center font-medium transition-colors ${isTablet ? 'text-sm' : 'text-xs'} ${min === selectedMinute ? 'bg-blue-600 text-white' : darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-stone-700 hover:bg-stone-100'}`}
+                className={`absolute rounded-full flex items-center justify-center font-medium transition-all ${isTablet ? 'text-sm' : 'text-xs'} ${min === selectedMinute ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-200 hover:bg-white/10' : 'text-stone-700 hover:bg-black/8'}`}
                 style={{ width: outerBtn, height: outerBtn, left: x - outerBtn / 2, top: y - outerBtn / 2 }}>
                 {min.toString().padStart(2, '0')}
               </button>
@@ -1974,7 +1983,6 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
 
     // Hour mode — dual ring in 24hr, single ring in 12hr
     if (use24HourClock) {
-      // outer: 12, 1–11 at positions 0°–330°; inner: 0, 13–23 at same positions
       let handDeg, handR;
       if (selectedHour === 12) { handDeg = 0; handR = outerR; }
       else if (selectedHour >= 1 && selectedHour <= 11) { handDeg = selectedHour * 30; handR = outerR; }
@@ -1983,34 +1991,31 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
       const { x: hx, y: hy } = pos(handDeg, handR);
 
       return (
-        <div className="relative" style={{ width: clockSize, height: clockSize }}>
-          <svg width={clockSize} height={clockSize} className="absolute inset-0">
-            <circle cx={cx} cy={cx} r={outerR} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
-            <circle cx={cx} cy={cx} r={innerR} fill="none" stroke={darkMode ? '#4b5563' : '#d1d5db'} strokeWidth="1" />
-            <line x1={cx} y1={cx} x2={hx} y2={hy} stroke="#3b82f6" strokeWidth="2" />
-            <circle cx={cx} cy={cx} r="4" fill="#3b82f6" />
+        <div className="relative rounded-full" style={{ width: clockSize, height: clockSize, ...faceStyle }}>
+          <svg width={clockSize} height={clockSize} className="absolute inset-0 pointer-events-none">
+            <line x1={cx} y1={cx} x2={hx} y2={hy} stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" opacity="0.65" />
+            <circle cx={hx} cy={hy} r="5" fill="#3b82f6" opacity="0.35" />
+            <circle cx={cx} cy={cx} r="5" fill="#3b82f6" />
           </svg>
-          {/* Outer ring: 12, 1–11 */}
           {Array.from({ length: 12 }, (_, i) => {
             const label = i === 0 ? 12 : i;
             const { x, y } = pos(i * 30, outerR);
             const sel = label === 12 ? selectedHour === 12 : selectedHour === label;
             return (
               <button key={`o${label}`} onClick={() => { setSelectedHour(label); setMode('minute'); }}
-                className={`absolute rounded-full flex items-center justify-center font-medium transition-colors ${isTablet ? 'text-sm' : 'text-xs'} ${sel ? 'bg-blue-600 text-white' : darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-stone-700 hover:bg-stone-100'}`}
+                className={`absolute rounded-full flex items-center justify-center font-medium transition-all ${isTablet ? 'text-sm' : 'text-xs'} ${sel ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-200 hover:bg-white/10' : 'text-stone-700 hover:bg-black/8'}`}
                 style={{ width: outerBtn, height: outerBtn, left: x - outerBtn / 2, top: y - outerBtn / 2 }}>
                 {label}
               </button>
             );
           })}
-          {/* Inner ring: 00, 13–23 */}
           {Array.from({ length: 12 }, (_, i) => {
             const label = i === 0 ? 0 : i + 12;
             const { x, y } = pos(i * 30, innerR);
             const sel = selectedHour === label;
             return (
               <button key={`i${label}`} onClick={() => { setSelectedHour(label); setMode('minute'); }}
-                className={`absolute rounded-full flex items-center justify-center transition-colors ${isTablet ? 'text-xs' : 'text-[10px]'} ${sel ? 'bg-blue-600 text-white' : darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-stone-500 hover:bg-stone-100'}`}
+                className={`absolute rounded-full flex items-center justify-center transition-all ${isTablet ? 'text-xs' : 'text-[10px]'} ${sel ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-400 hover:bg-white/10' : 'text-stone-500 hover:bg-black/8'}`}
                 style={{ width: innerBtn, height: innerBtn, left: x - innerBtn / 2, top: y - innerBtn / 2 }}>
                 {label.toString().padStart(2, '0')}
               </button>
@@ -2025,11 +2030,11 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
     const handDeg = (hour12 % 12) * 30;
     const { x: hx, y: hy } = pos(handDeg, outerR);
     return (
-      <div className="relative" style={{ width: clockSize, height: clockSize }}>
-        <svg width={clockSize} height={clockSize} className="absolute inset-0">
-          <circle cx={cx} cy={cx} r={outerR} fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="2" />
-          <line x1={cx} y1={cx} x2={hx} y2={hy} stroke="#3b82f6" strokeWidth="2" />
-          <circle cx={cx} cy={cx} r="4" fill="#3b82f6" />
+      <div className="relative rounded-full" style={{ width: clockSize, height: clockSize, ...faceStyle }}>
+        <svg width={clockSize} height={clockSize} className="absolute inset-0 pointer-events-none">
+          <line x1={cx} y1={cx} x2={hx} y2={hy} stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" opacity="0.65" />
+          <circle cx={hx} cy={hy} r="5" fill="#3b82f6" opacity="0.35" />
+          <circle cx={cx} cy={cx} r="5" fill="#3b82f6" />
         </svg>
         {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((label, i) => {
           const { x, y } = pos(i * 30, outerR);
@@ -2039,7 +2044,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
               const h24 = isAM ? (label === 12 ? 0 : label) : (label === 12 ? 12 : label + 12);
               setSelectedHour(h24); setMode('minute');
             }}
-              className={`absolute rounded-full flex items-center justify-center font-medium transition-colors ${isTablet ? 'text-sm' : 'text-xs'} ${sel ? 'bg-blue-600 text-white' : darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-stone-700 hover:bg-stone-100'}`}
+              className={`absolute rounded-full flex items-center justify-center font-medium transition-all ${isTablet ? 'text-sm' : 'text-xs'} ${sel ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-200 hover:bg-white/10' : 'text-stone-700 hover:bg-black/8'}`}
               style={{ width: outerBtn, height: outerBtn, left: x - outerBtn / 2, top: y - outerBtn / 2 }}>
               {label}
             </button>
@@ -2050,40 +2055,40 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onClose}>
-      <div className={`${cardBg} rounded-lg shadow-xl ${isTablet ? 'p-8' : 'p-6'} ${borderClass} border`} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]" onClick={onClose}>
+      <div className={`${cardBg} rounded-3xl shadow-2xl ${isTablet ? 'p-7' : 'p-5'}`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`${isTablet ? 'text-xl' : 'text-lg'} font-semibold ${textPrimary}`}>Select Time</h3>
-          <button onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded ${hoverBg}`}>
-            <X size={isTablet ? 24 : 20} className={textSecondary} />
+          <h3 className={`${isTablet ? 'text-base' : 'text-sm'} font-semibold tracking-wide uppercase ${textSecondary}`}>Select Time</h3>
+          <button onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded-full ${hoverBg} transition-colors`}>
+            <X size={isTablet ? 20 : 17} className={textSecondary} />
           </button>
         </div>
 
-        <div className="flex justify-center mb-4">
-          <div className="flex gap-2 items-center">
+        <div className="flex justify-center mb-5">
+          <div className={`flex items-center gap-1 px-4 py-2 rounded-2xl ${darkMode ? 'bg-gray-900/60' : 'bg-stone-100'}`}>
             <button onClick={() => setMode('hour')}
-              className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${mode === 'hour' ? 'bg-blue-600 text-white' : textSecondary}`}>
+              className={`${isTablet ? 'text-4xl w-16' : 'text-3xl w-12'} font-bold rounded-xl py-1 text-center transition-colors ${mode === 'hour' ? 'bg-blue-600 text-white' : textPrimary}`}>
               {displayHour}
             </button>
-            <span className={`${isTablet ? 'text-4xl' : 'text-3xl'} ${textPrimary}`}>:</span>
+            <span className={`${isTablet ? 'text-4xl' : 'text-3xl'} font-bold ${textSecondary} select-none`}>:</span>
             <button onClick={() => setMode('minute')}
-              className={`${isTablet ? 'text-4xl px-4 py-2' : 'text-3xl px-3 py-1'} font-bold rounded ${mode === 'minute' ? 'bg-blue-600 text-white' : textSecondary}`}>
+              className={`${isTablet ? 'text-4xl w-16' : 'text-3xl w-12'} font-bold rounded-xl py-1 text-center transition-colors ${mode === 'minute' ? 'bg-blue-600 text-white' : textPrimary}`}>
               {selectedMinute.toString().padStart(2, '0')}
             </button>
             {!use24HourClock && (
               <button onClick={toggleAMPM}
-                className={`${isTablet ? 'text-xl px-3 py-2' : 'text-lg px-2 py-1'} font-bold rounded ml-1 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}>
+                className={`${isTablet ? 'text-base px-3 py-2' : 'text-sm px-2.5 py-1.5'} font-semibold rounded-xl ml-1 transition-colors ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-stone-600 hover:bg-stone-200 shadow-sm'}`}>
                 {isAM ? 'AM' : 'PM'}
               </button>
             )}
           </div>
         </div>
 
-        <div className="flex justify-center mb-4">{renderClock()}</div>
+        <div className="flex justify-center mb-5">{renderClock()}</div>
 
-        <div className={`flex justify-end ${isTablet ? 'gap-3' : 'gap-2'}`}>
-          <button onClick={onClose} className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}>Cancel</button>
-          <button onClick={handleConfirm} className={`${isTablet ? 'px-6 py-3 text-base' : 'px-4 py-2'} bg-blue-600 text-white rounded-lg hover:bg-blue-700`}>Confirm</button>
+        <div className={`flex gap-2`}>
+          <button onClick={onClose} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} rounded-2xl font-medium ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'} transition-colors`}>Cancel</button>
+          <button onClick={handleConfirm} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} bg-blue-600 text-white rounded-2xl font-medium hover:bg-blue-700 transition-colors`}>OK</button>
         </div>
       </div>
     </div>
