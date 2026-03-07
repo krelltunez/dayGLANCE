@@ -11341,24 +11341,6 @@ const DayPlanner = () => {
     return () => { clearTimeout(timer); setTaskAISuggestionLoading(false); };
   }, [newTask.title, showAddTask, mobileEditingTask, aiConfig, allTags]);
 
-  // --- Frame Nudge ---
-  const activeFrameForNudge = useMemo(() => {
-    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-    const today = new Date();
-    return getFrameInstancesForDate(today).find(f => {
-      const fStart = timeToMinutes(f.start);
-      const fEnd = timeToMinutes(f.end);
-      return nowMin >= fStart && nowMin < fEnd;
-    }) || null;
-  }, [currentTime, getFrameInstancesForDate]);
-
-  const activeFrameNudgeKey = useMemo(() => {
-    const todayStr = dateToString(new Date());
-    return activeFrameForNudge
-      ? `${todayStr}-${activeFrameForNudge.frameId}`
-      : `${todayStr}-free`;
-  }, [activeFrameForNudge]);
-
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.weeklySummary) return;
@@ -11964,6 +11946,56 @@ const DayPlanner = () => {
     return filterByTags(tasksByDate[dateStr] || []);
   };
 
+  // --- GTD Frames: Instance computation + Available time calculation ---
+
+  // Get frame instances for a given date (which templates apply)
+  const getFrameInstancesForDate = useCallback((date) => {
+    const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
+    const dateStr = dateToString(date);
+    return gtdFrames
+      .filter(f => {
+        if (!f.enabled) return false;
+        if (f.singleDate) return f.singleDate === dateStr;
+        return f.days.includes(dayOfWeek);
+      })
+      .map(f => {
+        // Check for per-day exceptions
+        const exception = f.exceptions?.[dateStr];
+        if (exception?.deleted) return null;
+        return {
+          frameId: f.id,
+          templateId: f.id,
+          date: dateStr,
+          start: exception?.start || f.start,
+          end: exception?.end || f.end,
+          label: f.label,
+          color: f.color,
+          tagAffinity: f.tagAffinity || [],
+          energyLevel: f.energyLevel || 'medium',
+          bufferMinutes: f.bufferMinutes ?? 5,
+        };
+      })
+      .filter(Boolean);
+  }, [gtdFrames]);
+
+  // --- Frame Nudge --- (must be after getFrameInstancesForDate and getTasksForDate)
+  const activeFrameForNudge = useMemo(() => {
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const today = new Date();
+    return getFrameInstancesForDate(today).find(f => {
+      const fStart = timeToMinutes(f.start);
+      const fEnd = timeToMinutes(f.end);
+      return nowMin >= fStart && nowMin < fEnd;
+    }) || null;
+  }, [currentTime, getFrameInstancesForDate]);
+
+  const activeFrameNudgeKey = useMemo(() => {
+    const todayStr = dateToString(new Date());
+    return activeFrameForNudge
+      ? `${todayStr}-${activeFrameForNudge.frameId}`
+      : `${todayStr}-free`;
+  }, [activeFrameForNudge]);
+
   const generateFrameNudge = useCallback(async () => {
     if (!aiConfig.enabled || !aiConfig.features?.frameNudge || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) return;
     setFrameNudgeLoading(true);
@@ -12028,38 +12060,6 @@ const DayPlanner = () => {
     if (frameNudgeDismissedKey === activeFrameNudgeKey) return;
     generateFrameNudge();
   }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge]);
-
-  // --- GTD Frames: Instance computation + Available time calculation ---
-
-  // Get frame instances for a given date (which templates apply)
-  const getFrameInstancesForDate = useCallback((date) => {
-    const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
-    const dateStr = dateToString(date);
-    return gtdFrames
-      .filter(f => {
-        if (!f.enabled) return false;
-        if (f.singleDate) return f.singleDate === dateStr;
-        return f.days.includes(dayOfWeek);
-      })
-      .map(f => {
-        // Check for per-day exceptions
-        const exception = f.exceptions?.[dateStr];
-        if (exception?.deleted) return null;
-        return {
-          frameId: f.id,
-          templateId: f.id,
-          date: dateStr,
-          start: exception?.start || f.start,
-          end: exception?.end || f.end,
-          label: f.label,
-          color: f.color,
-          tagAffinity: f.tagAffinity || [],
-          energyLevel: f.energyLevel || 'medium',
-          bufferMinutes: f.bufferMinutes ?? 5,
-        };
-      })
-      .filter(Boolean);
-  }, [gtdFrames]);
 
   // Compute available time slots within a frame instance, subtracting existing tasks/events
   const computeAvailableSlots = useCallback((frameInstance, date) => {
