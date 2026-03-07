@@ -6407,6 +6407,11 @@ const DayPlanner = () => {
           setShowWeeklyReview(false);
           return;
         }
+        if (showMobileDailySummary) {
+          e.preventDefault();
+          setShowMobileDailySummary(false);
+          return;
+        }
         if (showAddTask) {
           e.preventDefault();
           if (showRecurrencePicker) {
@@ -6609,7 +6614,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
+  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
@@ -7920,9 +7925,9 @@ const DayPlanner = () => {
     return minutesToTime(totalMinutes);
   };
 
-  const openNewTaskAtTime = (e, targetDate = null) => {
+  const openNewTaskAtTime = (e, targetDate = null, skipCalendarSlotCheck = false) => {
     // Only trigger if clicking on the empty calendar area, not on tasks
-    if (e.target.classList.contains('calendar-slot')) {
+    if (skipCalendarSlotCheck || e.target.classList.contains('calendar-slot')) {
       const clickedTime = getTimeFromCursorPosition(e);
 
       setNewTask({
@@ -7936,9 +7941,9 @@ const DayPlanner = () => {
     }
   };
 
-  const handleCalendarMouseMove = (e, targetDate) => {
+  const handleCalendarMouseMove = (e, targetDate, skipCalendarSlotCheck = false) => {
     if (draggedTask) return; // Don't show hover preview while dragging
-    if (!e.target.classList.contains('calendar-slot')) {
+    if (!skipCalendarSlotCheck && !e.target.classList.contains('calendar-slot')) {
       setHoverPreviewTime(null);
       setHoverPreviewDate(null);
       return;
@@ -12873,6 +12878,9 @@ const DayPlanner = () => {
                                     onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
                                     onDragOver={(e) => handleDragOver(e, date)}
                                     onDrop={(e) => handleDropOnCalendar(e, date)}
+                                    onMouseMove={(e) => handleCalendarMouseMove(e, date, true)}
+                                    onMouseLeave={handleCalendarMouseLeave}
+                                    onClick={(e) => openNewTaskAtTime(e, date, true)}
                                   >
                                     <span className="absolute top-0.5 left-1 text-[9px] font-medium pointer-events-none select-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                       {frame.label}
@@ -19259,6 +19267,9 @@ const DayPlanner = () => {
                                 onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
                                 onDragOver={(e) => handleDragOver(e, date)}
                                 onDrop={(e) => handleDropOnCalendar(e, date)}
+                                onMouseMove={(e) => handleCalendarMouseMove(e, date, true)}
+                                onMouseLeave={handleCalendarMouseLeave}
+                                onClick={(e) => openNewTaskAtTime(e, date, true)}
                               >
                                 <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none select-none" style={{ color: borderColorMap[frame.color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)') }}>
                                   {frame.label}
