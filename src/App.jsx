@@ -12061,6 +12061,25 @@ const DayPlanner = () => {
     generateFrameNudge();
   }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge]);
 
+  // Schedule a nudge-suggested task at the next 15-minute increment
+  const scheduleTaskAtNextSlot = useCallback((taskId, isInbox) => {
+    const now = new Date();
+    const totalMinutes = now.getHours() * 60 + now.getMinutes();
+    const nextSlotMinutes = Math.ceil((totalMinutes + 1) / 15) * 15;
+    const nextSlotTime = minutesToTime(nextSlotMinutes);
+    const todayStr = dateToString(now);
+    if (isInbox) {
+      const task = unscheduledTasks.find(t => t.id === taskId);
+      if (!task) return;
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
+      setTasks(prev => [...prev, { ...task, startTime: nextSlotTime, date: todayStr, isAllDay: false }]);
+    } else {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, startTime: nextSlotTime, date: todayStr } : t));
+    }
+    setFrameNudgeDismissedKey(activeFrameNudgeKey);
+    playUISound('tick');
+  }, [unscheduledTasks, activeFrameNudgeKey]);
+
   // Compute available time slots within a frame instance, subtracting existing tasks/events
   const computeAvailableSlots = useCallback((frameInstance, date) => {
     const allDayTasks = getTasksForDate(date instanceof Date ? date : new Date(frameInstance.date + 'T12:00:00'));
@@ -14138,7 +14157,7 @@ const DayPlanner = () => {
                     textSecondary={textSecondary}
                     onRefresh={generateFrameNudge}
                     onDismiss={() => setFrameNudgeDismissedKey(activeFrameNudgeKey)}
-                    onStartTask={(taskId, isInbox) => setExpandedNotesTaskId(taskId)}
+                    onStartTask={scheduleTaskAtNextSlot}
                   />
                 )}
                 {/* Habit rings row */}
@@ -14461,7 +14480,14 @@ const DayPlanner = () => {
                           {agendaNowMarker.gapMinutes < 30 ? (
                             <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
                           ) : agendaNowMarker.inboxCount > 0 ? (
-                            <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                              {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
+                                  <Sparkles size={9} />AI
+                                </button>
+                              )}
+                            </div>
                           ) : null}
                         </div>
                       </div>
@@ -14632,7 +14658,14 @@ const DayPlanner = () => {
                             {agendaNowMarker.gapMinutes < 30 ? (
                               <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
                             ) : agendaNowMarker.inboxCount > 0 ? (
-                              <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                  <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
+                                    <Sparkles size={9} />AI
+                                  </button>
+                                )}
+                              </div>
                             ) : null}
                           </div>
                         </div>
@@ -17417,7 +17450,7 @@ const DayPlanner = () => {
                           textSecondary={textSecondary}
                           onRefresh={generateFrameNudge}
                           onDismiss={() => setFrameNudgeDismissedKey(activeFrameNudgeKey)}
-                          onStartTask={(taskId) => setExpandedNotesTaskId(taskId)}
+                          onStartTask={scheduleTaskAtNextSlot}
                         />
                       )}
 
@@ -17747,7 +17780,14 @@ const DayPlanner = () => {
                                 {agendaNowMarker.gapMinutes < 30 ? (
                                   <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
                                 ) : agendaNowMarker.inboxCount > 0 ? (
-                                  <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                                    {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                      <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
+                                        <Sparkles size={9} />AI
+                                      </button>
+                                    )}
+                                  </div>
                                 ) : null}
                               </div>
                             </div>
@@ -17877,7 +17917,14 @@ const DayPlanner = () => {
                                   {agendaNowMarker.gapMinutes < 30 ? (
                                     <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
                                   ) : agendaNowMarker.inboxCount > 0 ? (
-                                    <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                                      {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                        <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
+                                          <Sparkles size={9} />AI
+                                        </button>
+                                      )}
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>
@@ -18504,7 +18551,7 @@ const DayPlanner = () => {
                       textSecondary={textSecondary}
                       onRefresh={generateFrameNudge}
                       onDismiss={() => setFrameNudgeDismissedKey(activeFrameNudgeKey)}
-                      onStartTask={(taskId) => setExpandedNotesTaskId(taskId)}
+                      onStartTask={scheduleTaskAtNextSlot}
                     />
                   )}
 
@@ -18826,7 +18873,14 @@ const DayPlanner = () => {
                             {agendaNowMarker.gapMinutes < 30 ? (
                               <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
                             ) : agendaNowMarker.inboxCount > 0 ? (
-                              <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                  <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
+                                    <Sparkles size={9} />AI
+                                  </button>
+                                )}
+                              </div>
                             ) : null}
                           </div>
                         </div>
@@ -18956,7 +19010,14 @@ const DayPlanner = () => {
                               {agendaNowMarker.gapMinutes < 30 ? (
                                 <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
                               ) : agendaNowMarker.inboxCount > 0 ? (
-                                <div className="text-xs italic text-red-500 mt-0.5">Maybe tackle an inbox task?</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                                  {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                    <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
+                                      <Sparkles size={9} />AI
+                                    </button>
+                                  )}
+                                </div>
                               ) : null}
                             </div>
                           </div>
