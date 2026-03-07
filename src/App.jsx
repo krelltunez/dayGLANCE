@@ -1355,8 +1355,40 @@ const FRAME_COLORS = [
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// 12/24hr-aware time picker used inside FrameEditor
+const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) => {
+  const cls = `px-2 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`;
+  if (use24HourClock) {
+    return <input type="time" value={value} onChange={e => onChange(e.target.value)} className={`w-full ${cls}`} />;
+  }
+  const [h, m] = value ? value.split(':').map(Number) : [9, 0];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const set = (newH, newM) => onChange(`${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`);
+  return (
+    <div className="flex gap-1">
+      <select value={displayHour} onChange={e => {
+        const hr = Number(e.target.value);
+        set(ampm === 'PM' ? (hr === 12 ? 12 : hr + 12) : (hr === 12 ? 0 : hr), m);
+      }} className={cls}>
+        {[12,1,2,3,4,5,6,7,8,9,10,11].map(n => <option key={n} value={n}>{n}</option>)}
+      </select>
+      <select value={m} onChange={e => set(h, Number(e.target.value))} className={cls}>
+        {Array.from({length:12}, (_,i) => i*5).map(min => <option key={min} value={min}>{String(min).padStart(2,'0')}</option>)}
+      </select>
+      <select value={ampm} onChange={e => {
+        const a = e.target.value;
+        set(a === 'AM' && h >= 12 ? h - 12 : a === 'PM' && h < 12 ? h + 12 : h, m);
+      }} className={cls}>
+        <option>AM</option>
+        <option>PM</option>
+      </select>
+    </div>
+  );
+};
+
 // Frame Editor component for creating/editing GTD Frames
-const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames }) => {
+const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames, use24HourClock }) => {
   const [label, setLabel] = useState(frame?.label || '');
   const [days, setDays] = useState(frame?.days || [1, 2, 3, 4, 5]);
   const [start, setStart] = useState(frame?.start || '09:00');
@@ -1489,13 +1521,11 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
       <div className="flex gap-3">
         <div className="flex-1">
           <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start</label>
-          <input type="time" value={start} onChange={e => setStart(e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+          <TimePicker value={start} onChange={setStart} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
         </div>
         <div className="flex-1">
           <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End</label>
-          <input type="time" value={end} onChange={e => setEnd(e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+          <TimePicker value={end} onChange={setEnd} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
         </div>
       </div>
 
@@ -1657,13 +1687,11 @@ const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, def
       <div className="flex gap-3">
         <div className="flex-1">
           <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start</label>
-          <input type="time" value={start} onChange={e => setStart(e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+          <TimePicker value={start} onChange={setStart} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
         </div>
         <div className="flex-1">
           <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End</label>
-          <input type="time" value={end} onChange={e => setEnd(e.target.value)}
-            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`} />
+          <TimePicker value={end} onChange={setEnd} use24HourClock={use24HourClock} borderClass={borderClass} darkMode={darkMode} />
         </div>
       </div>
 
@@ -14501,6 +14529,7 @@ const DayPlanner = () => {
                         cardBg={cardBg}
                         hoverBg={hoverBg}
                         existingFrames={gtdFrames}
+                        use24HourClock={use24HourClock}
                       />
                     ) : (
                       <>
@@ -14537,7 +14566,7 @@ const DayPlanner = () => {
                                   {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
                                 </div>
                                 <div className={`text-xs ${textSecondary} mt-1`}>
-                                  {frame.start} – {frame.end} · {frame.singleDate
+                                  {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
                                     ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                                     : frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
                                 </div>
@@ -25667,6 +25696,7 @@ const DayPlanner = () => {
                       cardBg={cardBg}
                       hoverBg={hoverBg}
                       existingFrames={gtdFrames}
+                      use24HourClock={use24HourClock}
                     />
                   ) : (
                     <>
@@ -25703,7 +25733,7 @@ const DayPlanner = () => {
                                 {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
                               </div>
                               <div className={`text-xs ${textSecondary} mt-1`}>
-                                {frame.start} – {frame.end} · {frame.singleDate
+                                {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
                                   ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                                   : frame.days.map(d => DAY_LABELS[d]).join(', ')}
                                 {frame.energyLevel !== 'medium' && ` · ${frame.energyLevel} energy`}
