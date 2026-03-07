@@ -16,6 +16,7 @@ export default async function handler(req, res) {
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
+    res.setHeader('Cache-Control', 'public, max-age=900, stale-while-revalidate=60');
     res.status(response.status).send(body);
   } catch (err) {
     res.setHeader('Access-Control-Allow-Origin', '*');
