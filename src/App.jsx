@@ -1462,7 +1462,6 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   };
 
   return (
-    <>
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className={`text-lg font-semibold ${textPrimary}`}>{frame ? 'Edit Frame' : 'New Frame'}</h3>
@@ -1615,12 +1614,20 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
           </button>
         )}
       </div>
+      {timePickerField && (
+        <ClockTimePicker
+          value={timePickerField === 'start' ? start : end}
+          onChange={(t) => { if (timePickerField === 'start') setStart(t); else setEnd(t); setTimePickerField(null); }}
+          onClose={() => setTimePickerField(null)}
+          darkMode={darkMode} isTablet={isTablet ?? false} use24HourClock={use24HourClock}
+        />
+      )}
     </div>
   );
 };
 
 // Quick Add Frame form — compact modal for creating single-day frames from timeline right-click
-const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, defaultColor, existingFrames, getFrameInstancesForDate, onSave, onCancel, darkMode, textPrimary, textSecondary, borderClass, hoverBg, formatTime }) => {
+const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, defaultColor, existingFrames, getFrameInstancesForDate, onSave, onCancel, darkMode, textPrimary, textSecondary, borderClass, hoverBg, formatTime, isTablet, use24HourClock }) => {
   const [label, setLabel] = useState('');
   const [start, setStart] = useState(defaultStart);
   const [end, setEnd] = useState(defaultEnd);
@@ -1628,6 +1635,7 @@ const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, def
   const [energyLevel, setEnergyLevel] = useState('medium');
   const [bufferMinutes, setBufferMinutes] = useState(5);
   const [error, setError] = useState('');
+  const [timePickerField, setTimePickerField] = useState(null); // 'start' | 'end' | null
   const labelRef = useRef(null);
 
   useEffect(() => {
@@ -1742,16 +1750,15 @@ const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, def
       <button onClick={handleSave} className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
         Create Frame
       </button>
+      {timePickerField && (
+        <ClockTimePicker
+          value={timePickerField === 'start' ? start : end}
+          onChange={(t) => { if (timePickerField === 'start') setStart(t); else setEnd(t); setTimePickerField(null); }}
+          onClose={() => setTimePickerField(null)}
+          darkMode={darkMode} isTablet={isTablet ?? false} use24HourClock={use24HourClock ?? false}
+        />
+      )}
     </div>
-    {timePickerField && (
-      <ClockTimePicker
-        value={timePickerField === 'start' ? start : end}
-        onChange={(t) => { if (timePickerField === 'start') setStart(t); else setEnd(t); setTimePickerField(null); }}
-        onClose={() => setTimePickerField(null)}
-        darkMode={darkMode} isTablet={isTablet ?? false} use24HourClock={use24HourClock}
-      />
-    )}
-    </>
   );
 };
 
@@ -24354,6 +24361,8 @@ const DayPlanner = () => {
                 borderClass={borderClass}
                 hoverBg={hoverBg}
                 formatTime={formatTime}
+                isTablet={isTablet}
+                use24HourClock={use24HourClock}
               />
             </div>
           </div>
