@@ -441,7 +441,7 @@ const NotesSubtasksPanel = ({
               {isGeneratingSubtasks
                 ? <Loader size={11} className="animate-spin" />
                 : <Sparkles size={11} />}
-              <span className="text-[10px] font-normal">AI</span>
+              <span className="text-[10px] font-normal">{isGeneratingSubtasks ? 'Generating…' : 'Generate with AI'}</span>
             </button>
           )}
         </div>
