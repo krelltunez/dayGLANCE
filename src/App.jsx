@@ -386,7 +386,7 @@ const NotesSubtasksPanel = ({
 
   return (
     <div
-      className={`mt-2 p-3 rounded-lg bg-black/35 text-white`}
+      className={`mt-2 p-3 rounded-lg ${darkMode ? 'bg-black/50' : 'bg-black/25'} text-white`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Notes section */}
