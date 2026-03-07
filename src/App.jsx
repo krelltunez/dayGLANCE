@@ -11359,71 +11359,6 @@ const DayPlanner = () => {
       : `${todayStr}-free`;
   }, [activeFrameForNudge]);
 
-  const generateFrameNudge = useCallback(async () => {
-    if (!aiConfig.enabled || !aiConfig.features?.frameNudge || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) return;
-    setFrameNudgeLoading(true);
-    setFrameNudgeError('');
-    setFrameNudgeText('');
-    try {
-      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-      const today = new Date();
-      const todayStr = dateToString(today);
-      const currentTimeStr = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
-
-      const allFramesToday = getFrameInstancesForDate(today).sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-      const activeF = allFramesToday.find(f => {
-        const fStart = timeToMinutes(f.start);
-        const fEnd = timeToMinutes(f.end);
-        return nowMin >= fStart && nowMin < fEnd;
-      });
-      const nextF = allFramesToday.find(f => timeToMinutes(f.start) > nowMin);
-
-      const completedToday = getTasksForDate(today).filter(t => t.completed).map(t => renderTitleWithoutTags(t.title));
-      const dueTodayTasks = [...tasks, ...unscheduledTasks]
-        .filter(t => !t.completed && t.deadline === todayStr)
-        .map(t => renderTitleWithoutTags(t.title));
-
-      const ctx = {
-        currentTimeStr,
-        activeFrame: activeF ? {
-          label: activeF.label,
-          energyLevel: activeF.energyLevel,
-          start: formatTime(activeF.start),
-          end: formatTime(activeF.end),
-          minutesRemaining: timeToMinutes(activeF.end) - nowMin,
-        } : null,
-        nextFrame: nextF ? {
-          label: nextF.label,
-          start: formatTime(nextF.start),
-          minutesUntil: timeToMinutes(nextF.start) - nowMin,
-        } : null,
-        completedToday,
-        dueTodayTasks,
-        inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
-      };
-
-      const text = await aiComplete(frameNudgeSystemPrompt(), frameNudgeUserPrompt(ctx), aiConfig);
-      setFrameNudgeText(text?.trim() || '');
-    } catch {
-      setFrameNudgeError('Could not generate nudge.');
-    }
-    setFrameNudgeLoading(false);
-  }, [aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks, formatTime]);
-
-  // Auto-trigger frame nudge when entering a new Frame
-  const prevFrameNudgeKeyRef = useRef(null);
-  useEffect(() => {
-    if (!aiConfig.enabled || !aiConfig.features?.frameNudge) return;
-    if (gtdFrames.filter(f => f.enabled).length === 0) return;
-    if (activeFrameNudgeKey === prevFrameNudgeKeyRef.current) return;
-    prevFrameNudgeKeyRef.current = activeFrameNudgeKey;
-    // Only auto-fire when inside an active frame (not free time)
-    if (!activeFrameForNudge) return;
-    // Skip if the user already dismissed this key
-    if (frameNudgeDismissedKey === activeFrameNudgeKey) return;
-    generateFrameNudge();
-  }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge]);
-
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.weeklySummary) return;
@@ -12028,6 +11963,71 @@ const DayPlanner = () => {
     const dateStr = dateToString(date);
     return filterByTags(tasksByDate[dateStr] || []);
   };
+
+  const generateFrameNudge = useCallback(async () => {
+    if (!aiConfig.enabled || !aiConfig.features?.frameNudge || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) return;
+    setFrameNudgeLoading(true);
+    setFrameNudgeError('');
+    setFrameNudgeText('');
+    try {
+      const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+      const today = new Date();
+      const todayStr = dateToString(today);
+      const currentTimeStr = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
+
+      const allFramesToday = getFrameInstancesForDate(today).sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+      const activeF = allFramesToday.find(f => {
+        const fStart = timeToMinutes(f.start);
+        const fEnd = timeToMinutes(f.end);
+        return nowMin >= fStart && nowMin < fEnd;
+      });
+      const nextF = allFramesToday.find(f => timeToMinutes(f.start) > nowMin);
+
+      const completedToday = getTasksForDate(today).filter(t => t.completed).map(t => renderTitleWithoutTags(t.title));
+      const dueTodayTasks = [...tasks, ...unscheduledTasks]
+        .filter(t => !t.completed && t.deadline === todayStr)
+        .map(t => renderTitleWithoutTags(t.title));
+
+      const ctx = {
+        currentTimeStr,
+        activeFrame: activeF ? {
+          label: activeF.label,
+          energyLevel: activeF.energyLevel,
+          start: formatTime(activeF.start),
+          end: formatTime(activeF.end),
+          minutesRemaining: timeToMinutes(activeF.end) - nowMin,
+        } : null,
+        nextFrame: nextF ? {
+          label: nextF.label,
+          start: formatTime(nextF.start),
+          minutesUntil: timeToMinutes(nextF.start) - nowMin,
+        } : null,
+        completedToday,
+        dueTodayTasks,
+        inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
+      };
+
+      const text = await aiComplete(frameNudgeSystemPrompt(), frameNudgeUserPrompt(ctx), aiConfig);
+      setFrameNudgeText(text?.trim() || '');
+    } catch {
+      setFrameNudgeError('Could not generate nudge.');
+    }
+    setFrameNudgeLoading(false);
+  }, [aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks, formatTime]);
+
+  // Auto-trigger frame nudge when entering a new Frame
+  const prevFrameNudgeKeyRef = useRef(null);
+  useEffect(() => {
+    if (!aiConfig.enabled || !aiConfig.features?.frameNudge) return;
+    if (gtdFrames.filter(f => f.enabled).length === 0) return;
+    if (activeFrameNudgeKey === prevFrameNudgeKeyRef.current) return;
+    prevFrameNudgeKeyRef.current = activeFrameNudgeKey;
+    // Only auto-fire when inside an active frame (not free time)
+    if (!activeFrameForNudge) return;
+    // Skip if the user already dismissed this key
+    if (frameNudgeDismissedKey === activeFrameNudgeKey) return;
+    generateFrameNudge();
+  }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge]);
 
   // --- GTD Frames: Instance computation + Available time calculation ---
 
