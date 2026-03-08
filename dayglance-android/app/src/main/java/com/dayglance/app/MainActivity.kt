@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -53,6 +54,22 @@ class MainActivity : AppCompatActivity() {
     private fun configureWebView() {
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            // Serve root-relative paths (e.g. /dayglance-dark.svg) from assets/web/
+            .addPathHandler("/", WebViewAssetLoader.PathHandler { path ->
+                try {
+                    val stream = assets.open("web/$path")
+                    val mime = when {
+                        path.endsWith(".svg") -> "image/svg+xml"
+                        path.endsWith(".png") -> "image/png"
+                        path.endsWith(".ico") -> "image/x-icon"
+                        path.endsWith(".js")  -> "application/javascript"
+                        path.endsWith(".css") -> "text/css"
+                        path.endsWith(".html") -> "text/html"
+                        else -> "application/octet-stream"
+                    }
+                    WebResourceResponse(mime, "utf-8", stream)
+                } catch (e: Exception) { null }
+            })
             .build()
 
         webView.webViewClient = object : WebViewClient() {
