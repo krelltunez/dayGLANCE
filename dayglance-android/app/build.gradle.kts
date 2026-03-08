@@ -64,6 +64,10 @@ dependencies {
     // Lifecycle
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
 
+    // WebKit — WebViewAssetLoader serves assets via https://appassets.androidplatform.net
+    // so ES module scripts load without CORS errors on file:// URLs
+    implementation(libs.androidx.webkit)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

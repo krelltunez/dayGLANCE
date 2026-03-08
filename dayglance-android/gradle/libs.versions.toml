@@ -11,6 +11,7 @@ workManager = "2.9.0"
 room = "2.6.1"
 coroutines = "1.8.1"
 lifecycleViewmodel = "2.8.2"
+webkit = "1.11.0"
 junit = "4.13.2"
 junitExt = "1.2.1"
 espresso = "3.6.1"
@@ -37,6 +38,9 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # Lifecycle
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodel" }
+
+# WebKit (WebViewAssetLoader — serves assets via https://appassets.androidplatform.net)
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

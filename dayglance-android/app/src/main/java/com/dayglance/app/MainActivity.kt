@@ -5,12 +5,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
 import com.dayglance.app.bridge.NativeBridge
 import com.dayglance.app.databinding.ActivityMainBinding
 
@@ -43,12 +45,22 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         requestRuntimePermissions()
 
-        // TODO Phase 1: replace with your hosted URL or switch to bundled assets
-        webView.loadUrl("file:///android_asset/web/index.html")
+        // WebViewAssetLoader serves assets via https://appassets.androidplatform.net
+        // so ES module scripts load without CORS errors (file:// blocks type="module")
+        webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
     }
 
     private fun configureWebView() {
-        webView.webViewClient = WebViewClient()
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ) = assetLoader.shouldInterceptRequest(request.url)
+        }
         webView.webChromeClient = WebChromeClient()
 
         webView.settings.apply {
