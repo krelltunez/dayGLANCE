@@ -3,19 +3,20 @@ package com.dayglance.app.settings
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
+import com.google.android.material.textfield.TextInputEditText
 
 /**
- * Phase 1 / Phase 4: Settings screen.
+ * Phase 4: Settings screen.
  *
- * Phase 1: placeholder for future settings.
- * Phase 4: Obsidian vault folder picker — user selects the vault root
- *          directory; the path is stored in SharedDataStore.
- *
- * TODO Phase 4: implement vault folder picker with Storage Access Framework
+ * Allows the user to configure their Obsidian vault for daily note sync:
+ *  - Vault root folder (selected via Storage Access Framework directory picker)
+ *  - Daily note subfolder (relative path inside the vault, e.g. "Daily Notes")
+ *  - Daily note filename pattern (Java DateTimeFormatter, e.g. "yyyy-MM-dd")
  */
 class SettingsActivity : AppCompatActivity() {
 
@@ -50,8 +51,24 @@ class SettingsActivity : AppCompatActivity() {
 
         updateVaultPathDisplay()
 
+        // Populate daily note fields from stored prefs
+        val folderField = findViewById<TextInputEditText>(R.id.et_daily_note_folder)
+        val patternField = findViewById<TextInputEditText>(R.id.et_daily_note_pattern)
+
+        folderField.setText(dataStore.dailyNoteFolder)
+        patternField.setText(dataStore.dailyNotePattern)
+
         findViewById<Button>(R.id.btn_select_vault)?.setOnClickListener {
             vaultPicker.launch(null)
+        }
+
+        findViewById<Button>(R.id.btn_save_daily_note_settings)?.setOnClickListener {
+            dataStore.dailyNoteFolder = folderField.text?.toString()?.trim() ?: ""
+            val pattern = patternField.text?.toString()?.trim()
+                .takeIf { !it.isNullOrBlank() }
+                ?: SharedDataStore.DEFAULT_DAILY_NOTE_PATTERN
+            dataStore.dailyNotePattern = pattern
+            Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
         }
     }
 

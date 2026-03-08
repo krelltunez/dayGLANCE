@@ -2,44 +2,48 @@ package com.dayglance.app.bridge
 
 import android.content.Context
 import android.webkit.JavascriptInterface
+import com.dayglance.app.data.ObsidianRepository
 
 /**
  * Phase 4: Obsidian vault bridge.
  *
- * Reads and writes markdown files in the user's Obsidian vault. The vault
- * root path is configured in SettingsActivity and stored in SharedPreferences.
+ * Exposes vault file I/O to the WebView via window.DayGlanceNative. The vault
+ * root URI and daily note settings are configured in SettingsActivity.
  *
- * Unlike the PWA (which uses the File System Access API), the native app can
- * read/write vault files directly from the file system.
- *
- * TODO Phase 4: implement with ObsidianRepository
+ * All methods run synchronously on the JavascriptInterface background thread —
+ * SAF I/O is acceptable here since it's typically fast for local storage.
  */
 class ObsidianBridge(private val context: Context) {
 
-    @JavascriptInterface
-    fun getDailyNote(date: String): String {
-        // TODO Phase 4: ObsidianRepository.getDailyNote(date)
-        // Returns raw markdown content of the daily note, or "" if not found
-        return ""
-    }
+    private val repository = ObsidianRepository(context)
 
+    /**
+     * Returns the raw markdown content of the daily note for [date] (ISO: yyyy-MM-dd).
+     * Returns "" if vault isn't configured or the note doesn't exist.
+     */
     @JavascriptInterface
-    fun listNotes(folder: String): String {
-        // TODO Phase 4: ObsidianRepository.listNotes(folder)
-        // Returns JSON array of note paths relative to vault root
-        return "[]"
-    }
+    fun getDailyNote(date: String): String = repository.getDailyNote(date)
 
+    /**
+     * Returns a JSON array of note paths (relative to vault root) in [folder].
+     * Returns "[]" if vault isn't configured or the folder doesn't exist.
+     */
     @JavascriptInterface
-    fun appendToNote(path: String, content: String): Boolean {
-        // TODO Phase 4: ObsidianRepository.appendToNote(path, content)
-        return false
-    }
+    fun listNotes(folder: String): String = repository.listNotes(folder)
 
+    /**
+     * Appends [content] to the note at [path] (relative to vault root).
+     * Creates the file and any missing parent directories if needed.
+     * Returns false if the vault isn't configured or a write error occurs.
+     */
     @JavascriptInterface
-    fun getTasksFromNote(path: String): String {
-        // TODO Phase 4: ObsidianRepository.getTasksFromNote(path)
-        // Returns JSON array: [{ "text": "...", "completed": false, "line": 12 }]
-        return "[]"
-    }
+    fun appendToNote(path: String, content: String): Boolean =
+        repository.appendToNote(path, content)
+
+    /**
+     * Parses GFM task items from the note at [path] (relative to vault root).
+     * Returns a JSON array: [{ "text": "...", "completed": false, "line": 1 }, ...]
+     */
+    @JavascriptInterface
+    fun getTasksFromNote(path: String): String = repository.getTasksFromNote(path)
 }

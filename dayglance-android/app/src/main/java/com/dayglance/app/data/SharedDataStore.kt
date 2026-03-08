@@ -18,11 +18,29 @@ class SharedDataStore(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // ── Obsidian vault path ─────────────────────────────────────────────────
+    // ── Obsidian vault settings ─────────────────────────────────────────────
 
+    /** SAF tree URI for the vault root, set by SettingsActivity. */
     var vaultPath: String?
         get() = prefs.getString(KEY_VAULT_PATH, null)
         set(value) = prefs.edit { putString(KEY_VAULT_PATH, value) }
+
+    /**
+     * Folder path relative to the vault root where daily notes are stored.
+     * e.g. "Daily Notes" or "Journal/Daily". Empty string means vault root.
+     */
+    var dailyNoteFolder: String
+        get() = prefs.getString(KEY_DAILY_NOTE_FOLDER, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_DAILY_NOTE_FOLDER, value) }
+
+    /**
+     * Java DateTimeFormatter pattern for daily note filenames (without .md).
+     * Defaults to "yyyy-MM-dd" which produces e.g. "2026-03-08.md".
+     */
+    var dailyNotePattern: String
+        get() = prefs.getString(KEY_DAILY_NOTE_PATTERN, DEFAULT_DAILY_NOTE_PATTERN)
+            ?: DEFAULT_DAILY_NOTE_PATTERN
+        set(value) = prefs.edit { putString(KEY_DAILY_NOTE_PATTERN, value) }
 
     // ── Widget snapshot ─────────────────────────────────────────────────────
 
@@ -45,8 +63,12 @@ class SharedDataStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "dayglance_shared"
         private const val KEY_VAULT_PATH = "obsidian_vault_path"
+        private const val KEY_DAILY_NOTE_FOLDER = "obsidian_daily_note_folder"
+        private const val KEY_DAILY_NOTE_PATTERN = "obsidian_daily_note_pattern"
         private const val KEY_WIDGET_SNAPSHOT = "widget_snapshot"
         private const val KEY_WIDGET_SNAPSHOT_TS = "widget_snapshot_ts"
         private const val KEY_STEPS_CACHE = "steps_cache"
+
+        const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }
 }

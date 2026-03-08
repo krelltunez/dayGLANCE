@@ -1,37 +1,101 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:layout_height="match_parent">
 
-    <!-- Phase 4: Obsidian vault picker -->
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Obsidian Vault"
-        android:textAppearance="?attr/textAppearanceTitleMedium"
-        android:layout_marginBottom="4dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Select the root folder of your Obsidian vault to enable daily note sync."
-        android:textAppearance="?attr/textAppearanceBodySmall"
-        android:layout_marginBottom="12dp" />
+        <!-- ── Vault root ── -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Obsidian Vault"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:layout_marginBottom="4dp" />
 
-    <TextView
-        android:id="@+id/tv_vault_path"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Not configured"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:layout_marginBottom="12dp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Select the root folder of your Obsidian vault to enable daily note sync."
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:layout_marginBottom="8dp" />
 
-    <Button
-        android:id="@+id/btn_select_vault"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Select Vault Folder" />
+        <TextView
+            android:id="@+id/tv_vault_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Not configured"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:layout_marginBottom="12dp" />
 
-</LinearLayout>
+        <Button
+            android:id="@+id/btn_select_vault"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Select Vault Folder"
+            android:layout_marginBottom="32dp" />
+
+        <!-- ── Daily note location ── -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Daily Note Location"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Folder inside your vault where daily notes are stored. Leave blank to use the vault root."
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Daily note folder (e.g. Daily Notes)"
+            android:layout_marginBottom="16dp"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_daily_note_folder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:imeOptions="actionNext" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Date pattern for the note filename (without .md). Uses Java DateTimeFormatter syntax."
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Filename pattern (e.g. yyyy-MM-dd)"
+            android:layout_marginBottom="16dp"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_daily_note_pattern"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:imeOptions="actionDone" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <Button
+            android:id="@+id/btn_save_daily_note_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Save" />
+
+    </LinearLayout>
+</ScrollView>

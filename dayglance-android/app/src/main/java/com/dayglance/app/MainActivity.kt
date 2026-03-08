@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.health.connect.client.PermissionController
 import androidx.webkit.WebViewAssetLoader
 import com.dayglance.app.bridge.NativeBridge
+import com.dayglance.app.bridge.ObsidianBridge
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.databinding.ActivityMainBinding
 
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var webView: WebView
     private lateinit var nativeBridge: NativeBridge
+    private lateinit var obsidianBridge: ObsidianBridge
     private lateinit var healthRepository: HealthRepository
 
     // Registered in onCreate (before the activity starts) — safe to call from any thread
@@ -53,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
         webView = binding.webView
         healthRepository = HealthRepository(this)
+        obsidianBridge = ObsidianBridge(this)
         nativeBridge = NativeBridge(
             context = this,
             healthRepository = healthRepository,
@@ -112,6 +115,8 @@ class MainActivity : AppCompatActivity() {
 
         // Inject the native bridge — exposes window.DayGlanceNative in JS
         webView.addJavascriptInterface(nativeBridge, "DayGlanceNative")
+        // Expose Obsidian vault methods on the same interface name (separate object)
+        webView.addJavascriptInterface(obsidianBridge, "DayGlanceObsidian")
     }
 
     private fun requestRuntimePermissions() {

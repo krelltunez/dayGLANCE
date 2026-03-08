@@ -12,6 +12,7 @@ room = "2.6.1"
 coroutines = "1.8.1"
 lifecycleViewmodel = "2.8.2"
 webkit = "1.11.0"
+documentfile = "1.0.1"
 junit = "4.13.2"
 junitExt = "1.2.1"
 espresso = "3.6.1"
@@ -41,6 +42,9 @@ androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifec
 
 # WebKit (WebViewAssetLoader — serves assets via https://appassets.androidplatform.net)
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
+
+# DocumentFile (Storage Access Framework — Obsidian vault file I/O)
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

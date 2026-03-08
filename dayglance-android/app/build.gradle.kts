@@ -68,6 +68,9 @@ dependencies {
     // so ES module scripts load without CORS errors on file:// URLs
     implementation(libs.androidx.webkit)
 
+    // DocumentFile — Storage Access Framework wrapper for Obsidian vault file I/O
+    implementation(libs.androidx.documentfile)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

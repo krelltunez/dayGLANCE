@@ -21,7 +21,7 @@ export const isNativeAndroid = () =>
   typeof window !== 'undefined' && !!window.DayGlanceNative;
 
 /**
- * Returns the native bridge object, or null when running as a PWA.
+ * Returns the native bridge object (Health, Calendar, Notifications), or null when running as a PWA.
  *
  * The bridge exposes (when implemented in the Android app):
  *
@@ -35,12 +35,6 @@ export const isNativeAndroid = () =>
  *     updateEvent(eventJson: string): string
  *     deleteEvent(eventId: string): string
  *
- *   Obsidian (Phase 4):
- *     getDailyNote(date: string): string   — raw markdown content
- *     listNotes(folder: string): string    — JSON array of note paths
- *     appendToNote(path: string, content: string): boolean
- *     getTasksFromNote(path: string): string — JSON array of tasks
- *
  *   Notifications (Phase 5):
  *     scheduleReminder(id, title, body, triggerAtMillis): void
  *     cancelReminder(id: string): void
@@ -48,6 +42,20 @@ export const isNativeAndroid = () =>
  */
 export const nativeBridge = () =>
   isNativeAndroid() ? window.DayGlanceNative : null;
+
+/**
+ * Returns the Obsidian vault bridge object (Phase 4), or null when running as a PWA.
+ *
+ * Registered separately as window.DayGlanceObsidian so vault file I/O is
+ * isolated from the main bridge. The bridge exposes:
+ *
+ *   getDailyNote(date: string): string     — raw markdown content
+ *   listNotes(folder: string): string      — JSON array of note paths relative to vault root
+ *   appendToNote(path: string, content: string): boolean
+ *   getTasksFromNote(path: string): string — JSON array of { text, completed, line }
+ */
+export const obsidianBridge = () =>
+  typeof window !== 'undefined' ? window.DayGlanceObsidian ?? null : null;
 
 /**
  * Convenience helpers — each returns null / empty value when the bridge is
@@ -94,14 +102,24 @@ export const nativeCreateEvent = async (eventJson) => {
   }
 };
 
-export const nativeGetDailyNote = async (date) => {
-  const bridge = nativeBridge();
+export const nativeGetDailyNote = (date) => {
+  const bridge = obsidianBridge();
   if (!bridge?.getDailyNote) return null;
   return bridge.getDailyNote(date);
 };
 
-export const nativeGetTasksFromNote = async (path) => {
-  const bridge = nativeBridge();
+export const nativeListNotes = (folder) => {
+  const bridge = obsidianBridge();
+  if (!bridge?.listNotes) return null;
+  try {
+    return JSON.parse(bridge.listNotes(folder));
+  } catch {
+    return null;
+  }
+};
+
+export const nativeGetTasksFromNote = (path) => {
+  const bridge = obsidianBridge();
   if (!bridge?.getTasksFromNote) return null;
   try {
     return JSON.parse(bridge.getTasksFromNote(path));
@@ -110,8 +128,8 @@ export const nativeGetTasksFromNote = async (path) => {
   }
 };
 
-export const nativeAppendToNote = async (path, content) => {
-  const bridge = nativeBridge();
+export const nativeAppendToNote = (path, content) => {
+  const bridge = obsidianBridge();
   if (!bridge?.appendToNote) return false;
   return bridge.appendToNote(path, content);
 };
