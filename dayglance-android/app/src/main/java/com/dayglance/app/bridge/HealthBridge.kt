@@ -30,4 +30,13 @@ class HealthBridge(private val context: Context) {
         // Returns JSON: { "durationMinutes": 0, "stages": [] }
         return "{\"durationMinutes\":0,\"stages\":[]}"
     }
+
+    @JavascriptInterface
+    fun requestPermission(): String {
+        // TODO Phase 2: launch Health Connect permission contract via MainActivity.
+        // The real flow uses HealthDataClient and HealthPermission.getHealthPermission()
+        // called from an ActivityResultLauncher registered in MainActivity.
+        // Returns "granted" or "denied".
+        return "granted"
+    }
 }

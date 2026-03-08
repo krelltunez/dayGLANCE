@@ -28,6 +28,9 @@ class NativeBridge(private val context: Context) {
     @JavascriptInterface
     fun getSleep(date: String): String = health.getSleep(date)
 
+    @JavascriptInterface
+    fun requestHealthPermission(): String = health.requestPermission()
+
     // ── Calendar ────────────────────────────────────────────────────────────
 
     @JavascriptInterface

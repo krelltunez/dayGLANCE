@@ -1394,7 +1394,8 @@ const HABIT_COLORS = [
 ];
 
 // HabitRing — SVG circular progress ring component
-const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode }) => {
+// autoSynced: true when the count comes from Health Connect — disables tap interactions
+const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false }) => {
   const { type, target, color, icon } = habit;
   const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
   const IconComponent = HABIT_ICONS[icon] || Target;
@@ -1432,42 +1433,50 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
   return (
     <button
       data-ctx-menu
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      onMouseDown={onMouseDown}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseLeave}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      className="flex flex-col items-center gap-0.5 select-none active:scale-95 transition-transform"
+      onClick={autoSynced ? undefined : onClick}
+      onContextMenu={autoSynced ? undefined : onContextMenu}
+      onMouseDown={autoSynced ? undefined : onMouseDown}
+      onMouseUp={autoSynced ? undefined : onMouseUp}
+      onMouseLeave={autoSynced ? undefined : onMouseLeave}
+      onTouchStart={autoSynced ? undefined : onTouchStart}
+      onTouchEnd={autoSynced ? undefined : onTouchEnd}
+      className={`flex flex-col items-center gap-0.5 select-none transition-transform ${autoSynced ? 'cursor-default' : 'active:scale-95'}`}
       style={{ width: size + 8 }}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-        {/* Background circle */}
-        <circle
-          cx={center} cy={center} r={radius}
-          fill="none" strokeWidth={strokeWidth}
-          stroke={darkMode ? '#374151' : '#e5e7eb'}
-        />
-        {/* Progress arc */}
-        <circle
-          cx={center} cy={center} r={radius}
-          fill="none" strokeWidth={strokeWidth}
-          stroke={ringColor}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          className="transition-all duration-300"
-        />
-      </svg>
-      {/* Icon overlay */}
-      <div className="absolute flex items-center justify-center" style={{ width: size, height: size }}>
-        {showCheck ? (
-          <Check size={iconSize} strokeWidth={3} style={{ color: '#22c55e' }} />
-        ) : showX ? (
-          <X size={iconSize} strokeWidth={3} style={{ color: '#ef4444' }} />
-        ) : (
-          <IconComponent size={iconSize} style={{ color: ringColor === (darkMode ? '#4b5563' : '#d1d5db') ? (darkMode ? '#9ca3af' : '#9ca3af') : ringColor }} />
+      <div className="relative">
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+          {/* Background circle */}
+          <circle
+            cx={center} cy={center} r={radius}
+            fill="none" strokeWidth={strokeWidth}
+            stroke={darkMode ? '#374151' : '#e5e7eb'}
+          />
+          {/* Progress arc */}
+          <circle
+            cx={center} cy={center} r={radius}
+            fill="none" strokeWidth={strokeWidth}
+            stroke={ringColor}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            className="transition-all duration-300"
+          />
+        </svg>
+        {/* Icon overlay */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          {showCheck ? (
+            <Check size={iconSize} strokeWidth={3} style={{ color: '#22c55e' }} />
+          ) : showX ? (
+            <X size={iconSize} strokeWidth={3} style={{ color: '#ef4444' }} />
+          ) : (
+            <IconComponent size={iconSize} style={{ color: ringColor === (darkMode ? '#4b5563' : '#d1d5db') ? (darkMode ? '#9ca3af' : '#9ca3af') : ringColor }} />
+          )}
+        </div>
+        {/* Auto-sync indicator — small dot in top-right corner */}
+        {autoSynced && (
+          <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
+            <RefreshCw size={7} className="text-white" />
+          </div>
         )}
       </div>
       {/* Count label */}
@@ -3775,6 +3784,7 @@ const DayPlanner = () => {
       if (!document.hidden) {
         setCurrentTime(new Date());
         cloudSyncDownloadRef.current?.();
+        syncHealthConnectHabitsRef.current?.();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -7882,6 +7892,71 @@ const DayPlanner = () => {
       active.splice(toIndex, 0, moved);
       const archived = updated.filter(h => h.archived);
       return [...active, ...archived];
+    });
+  };
+
+  // Ref kept current so the visibilitychange handler always calls the latest version
+  const syncHealthConnectHabitsRef = useRef(null);
+
+  // Pull Health Connect data into habits that have source === 'healthConnect'.
+  // Backfills the last 7 days so historical rings are accurate on first setup.
+  const syncHealthConnectHabits = () => {
+    if (!window.DayGlanceNative) return;
+    const healthHabits = habits.filter(h => !h.archived && h.source === 'healthConnect');
+    if (!healthHabits.length) return;
+
+    const today = new Date();
+    const updates = {};
+    for (let daysBack = 0; daysBack < 7; daysBack++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - daysBack);
+      const dateStr = dateToString(d);
+      for (const habit of healthHabits) {
+        try {
+          let count = 0;
+          if (habit.unit === 'steps') {
+            const result = JSON.parse(window.DayGlanceNative.getSteps(dateStr));
+            count = result.steps ?? 0;
+          } else if (habit.unit === 'min' || habit.unit === 'minutes') {
+            const result = JSON.parse(window.DayGlanceNative.getSleep(dateStr));
+            count = result.durationMinutes ?? 0;
+          }
+          if (!updates[dateStr]) updates[dateStr] = {};
+          updates[dateStr][habit.id] = count;
+        } catch (e) { /* ignore parse errors */ }
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      setHabitLogs(prev => {
+        const next = { ...prev };
+        for (const [dateStr, entries] of Object.entries(updates)) {
+          next[dateStr] = { ...next[dateStr], ...entries };
+        }
+        return next;
+      });
+    }
+  };
+  // Keep ref current at render time (no stale closure in event listeners)
+  syncHealthConnectHabitsRef.current = syncHealthConnectHabits;
+
+  // Sync on mount and whenever the habits list changes (e.g. steps habit just added)
+  useEffect(() => {
+    syncHealthConnectHabitsRef.current?.();
+  }, [habits]);
+
+  // Create the steps habit pre-configured for Health Connect auto-sync
+  const addStepsHabit = () => {
+    if (!window.DayGlanceNative) return;
+    // Request permission — stub returns "granted", real impl launches HC permission dialog
+    try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
+    addHabit({
+      name: 'Steps',
+      icon: 'Footprints',
+      color: 'green',
+      type: 'doMore',
+      target: 10000,
+      unit: 'steps',
+      source: 'healthConnect',
     });
   };
 
@@ -14171,13 +14246,14 @@ const DayPlanner = () => {
                             habit={habit}
                             count={getTodayHabitCount(habit.id)}
                             darkMode={darkMode}
-                            onClick={() => incrementHabit(habit.id)}
-                            onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
-                            onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
-                            onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-                            onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-                            onTouchStart={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
-                            onTouchEnd={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                            autoSynced={!!habit.source}
+                            onClick={habit.source ? undefined : () => incrementHabit(habit.id)}
+                            onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
+                            onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                            onMouseUp={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                            onMouseLeave={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                            onTouchStart={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                            onTouchEnd={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                           />
                           {habitLongPressId === habit.id && (
                             <>
@@ -14227,8 +14303,8 @@ const DayPlanner = () => {
                                   return (
                                     <button
                                       key={habit.id}
-                                      onClick={() => { incrementHabit(habit.id); }}
-                                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'} transition-colors`}
+                                      onClick={habit.source ? undefined : () => { incrementHabit(habit.id); }}
+                                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${habit.source ? 'cursor-default' : `${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'}`} transition-colors`}
                                     >
                                       <IconComp size={16} style={{ color: colorObj.ring }} />
                                       <span className={`text-sm flex-1 text-left ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</span>
@@ -23247,7 +23323,14 @@ const DayPlanner = () => {
                             </div>
                             <IconComp size={20} style={{ color: colorObj.ring }} className="flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <div className={`text-sm font-medium ${textPrimary} truncate`}>{habit.name}</div>
+                              <div className={`text-sm font-medium ${textPrimary} truncate flex items-center gap-1.5`}>
+                                {habit.name}
+                                {habit.source === 'healthConnect' && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0">
+                                    <RefreshCw size={9} />Auto-synced
+                                  </span>
+                                )}
+                              </div>
                               <div className={`text-xs ${textSecondary}`}>
                                 {habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}
                               </div>
@@ -23285,6 +23368,23 @@ const DayPlanner = () => {
                       <Plus size={16} />
                       Add Habit
                     </button>
+                  )}
+
+                  {/* Health Connect steps suggestion — only shown on Android with native bridge */}
+                  {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'steps') && activeHabits.length < 8 && (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
+                      <Footprints size={22} className="text-green-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>Track steps automatically</div>
+                        <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                      </div>
+                      <button
+                        onClick={addStepsHabit}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors flex-shrink-0"
+                      >
+                        Add
+                      </button>
+                    </div>
                   )}
 
                   {/* Archived habits */}
