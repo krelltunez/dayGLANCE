@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:android": "npx --no-install vite build --config vite.config.android.js",
+    "build:android": "./node_modules/.bin/vite build --config vite.config.android.js",
     "preview": "vite preview",
     "test": "vitest run"
   },
