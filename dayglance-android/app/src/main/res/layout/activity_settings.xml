@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Phase 4: Obsidian vault picker -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Obsidian Vault"
+        android:textAppearance="?attr/textAppearanceTitleMedium"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select the root folder of your Obsidian vault to enable daily note sync."
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/tv_vault_path"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Not configured"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btn_select_vault"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Select Vault Folder" />
+
+</LinearLayout>

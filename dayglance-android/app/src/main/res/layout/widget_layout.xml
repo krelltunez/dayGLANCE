@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phase 6: Home screen widget layout.
+
+  RemoteViews constraints: only standard Android view types are supported —
+  no WebView, no custom views. Use TextView, ImageView, LinearLayout, etc.
+
+  Design language (from DayGlance web frontend):
+    Primary blue:  #3b82f6 (Tailwind blue-500)
+    Accent orange: #f97316 (Tailwind orange-500)
+    Dark bg:       #1f2937 (Tailwind gray-800)
+    Font:          Lora serif (use downloadable font or fallback to serif)
+
+  TODO Phase 6: build out agenda, steps, and focus block sections
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_background">
+
+    <!-- Header: date + app name -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tv_date"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Today"
+            android:textColor="#1f2937"
+            android:textStyle="bold"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="dayGLANCE"
+            android:textColor="#3b82f6"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+
+    <!-- Steps row (Phase 2+) -->
+    <TextView
+        android:id="@+id/tv_steps"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Steps: —"
+        android:textColor="#6b7280"
+        android:textSize="12sp"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Current / next event (Phase 3+) -->
+    <TextView
+        android:id="@+id/tv_next_event"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No upcoming events"
+        android:textColor="#374151"
+        android:textSize="13sp"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Focus block (Phase 5+) -->
+    <TextView
+        android:id="@+id/tv_focus_block"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#f97316"
+        android:textSize="12sp" />
+
+</LinearLayout>

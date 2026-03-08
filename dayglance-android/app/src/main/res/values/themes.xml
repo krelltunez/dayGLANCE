@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme — inherits from Material3 -->
+    <style name="Theme.DayGlance" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary: DayGlance blue -->
+        <item name="colorPrimary">#3b82f6</item>
+        <item name="colorPrimaryVariant">#2563eb</item>
+        <!-- Accent: DayGlance orange -->
+        <item name="colorSecondary">#f97316</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- Settings activity — with action bar -->
+    <style name="Theme.DayGlance.Settings" parent="Theme.DayGlance">
+        <item name="windowActionBar">true</item>
+        <item name="windowNoTitle">false</item>
+    </style>
+</resources>
