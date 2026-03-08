@@ -32,7 +32,16 @@ export default defineConfig({
     },
   },
 
-  plugins: [react()], // No VitePWA — service workers don't work on file://
+  plugins: [
+    react(),
+    // Remove crossorigin attributes — they cause CORS errors on file:// URLs in Android WebView
+    {
+      name: 'remove-crossorigin',
+      transformIndexHtml(html) {
+        return html.replace(/ crossorigin/g, '');
+      },
+    },
+  ],
 
   build: {
     outDir: 'dayglance-android/app/src/main/assets/web',
