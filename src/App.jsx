@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
+import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -11839,6 +11840,12 @@ const DayPlanner = () => {
           }
         });
       }
+      // Native Android: show rich notifications with Snooze / Mark Complete action buttons
+      if (isNativeAndroid()) {
+        for (const r of newReminders) {
+          nativeShowTaskNotification(r);
+        }
+      }
     }
   }, [currentTime, reminderSettings, tasks, expandedRecurringTasks]);
 
@@ -11856,6 +11863,23 @@ const DayPlanner = () => {
     }, 30000);
     return () => clearInterval(timer);
   }, [activeReminders.length]);
+
+  // Native Android: pick up pending actions (e.g. Mark Complete) from notification buttons.
+  // The native side stores the action in SharedPreferences; we read it here via getPendingAction()
+  // whenever the app comes back to the foreground (visibilitychange) or on first mount.
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+    const checkPending = () => {
+      const pending = nativeGetPendingAction();
+      if (pending?.action === 'complete' && pending.taskId) {
+        toggleComplete(pending.taskId);
+      }
+    };
+    const onVisibility = () => { if (document.visibilityState === 'visible') checkPending(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    checkPending(); // also check immediately on mount
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Spotlight search results

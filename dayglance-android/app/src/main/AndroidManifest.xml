@@ -77,6 +77,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Notification action button receiver (Snooze, Mark Complete) -->
+        <receiver
+            android:name=".notifications.NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.dayglance.app.ACTION_SNOOZE" />
+                <action android:name="com.dayglance.app.ACTION_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

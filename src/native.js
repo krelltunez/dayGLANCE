@@ -151,3 +151,40 @@ export const nativeShowNotification = (title, body) => {
   if (!bridge?.showNotification) return;
   bridge.showNotification(title, body);
 };
+
+/**
+ * Shows a rich task reminder notification with Snooze / Mark Complete action buttons.
+ *
+ * @param reminder  The reminder object from the App.jsx reminder engine:
+ *   { id, taskId, taskTitle, message, type, isCalendarEvent }
+ */
+export const nativeShowTaskNotification = (reminder) => {
+  const bridge = nativeBridge();
+  if (!bridge?.showTaskNotification) return;
+  bridge.showTaskNotification(
+    String(reminder.id),
+    String(reminder.taskId),
+    reminder.taskTitle,
+    reminder.message,
+    reminder.type,
+    reminder.isCalendarEvent === true,
+  );
+};
+
+/**
+ * Reads and clears any pending action stored by a notification action button.
+ * Returns null if nothing is pending, or { action: 'complete', taskId: '...' }.
+ *
+ * Call this on app focus / visibilitychange to pick up actions that happened
+ * while the app was backgrounded.
+ */
+export const nativeGetPendingAction = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.getPendingAction) return null;
+  try {
+    const raw = bridge.getPendingAction();
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};

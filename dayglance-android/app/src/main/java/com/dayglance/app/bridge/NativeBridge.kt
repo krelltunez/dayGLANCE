@@ -3,6 +3,7 @@ package com.dayglance.app.bridge
 import android.content.Context
 import android.webkit.JavascriptInterface
 import com.dayglance.app.data.HealthRepository
+import com.dayglance.app.data.SharedDataStore
 
 /**
  * Main bridge — exposed to JS as `window.DayGlanceNative`.
@@ -24,6 +25,7 @@ class NativeBridge(
     private val calendar = CalendarBridge(context)
     private val obsidian = ObsidianBridge(context)
     private val notifications = NotificationBridge(context)
+    private val dataStore = SharedDataStore(context)
 
     // ── Health Connect ──────────────────────────────────────────────────────
 
@@ -75,4 +77,35 @@ class NativeBridge(
 
     @JavascriptInterface
     fun showNotification(title: String, body: String) = notifications.showNotification(title, body)
+
+    /**
+     * Shows a rich task reminder notification with Snooze / Mark Complete action buttons.
+     * Called by the JS reminder engine when running in the native WebView.
+     */
+    @JavascriptInterface
+    fun showTaskNotification(
+        reminderId: String,
+        taskId: String,
+        title: String,
+        body: String,
+        type: String,
+        isCalendarEvent: Boolean,
+    ) = notifications.showTaskNotification(reminderId, taskId, title, body, type, isCalendarEvent)
+
+    /**
+     * Returns a JSON object describing a pending action triggered by a notification
+     * action button (e.g. Mark Complete), then clears it. Returns "" if none pending.
+     *
+     * Format: { "action": "complete", "taskId": "..." }
+     *
+     * The JS layer calls this on every visibilitychange event to pick up actions
+     * that happened while the app was backgrounded.
+     */
+    @JavascriptInterface
+    fun getPendingAction(): String {
+        val taskId = dataStore.pendingCompleteTaskId ?: return ""
+        dataStore.pendingCompleteTaskId = null
+        val escaped = taskId.replace("\\", "\\\\").replace("\"", "\\\"")
+        return """{"action":"complete","taskId":"$escaped"}"""
+    }
 }

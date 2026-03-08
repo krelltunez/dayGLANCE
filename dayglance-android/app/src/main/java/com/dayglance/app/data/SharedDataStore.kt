@@ -53,6 +53,19 @@ class SharedDataStore(context: Context) {
         get() = prefs.getLong(KEY_WIDGET_SNAPSHOT_TS, 0L)
         set(value) = prefs.edit { putLong(KEY_WIDGET_SNAPSHOT_TS, value) }
 
+    // ── Notification pending actions ─────────────────────────────────────────
+
+    /**
+     * Task ID pending completion via a "Mark Complete" notification action button.
+     * Written by NotificationActionReceiver; read and cleared by NativeBridge.getPendingAction().
+     */
+    var pendingCompleteTaskId: String?
+        get() = prefs.getString(KEY_PENDING_COMPLETE, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_COMPLETE, value)
+            else remove(KEY_PENDING_COMPLETE)
+        }
+
     // ── Step count cache ────────────────────────────────────────────────────
 
     /** Cached step count for today, updated by WidgetUpdateWorker. */
@@ -68,6 +81,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_WIDGET_SNAPSHOT = "widget_snapshot"
         private const val KEY_WIDGET_SNAPSHOT_TS = "widget_snapshot_ts"
         private const val KEY_STEPS_CACHE = "steps_cache"
+        private const val KEY_PENDING_COMPLETE = "pending_complete_task_id"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }
