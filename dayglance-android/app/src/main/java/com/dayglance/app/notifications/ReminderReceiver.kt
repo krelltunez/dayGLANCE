@@ -1,14 +1,19 @@
 package com.dayglance.app.notifications
 
+import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.dayglance.app.DayGlanceApplication
 import com.dayglance.app.MainActivity
 import com.dayglance.app.R
+import com.dayglance.app.bridge.NotificationBridge
+import com.dayglance.app.data.SharedDataStore
+import org.json.JSONArray
 
 /**
  * Phase 5: BroadcastReceiver for scheduled reminder alarms.
@@ -17,18 +22,31 @@ import com.dayglance.app.R
  * notification with Snooze / Mark Complete action buttons matching the
  * in-app toast UX.
  *
- * Also handles BOOT_COMPLETED to reschedule alarms cancelled on device restart.
- *
- * TODO Phase 5: implement BOOT_COMPLETED rescheduling from persisted alarms
+ * Also handles BOOT_COMPLETED: reads the persisted reminder list from
+ * SharedDataStore and re-registers any alarms whose trigger time is still
+ * in the future (AlarmManager alarms don't survive device restarts).
  */
 class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
-            Intent.ACTION_BOOT_COMPLETED -> {
-                // TODO Phase 5: restore scheduled alarms from Room DB
-            }
+            Intent.ACTION_BOOT_COMPLETED -> rescheduleAfterBoot(context)
             else -> showReminder(context, intent)
+        }
+    }
+
+    private fun rescheduleAfterBoot(context: Context) {
+        val json = SharedDataStore(context).scheduledRemindersJson ?: return
+        val now = System.currentTimeMillis()
+        val bridge = NotificationBridge(context)
+        runCatching {
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val r = arr.getJSONObject(i)
+                // Skip reminders that already fired before the reboot
+                if (r.getLong("triggerAtMillis") <= now) continue
+                bridge.scheduleFromJson(r)
+            }
         }
     }
 

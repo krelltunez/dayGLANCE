@@ -93,6 +93,16 @@ class NativeBridge(
     ) = notifications.showTaskNotification(reminderId, taskId, title, body, type, isCalendarEvent)
 
     /**
+     * Replaces the full set of scheduled background reminder alarms.
+     * Called by the JS layer whenever tasks or reminder settings change.
+     * Also persists the list so ReminderReceiver can reschedule on device boot.
+     *
+     * [remindersJson] — JSON array of { id, taskId, title, body, type, isCalendarEvent, triggerAtMillis }
+     */
+    @JavascriptInterface
+    fun syncReminders(remindersJson: String) = notifications.syncReminders(remindersJson)
+
+    /**
      * Returns a JSON object describing a pending action triggered by a notification
      * action button (e.g. Mark Complete), then clears it. Returns "" if none pending.
      *

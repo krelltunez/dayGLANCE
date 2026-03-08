@@ -188,3 +188,19 @@ export const nativeGetPendingAction = () => {
     return null;
   }
 };
+
+/**
+ * Replaces all scheduled background reminder alarms with a new set.
+ *
+ * Call this whenever tasks or reminder settings change so AlarmManager always
+ * has the correct upcoming alarms — even when the app is closed or the device
+ * restarts (BOOT_COMPLETED handler re-registers from the persisted list).
+ *
+ * @param reminders  Array of upcoming reminders:
+ *   [{ id, taskId, title, body, type, isCalendarEvent, triggerAtMillis }, ...]
+ */
+export const nativeSyncReminders = (reminders) => {
+  const bridge = nativeBridge();
+  if (!bridge?.syncReminders) return;
+  bridge.syncReminders(JSON.stringify(reminders));
+};

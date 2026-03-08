@@ -66,6 +66,23 @@ class SharedDataStore(context: Context) {
             else remove(KEY_PENDING_COMPLETE)
         }
 
+    // ── Scheduled reminders (background alarm persistence) ───────────────────
+
+    /**
+     * JSON array of upcoming reminder alarms registered with AlarmManager.
+     * Written by NotificationBridge.syncReminders(); read by ReminderReceiver
+     * on BOOT_COMPLETED to reschedule alarms lost when the device restarts.
+     *
+     * Schema per element:
+     *   { id, taskId, title, body, type, isCalendarEvent, triggerAtMillis }
+     */
+    var scheduledRemindersJson: String?
+        get() = prefs.getString(KEY_SCHEDULED_REMINDERS, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_SCHEDULED_REMINDERS, value)
+            else remove(KEY_SCHEDULED_REMINDERS)
+        }
+
     // ── Step count cache ────────────────────────────────────────────────────
 
     /** Cached step count for today, updated by WidgetUpdateWorker. */
@@ -80,6 +97,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_DAILY_NOTE_PATTERN = "obsidian_daily_note_pattern"
         private const val KEY_WIDGET_SNAPSHOT = "widget_snapshot"
         private const val KEY_WIDGET_SNAPSHOT_TS = "widget_snapshot_ts"
+        private const val KEY_SCHEDULED_REMINDERS = "scheduled_reminders"
         private const val KEY_STEPS_CACHE = "steps_cache"
         private const val KEY_PENDING_COMPLETE = "pending_complete_task_id"
 

@@ -11,8 +11,11 @@ import androidx.core.app.NotificationCompat
 import com.dayglance.app.DayGlanceApplication
 import com.dayglance.app.MainActivity
 import com.dayglance.app.R
+import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.notifications.NotificationActionReceiver
 import com.dayglance.app.notifications.ReminderReceiver
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Phase 5: Notification bridge.
@@ -24,8 +27,15 @@ import com.dayglance.app.notifications.ReminderReceiver
  *   showNotification     — simple, no action buttons (generic alerts)
  *   showTaskNotification — rich notification with Snooze / Mark Complete
  *                          action buttons matching the in-app toast UX
+ *
+ * Background delivery:
+ *   syncReminders — replaces the full set of scheduled AlarmManager alarms
+ *   and persists them to SharedDataStore so ReminderReceiver can reschedule
+ *   on BOOT_COMPLETED.
  */
 class NotificationBridge(private val context: Context) {
+
+    private val dataStore = SharedDataStore(context)
 
     // ── Scheduling ───────────────────────────────────────────────────────────
 
@@ -126,6 +136,35 @@ class NotificationBridge(private val context: Context) {
         nm.notify(notifId, builder.build())
     }
 
+    // ── Background alarm sync ────────────────────────────────────────────────
+
+    /**
+     * Replaces all scheduled reminder alarms with a new set.
+     *
+     * Called by the JS layer whenever tasks or reminder settings change so that
+     * AlarmManager always has the correct upcoming alarms — even when the app
+     * is closed or the device restarts.
+     *
+     * [remindersJson] is a JSON array where each element has:
+     *   { id, taskId, title, body, type, isCalendarEvent, triggerAtMillis }
+     */
+    @JavascriptInterface
+    fun syncReminders(remindersJson: String) {
+        // Cancel all previously scheduled alarms
+        dataStore.scheduledRemindersJson?.let { cancelAlarmsFromJson(it) }
+
+        // Persist the new list (used by ReminderReceiver.BOOT_COMPLETED)
+        dataStore.scheduledRemindersJson = remindersJson
+
+        // Schedule each new alarm
+        runCatching {
+            val arr = JSONArray(remindersJson)
+            for (i in 0 until arr.length()) {
+                scheduleFromJson(arr.getJSONObject(i))
+            }
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private fun scheduleAlarm(pi: PendingIntent, triggerAtMillis: Long) {
@@ -178,5 +217,41 @@ class NotificationBridge(private val context: Context) {
             context, notifId + 2, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /** Cancels every AlarmManager alarm whose ID is listed in the stored JSON. */
+    internal fun cancelAlarmsFromJson(json: String) {
+        runCatching {
+            val arr = JSONArray(json)
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            for (i in 0 until arr.length()) {
+                val id = arr.getJSONObject(i).getString("id")
+                val pi = PendingIntent.getBroadcast(
+                    context, id.hashCode(),
+                    Intent(context, ReminderReceiver::class.java),
+                    PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+                ) ?: continue
+                am.cancel(pi)
+                pi.cancel()
+            }
+        }
+    }
+
+    /** Schedules a single alarm from a JSON object (same schema as syncReminders). */
+    internal fun scheduleFromJson(r: JSONObject) {
+        val id = r.getString("id")
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            putExtra(ReminderReceiver.EXTRA_ID, id)
+            putExtra(ReminderReceiver.EXTRA_TASK_ID, r.getString("taskId"))
+            putExtra(ReminderReceiver.EXTRA_TITLE, r.getString("title"))
+            putExtra(ReminderReceiver.EXTRA_BODY, r.getString("body"))
+            putExtra(ReminderReceiver.EXTRA_TYPE, r.getString("type"))
+            putExtra(ReminderReceiver.EXTRA_IS_CALENDAR, r.getBoolean("isCalendarEvent"))
+        }
+        val pi = PendingIntent.getBroadcast(
+            context, id.hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        scheduleAlarm(pi, r.getLong("triggerAtMillis"))
     }
 }

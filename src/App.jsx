@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction } from './native.js';
+import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -11881,6 +11881,55 @@ const DayPlanner = () => {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Native Android: pre-schedule background reminder alarms via AlarmManager so
+  // notifications fire even when the app is closed. Runs whenever tasks or settings
+  // change. On device reboot, ReminderReceiver.BOOT_COMPLETED re-registers from the
+  // persisted list stored by nativeSyncReminders.
+  useEffect(() => {
+    if (!isNativeAndroid() || !reminderSettings.enabled) return;
+
+    const todayStr = dateToString(new Date());
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const now = Date.now();
+
+    const todayRegular = tasks.filter(t => t.date === todayStr && !t.completed);
+    const todayRecurring = expandedRecurringTasks.filter(t => t.date === todayStr);
+    const allTodayTasks = [...todayRegular, ...todayRecurring];
+
+    const messageMap = {
+      before15: 'Starts in 15 minutes',
+      before10: 'Starts in 10 minutes',
+      before5: 'Starts in 5 minutes',
+      start: 'Starting now',
+      end: 'Ending now',
+      morning: 'All-day task reminder',
+    };
+
+    const futureReminders = [];
+    for (const task of allTodayTasks) {
+      if (task.completed) continue;
+      const category = getTaskCategory(task);
+      const catSettings = reminderSettings.categories?.[category];
+      if (!catSettings) continue;
+      const points = getReminderPoints(task, catSettings, reminderSettings.morningReminderTime);
+      for (const point of points) {
+        const triggerAtMillis = todayMidnight.getTime() + point.triggerMin * 60 * 1000;
+        if (triggerAtMillis <= now) continue; // already passed
+        futureReminders.push({
+          id: point.key,
+          taskId: String(task.id),
+          title: task.title,
+          body: messageMap[point.type] || 'Reminder',
+          type: point.type,
+          isCalendarEvent: !!(task.imported && !task.isTaskCalendar),
+          triggerAtMillis,
+        });
+      }
+    }
+
+    nativeSyncReminders(futureReminders);
+  }, [tasks, expandedRecurringTasks, reminderSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Spotlight search results
   const spotlightResults = useMemo(() => {
