@@ -7960,6 +7960,21 @@ const DayPlanner = () => {
     });
   };
 
+  // Create the sleep habit pre-configured for Health Connect auto-sync
+  const addSleepHabit = () => {
+    if (!window.DayGlanceNative) return;
+    try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
+    addHabit({
+      name: 'Sleep',
+      icon: 'Moon',
+      color: 'indigo',
+      type: 'doMore',
+      target: 480,
+      unit: 'min',
+      source: 'healthConnect',
+    });
+  };
+
   // Reminder snooze: push task start time forward 15 minutes
   const snoozeReminder = (reminder) => {
     pushUndo();
@@ -23381,6 +23396,23 @@ const DayPlanner = () => {
                       <button
                         onClick={addStepsHabit}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors flex-shrink-0"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Health Connect sleep suggestion — only shown on Android with native bridge */}
+                  {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'min') && activeHabits.length < 8 && (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
+                      <Moon size={22} className="text-indigo-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>Track sleep automatically</div>
+                        <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                      </div>
+                      <button
+                        onClick={addSleepHabit}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors flex-shrink-0"
                       >
                         Add
                       </button>
