@@ -2,6 +2,7 @@ package com.dayglance.app.bridge
 
 import android.content.Context
 import android.webkit.JavascriptInterface
+import com.dayglance.app.data.HealthRepository
 
 /**
  * Main bridge — exposed to JS as `window.DayGlanceNative`.
@@ -13,9 +14,13 @@ import android.webkit.JavascriptInterface
  * Each method is annotated with @JavascriptInterface so the Android runtime
  * makes it accessible from JavaScript.
  */
-class NativeBridge(private val context: Context) {
+class NativeBridge(
+    private val context: Context,
+    healthRepository: HealthRepository,
+    onRequestHealthPermission: () -> Unit,
+) {
 
-    private val health = HealthBridge(context)
+    private val health = HealthBridge(healthRepository, onRequestHealthPermission)
     private val calendar = CalendarBridge(context)
     private val obsidian = ObsidianBridge(context)
     private val notifications = NotificationBridge(context)

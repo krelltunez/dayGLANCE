@@ -13,8 +13,10 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.health.connect.client.PermissionController
 import androidx.webkit.WebViewAssetLoader
 import com.dayglance.app.bridge.NativeBridge
+import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.databinding.ActivityMainBinding
 
 /**
@@ -34,6 +36,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var webView: WebView
     private lateinit var nativeBridge: NativeBridge
+    private lateinit var healthRepository: HealthRepository
+
+    // Registered in onCreate (before the activity starts) — safe to call from any thread
+    private val requestHealthPermissions = registerForActivityResult(
+        PermissionController.createRequestPermissionResultContract()
+    ) { _ ->
+        // Permissions result is handled transparently: the next getSteps/getSleep
+        // call will succeed if granted, or return zeros if still denied.
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +52,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         webView = binding.webView
-        nativeBridge = NativeBridge(this)
+        healthRepository = HealthRepository(this)
+        nativeBridge = NativeBridge(
+            context = this,
+            healthRepository = healthRepository,
+            onRequestHealthPermission = {
+                // Launch must run on the main thread; JS interface callbacks run on a bg thread.
+                runOnUiThread {
+                    requestHealthPermissions.launch(healthRepository.requiredPermissions)
+                }
+            }
+        )
 
         configureWebView()
         requestRuntimePermissions()

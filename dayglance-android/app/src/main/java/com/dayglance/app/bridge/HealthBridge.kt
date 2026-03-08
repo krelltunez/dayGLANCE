@@ -1,42 +1,65 @@
 package com.dayglance.app.bridge
 
-import android.content.Context
 import android.webkit.JavascriptInterface
+import com.dayglance.app.data.HealthRepository
+import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 /**
- * Phase 2: Health Connect bridge.
+ * Health Connect bridge.
  *
- * Reads step counts, sleep data, and other health metrics from Android
- * Health Connect. Works with Samsung Health, Google Fit, and any app that
- * writes to Health Connect.
+ * Reads step counts and sleep data from Android Health Connect via
+ * [HealthRepository]. Methods are called on a WebView background thread, so
+ * [runBlocking] is safe here — it never blocks the main thread.
  *
- * Health Connect permissions are requested at runtime via the Health Connect
- * permission contract — see HealthRepository for the implementation.
- *
- * TODO Phase 2: implement with HealthRepository
+ * Permission flow: [requestPermission] delegates to [onRequestPermission], which
+ * posts an [ActivityResultLauncher] launch on the main thread in MainActivity.
  */
-class HealthBridge(private val context: Context) {
+class HealthBridge(
+    private val repository: HealthRepository,
+    private val onRequestPermission: () -> Unit,
+) {
 
     @JavascriptInterface
     fun getSteps(date: String): String {
-        // TODO Phase 2: query HealthRepository.getSteps(date)
-        // Returns JSON: { "steps": 8432, "goal": 10000 }
-        return "{\"steps\":0,\"goal\":10000}"
+        val localDate = parseDate(date)
+        val steps = runBlocking { repository.getSteps(localDate) }
+        return JSONObject()
+            .put("steps", steps)
+            .put("goal", 10000)
+            .toString()
     }
 
     @JavascriptInterface
     fun getSleep(date: String): String {
-        // TODO Phase 2: query HealthRepository.getSleep(date)
-        // Returns JSON: { "durationMinutes": 0, "stages": [] }
-        return "{\"durationMinutes\":0,\"stages\":[]}"
+        val localDate = parseDate(date)
+        val result = runBlocking { repository.getSleep(localDate) }
+        val stagesArray = JSONArray()
+        result.stages.forEach { s ->
+            stagesArray.put(
+                JSONObject()
+                    .put("stage", s.stage)
+                    .put("durationMinutes", s.durationMinutes)
+            )
+        }
+        return JSONObject()
+            .put("durationMinutes", result.durationMinutes)
+            .put("stages", stagesArray)
+            .toString()
     }
 
     @JavascriptInterface
     fun requestPermission(): String {
-        // TODO Phase 2: launch Health Connect permission contract via MainActivity.
-        // The real flow uses HealthDataClient and HealthPermission.getHealthPermission()
-        // called from an ActivityResultLauncher registered in MainActivity.
-        // Returns "granted" or "denied".
-        return "granted"
+        onRequestPermission()
+        return "pending"
+    }
+
+    private fun parseDate(date: String): LocalDate = try {
+        LocalDate.parse(date)
+    } catch (e: DateTimeParseException) {
+        LocalDate.now()
     }
 }

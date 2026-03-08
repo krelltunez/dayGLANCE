@@ -19,7 +19,11 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
-    <!-- Health Connect — declared via queries block, permissions requested at runtime -->
+    <!-- Health Connect — runtime permissions (required on Android 14+ where HC is built in) -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+
+    <!-- Health Connect — queries block for devices running Health Connect as a standalone app -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
     </queries>
