@@ -24909,10 +24909,10 @@ const DayPlanner = () => {
                       </>)}
                     </div>
 
-                    {!isMobile && !isTablet && (<>
+                    {(!isMobile && !isTablet || isNativeAndroid()) && (<>
                     <hr className={borderClass} />
 
-                    {/* Obsidian Integration Section — desktop only (requires File System Access API) */}
+                    {/* Obsidian Integration Section — desktop + Android native */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('obsidian')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BookOpen size={16} className={textSecondary} />
@@ -24924,7 +24924,20 @@ const DayPlanner = () => {
                       <p className={`${textSecondary} text-xs`}>
                         Import tasks and sync daily notes with your Obsidian vault.
                       </p>
-                      {obsidianConfig?.enabled ? (
+                      {isNativeAndroid() ? (
+                        <div className="space-y-3">
+                          <p className={`text-xs ${textSecondary}`}>
+                            Vault access and daily note settings are configured in the app settings.
+                          </p>
+                          <button
+                            onClick={() => window.DayGlanceNative.openSettings()}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                          >
+                            <FolderOpen size={14} />
+                            Open Vault Settings
+                          </button>
+                        </div>
+                      ) : obsidianConfig?.enabled ? (
                         <div className="space-y-3">
                           <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
                             <FolderOpen size={14} className={textSecondary} />

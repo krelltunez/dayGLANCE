@@ -1,9 +1,11 @@
 package com.dayglance.app.bridge
 
 import android.content.Context
+import android.content.Intent
 import android.webkit.JavascriptInterface
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.data.SharedDataStore
+import com.dayglance.app.settings.SettingsActivity
 
 /**
  * Main bridge — exposed to JS as `window.DayGlanceNative`.
@@ -104,6 +106,19 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun syncReminders(remindersJson: String) = notifications.syncReminders(remindersJson)
+
+    // ── Settings ─────────────────────────────────────────────────────────────
+
+    /**
+     * Opens the native SettingsActivity (Obsidian vault, daily note config).
+     * Must dispatch on the main thread since JS interface callbacks are background.
+     */
+    @JavascriptInterface
+    fun openSettings() {
+        val intent = Intent(context, SettingsActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
 
     /**
      * Returns a JSON object describing a pending action triggered by a notification
