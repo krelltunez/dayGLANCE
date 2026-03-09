@@ -102,6 +102,16 @@ export const nativeCreateEvent = async (eventJson) => {
   }
 };
 
+export const nativeUpdateEvent = async (eventJson) => {
+  const bridge = nativeBridge();
+  if (!bridge?.updateEvent) return null;
+  try {
+    return JSON.parse(bridge.updateEvent(JSON.stringify(eventJson)));
+  } catch {
+    return null;
+  }
+};
+
 export const nativeGetDailyNote = (date) => {
   const bridge = obsidianBridge();
   if (!bridge?.getDailyNote) return null;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders } from './native.js';
+import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -4427,7 +4427,7 @@ const DayPlanner = () => {
 
   const saveData = () => {
     try {
-      const stampedTasks = stampTaskTimestamps(tasks, 'day-planner-tasks');
+      const stampedTasks = stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks');
       const stampedUnscheduled = stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled');
       const stampedRecycleBin = stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin');
       const stampedRecurring = stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks');
@@ -7976,6 +7976,63 @@ const DayPlanner = () => {
     });
   };
 
+  // ── Native Calendar Events (Android only) ────────────────────────────────
+  // Fetches events from the device calendar for a ±2-day window around the
+  // selected date and merges them into `tasks` as _native-flagged entries.
+  // _native tasks are excluded from saveData so they're never persisted.
+
+  const nativeEventToTask = (event) => {
+    const isAllDay = event.allDay;
+    const startStr = event.start; // "YYYY-MM-DDThh:mm:ss" or "YYYY-MM-DD"
+    const endStr   = event.end;
+    const date     = startStr.substring(0, 10);
+    const startTime = isAllDay ? null : startStr.substring(11, 16); // "HH:MM"
+    let duration = 60;
+    if (!isAllDay && endStr.length >= 16) {
+      const endTime = endStr.substring(11, 16);
+      duration = Math.max(15, timeToMinutes(endTime) - timeToMinutes(startTime));
+    }
+    return {
+      id:                   `native-cal-${event.id}`,
+      nativeEventId:        event.id,
+      nativeCalendarColor:  event.color || '',
+      title:                event.title || '',
+      date,
+      startTime:            startTime || null,
+      duration,
+      isAllDay,
+      imported:             true,
+      isTaskCalendar:       false,
+      notes:                event.notes || '',
+      location:             event.location || '',
+      calendarName:         event.calendarName || '',
+      completed:            false,
+      _native:              true,
+    };
+  };
+
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+
+    const dates = [];
+    for (let offset = -2; offset <= 2; offset++) {
+      const d = new Date(selectedDate);
+      d.setDate(d.getDate() + offset);
+      dates.push(dateToString(d));
+    }
+
+    Promise.all(dates.map(d => nativeGetEvents(d))).then(results => {
+      const fetched = results.flatMap((result, i) =>
+        Array.isArray(result) ? result.map(e => nativeEventToTask(e)) : []
+      );
+      setTasks(prev => [
+        ...prev.filter(t => !t._native),
+        ...fetched,
+      ]);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
+
   // Reminder snooze: push task start time forward 15 minutes
   const snoozeReminder = (reminder) => {
     pushUndo();
@@ -9048,11 +9105,27 @@ const DayPlanner = () => {
           }
         }
       } else {
+        const prevDraggedTask = draggedTask;
         setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
             ? { ...t, startTime, date: dropDateStr, isAllDay: false }
             : t
         ));
+        // If this is a native Android calendar event, write the change back to the device calendar
+        if (draggedTask.nativeEventId) {
+          const endMin = timeToMinutes(startTime) + (draggedTask.duration || 60);
+          const newStart = `${dropDateStr}T${startTime}:00`;
+          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+          nativeUpdateEvent({
+            id: draggedTask.nativeEventId, title: draggedTask.title,
+            start: newStart, end: newEnd, allDay: false,
+            notes: draggedTask.notes || '', location: draggedTask.location || '',
+          }).then(result => {
+            if (!result?.success) {
+              setTasks(prev => prev.map(t => t.id === prevDraggedTask.id ? { ...prevDraggedTask } : t));
+            }
+          });
+        }
       }
     } else if (dragSource === 'recycleBin') {
       // Remove metadata and add to calendar
@@ -9310,6 +9383,7 @@ const DayPlanner = () => {
 
     const startY = e.clientY;
     const startDuration = task.duration;
+    let finalDuration = startDuration;
 
     const isRecurringTask = task.isRecurring;
     const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
@@ -9322,6 +9396,7 @@ const DayPlanner = () => {
       const deltaY = moveEvent.clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
       const newDuration = Math.max(15, startDuration + deltaMinutes);
+      finalDuration = newDuration;
 
       if (isRecurringTask && recurringInfo) {
         const { templateId, dateStr } = recurringInfo;
@@ -9342,6 +9417,21 @@ const DayPlanner = () => {
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('dragstart', preventDrag);
       setIsResizing(false);
+      // Sync resize back to the device calendar for native events
+      if (task.nativeEventId && !isRecurringTask && task.startTime) {
+        const endMin = timeToMinutes(task.startTime) + finalDuration;
+        const newStart = `${task.date}T${task.startTime}:00`;
+        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+        nativeUpdateEvent({
+          id: task.nativeEventId, title: task.title,
+          start: newStart, end: newEnd, allDay: false,
+          notes: task.notes || '', location: task.location || '',
+        }).then(result => {
+          if (!result?.success) {
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+          }
+        });
+      }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -9355,6 +9445,7 @@ const DayPlanner = () => {
 
     const startY = e.touches[0].clientY;
     const startDuration = task.duration;
+    let finalDuration = startDuration;
 
     const isRecurringTask = task.isRecurring;
     const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
@@ -9364,6 +9455,7 @@ const DayPlanner = () => {
       const deltaY = moveEvent.touches[0].clientY - startY;
       const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
       const newDuration = Math.max(15, startDuration + deltaMinutes);
+      finalDuration = newDuration;
 
       if (isRecurringTask && recurringInfo) {
         const { templateId, dateStr } = recurringInfo;
@@ -9383,6 +9475,21 @@ const DayPlanner = () => {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
       setIsResizing(false);
+      // Sync resize back to the device calendar for native events
+      if (task.nativeEventId && !isRecurringTask && task.startTime) {
+        const endMin = timeToMinutes(task.startTime) + finalDuration;
+        const newStart = `${task.date}T${task.startTime}:00`;
+        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+        nativeUpdateEvent({
+          id: task.nativeEventId, title: task.title,
+          start: newStart, end: newEnd, allDay: false,
+          notes: task.notes || '', location: task.location || '',
+        }).then(result => {
+          if (!result?.success) {
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+          }
+        });
+      }
     };
 
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -18012,10 +18119,11 @@ const DayPlanner = () => {
                                 }
                               }}
                             >
-                              <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
+                              <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass} ${relativeLabel === 'In Progress' ? 'animate-pulse' : ''}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : {}}></div>
                               <div className="min-w-0 flex-1">
                                 <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
                                   {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
+                                  {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
                                   <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
                                 </div>
                                 <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
@@ -19822,8 +19930,8 @@ const DayPlanner = () => {
                                   dateStr,
                                 });
                               }}
-                              draggable={!isImported && !isTablet}
-                              onDragStart={(e) => !isImported && handleDragStart(task, 'calendar', e)}
+                              draggable={(!isImported || !!task.nativeEventId) && !isTablet}
+                              onDragStart={(e) => (!isImported || !!task.nativeEventId) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
                               onDragEnter={(e) => {
@@ -20522,8 +20630,8 @@ const DayPlanner = () => {
                                   dateStr,
                                 });
                               }}
-                              draggable={(!isImported || task.isTaskCalendar) && !isTablet}
-                              onDragStart={(e) => (!isImported || task.isTaskCalendar) && handleDragStart(task, 'calendar', e)}
+                              draggable={(!isImported || task.isTaskCalendar || !!task.nativeEventId) && !isTablet}
+                              onDragStart={(e) => (!isImported || task.isTaskCalendar || !!task.nativeEventId) && handleDragStart(task, 'calendar', e)}
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
@@ -20595,31 +20703,39 @@ const DayPlanner = () => {
                                 <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col">
                                 {/* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */}
                                 {isImported && !task.isTaskCalendar ? (
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div
-                                      className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
-                                      title={task.title}
-                                    >
-                                      {renderTitleWithoutTags(task.title)}
-                                    </div>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      {task.notes && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
-                                          }}
-                                          className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
-                                          title="View description"
-                                        >
-                                          <FileText size={12} />
-                                        </button>
-                                      )}
-                                      <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
-                                        <Clock size={10} />
-                                        {formatTime(task.startTime)} • {task.duration}m
+                                  <div className="flex flex-col h-full justify-between gap-0.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div
+                                        className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
+                                        title={task.title}
+                                      >
+                                        {renderTitleWithoutTags(task.title)}
+                                      </div>
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        {task.notes && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                            }}
+                                            className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
+                                            title="View description"
+                                          >
+                                            <FileText size={12} />
+                                          </button>
+                                        )}
+                                        <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
+                                          <Clock size={10} />
+                                          {formatTime(task.startTime)} • {task.duration}m
+                                        </div>
                                       </div>
                                     </div>
+                                    {task.location && !isMicroHeight && (
+                                      <div className="text-xs opacity-75 truncate flex items-center gap-1">
+                                        <MapPin size={9} />
+                                        {task.location}
+                                      </div>
+                                    )}
                                   </div>
                                 ) : isNarrowWidth ? (
                                   /* NARROW LAYOUT: overflow menu + checkbox + title + tags */
@@ -20648,6 +20764,7 @@ const DayPlanner = () => {
                                           </button>
                                         )}
                                         {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+                                        {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
                                         <div className="flex-1 min-w-0">
                                           {!isTablet && editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
@@ -20712,6 +20829,7 @@ const DayPlanner = () => {
                                           </button>
                                         )}
                                         {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+                                        {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
                                         <div className="flex-1 min-w-0">
                                           {!isTablet && editingTaskId === task.id ? (
                                             <div className="relative tag-autocomplete-container">
@@ -20776,7 +20894,7 @@ const DayPlanner = () => {
                                 )}
                                 </div>{/* end content wrapper */}
                                 {/* Resize handle at bottom - solid white for visibility */}
-                                {!isImported && (
+                                {(!isImported || !!task.nativeEventId) && (
                                   <div
                                     onMouseDown={(e) => handleResizeStart(task, e)}
                                     onTouchStart={(e) => handleTouchResizeStart(task, e)}

@@ -20,6 +20,7 @@ class CalendarRepository(private val context: Context) {
         val end: String,
         val allDay: Boolean,
         val notes: String,
+        val location: String,
         val calendarId: String,
         val calendarName: String,
         val color: String,       // "#RRGGBB"
@@ -44,6 +45,7 @@ class CalendarRepository(private val context: Context) {
             CalendarContract.Instances.END,
             CalendarContract.Instances.ALL_DAY,
             CalendarContract.Instances.DESCRIPTION,
+            CalendarContract.Instances.EVENT_LOCATION,
             CalendarContract.Instances.CALENDAR_ID,
             CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
             CalendarContract.Instances.EVENT_COLOR,
@@ -62,6 +64,7 @@ class CalendarRepository(private val context: Context) {
                 val endIdx      = cursor.getColumnIndex(CalendarContract.Instances.END)
                 val allDayIdx   = cursor.getColumnIndex(CalendarContract.Instances.ALL_DAY)
                 val descIdx     = cursor.getColumnIndex(CalendarContract.Instances.DESCRIPTION)
+                val locIdx      = cursor.getColumnIndex(CalendarContract.Instances.EVENT_LOCATION)
                 val calIdIdx    = cursor.getColumnIndex(CalendarContract.Instances.CALENDAR_ID)
                 val calNameIdx  = cursor.getColumnIndex(CalendarContract.Instances.CALENDAR_DISPLAY_NAME)
                 val evColorIdx  = cursor.getColumnIndex(CalendarContract.Instances.EVENT_COLOR)
@@ -91,6 +94,7 @@ class CalendarRepository(private val context: Context) {
                         end          = endStr,
                         allDay       = allDay,
                         notes        = cursor.getString(descIdx) ?: "",
+                        location     = cursor.getString(locIdx) ?: "",
                         calendarId   = cursor.getLong(calIdIdx).toString(),
                         calendarName = cursor.getString(calNameIdx) ?: "",
                         color        = "#%06X".format(colorInt and 0xFFFFFF),
@@ -140,6 +144,7 @@ class CalendarRepository(private val context: Context) {
         end: String,
         allDay: Boolean,
         notes: String,
+        location: String = "",
     ): Boolean {
         val zone    = ZoneId.systemDefault()
         val startMs = parseToMillis(start, allDay, zone) ?: return false
@@ -151,6 +156,7 @@ class CalendarRepository(private val context: Context) {
             put(CalendarContract.Events.DTEND,          endMs)
             put(CalendarContract.Events.ALL_DAY,        if (allDay) 1 else 0)
             put(CalendarContract.Events.DESCRIPTION,    notes)
+            put(CalendarContract.Events.EVENT_LOCATION, location)
             put(CalendarContract.Events.EVENT_TIMEZONE, zone.id)
         }
         return try {

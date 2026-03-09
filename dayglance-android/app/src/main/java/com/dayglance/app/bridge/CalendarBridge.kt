@@ -23,6 +23,7 @@ import java.time.format.DateTimeParseException
  *     "end":          string,          // same format as start
  *     "allDay":       boolean,
  *     "notes":        string,
+ *     "location":     string,
  *     "calendarId":   string,
  *     "calendarName": string,          // read-only; ignored on write
  *     "color":        string           // "#RRGGBB"; read-only; ignored on write
@@ -45,6 +46,7 @@ class CalendarBridge(private val context: Context) {
                     .put("end",          e.end)
                     .put("allDay",       e.allDay)
                     .put("notes",        e.notes)
+                    .put("location",     e.location)
                     .put("calendarId",   e.calendarId)
                     .put("calendarName", e.calendarName)
                     .put("color",        e.color)
@@ -77,12 +79,13 @@ class CalendarBridge(private val context: Context) {
     fun updateEvent(eventJson: String): String = try {
         val obj = JSONObject(eventJson)
         val success = repository.updateEvent(
-            id     = obj.getString("id"),
-            title  = obj.optString("title"),
-            start  = obj.optString("start"),
-            end    = obj.optString("end"),
-            allDay = obj.optBoolean("allDay", false),
-            notes  = obj.optString("notes", ""),
+            id       = obj.getString("id"),
+            title    = obj.optString("title"),
+            start    = obj.optString("start"),
+            end      = obj.optString("end"),
+            allDay   = obj.optBoolean("allDay", false),
+            notes    = obj.optString("notes", ""),
+            location = obj.optString("location", ""),
         )
         JSONObject().put("success", success).toString()
     } catch (e: Exception) {
