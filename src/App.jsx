@@ -2747,7 +2747,7 @@ const DayPlanner = () => {
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
-  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, trmnl: true });
+  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: !isNativeAndroid(), ai: true, obsidian: true, trmnl: true });
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -15899,31 +15899,38 @@ const DayPlanner = () => {
                       {calSyncLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(calSyncLastSynced).toLocaleString()}</p>
                       )}
-                      {isNativeAndroid() && availableCalendars.length > 0 && (
+                      {isNativeAndroid() && (
                         <div className="space-y-2 pt-1">
-                          <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
-                          <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
-                          {availableCalendars.map(cal => {
-                            const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
-                            return (
-                              <label key={cal.id} className={`flex items-center gap-2 text-sm ${textPrimary} cursor-pointer`}>
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => setCalendarFilter(prev => {
-                                    if (prev.length === 0) return availableCalendars.map(c => c.id).filter(id => id !== cal.id);
-                                    if (prev.includes(cal.id)) return prev.filter(id => id !== cal.id);
-                                    const next = [...prev, cal.id];
-                                    return next.length === availableCalendars.length ? [] : next;
-                                  })}
-                                  className="rounded"
-                                />
-                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
-                                <span className="flex-1 truncate">{cal.name}</span>
-                                <span className={`text-xs ${textSecondary} truncate max-w-[8rem]`}>{cal.accountName}</span>
-                              </label>
-                            );
-                          })}
+                          <div className="flex items-center justify-between">
+                            <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
+                            <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>Refresh</button>
+                          </div>
+                          {availableCalendars.length === 0 ? (
+                            <p className={`text-xs ${textSecondary}`}>No calendars loaded — tap Refresh, or rebuild the app if this persists.</p>
+                          ) : (<>
+                            <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
+                            {availableCalendars.map(cal => {
+                              const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
+                              return (
+                                <label key={cal.id} className={`flex items-center gap-2 text-sm ${textPrimary} cursor-pointer`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => setCalendarFilter(prev => {
+                                      if (prev.length === 0) return availableCalendars.map(c => c.id).filter(id => id !== cal.id);
+                                      if (prev.includes(cal.id)) return prev.filter(id => id !== cal.id);
+                                      const next = [...prev, cal.id];
+                                      return next.length === availableCalendars.length ? [] : next;
+                                    })}
+                                    className="rounded"
+                                  />
+                                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
+                                  <span className="flex-1 truncate">{cal.name}</span>
+                                  <span className={`text-xs ${textSecondary} truncate max-w-[8rem]`}>{cal.accountName}</span>
+                                </label>
+                              );
+                            })}
+                          </>)}
                         </div>
                       )}
                       </>)}
@@ -24646,31 +24653,38 @@ const DayPlanner = () => {
                           Last synced: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
                       )}
-                      {isNativeAndroid() && availableCalendars.length > 0 && (
+                      {isNativeAndroid() && (
                         <div className="space-y-2 pt-1">
-                          <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
-                          <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
-                          {availableCalendars.map(cal => {
-                            const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
-                            return (
-                              <label key={cal.id} className={`flex items-center gap-2 text-sm ${textPrimary} cursor-pointer`}>
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => setCalendarFilter(prev => {
-                                    if (prev.length === 0) return availableCalendars.map(c => c.id).filter(id => id !== cal.id);
-                                    if (prev.includes(cal.id)) return prev.filter(id => id !== cal.id);
-                                    const next = [...prev, cal.id];
-                                    return next.length === availableCalendars.length ? [] : next;
-                                  })}
-                                  className="rounded"
-                                />
-                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
-                                <span className="flex-1 truncate">{cal.name}</span>
-                                <span className={`text-xs ${textSecondary} truncate max-w-[8rem]`}>{cal.accountName}</span>
-                              </label>
-                            );
-                          })}
+                          <div className="flex items-center justify-between">
+                            <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
+                            <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>Refresh</button>
+                          </div>
+                          {availableCalendars.length === 0 ? (
+                            <p className={`text-xs ${textSecondary}`}>No calendars loaded — tap Refresh, or rebuild the app if this persists.</p>
+                          ) : (<>
+                            <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
+                            {availableCalendars.map(cal => {
+                              const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
+                              return (
+                                <label key={cal.id} className={`flex items-center gap-2 text-sm ${textPrimary} cursor-pointer`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => setCalendarFilter(prev => {
+                                      if (prev.length === 0) return availableCalendars.map(c => c.id).filter(id => id !== cal.id);
+                                      if (prev.includes(cal.id)) return prev.filter(id => id !== cal.id);
+                                      const next = [...prev, cal.id];
+                                      return next.length === availableCalendars.length ? [] : next;
+                                    })}
+                                    className="rounded"
+                                  />
+                                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
+                                  <span className="flex-1 truncate">{cal.name}</span>
+                                  <span className={`text-xs ${textSecondary} truncate max-w-[8rem]`}>{cal.accountName}</span>
+                                </label>
+                              );
+                            })}
+                          </>)}
                         </div>
                       )}
                       </>)}
