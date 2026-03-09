@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent } from './native.js';
+import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -2437,6 +2437,12 @@ const DayPlanner = () => {
   const [calSyncLastSynced, setCalSyncLastSynced] = useState(() =>
     localStorage.getItem('day-planner-cal-sync-last-synced') || null
   );
+  // Android device calendars — populated on first load when running in the native WebView
+  const [availableCalendars, setAvailableCalendars] = useState([]);
+  // IDs of calendars to include; empty array = show all
+  const [calendarFilter, setCalendarFilter] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'); } catch { return []; }
+  });
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
   const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
@@ -8011,6 +8017,18 @@ const DayPlanner = () => {
     };
   };
 
+  // Fetch available device calendars once on load (Android only)
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+    const cals = nativeGetCalendars();
+    if (cals.length > 0) setAvailableCalendars(cals);
+  }, []);
+
+  // Persist calendar filter whenever it changes
+  useEffect(() => {
+    localStorage.setItem('day-planner-calendar-filter', JSON.stringify(calendarFilter));
+  }, [calendarFilter]);
+
   useEffect(() => {
     if (!isNativeAndroid()) return;
 
@@ -8021,9 +8039,14 @@ const DayPlanner = () => {
       dates.push(dateToString(d));
     }
 
+    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
     Promise.all(dates.map(d => nativeGetEvents(d))).then(results => {
-      const fetched = results.flatMap((result, i) =>
-        Array.isArray(result) ? result.map(e => nativeEventToTask(e)) : []
+      const fetched = results.flatMap((result) =>
+        Array.isArray(result)
+          ? result
+              .filter(e => !filterSet || filterSet.has(e.calendarId))
+              .map(e => nativeEventToTask(e))
+          : []
       );
       setTasks(prev => [
         ...prev.filter(t => !t._native),
@@ -8031,7 +8054,7 @@ const DayPlanner = () => {
       ]);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+  }, [selectedDate, calendarFilter]);
 
   // Reminder snooze: push task start time forward 15 minutes
   const snoozeReminder = (reminder) => {
@@ -15875,6 +15898,33 @@ const DayPlanner = () => {
                       </button>
                       {calSyncLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(calSyncLastSynced).toLocaleString()}</p>
+                      )}
+                      {isNativeAndroid() && availableCalendars.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
+                          <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
+                          {availableCalendars.map(cal => {
+                            const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
+                            return (
+                              <label key={cal.id} className={`flex items-center gap-2 text-sm ${textPrimary} cursor-pointer`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => setCalendarFilter(prev => {
+                                    if (prev.length === 0) return availableCalendars.map(c => c.id).filter(id => id !== cal.id);
+                                    if (prev.includes(cal.id)) return prev.filter(id => id !== cal.id);
+                                    const next = [...prev, cal.id];
+                                    return next.length === availableCalendars.length ? [] : next;
+                                  })}
+                                  className="rounded"
+                                />
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
+                                <span className="flex-1 truncate">{cal.name}</span>
+                                <span className={`text-xs ${textSecondary} truncate max-w-[8rem]`}>{cal.accountName}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       )}
                       </>)}
                     </div>
@@ -24595,6 +24645,33 @@ const DayPlanner = () => {
                         <p className={`text-xs ${textSecondary}`}>
                           Last synced: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
+                      )}
+                      {isNativeAndroid() && availableCalendars.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
+                          <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
+                          {availableCalendars.map(cal => {
+                            const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
+                            return (
+                              <label key={cal.id} className={`flex items-center gap-2 text-sm ${textPrimary} cursor-pointer`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => setCalendarFilter(prev => {
+                                    if (prev.length === 0) return availableCalendars.map(c => c.id).filter(id => id !== cal.id);
+                                    if (prev.includes(cal.id)) return prev.filter(id => id !== cal.id);
+                                    const next = [...prev, cal.id];
+                                    return next.length === availableCalendars.length ? [] : next;
+                                  })}
+                                  className="rounded"
+                                />
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
+                                <span className="flex-1 truncate">{cal.name}</span>
+                                <span className={`text-xs ${textSecondary} truncate max-w-[8rem]`}>{cal.accountName}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       )}
                       </>)}
                     </div>

@@ -34,6 +34,21 @@ class CalendarBridge(private val context: Context) {
     private val repository = CalendarRepository(context)
 
     @JavascriptInterface
+    fun getCalendars(): String {
+        val array = JSONArray()
+        repository.getCalendars().forEach { c ->
+            array.put(
+                JSONObject()
+                    .put("id",          c.id)
+                    .put("name",        c.name)
+                    .put("accountName", c.accountName)
+                    .put("color",       c.color)
+            )
+        }
+        return array.toString()
+    }
+
+    @JavascriptInterface
     fun getEvents(date: String): String {
         val localDate = parseDate(date)
         val array = JSONArray()

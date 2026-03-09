@@ -41,6 +41,9 @@ class NativeBridge(
     // ── Calendar ────────────────────────────────────────────────────────────
 
     @JavascriptInterface
+    fun getCalendars(): String = calendar.getCalendars()
+
+    @JavascriptInterface
     fun getEvents(date: String): String = calendar.getEvents(date)
 
     @JavascriptInterface

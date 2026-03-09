@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="dayGLANCE - A beautiful time-blocking day planner with task management">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    try {
+      if (JSON.parse(localStorage.getItem('day-planner-darkmode'))) {
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1f2937');
+        document.documentElement.style.backgroundColor = '#1f2937';
+        document.documentElement.classList.add('dark');
+      }
+    } catch(e) {}
+  </script>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./icon-16x16.png">
+
+  <!-- Apple -->
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="dayGLANCE">
+
+  <title>dayGLANCE</title>
+  <script type="module" src="./assets/index-Dp9LbZxJ.js"></script>
+  <link rel="stylesheet" href="./assets/index-CoVVAAMD.css">
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>

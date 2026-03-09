@@ -82,6 +82,16 @@ export const nativeGetSleep = async (date) => {
   }
 };
 
+export const nativeGetCalendars = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.getCalendars) return [];
+  try {
+    return JSON.parse(bridge.getCalendars()) ?? [];
+  } catch {
+    return [];
+  }
+};
+
 export const nativeGetEvents = async (date) => {
   const bridge = nativeBridge();
   if (!bridge?.getEvents) return null;

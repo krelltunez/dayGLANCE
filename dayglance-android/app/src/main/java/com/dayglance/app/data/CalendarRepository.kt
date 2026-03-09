@@ -13,6 +13,13 @@ import java.time.format.DateTimeParseException
 
 class CalendarRepository(private val context: Context) {
 
+    data class CalCalendar(
+        val id: String,
+        val name: String,
+        val accountName: String,
+        val color: String,
+    )
+
     data class CalEvent(
         val id: String,
         val title: String,
@@ -27,6 +34,36 @@ class CalendarRepository(private val context: Context) {
     )
 
     // ── Read ─────────────────────────────────────────────────────────────────
+
+    fun getCalendars(): List<CalCalendar> {
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.CALENDAR_COLOR,
+        )
+        val calendars = mutableListOf<CalCalendar>()
+        try {
+            context.contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI, projection, null, null, null
+            )?.use { cursor ->
+                val idIdx      = cursor.getColumnIndex(CalendarContract.Calendars._ID)
+                val nameIdx    = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
+                val accountIdx = cursor.getColumnIndex(CalendarContract.Calendars.ACCOUNT_NAME)
+                val colorIdx   = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
+                while (cursor.moveToNext()) {
+                    val colorInt = cursor.getInt(colorIdx)
+                    calendars += CalCalendar(
+                        id          = cursor.getLong(idIdx).toString(),
+                        name        = cursor.getString(nameIdx) ?: "",
+                        accountName = cursor.getString(accountIdx) ?: "",
+                        color       = "#%06X".format(colorInt and 0xFFFFFF),
+                    )
+                }
+            }
+        } catch (_: SecurityException) {}
+        return calendars
+    }
 
     fun getEvents(date: LocalDate): List<CalEvent> {
         val zone = ZoneId.systemDefault()

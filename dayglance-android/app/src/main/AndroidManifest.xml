@@ -50,6 +50,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Health Connect: required so the system can show our permission rationale.
+             Without this alias the PermissionController dialog will not launch. -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Settings activity -->
         <activity
             android:name=".settings.SettingsActivity"
