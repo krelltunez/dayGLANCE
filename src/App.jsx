@@ -12010,11 +12010,20 @@ const DayPlanner = () => {
     setFrameNudgeSuggestion(null);
     try {
       // Candidate tasks: inbox + today's uncompleted scheduled tasks
-      const todayScheduled = getTasksForDate(today).filter(t => !t.completed && !t.imported && !t.isExample);
+      // Exclude tasks whose scheduled time is currently active (already happening right now)
+      const todayScheduled = getTasksForDate(today).filter(t => {
+        if (t.completed || t.imported || t.isExample) return false;
+        if (t.startTime) {
+          const taskStart = timeToMinutes(t.startTime);
+          const taskEnd = taskStart + (t.duration || 30);
+          if (taskStart <= nowMin && taskEnd > nowMin) return false;
+        }
+        return true;
+      });
       const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
       const candidates = [
-        ...inboxItems.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), duration: t.duration || null, isInbox: true })),
-        ...todayScheduled.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), duration: t.duration || null, isInbox: false })),
+        ...inboxItems.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), tags: extractTags(t.title), duration: t.duration || null, isInbox: true })),
+        ...todayScheduled.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), tags: extractTags(t.title), duration: t.duration || null, isInbox: false })),
       ].slice(0, 20);
 
       if (candidates.length === 0) { setFrameNudgeLoading(false); return; }
@@ -12045,7 +12054,7 @@ const DayPlanner = () => {
       setFrameNudgeError('Could not get suggestion.');
     }
     setFrameNudgeLoading(false);
-  }, [aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
+  }, [aiConfig, currentTime, extractTags, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
 
   // Auto-trigger frame nudge when entering a new Frame
   const prevFrameNudgeKeyRef = useRef(null);
@@ -13880,12 +13889,22 @@ const DayPlanner = () => {
                               timelineRoutines.forEach(r => {
                                 const rStart = timeToMinutes(r.startTime);
                                 const rEnd = rStart + r.duration;
-                                let maxCols = 1;
+                                // Collect event points: r's own start + starts of any routine beginning within r's span
+                                const eventPoints = new Set([rStart]);
                                 timelineRoutines.forEach(other => {
-                                  if (other.id === r.id) return;
                                   const oStart = timeToMinutes(other.startTime);
-                                  const oEnd = oStart + other.duration;
-                                  if (rStart < oEnd && rEnd > oStart) maxCols++;
+                                  if (oStart > rStart && oStart < rEnd) eventPoints.add(oStart);
+                                });
+                                // Max simultaneous active routines at any event point
+                                let maxCols = 0;
+                                eventPoints.forEach(t => {
+                                  let count = 0;
+                                  timelineRoutines.forEach(other => {
+                                    const oStart = timeToMinutes(other.startTime);
+                                    const oEnd = oStart + other.duration;
+                                    if (oStart <= t && oEnd > t) count++;
+                                  });
+                                  maxCols = Math.max(maxCols, count);
                                 });
                                 overlapCount[r.id] = maxCols;
                               });
@@ -20706,17 +20725,27 @@ const DayPlanner = () => {
                           const colMap = {};
                           routineColumns.forEach((col, ci) => col.forEach(r => { colMap[r.id] = ci; }));
 
-                          // For each routine, compute how many columns overlap with it
+                          // For each routine, compute max simultaneously active routines at any point in its span
                           const overlapCount = {};
                           timelineRoutines.forEach(r => {
                             const rStart = timeToMinutes(r.startTime);
                             const rEnd = rStart + r.duration;
-                            let maxCols = 1;
+                            // Collect event points: r's own start + starts of any routine beginning within r's span
+                            const eventPoints = new Set([rStart]);
                             timelineRoutines.forEach(other => {
-                              if (other.id === r.id) return;
                               const oStart = timeToMinutes(other.startTime);
-                              const oEnd = oStart + other.duration;
-                              if (rStart < oEnd && rEnd > oStart) maxCols++;
+                              if (oStart > rStart && oStart < rEnd) eventPoints.add(oStart);
+                            });
+                            // Max simultaneous active routines at any event point
+                            let maxCols = 0;
+                            eventPoints.forEach(t => {
+                              let count = 0;
+                              timelineRoutines.forEach(other => {
+                                const oStart = timeToMinutes(other.startTime);
+                                const oEnd = oStart + other.duration;
+                                if (oStart <= t && oEnd > t) count++;
+                              });
+                              maxCols = Math.max(maxCols, count);
                             });
                             overlapCount[r.id] = maxCols;
                           });
