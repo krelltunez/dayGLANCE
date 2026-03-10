@@ -7873,6 +7873,9 @@ const DayPlanner = () => {
   };
   const deleteHabit = (id) => {
     setHabits(prev => prev.filter(h => h.id !== id));
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}');
+    tombstones[String(id)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-habit-ids', JSON.stringify(tombstones));
   };
   const reorderHabits = (fromIndex, toIndex) => {
     setHabits(prev => {
@@ -10352,6 +10355,7 @@ const DayPlanner = () => {
       habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
       habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
+      deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
       routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
       gtdFrames: JSON.parse(localStorage.getItem('day-planner-gtd-frames') || '[]')
     }
@@ -10431,6 +10435,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
       setHabits(data.habits);
     }
+    if (data.deletedHabitIds) localStorage.setItem('day-planner-deleted-habit-ids', JSON.stringify(data.deletedHabitIds));
     if (data.habitLogs) {
       localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
       setHabitLogs(data.habitLogs);
@@ -11821,16 +11826,38 @@ const DayPlanner = () => {
       matchTask(task, 'deleted', 'Deleted', task.date || null);
     }
 
-    // Sort: title matches first, then source priority, then date
+    // Assign a time-based group to each result
+    const todayStr = dateToString(now);
+    const weekEndDate = new Date(now);
+    weekEndDate.setDate(weekEndDate.getDate() + 7);
+    const weekEndStr = dateToString(weekEndDate);
+    const groupOrder = { today: 0, thisweek: 1, future: 2, nodate: 3, past: 4, deleted: 5 };
+    const getGroup = (r) => {
+      if (r.source === 'deleted') return 'deleted';
+      const d = r.date;
+      if (!d) return 'nodate';
+      if (d < todayStr) return 'past';
+      if (d === todayStr) return 'today';
+      if (d <= weekEndStr) return 'thisweek';
+      return 'future';
+    };
+    results.forEach(r => { r.group = getGroup(r); });
+
+    // Sort: by group, then title match, then source priority, then date
     const sourcePriority = { scheduled: 0, inbox: 1, recurring: 2, deleted: 3 };
     results.sort((a, b) => {
+      const gA = groupOrder[a.group] ?? 6;
+      const gB = groupOrder[b.group] ?? 6;
+      if (gA !== gB) return gA - gB;
       const aTitle = a.match.field === 'title' ? 0 : 1;
       const bTitle = b.match.field === 'title' ? 0 : 1;
       if (aTitle !== bTitle) return aTitle - bTitle;
       const aPri = sourcePriority[a.source] ?? 4;
       const bPri = sourcePriority[b.source] ?? 4;
       if (aPri !== bPri) return aPri - bPri;
-      return (b.date || '').localeCompare(a.date || '');
+      // Past: most recent first; everything else: soonest first
+      if (a.group === 'past') return (b.date || '').localeCompare(a.date || '');
+      return (a.date || '').localeCompare(b.date || '');
     });
 
     return results.slice(0, 50);
@@ -12009,12 +12036,20 @@ const DayPlanner = () => {
     setFrameNudgeError('');
     setFrameNudgeSuggestion(null);
     try {
-      // Candidate tasks: inbox + today's uncompleted scheduled tasks
-      const todayScheduled = getTasksForDate(today).filter(t => !t.completed && !t.imported && !t.isExample);
+      // Candidate tasks: inbox + today's past-scheduled incomplete tasks
+      // Exclude any task scheduled now or in the future (taskEnd > nowMin covers both active and upcoming)
+      const todayScheduled = getTasksForDate(today).filter(t => {
+        if (t.completed || t.imported || t.isExample) return false;
+        if (t.startTime) {
+          const taskEnd = timeToMinutes(t.startTime) + (t.duration || 30);
+          if (taskEnd > nowMin) return false;
+        }
+        return true;
+      });
       const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
       const candidates = [
-        ...inboxItems.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), duration: t.duration || null, isInbox: true })),
-        ...todayScheduled.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), duration: t.duration || null, isInbox: false })),
+        ...inboxItems.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), tags: extractTags(t.title), duration: t.duration || null, isInbox: true })),
+        ...todayScheduled.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), tags: extractTags(t.title), duration: t.duration || null, isInbox: false })),
       ].slice(0, 20);
 
       if (candidates.length === 0) { setFrameNudgeLoading(false); return; }
@@ -12045,7 +12080,7 @@ const DayPlanner = () => {
       setFrameNudgeError('Could not get suggestion.');
     }
     setFrameNudgeLoading(false);
-  }, [aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
+  }, [aiConfig, currentTime, extractTags, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
 
   // Auto-trigger frame nudge when entering a new Frame
   const prevFrameNudgeKeyRef = useRef(null);
@@ -13880,12 +13915,22 @@ const DayPlanner = () => {
                               timelineRoutines.forEach(r => {
                                 const rStart = timeToMinutes(r.startTime);
                                 const rEnd = rStart + r.duration;
-                                let maxCols = 1;
+                                // Collect event points: r's own start + starts of any routine beginning within r's span
+                                const eventPoints = new Set([rStart]);
                                 timelineRoutines.forEach(other => {
-                                  if (other.id === r.id) return;
                                   const oStart = timeToMinutes(other.startTime);
-                                  const oEnd = oStart + other.duration;
-                                  if (rStart < oEnd && rEnd > oStart) maxCols++;
+                                  if (oStart > rStart && oStart < rEnd) eventPoints.add(oStart);
+                                });
+                                // Max simultaneous active routines at any event point
+                                let maxCols = 0;
+                                eventPoints.forEach(t => {
+                                  let count = 0;
+                                  timelineRoutines.forEach(other => {
+                                    const oStart = timeToMinutes(other.startTime);
+                                    const oEnd = oStart + other.duration;
+                                    if (oStart <= t && oEnd > t) count++;
+                                  });
+                                  maxCols = Math.max(maxCols, count);
                                 });
                                 overlapCount[r.id] = maxCols;
                               });
@@ -20706,17 +20751,27 @@ const DayPlanner = () => {
                           const colMap = {};
                           routineColumns.forEach((col, ci) => col.forEach(r => { colMap[r.id] = ci; }));
 
-                          // For each routine, compute how many columns overlap with it
+                          // For each routine, compute max simultaneously active routines at any point in its span
                           const overlapCount = {};
                           timelineRoutines.forEach(r => {
                             const rStart = timeToMinutes(r.startTime);
                             const rEnd = rStart + r.duration;
-                            let maxCols = 1;
+                            // Collect event points: r's own start + starts of any routine beginning within r's span
+                            const eventPoints = new Set([rStart]);
                             timelineRoutines.forEach(other => {
-                              if (other.id === r.id) return;
                               const oStart = timeToMinutes(other.startTime);
-                              const oEnd = oStart + other.duration;
-                              if (rStart < oEnd && rEnd > oStart) maxCols++;
+                              if (oStart > rStart && oStart < rEnd) eventPoints.add(oStart);
+                            });
+                            // Max simultaneous active routines at any event point
+                            let maxCols = 0;
+                            eventPoints.forEach(t => {
+                              let count = 0;
+                              timelineRoutines.forEach(other => {
+                                const oStart = timeToMinutes(other.startTime);
+                                const oEnd = oStart + other.duration;
+                                if (oStart <= t && oEnd > t) count++;
+                              });
+                              maxCols = Math.max(maxCols, count);
                             });
                             overlapCount[r.id] = maxCols;
                           });
@@ -23810,58 +23865,68 @@ const DayPlanner = () => {
                 <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>Type to search across all tasks...</div>
               ) : spotlightResults.length === 0 ? (
                 <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>No results found</div>
-              ) : (
-                spotlightResults.map((result, idx) => {
-                  const sourceBadgeColors = darkMode ? {
-                    scheduled: 'bg-blue-900/40 text-blue-300',
-                    inbox: 'bg-green-900/40 text-green-300',
-                    recurring: 'bg-purple-900/40 text-purple-300',
-                    deleted: 'bg-red-900/40 text-red-300',
-                  } : {
-                    scheduled: 'bg-blue-100 text-blue-700',
-                    inbox: 'bg-green-100 text-green-700',
-                    recurring: 'bg-purple-100 text-purple-700',
-                    deleted: 'bg-red-100 text-red-700',
-                  };
+              ) : (() => {
+                const sourceBadgeColors = darkMode ? {
+                  scheduled: 'bg-blue-900/40 text-blue-300',
+                  inbox: 'bg-green-900/40 text-green-300',
+                  recurring: 'bg-purple-900/40 text-purple-300',
+                  deleted: 'bg-red-900/40 text-red-300',
+                } : {
+                  scheduled: 'bg-blue-100 text-blue-700',
+                  inbox: 'bg-green-100 text-green-700',
+                  recurring: 'bg-purple-100 text-purple-700',
+                  deleted: 'bg-red-100 text-red-700',
+                };
+                const groupLabels = { today: 'Today', thisweek: 'This week', future: 'Coming up', nodate: 'No date', past: 'Past', deleted: 'Deleted' };
+                let lastGroup = null;
+                return spotlightResults.map((result, idx) => {
                   const isSelected = idx === spotlightSelectedIndex;
+                  const showHeader = result.group !== lastGroup;
+                  lastGroup = result.group;
                   return (
-                    <div
-                      key={`${result.source}-${result.task.id}-${idx}`}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-stone-50')}`}
-                      onClick={() => handleSpotlightSelect(result)}
-                      onMouseEnter={() => setSpotlightSelectedIndex(idx)}
-                      ref={el => {
-                        if (isSelected && el) el.scrollIntoView({ block: 'nearest' });
-                      }}
-                    >
-                      {/* Color dot */}
-                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.task.color || 'bg-blue-500'}`} />
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium truncate ${textPrimary}`}>
-                          {result.match.field === 'title'
-                            ? highlightMatch(result.task.title, spotlightQuery)
-                            : renderTitle(result.task.title)}
+                    <div key={`${result.source}-${result.task.id}-${idx}`}>
+                      {showHeader && (
+                        <div className={`px-4 py-1 text-[10px] font-semibold uppercase tracking-wider ${textSecondary} ${darkMode ? 'bg-gray-800/60' : 'bg-stone-100/80'} ${idx > 0 ? `border-t ${borderClass}` : ''}`}>
+                          {groupLabels[result.group] || result.group}
                         </div>
-                        {result.match.field !== 'title' && (
-                          <div className={`text-xs ${textSecondary} truncate mt-0.5`}>
-                            <span className="opacity-60">{result.match.field === 'notes' ? 'Notes: ' : result.match.field === 'subtask' ? 'Subtask: ' : result.match.field === 'tag' ? 'Tag: ' : ''}</span>
-                            {highlightMatch(result.match.text, spotlightQuery)}
-                          </div>
-                        )}
-                      </div>
-                      {/* Date */}
-                      {result.date && (
-                        <span className={`text-xs ${textSecondary} flex-shrink-0`}>{result.date}</span>
                       )}
-                      {/* Source badge */}
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${sourceBadgeColors[result.source]}`}>
-                        {result.sourceLabel}
-                      </span>
+                      <div
+                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-stone-50')}`}
+                        onClick={() => handleSpotlightSelect(result)}
+                        onMouseEnter={() => setSpotlightSelectedIndex(idx)}
+                        ref={el => {
+                          if (isSelected && el) el.scrollIntoView({ block: 'nearest' });
+                        }}
+                      >
+                        {/* Color dot */}
+                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.task.color || 'bg-blue-500'}`} />
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-medium truncate ${textPrimary}`}>
+                            {result.match.field === 'title'
+                              ? highlightMatch(result.task.title, spotlightQuery)
+                              : renderTitle(result.task.title)}
+                          </div>
+                          {result.match.field !== 'title' && (
+                            <div className={`text-xs ${textSecondary} truncate mt-0.5`}>
+                              <span className="opacity-60">{result.match.field === 'notes' ? 'Notes: ' : result.match.field === 'subtask' ? 'Subtask: ' : result.match.field === 'tag' ? 'Tag: ' : ''}</span>
+                              {highlightMatch(result.match.text, spotlightQuery)}
+                            </div>
+                          )}
+                        </div>
+                        {/* Date */}
+                        {result.date && (
+                          <span className={`text-xs ${textSecondary} flex-shrink-0`}>{result.date}</span>
+                        )}
+                        {/* Source badge */}
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${sourceBadgeColors[result.source]}`}>
+                          {result.sourceLabel}
+                        </span>
+                      </div>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
 
             {/* Footer */}
