@@ -12009,14 +12009,13 @@ const DayPlanner = () => {
     setFrameNudgeError('');
     setFrameNudgeSuggestion(null);
     try {
-      // Candidate tasks: inbox + today's uncompleted scheduled tasks
-      // Exclude tasks whose scheduled time is currently active (already happening right now)
+      // Candidate tasks: inbox + today's past-scheduled incomplete tasks
+      // Exclude any task scheduled now or in the future (taskEnd > nowMin covers both active and upcoming)
       const todayScheduled = getTasksForDate(today).filter(t => {
         if (t.completed || t.imported || t.isExample) return false;
         if (t.startTime) {
-          const taskStart = timeToMinutes(t.startTime);
-          const taskEnd = taskStart + (t.duration || 30);
-          if (taskStart <= nowMin && taskEnd > nowMin) return false;
+          const taskEnd = timeToMinutes(t.startTime) + (t.duration || 30);
+          if (taskEnd > nowMin) return false;
         }
         return true;
       });
