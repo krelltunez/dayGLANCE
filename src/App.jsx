@@ -11826,16 +11826,38 @@ const DayPlanner = () => {
       matchTask(task, 'deleted', 'Deleted', task.date || null);
     }
 
-    // Sort: title matches first, then source priority, then date
+    // Assign a time-based group to each result
+    const todayStr = dateToString(now);
+    const weekEndDate = new Date(now);
+    weekEndDate.setDate(weekEndDate.getDate() + 7);
+    const weekEndStr = dateToString(weekEndDate);
+    const groupOrder = { today: 0, thisweek: 1, future: 2, nodate: 3, past: 4, deleted: 5 };
+    const getGroup = (r) => {
+      if (r.source === 'deleted') return 'deleted';
+      const d = r.date;
+      if (!d) return 'nodate';
+      if (d < todayStr) return 'past';
+      if (d === todayStr) return 'today';
+      if (d <= weekEndStr) return 'thisweek';
+      return 'future';
+    };
+    results.forEach(r => { r.group = getGroup(r); });
+
+    // Sort: by group, then title match, then source priority, then date
     const sourcePriority = { scheduled: 0, inbox: 1, recurring: 2, deleted: 3 };
     results.sort((a, b) => {
+      const gA = groupOrder[a.group] ?? 6;
+      const gB = groupOrder[b.group] ?? 6;
+      if (gA !== gB) return gA - gB;
       const aTitle = a.match.field === 'title' ? 0 : 1;
       const bTitle = b.match.field === 'title' ? 0 : 1;
       if (aTitle !== bTitle) return aTitle - bTitle;
       const aPri = sourcePriority[a.source] ?? 4;
       const bPri = sourcePriority[b.source] ?? 4;
       if (aPri !== bPri) return aPri - bPri;
-      return (b.date || '').localeCompare(a.date || '');
+      // Past: most recent first; everything else: soonest first
+      if (a.group === 'past') return (b.date || '').localeCompare(a.date || '');
+      return (a.date || '').localeCompare(b.date || '');
     });
 
     return results.slice(0, 50);
@@ -23843,58 +23865,68 @@ const DayPlanner = () => {
                 <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>Type to search across all tasks...</div>
               ) : spotlightResults.length === 0 ? (
                 <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>No results found</div>
-              ) : (
-                spotlightResults.map((result, idx) => {
-                  const sourceBadgeColors = darkMode ? {
-                    scheduled: 'bg-blue-900/40 text-blue-300',
-                    inbox: 'bg-green-900/40 text-green-300',
-                    recurring: 'bg-purple-900/40 text-purple-300',
-                    deleted: 'bg-red-900/40 text-red-300',
-                  } : {
-                    scheduled: 'bg-blue-100 text-blue-700',
-                    inbox: 'bg-green-100 text-green-700',
-                    recurring: 'bg-purple-100 text-purple-700',
-                    deleted: 'bg-red-100 text-red-700',
-                  };
+              ) : (() => {
+                const sourceBadgeColors = darkMode ? {
+                  scheduled: 'bg-blue-900/40 text-blue-300',
+                  inbox: 'bg-green-900/40 text-green-300',
+                  recurring: 'bg-purple-900/40 text-purple-300',
+                  deleted: 'bg-red-900/40 text-red-300',
+                } : {
+                  scheduled: 'bg-blue-100 text-blue-700',
+                  inbox: 'bg-green-100 text-green-700',
+                  recurring: 'bg-purple-100 text-purple-700',
+                  deleted: 'bg-red-100 text-red-700',
+                };
+                const groupLabels = { today: 'Today', thisweek: 'This week', future: 'Coming up', nodate: 'No date', past: 'Past', deleted: 'Deleted' };
+                let lastGroup = null;
+                return spotlightResults.map((result, idx) => {
                   const isSelected = idx === spotlightSelectedIndex;
+                  const showHeader = result.group !== lastGroup;
+                  lastGroup = result.group;
                   return (
-                    <div
-                      key={`${result.source}-${result.task.id}-${idx}`}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-stone-50')}`}
-                      onClick={() => handleSpotlightSelect(result)}
-                      onMouseEnter={() => setSpotlightSelectedIndex(idx)}
-                      ref={el => {
-                        if (isSelected && el) el.scrollIntoView({ block: 'nearest' });
-                      }}
-                    >
-                      {/* Color dot */}
-                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.task.color || 'bg-blue-500'}`} />
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium truncate ${textPrimary}`}>
-                          {result.match.field === 'title'
-                            ? highlightMatch(result.task.title, spotlightQuery)
-                            : renderTitle(result.task.title)}
+                    <div key={`${result.source}-${result.task.id}-${idx}`}>
+                      {showHeader && (
+                        <div className={`px-4 py-1 text-[10px] font-semibold uppercase tracking-wider ${textSecondary} ${darkMode ? 'bg-gray-800/60' : 'bg-stone-100/80'} ${idx > 0 ? `border-t ${borderClass}` : ''}`}>
+                          {groupLabels[result.group] || result.group}
                         </div>
-                        {result.match.field !== 'title' && (
-                          <div className={`text-xs ${textSecondary} truncate mt-0.5`}>
-                            <span className="opacity-60">{result.match.field === 'notes' ? 'Notes: ' : result.match.field === 'subtask' ? 'Subtask: ' : result.match.field === 'tag' ? 'Tag: ' : ''}</span>
-                            {highlightMatch(result.match.text, spotlightQuery)}
-                          </div>
-                        )}
-                      </div>
-                      {/* Date */}
-                      {result.date && (
-                        <span className={`text-xs ${textSecondary} flex-shrink-0`}>{result.date}</span>
                       )}
-                      {/* Source badge */}
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${sourceBadgeColors[result.source]}`}>
-                        {result.sourceLabel}
-                      </span>
+                      <div
+                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? (darkMode ? 'bg-gray-700' : 'bg-blue-50') : (darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-stone-50')}`}
+                        onClick={() => handleSpotlightSelect(result)}
+                        onMouseEnter={() => setSpotlightSelectedIndex(idx)}
+                        ref={el => {
+                          if (isSelected && el) el.scrollIntoView({ block: 'nearest' });
+                        }}
+                      >
+                        {/* Color dot */}
+                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.task.color || 'bg-blue-500'}`} />
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-medium truncate ${textPrimary}`}>
+                            {result.match.field === 'title'
+                              ? highlightMatch(result.task.title, spotlightQuery)
+                              : renderTitle(result.task.title)}
+                          </div>
+                          {result.match.field !== 'title' && (
+                            <div className={`text-xs ${textSecondary} truncate mt-0.5`}>
+                              <span className="opacity-60">{result.match.field === 'notes' ? 'Notes: ' : result.match.field === 'subtask' ? 'Subtask: ' : result.match.field === 'tag' ? 'Tag: ' : ''}</span>
+                              {highlightMatch(result.match.text, spotlightQuery)}
+                            </div>
+                          )}
+                        </div>
+                        {/* Date */}
+                        {result.date && (
+                          <span className={`text-xs ${textSecondary} flex-shrink-0`}>{result.date}</span>
+                        )}
+                        {/* Source badge */}
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${sourceBadgeColors[result.source]}`}>
+                          {result.sourceLabel}
+                        </span>
+                      </div>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
 
             {/* Footer */}
