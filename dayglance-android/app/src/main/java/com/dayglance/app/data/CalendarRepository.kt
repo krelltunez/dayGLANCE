@@ -118,10 +118,18 @@ class CalendarRepository(private val context: Context) {
                     else
                         cursor.getInt(calColorIdx)
 
-                    val startStr = if (allDay) date.toString()
+                    // All-day events in CalendarContract store times as UTC midnight.
+                    // Use the actual UTC date rather than the queried local date so the
+                    // same event doesn't appear duplicated on adjacent days in timezones
+                    // east of UTC (UTC+ users), where the instance window overlaps.
+                    val startStr = if (allDay)
+                        Instant.ofEpochMilli(beginMs).atOffset(java.time.ZoneOffset.UTC).toLocalDate().toString()
                     else milliToLocalDT(beginMs, zone)
 
-                    val endStr = if (allDay) date.toString()
+                    // End for all-day events is exclusive (first day NOT included), so
+                    // subtract one day to get the inclusive last day shown to the user.
+                    val endStr = if (allDay)
+                        Instant.ofEpochMilli(endMs2).atOffset(java.time.ZoneOffset.UTC).toLocalDate().minusDays(1).toString()
                     else milliToLocalDT(endMs2, zone)
 
                     events += CalEvent(

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars } from './native.js';
+import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -703,6 +703,39 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
 };
 
 // Cloud sync provider abstraction
+// Routes a WebDAV HTTP request through the native Android HTTP bridge when
+// running inside the app (no CORS, no proxy server needed), or through the
+// /api/webdav-proxy/ server-side proxy when running as a PWA/web app.
+const webdavFetch = async (method, targetUrl, authHeaders, body, extraHeaders = {}) => {
+  if (typeof window !== 'undefined' && window.DayGlanceNative?.httpRequest) {
+    // On Android: call the target URL directly with a standard Authorization header.
+    const headers = { ...extraHeaders };
+    if (authHeaders['X-WebDAV-Auth']) {
+      headers['Authorization'] = authHeaders['X-WebDAV-Auth'];
+    } else {
+      Object.assign(headers, authHeaders);
+    }
+    if (body !== undefined && body !== null) {
+      headers['Content-Type'] = extraHeaders['Content-Type'] || 'application/octet-stream';
+    }
+    const result = nativeHttpRequest(method, targetUrl, headers, body ?? '');
+    if (!result) throw new Error('Native HTTP bridge unavailable');
+    return {
+      status: result.status,
+      ok: result.ok,
+      statusText: result.error || String(result.status),
+      json: async () => JSON.parse(result.body),
+      text: async () => result.body,
+    };
+  }
+  // On web: route through the server-side CORS proxy.
+  return fetch(`/api/webdav-proxy/?url=${targetUrl}`, {
+    method,
+    headers: { ...authHeaders, ...extraHeaders },
+    ...(body !== undefined && body !== null ? { body } : {}),
+  });
+};
+
 const cloudSyncProviders = {
   nextcloud: {
     name: 'Nextcloud / WebDAV',
@@ -720,19 +753,12 @@ const cloudSyncProviders = {
       const body = JSON.stringify(data);
 
       const doUpload = () =>
-        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-          method: 'PUT',
-          headers: { ...authHeaders, 'Content-Type': 'application/json' },
-          body
-        });
+        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
 
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
         // Directory doesn't exist, create it
-        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-          method: 'MKCOL',
-          headers: authHeaders
-        });
+        await webdavFetch('MKCOL', dirUrl, authHeaders);
         res = await doUpload();
       }
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
@@ -742,10 +768,7 @@ const cloudSyncProviders = {
       const fileUrl = this.getFileUrl(config);
       const authHeaders = this.getAuthHeaders(config);
 
-      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-        method: 'GET',
-        headers: authHeaders
-      });
+      const res = await webdavFetch('GET', fileUrl, authHeaders);
 
       if (res.status === 404) return null; // No remote file yet
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
@@ -755,10 +778,7 @@ const cloudSyncProviders = {
       const dirUrl = this.getDirUrl(config);
       const authHeaders = this.getAuthHeaders(config);
 
-      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-        method: 'PROPFIND',
-        headers: { ...authHeaders, 'Depth': '0' }
-      });
+      const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
 
       if (res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and app password.' };
@@ -786,14 +806,10 @@ const cloudSyncProviders = {
       const authHeaders = this.getAuthHeaders(config);
       const body = JSON.stringify(data);
       const doUpload = () =>
-        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-          method: 'PUT',
-          headers: { ...authHeaders, 'Content-Type': 'application/json' },
-          body
-        });
+        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
-        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        await webdavFetch('MKCOL', dirUrl, authHeaders);
         res = await doUpload();
       }
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
@@ -802,10 +818,7 @@ const cloudSyncProviders = {
     async download(config) {
       const fileUrl = this.getFileUrl(config);
       const authHeaders = this.getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-        method: 'GET',
-        headers: authHeaders
-      });
+      const res = await webdavFetch('GET', fileUrl, authHeaders);
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
       return res.json();
@@ -813,10 +826,7 @@ const cloudSyncProviders = {
     async test(config) {
       const dirUrl = this.getDirUrl(config);
       const authHeaders = this.getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-        method: 'PROPFIND',
-        headers: { ...authHeaders, 'Depth': '0' }
-      });
+      const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
       if (res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and password.' };
       return { success: false, error: `Unexpected response: ${res.status} ${res.statusText}` };
@@ -4643,6 +4653,10 @@ const DayPlanner = () => {
   };
 
   const getTaskCalendarStyle = (task, isDarkMode) => {
+    // Native Android calendar events: apply the calendar color from the device.
+    if (task.nativeCalendarColor && !task.isTaskCalendar) {
+      return { backgroundColor: task.nativeCalendarColor };
+    }
     if (!task.isTaskCalendar) return {};
 
     if (task.completed) {
@@ -8042,15 +8056,44 @@ const DayPlanner = () => {
       dates.push(dateToString(d));
     }
 
-    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
     Promise.all(dates.map(d => nativeGetEvents(d))).then(results => {
-      const fetched = results.flatMap((result) =>
-        Array.isArray(result)
-          ? result
-              .filter(e => !filterSet || filterSet.has(e.calendarId))
-              .map(e => nativeEventToTask(e))
-          : []
-      );
+      const allEvents = results.flatMap(result => Array.isArray(result) ? result : []);
+
+      // Discover calendars that appear in events but weren't returned by getCalendars()
+      // (e.g. task-only calendars that some providers omit from the calendars list).
+      setAvailableCalendars(prev => {
+        const knownIds = new Set(prev.map(c => c.id));
+        const newCals = [];
+        allEvents.forEach(e => {
+          if (e.calendarId && !knownIds.has(e.calendarId)) {
+            knownIds.add(e.calendarId);
+            newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
+          }
+        });
+        if (newCals.length === 0) return prev;
+        // Extend any active calendarFilter so newly discovered calendars show as checked.
+        setCalendarFilter(f => {
+          if (f.length === 0) return f;
+          const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
+          return toAdd.length > 0 ? [...f, ...toAdd] : f;
+        });
+        return [...prev, ...newCals];
+      });
+
+      const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
+
+      // Deduplicate by task id: CalendarContract can return the same all-day event
+      // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
+      const seen = new Set();
+      const fetched = allEvents
+        .filter(e => !filterSet || filterSet.has(e.calendarId))
+        .map(e => nativeEventToTask(e))
+        .filter(t => {
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        });
+
       setTasks(prev => [
         ...prev.filter(t => !t._native),
         ...fetched,
@@ -8926,12 +8969,28 @@ const DayPlanner = () => {
       } else {
         // Regular task: update time, isAllDay status, and date (for cross-column drag)
         pushUndo();
+        const prevTask = task;
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
           startTime: finalTime,
           isAllDay: droppingToAllDay,
           date: dropDateStr,
         } : t));
+        // Sync native Android calendar events back to the device calendar
+        if (task.nativeEventId && !droppingToAllDay && finalTime) {
+          const endMin = timeToMinutes(finalTime) + (task.duration || 60);
+          const newStart = `${dropDateStr}T${finalTime}:00`;
+          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+          nativeUpdateEvent({
+            id: task.nativeEventId, title: task.title,
+            start: newStart, end: newEnd, allDay: false,
+            notes: task.notes || '', location: task.location || '',
+          }).then(result => {
+            if (!result?.success) {
+              setTasks(prev => prev.map(t => t.id === prevTask.id ? prevTask : t));
+            }
+          });
+        }
       }
       // Show notification if task was rescheduled to avoid calendar conflict
       if (conflicted && conflictingEvent) {
@@ -20772,11 +20831,11 @@ const DayPlanner = () => {
                               )}
                               <div className={`${isTablet ? 'flex h-full items-start' : 'h-full'}`} {...(isTablet ? { 'data-swipe-container': true } : {})}>
                               {/* Protruding drag tab (tablet only) */}
-                              {isTablet && (!isImported || task.isTaskCalendar) && (
+                              {isTablet && (!isImported || task.isTaskCalendar || !!task.nativeEventId) && (
                                 <div
                                   data-drag-handle
-                                  className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
-                                  style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                  className={`${task.isTaskCalendar || task.nativeCalendarColor ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                  style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}) }}
                                   onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
@@ -20794,12 +20853,12 @@ const DayPlanner = () => {
                                 </span>
                               )}
                               <div
-                              {...(isTablet && (!isImported || task.isTaskCalendar) ? {
+                              {...(isTablet && (!isImported || task.isTaskCalendar || !!task.nativeEventId) ? {
                                 onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'timeline'),
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
                               } : {})}
-                              className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
+                              className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar && !task.nativeCalendarColor ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
                               style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
                               >
                                 <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col">

@@ -28,6 +28,7 @@ class NativeBridge(
     private val obsidian = ObsidianBridge(context)
     private val notifications = NotificationBridge(context)
     private val dataStore = SharedDataStore(context)
+    private val http = HttpBridge()
 
     // ── Health Connect ──────────────────────────────────────────────────────
 
@@ -106,6 +107,18 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun syncReminders(remindersJson: String) = notifications.syncReminders(remindersJson)
+
+    // ── HTTP ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Performs a synchronous HTTP request from native code, bypassing CORS.
+     * Used by the WebDAV cloud sync providers when running as an Android app.
+     *
+     * Returns JSON: { status: number, ok: boolean, body: string, error?: string }
+     */
+    @JavascriptInterface
+    fun httpRequest(method: String, url: String, headersJson: String, body: String): String =
+        http.request(method, url, headersJson, body)
 
     // ── Settings ─────────────────────────────────────────────────────────────
 

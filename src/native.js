@@ -210,6 +210,26 @@ export const nativeGetPendingAction = () => {
 };
 
 /**
+ * Performs a native HTTP request (Android only), bypassing CORS and the
+ * /api/webdav-proxy/ server. Used by WebDAV cloud sync providers.
+ *
+ * @param method   HTTP verb: GET, PUT, POST, DELETE, MKCOL, PROPFIND, …
+ * @param url      Full target URL
+ * @param headers  Plain object of request headers
+ * @param body     Request body string (default empty)
+ * @returns        { status, ok, body, error? } or null if bridge unavailable
+ */
+export const nativeHttpRequest = (method, url, headers = {}, body = '') => {
+  const bridge = nativeBridge();
+  if (!bridge?.httpRequest) return null;
+  try {
+    return JSON.parse(bridge.httpRequest(method, url, JSON.stringify(headers), body));
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Replaces all scheduled background reminder alarms with a new set.
  *
  * Call this whenever tasks or reminder settings change so AlarmManager always

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DayGlance" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#3b82f6</item>
+        <item name="colorPrimaryVariant">#2563eb</item>
+        <item name="colorSecondary">#f97316</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- Dark mode: use light icons (white) so they're visible on dark backgrounds -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
