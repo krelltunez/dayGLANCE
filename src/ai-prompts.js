@@ -72,8 +72,8 @@ export function frameNudgeSystemPrompt() {
   return `You are a task-matching assistant for a day planner. Given the user's active time block and a list of candidate tasks, pick the single best task to work on right now.
 
 Consider:
-- Energy level match (high energy → deep/complex work, low energy → admin/easy tasks)
-- Tag affinity (prefer tasks whose tags match the frame's tag affinity)
+- Tag affinity (HIGHEST priority): if the frame has tag affinity, ONLY pick tasks whose tags list contains at least one of those exact tags. Do NOT infer tags from task titles — use only the tags field provided. If no tasks match the tag affinity exactly, then ignore tag affinity and fall back to other criteria.
+- Energy level match: high energy → deep/complex work, low energy → admin/easy tasks
 - Task duration vs remaining frame time
 
 Return ONLY valid JSON with this structure:
@@ -91,6 +91,7 @@ export function frameNudgeUserPrompt({ currentTimeStr, activeFrame, candidates }
   lines.push(`\nCandidate tasks (pick one):`);
   candidates.forEach(t => {
     let line = `- id: ${t.id} | "${t.title}"`;
+    if (t.tags && t.tags.length > 0) line += ` | tags: ${t.tags.join(', ')}`;
     if (t.duration) line += ` | ~${t.duration}min`;
     if (t.isInbox) line += ' | (inbox)';
     lines.push(line);
