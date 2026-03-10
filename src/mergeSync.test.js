@@ -1255,6 +1255,49 @@ describe('mergeHabits', () => {
     const { merged } = mergeHabits(local, remote);
     expect(merged.map(h => h.name)).toEqual(['Read', 'Exercise', 'Meditate']);
   });
+
+  it('excludes a habit deleted locally from the merged result', () => {
+    const local = [H(1, 'Exercise', ts(10))];
+    const remote = [H(1, 'Exercise', ts(10)), H(2, 'Read', ts(5))];
+    const localDeleted = { '1': new Date().toISOString() };
+    const { merged } = mergeHabits(local, remote, localDeleted, {});
+    expect(merged.map(h => h.name)).toEqual(['Read']);
+  });
+
+  it('excludes a habit deleted remotely from the merged result', () => {
+    const local = [H(1, 'Exercise', ts(10)), H(2, 'Read', ts(5))];
+    const remote = [H(1, 'Exercise', ts(10))];
+    const remoteDeleted = { '2': new Date().toISOString() };
+    const { merged } = mergeHabits(local, remote, {}, remoteDeleted);
+    expect(merged.map(h => h.name)).toEqual(['Exercise']);
+  });
+
+  it('propagates tombstone to local when remote deleted a habit local still has', () => {
+    const local = [H(1, 'Exercise', ts(10))];
+    const remote = [];
+    const remoteDeleted = { '1': new Date().toISOString() };
+    const { merged, mergedDeletedIds, localChanged } = mergeHabits(local, remote, {}, remoteDeleted);
+    expect(merged).toHaveLength(0);
+    expect(mergedDeletedIds['1']).toBeDefined();
+    expect(localChanged).toBe(true);
+  });
+
+  it('propagates tombstone to remote when local deleted a habit remote still has', () => {
+    const local = [];
+    const remote = [H(1, 'Exercise', ts(10))];
+    const localDeleted = { '1': new Date().toISOString() };
+    const { merged, mergedDeletedIds, remoteChanged } = mergeHabits(local, remote, localDeleted, {});
+    expect(merged).toHaveLength(0);
+    expect(mergedDeletedIds['1']).toBeDefined();
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('keeps the more recent deletion timestamp when both sides have a tombstone', () => {
+    const older = new Date(Date.now() - 60000).toISOString();
+    const newer = new Date().toISOString();
+    const { mergedDeletedIds } = mergeHabits([], [], { '1': older }, { '1': newer });
+    expect(mergedDeletedIds['1']).toBe(newer);
+  });
 });
 
 // ─── mergeHabitLogs ───────────────────────────────────────────────────

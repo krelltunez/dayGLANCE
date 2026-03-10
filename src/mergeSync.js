@@ -212,11 +212,25 @@ export const mergeDailyNotes = (localNotes, remoteNotes) => {
  * practice they'll be identical).  For mutable fields like `archived` and
  * `name`, the version with a newer `createdAt` wins; if equal, local wins.
  *
- * @param {Array} localHabits  - Habits from this device
- * @param {Array} remoteHabits - Habits from the server
- * @returns {{ merged: Array, localChanged: boolean, remoteChanged: boolean }}
+ * Habits whose ID appears in either side's deletedHabitIds tombstone map
+ * are suppressed and the tombstone is propagated to both sides so the
+ * deletion persists across devices.
+ *
+ * @param {Array}  localHabits      - Habits from this device
+ * @param {Array}  remoteHabits     - Habits from the server
+ * @param {Object} localDeletedIds  - Map of habit ID → deletion timestamp (tombstones)
+ * @param {Object} remoteDeletedIds - Map of habit ID → deletion timestamp (tombstones)
+ * @returns {{ merged: Array, mergedDeletedIds: Object, localChanged: boolean, remoteChanged: boolean }}
  */
-export const mergeHabits = (localHabits, remoteHabits) => {
+export const mergeHabits = (localHabits, remoteHabits, localDeletedIds = {}, remoteDeletedIds = {}) => {
+  // Build the union of tombstones, keeping the most recent deletion timestamp
+  const mergedDeletedIds = { ...localDeletedIds };
+  for (const [id, ts] of Object.entries(remoteDeletedIds)) {
+    if (!mergedDeletedIds[id] || new Date(ts) > new Date(mergedDeletedIds[id])) {
+      mergedDeletedIds[id] = ts;
+    }
+  }
+
   const remoteMap = new Map(remoteHabits.map(h => [String(h.id), h]));
   const localIds = new Set(localHabits.map(h => String(h.id)));
   let localChanged = false;
@@ -225,6 +239,11 @@ export const mergeHabits = (localHabits, remoteHabits) => {
 
   for (const localHabit of localHabits) {
     const id = String(localHabit.id);
+    // Skip habits that have been deleted on either side
+    if (mergedDeletedIds[id]) {
+      remoteChanged = true; // remote may still have this habit
+      continue;
+    }
     const remoteHabit = remoteMap.get(id);
     if (remoteHabit) {
       const localTime = new Date(localHabit.lastModified || localHabit.createdAt || 0);
@@ -251,13 +270,23 @@ export const mergeHabits = (localHabits, remoteHabits) => {
   }
 
   for (const remoteHabit of remoteHabits) {
-    if (!localIds.has(String(remoteHabit.id))) {
+    const id = String(remoteHabit.id);
+    // Skip habits that have been deleted on either side
+    if (mergedDeletedIds[id]) {
+      localChanged = true; // local may still have this habit
+      continue;
+    }
+    if (!localIds.has(id)) {
       merged.push(remoteHabit);
       localChanged = true;
     }
   }
 
-  return { merged, localChanged, remoteChanged };
+  // Propagate merged tombstones if either side is missing entries
+  if (Object.keys(mergedDeletedIds).length !== Object.keys(localDeletedIds).length) localChanged = true;
+  if (Object.keys(mergedDeletedIds).length !== Object.keys(remoteDeletedIds).length) remoteChanged = true;
+
+  return { merged, mergedDeletedIds, localChanged, remoteChanged };
 };
 
 /**
@@ -384,7 +413,9 @@ export const mergeSyncData = (localData, remoteData) => {
   const dailyNotesMerge = mergeDailyNotes(localData.dailyNotes || {}, remoteData.dailyNotes || {});
 
   // Merge habits and habit logs
-  const habitsMerge = mergeHabits(localData.habits || [], remoteData.habits || []);
+  const localDeletedHabitIds = localData.deletedHabitIds || {};
+  const remoteDeletedHabitIds = remoteData.deletedHabitIds || {};
+  const habitsMerge = mergeHabits(localData.habits || [], remoteData.habits || [], localDeletedHabitIds, remoteDeletedHabitIds);
   const habitLogsMerge = mergeHabitLogs(localData.habitLogs || {}, remoteData.habitLogs || {});
 
   let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged || dailyNotesMerge.localChanged || habitsMerge.localChanged || habitLogsMerge.localChanged;
@@ -532,6 +563,7 @@ export const mergeSyncData = (localData, remoteData) => {
       routinesDate: mergedRoutinesDate,
       dailyNotes: dailyNotesMerge.merged,
       habits: habitsMerge.merged,
+      deletedHabitIds: habitsMerge.mergedDeletedIds,
       habitLogs: habitLogsMerge.merged,
       habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
       routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,

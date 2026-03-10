@@ -7873,6 +7873,9 @@ const DayPlanner = () => {
   };
   const deleteHabit = (id) => {
     setHabits(prev => prev.filter(h => h.id !== id));
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}');
+    tombstones[String(id)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-habit-ids', JSON.stringify(tombstones));
   };
   const reorderHabits = (fromIndex, toIndex) => {
     setHabits(prev => {
@@ -10352,6 +10355,7 @@ const DayPlanner = () => {
       habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
       habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
+      deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
       routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
       gtdFrames: JSON.parse(localStorage.getItem('day-planner-gtd-frames') || '[]')
     }
@@ -10431,6 +10435,7 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
       setHabits(data.habits);
     }
+    if (data.deletedHabitIds) localStorage.setItem('day-planner-deleted-habit-ids', JSON.stringify(data.deletedHabitIds));
     if (data.habitLogs) {
       localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
       setHabitLogs(data.habitLogs);
