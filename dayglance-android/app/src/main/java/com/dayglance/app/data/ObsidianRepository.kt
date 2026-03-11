@@ -63,8 +63,14 @@ class ObsidianRepository(private val context: Context) {
         } ?: ""
 
     private fun writeText(file: DocumentFile, text: String) {
-        context.contentResolver.openOutputStream(file.uri, "wt")?.use {
-            it.bufferedWriter().write(text)
+        // Close the BufferedWriter (not just the raw OutputStream) so its internal
+        // buffer is flushed to disk before the stream closes.  Closing only the
+        // OutputStream while a BufferedWriter wraps it leaves the buffer unflushed,
+        // which silently truncates the file to zero bytes.
+        context.contentResolver.openOutputStream(file.uri, "wt")?.use { outputStream ->
+            outputStream.bufferedWriter().use { writer ->
+                writer.write(text)
+            }
         }
     }
 

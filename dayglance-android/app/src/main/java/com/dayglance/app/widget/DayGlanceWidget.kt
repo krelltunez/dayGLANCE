@@ -57,11 +57,16 @@ class DayGlanceWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        try {
-            val views = RemoteViews(context.packageName, R.layout.widget_layout)
-            val dataStore = SharedDataStore(context)
+        // Step 1: Create RemoteViews — if this fails we truly cannot proceed.
+        val views = try {
+            RemoteViews(context.packageName, R.layout.widget_layout)
+        } catch (_: Exception) { return }
 
-            // Bind data from snapshot or show placeholder state
+        // Step 2: Bind data, always falling back to the placeholder on any error.
+        // Each sub-step is isolated so a data-layer failure cannot prevent the
+        // widget from rendering something reasonable.
+        try {
+            val dataStore = SharedDataStore(context)
             val snapshotJson = dataStore.widgetSnapshot
             if (snapshotJson != null) {
                 try {
@@ -72,20 +77,25 @@ class DayGlanceWidget : AppWidgetProvider() {
             } else {
                 bindPlaceholder(views)
             }
+        } catch (_: Exception) {
+            try { bindPlaceholder(views) } catch (_: Exception) { /* ignore */ }
+        }
 
-            // Tapping the widget opens the main app
+        // Step 3: Attach the tap-to-open action — non-critical, silently ignored on error.
+        try {
             val launchIntent = Intent(context, MainActivity::class.java)
             val pendingIntent = android.app.PendingIntent.getActivity(
                 context, 0, launchIntent,
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+        } catch (_: Exception) { /* Widget still renders, just won't launch the app on tap */ }
 
+        // Step 4: Push the views to the launcher — must always be reached to avoid
+        // the launcher showing "Problem loading widget" on freshly placed widgets.
+        try {
             appWidgetManager.updateAppWidget(appWidgetId, views)
-        } catch (_: Exception) {
-            // Swallow all exceptions: an unhandled exception here crashes the BroadcastReceiver
-            // and causes the launcher to display "Problem loading widget".
-        }
+        } catch (_: Exception) { /* Nothing further we can do */ }
     }
 
     private fun bindSnapshot(views: RemoteViews, snapshot: JSONObject, updatedAt: Long) {
