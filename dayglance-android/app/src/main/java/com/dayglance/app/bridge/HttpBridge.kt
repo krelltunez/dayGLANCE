@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.ProtocolException
 
 /**
  * Native HTTP bridge — lets the WebView JS make arbitrary HTTP requests
@@ -31,7 +32,19 @@ class HttpBridge {
     fun request(method: String, url: String, headersJson: String, body: String): String {
         return try {
             val connection = URL(url).openConnection() as HttpURLConnection
-            connection.requestMethod = method
+            // HttpURLConnection only accepts standard verbs; WebDAV uses PROPFIND, MKCOL, etc.
+            // Use reflection to bypass the validation for non-standard methods.
+            try {
+                connection.requestMethod = method
+            } catch (_: ProtocolException) {
+                val field = try {
+                    connection.javaClass.getDeclaredField("method")
+                } catch (_: NoSuchFieldException) {
+                    HttpURLConnection::class.java.getDeclaredField("method")
+                }
+                field.isAccessible = true
+                field.set(connection, method)
+            }
             connection.connectTimeout = 20_000
             connection.readTimeout = 20_000
             connection.instanceFollowRedirects = true
@@ -45,7 +58,7 @@ class HttpBridge {
             } catch (_: Exception) {}
 
             // Write body if provided
-            if (body.isNotEmpty() && method !in listOf("GET", "HEAD", "DELETE")) {
+            if (body.isNotEmpty() && method !in listOf("GET", "HEAD")) {
                 connection.doOutput = true
                 val os: OutputStream = connection.outputStream
                 os.write(body.toByteArray(Charsets.UTF_8))
