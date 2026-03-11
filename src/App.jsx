@@ -14290,6 +14290,7 @@ const DayPlanner = () => {
                                   {(!isImported || (isCalendarEvent && task.nativeEventId)) && (
                                     <div
                                       onTouchStart={(e) => handleTouchResizeStart(task, e)}
+                                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                       className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center select-none"
                                       style={{ marginBottom: '-4px', touchAction: 'none', zIndex: 10, WebkitTouchCallout: 'none' }}
                                     >
@@ -21220,6 +21221,7 @@ const DayPlanner = () => {
                                   <div
                                     onMouseDown={(e) => handleResizeStart(task, e)}
                                     onTouchStart={(e) => handleTouchResizeStart(task, e)}
+                                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                     className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
                                     style={{ marginBottom: '-4px', touchAction: 'none', WebkitTouchCallout: 'none' }}
                                   >
