@@ -15999,6 +15999,15 @@ const DayPlanner = () => {
                       <ChevronRight size={18} className={textSecondary} />
                     </button>
                     <button
+                      onClick={() => setMobileSettingsView('obsidian')}
+                      className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+                    >
+                      <BookOpen size={20} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
+                      <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
+                      {obsidianConfig?.enabled && <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                      <ChevronRight size={18} className={textSecondary} />
+                    </button>
+                    <button
                       onClick={() => setShowHelpModal(true)}
                       className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
                     >
@@ -16717,6 +16726,116 @@ const DayPlanner = () => {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Obsidian sub-view */}
+                {mobileSettingsView === 'obsidian' && (
+                  <div className="px-4 py-4 space-y-4">
+                    <button
+                      onClick={() => setMobileSettingsView('main')}
+                      className={`flex items-center gap-2 ${textSecondary} mb-2`}
+                    >
+                      <ChevronLeft size={18} />
+                      <span className="text-sm font-medium">Settings</span>
+                    </button>
+                    <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                      <BookOpen size={18} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
+                      Obsidian Integration
+                    </h4>
+                    <p className={`text-xs ${textSecondary}`}>
+                      Import tasks and sync daily notes with your Obsidian vault.
+                    </p>
+                    {isNativeAndroid() ? (
+                      <div className="space-y-3">
+                        <p className={`text-xs ${textSecondary}`}>
+                          Vault access and daily note settings are configured in the Android app settings.
+                        </p>
+                        <button
+                          onClick={() => window.DayGlanceNative.openSettings()}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                        >
+                          <FolderOpen size={14} />
+                          Open Vault Settings
+                        </button>
+                      </div>
+                    ) : obsidianConfig?.enabled ? (
+                      <div className="space-y-3">
+                        <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
+                          <FolderOpen size={14} className={textSecondary} />
+                          <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+                          <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                        </div>
+                        <div>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
+                          <input
+                            type="text"
+                            placeholder="(vault root)"
+                            value={obsidianConfig.dailyNotesPath || ''}
+                            onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          />
+                          <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root. Common: "Daily Notes" or "journals"</p>
+                        </div>
+                        <div>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>Daily note template</label>
+                          <textarea
+                            value={dailyNoteTemplate}
+                            onChange={(e) => setDailyNoteTemplate(e.target.value)}
+                            placeholder="Template for new daily notes..."
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
+                            rows={4}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => performObsidianSync()}
+                            disabled={obsidianSyncStatus === 'syncing'}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                          >
+                            <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                            {obsidianSyncStatus === 'syncing' ? 'Syncing…' : 'Sync Now'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await disconnectVault();
+                              obsidianVaultHandleRef.current = null;
+                              setObsidianConfig(null);
+                              setObsidianLastSynced(null);
+                              localStorage.removeItem('day-planner-obsidian-last-synced');
+                              setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                              setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
+                            }}
+                            className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                        {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">Sync complete</p>}
+                        {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed — check console for details</p>}
+                        {obsidianLastSynced && (
+                          <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!isFileSystemAccessSupported()) {
+                            alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
+                            return;
+                          }
+                          const handle = await requestVaultAccess();
+                          if (handle) {
+                            obsidianVaultHandleRef.current = handle;
+                            setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
+                          }
+                        }}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
+                      >
+                        <FolderOpen size={14} />
+                        Select Vault Folder
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
