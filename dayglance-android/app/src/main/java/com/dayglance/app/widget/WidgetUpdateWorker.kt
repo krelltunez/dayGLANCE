@@ -38,12 +38,14 @@ class WidgetUpdateWorker(
         val dataStore = SharedDataStore(context)
 
         // 1. Fetch steps from HealthRepository
-        val healthRepo = HealthRepository(context)
-        val steps = try { healthRepo.getSteps(today) } catch (_: Exception) { -1 }
+        val steps = try {
+            HealthRepository(context).getSteps(today)
+        } catch (_: Exception) { -1 }
 
         // 2. Fetch today's events from CalendarRepository
-        val calRepo = CalendarRepository(context)
-        val events = try { calRepo.getEvents(today) } catch (_: Exception) { emptyList() }
+        val events = try {
+            CalendarRepository(context).getEvents(today)
+        } catch (_: Exception) { emptyList() }
 
         // 3. Build and write snapshot JSON to SharedDataStore
         val snapshot = buildSnapshot(today, steps, events)

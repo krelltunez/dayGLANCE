@@ -44,7 +44,12 @@ class DayGlanceWidget : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         // Schedule periodic refresh when first widget is added
-        WidgetUpdateWorker.schedule(context)
+        try {
+            WidgetUpdateWorker.schedule(context)
+        } catch (_: Exception) {
+            // WorkManager not yet initialized on this device — worker will be re-scheduled
+            // the next time the app process starts (onEnabled is retriggered on reboot too).
+        }
     }
 
     private fun updateWidget(
@@ -52,30 +57,35 @@ class DayGlanceWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        val views = RemoteViews(context.packageName, R.layout.widget_layout)
-        val dataStore = SharedDataStore(context)
+        try {
+            val views = RemoteViews(context.packageName, R.layout.widget_layout)
+            val dataStore = SharedDataStore(context)
 
-        // Bind data from snapshot or show placeholder state
-        val snapshotJson = dataStore.widgetSnapshot
-        if (snapshotJson != null) {
-            try {
-                bindSnapshot(views, JSONObject(snapshotJson), dataStore.widgetSnapshotUpdatedAt)
-            } catch (_: Exception) {
+            // Bind data from snapshot or show placeholder state
+            val snapshotJson = dataStore.widgetSnapshot
+            if (snapshotJson != null) {
+                try {
+                    bindSnapshot(views, JSONObject(snapshotJson), dataStore.widgetSnapshotUpdatedAt)
+                } catch (_: Exception) {
+                    bindPlaceholder(views)
+                }
+            } else {
                 bindPlaceholder(views)
             }
-        } else {
-            bindPlaceholder(views)
+
+            // Tapping the widget opens the main app
+            val launchIntent = Intent(context, MainActivity::class.java)
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context, 0, launchIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        } catch (_: Exception) {
+            // Swallow all exceptions: an unhandled exception here crashes the BroadcastReceiver
+            // and causes the launcher to display "Problem loading widget".
         }
-
-        // Tapping the widget opens the main app
-        val launchIntent = Intent(context, MainActivity::class.java)
-        val pendingIntent = android.app.PendingIntent.getActivity(
-            context, 0, launchIntent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-
-        appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
     private fun bindSnapshot(views: RemoteViews, snapshot: JSONObject, updatedAt: Long) {
