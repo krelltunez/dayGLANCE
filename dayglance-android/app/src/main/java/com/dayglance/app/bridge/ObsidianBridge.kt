@@ -41,6 +41,18 @@ class ObsidianBridge(private val context: Context) {
         repository.appendToNote(path, content)
 
     /**
+     * Returns a JSON array of all daily notes in [folder] on or after [cutoff] (yyyy-MM-dd).
+     * Each entry: { "date": "yyyy-MM-dd", "text": "<markdown>" }.
+     * Pass an empty string for [cutoff] to return all notes.
+     *
+     * Preferred over repeated getDailyNote calls: a single native round trip avoids
+     * blocking the JS thread N times during vault sync.
+     */
+    @JavascriptInterface
+    fun getAllDailyNotes(folder: String, cutoff: String): String =
+        repository.getAllDailyNotes(folder, cutoff)
+
+    /**
      * Parses GFM task items from the note at [path] (relative to vault root).
      * Returns a JSON array: [{ "text": "...", "completed": false, "line": 1 }, ...]
      */

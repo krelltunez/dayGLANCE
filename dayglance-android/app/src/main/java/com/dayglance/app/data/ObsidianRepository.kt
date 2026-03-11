@@ -190,6 +190,34 @@ class ObsidianRepository(private val context: Context) {
         true
     }.getOrDefault(false)
 
+    /**
+     * Returns a JSON array of all daily notes in [folder] at or after [cutoff] (yyyy-MM-dd).
+     * Each entry: { "date": "yyyy-MM-dd", "text": "<markdown content>" }.
+     * Pass an empty [cutoff] to return all notes.
+     * Returns "[]" if the vault isn't configured or the folder doesn't exist.
+     *
+     * Preferred over repeated getDailyNote calls because a single native round trip is
+     * far cheaper than N synchronous JS→native calls (each blocking the JS thread).
+     */
+    fun getAllDailyNotes(folder: String, cutoff: String): String {
+        val root = vaultRoot() ?: return "[]"
+        val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return "[]")
+        val arr = JSONArray()
+        dir.listFiles()
+            .filter { it.isFile && it.name?.endsWith(".md") == true }
+            .forEach { file ->
+                val name = file.name ?: return@forEach
+                val dateStr = name.removeSuffix(".md")
+                if (!dateStr.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) return@forEach
+                if (cutoff.isNotBlank() && dateStr < cutoff) return@forEach
+                arr.put(JSONObject().apply {
+                    put("date", dateStr)
+                    put("text", readText(file))
+                })
+            }
+        return arr.toString()
+    }
+
     fun getTasksFromNote(path: String): String {
         val root = vaultRoot() ?: return "[]"
         val segments = path.split("/").filter { it.isNotBlank() }

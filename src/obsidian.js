@@ -604,9 +604,7 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
  */
 export function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
-  if (!bridge?.listNotes || !bridge?.getDailyNote) {
-    return { dailyNotes: {}, scheduledTasks: [], inboxTasks: [] };
-  }
+  if (!bridge) return { dailyNotes: {}, scheduledTasks: [], inboxTasks: [] };
 
   // Compute cutoff date string
   let cutoffStr = '0000-00-00';
@@ -631,28 +629,41 @@ export function syncObsidianVaultNative(folder, retentionDays, existingTasks, ex
   const allScheduled = [];
   const allInbox = [];
 
-  let notePaths;
-  try {
-    notePaths = JSON.parse(bridge.listNotes(folder));
-  } catch {
+  // Prefer the batch getAllDailyNotes method (single native round trip) over the
+  // old listNotes + per-note getDailyNote loop (N round trips that each block the
+  // JS thread and cause the app to freeze during sync).
+  let noteEntries; // [{ date, text }]
+  if (bridge.getAllDailyNotes) {
+    try {
+      noteEntries = JSON.parse(bridge.getAllDailyNotes(folder, cutoffStr));
+    } catch {
+      return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+    }
+  } else if (bridge.listNotes && bridge.getDailyNote) {
+    // Fallback: legacy path used when running against an older app build
+    let notePaths;
+    try {
+      notePaths = JSON.parse(bridge.listNotes(folder));
+    } catch {
+      return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+    }
+    noteEntries = [];
+    for (const notePath of notePaths) {
+      const fileName = notePath.split('/').pop();
+      if (!fileName?.endsWith('.md')) continue;
+      const dateStr = fileName.replace('.md', '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || dateStr < cutoffStr) continue;
+      try {
+        const text = bridge.getDailyNote(dateStr);
+        if (text !== null && text !== undefined) noteEntries.push({ date: dateStr, text });
+      } catch { /* skip unreadable notes */ }
+    }
+  } else {
     return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
   }
 
-  for (const notePath of notePaths) {
-    // Extract filename from path (may be "Daily Notes/2026-03-10.md" or just "2026-03-10.md")
-    const fileName = notePath.split('/').pop();
-    if (!fileName || !fileName.endsWith('.md')) continue;
-
-    const dateStr = fileName.replace('.md', '');
-    // Only process yyyy-MM-dd named files
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
-    if (dateStr < cutoffStr) continue;
-
-    let text;
-    try {
-      text = bridge.getDailyNote(dateStr);
-    } catch { continue; }
-
+  for (const { date: dateStr, text } of noteEntries) {
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
     if (text === null || text === undefined) continue;
 
     dailyNotes[dateStr] = { text, lastModified: new Date().toISOString(), fromObsidian: true };

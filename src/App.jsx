@@ -524,6 +524,9 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   const [localText, setLocalText] = useState(defaultText);
   const [isEditing, setIsEditing] = useState(!note?.text);
   const [loading, setLoading] = useState(!!loadFresh);
+  // Tracks whether loadFresh resolved; save-on-unmount is skipped until it does
+  // so a close during loading never overwrites vault content with stale/empty state.
+  const freshLoadedRef = useRef(!loadFresh);
 
   // If an async loadFresh callback is provided (Obsidian), read fresh content on mount
   useEffect(() => {
@@ -546,7 +549,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
       } catch (err) {
         console.error('Failed to load fresh note from vault:', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          freshLoadedRef.current = true;
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -573,10 +579,13 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
     if (!isEditing && backdropRef.current) backdropRef.current.focus();
   }, [isEditing]);
 
-  // Save on unmount
+  // Save on unmount — skip if loadFresh never resolved to avoid overwriting vault
+  // content with the stale initial empty state.
   useEffect(() => {
     return () => {
-      onSaveRef.current(dateStrRef.current, localTextRef.current);
+      if (freshLoadedRef.current) {
+        onSaveRef.current(dateStrRef.current, localTextRef.current);
+      }
     };
   }, []);
 
@@ -593,13 +602,20 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      onSave(dateStr, localText);
+      if (!loading) onSave(dateStr, localText);
       onClose();
     }
   };
 
   const handleBlur = () => {
+    if (loading) return;
     onSave(dateStr, localText);
+  };
+
+  // Skip save if loadFresh hasn't resolved yet to prevent wiping vault content.
+  const handleSaveAndClose = () => {
+    if (!loading) onSave(dateStr, localText);
+    onClose();
   };
 
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
@@ -619,7 +635,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   if (isMobile) {
     // Bottom sheet style for mobile
     return (
-      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { onSave(dateStr, localText); onClose(); }}>
+      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={handleSaveAndClose}>
         <div className="bg-black/30 absolute inset-0" />
         <div
           className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] overflow-y-auto`}
@@ -631,12 +647,16 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
               <NotebookPen size={18} className={textSecondary} />
               <span className={`font-medium ${textPrimary}`}>Daily Note — {displayDate}</span>
             </div>
-            <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close daily notes">
+            <button onClick={handleSaveAndClose} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close daily notes">
               <X size={18} className={textSecondary} />
             </button>
           </div>
           <div className="p-4">
-            {isEditing ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader size={22} className={`animate-spin ${textSecondary}`} />
+              </div>
+            ) : isEditing ? (
               <textarea
                 value={localText}
                 onChange={(e) => setLocalText(e.target.value)}
@@ -663,7 +683,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
 
   // Desktop/tablet: centered modal
   return (
-    <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] outline-none" onClick={() => { onSave(dateStr, localText); onClose(); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onSave(dateStr, localText); onClose(); } }} tabIndex={-1}>
+    <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] outline-none" onClick={handleSaveAndClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); handleSaveAndClose(); } }} tabIndex={-1}>
       <div
         className={`${cardBg} rounded-lg shadow-xl p-6 border ${borderClass} w-full max-w-lg mx-4`}
         onClick={(e) => e.stopPropagation()}
@@ -673,12 +693,16 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
             <NotebookPen size={20} className={textSecondary} />
             <h3 className={`text-lg font-semibold ${textPrimary}`}>Daily Note — {displayDate}</h3>
           </div>
-          <button onClick={() => { onSave(dateStr, localText); onClose(); }} className={`p-1 rounded ${hoverBg}`}>
+          <button onClick={handleSaveAndClose} className={`p-1 rounded ${hoverBg}`}>
             <X size={20} className={textSecondary} />
           </button>
         </div>
 
-        {isEditing ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader size={24} className={`animate-spin ${textSecondary}`} />
+          </div>
+        ) : isEditing ? (
           <textarea
             value={localText}
             onChange={(e) => setLocalText(e.target.value)}
@@ -21747,7 +21771,9 @@ const DayPlanner = () => {
           template={dailyNoteTemplate}
           loadFresh={obsidianConfig?.enabled && obsidianVaultHandleRef.current
             ? obsidianVaultHandleRef.current === 'native'
-              ? (d) => Promise.resolve(readDailyNoteNative(d))
+              // Defer the synchronous native SAF read by one frame so the loading
+              // spinner renders before the JS thread is blocked.
+              ? (d) => new Promise(resolve => setTimeout(() => resolve(readDailyNoteNative(d)), 0))
               : (d) => readDailyNoteFresh(obsidianVaultHandleRef.current, obsidianConfig.dailyNotesPath || '', d)
             : null}
         />
