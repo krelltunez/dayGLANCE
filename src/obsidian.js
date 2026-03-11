@@ -509,3 +509,202 @@ export async function syncObsidianVault(
 
   return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
 }
+
+// ---------------------------------------------------------------------------
+// Android native bridge equivalents
+//
+// These mirror the File System Access API functions above but use the
+// window.DayGlanceObsidian bridge injected by the Android WebView.
+// ---------------------------------------------------------------------------
+
+/**
+ * Read a daily note via the native bridge. Returns { text, lastModified } or null.
+ * [date] is ISO format yyyy-MM-dd.
+ */
+export function readDailyNoteNative(date) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getDailyNote) return null;
+  try {
+    const text = bridge.getDailyNote(date);
+    if (text === null || text === undefined) return null;
+    return { text, lastModified: new Date().toISOString(), fromObsidian: true };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write (create or overwrite) a daily note via the native bridge.
+ * [date] is ISO format yyyy-MM-dd.
+ */
+export function writeDailyNoteNative(date, content) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.writeDailyNote) return false;
+  try {
+    return bridge.writeDailyNote(date, content);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Write a task's completion and scheduling state back to its Obsidian file
+ * via the native bridge.
+ *
+ * Reads the note with getDailyNote, applies the same regex-replace logic as
+ * writeTaskStateToFile, then writes the result back with writeDailyNote.
+ */
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
+
+  try {
+    const text = bridge.getDailyNote(date);
+    if (!text && text !== '') return; // vault not configured
+
+    const lines = text.split('\n');
+    let updated = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
+      if (!m) continue;
+
+      let lineTitle = m[3].trim();
+      const tm = lineTitle.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
+      if (tm) lineTitle = tm[4];
+
+      if (lineTitle === obsidianRawTitle) {
+        const indent = m[1];
+        const timeStr = startTime ? `${startTime} ` : '';
+        lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
+        updated = true;
+        break;
+      }
+    }
+
+    if (updated) {
+      bridge.writeDailyNote(date, lines.join('\n'));
+    }
+  } catch (err) {
+    console.error('Obsidian native writeback error:', err);
+  }
+}
+
+/**
+ * Sync daily notes + tasks from the Obsidian vault via the Android native bridge.
+ *
+ * Mirrors syncObsidianVault but uses DayGlanceObsidian.listNotes + getDailyNote
+ * instead of the File System Access API.
+ *
+ * @param {string} folder         Daily notes sub-folder (from native vault config)
+ * @param {number} retentionDays  How far back to read (0 = unlimited)
+ * @param {Array}  existingTasks  Current DG scheduled tasks
+ * @param {Array}  existingInbox  Current DG inbox tasks
+ * @returns {{ dailyNotes, scheduledTasks, inboxTasks }}
+ */
+export function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.listNotes || !bridge?.getDailyNote) {
+    return { dailyNotes: {}, scheduledTasks: [], inboxTasks: [] };
+  }
+
+  // Compute cutoff date string
+  let cutoffStr = '0000-00-00';
+  if (retentionDays && retentionDays > 0) {
+    const today = new Date();
+    const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - retentionDays);
+    cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+  }
+
+  // Build lookup of existing Obsidian tasks to preserve app-controlled properties
+  const existingTaskMap = {};
+  const userScheduledIds = new Set();
+  const userInboxIds = new Set();
+  for (const t of existingTasks) {
+    if (t.importSource === 'obsidian') { existingTaskMap[t.id] = t; userScheduledIds.add(t.id); }
+  }
+  for (const t of existingInbox) {
+    if (t.importSource === 'obsidian') { existingTaskMap[t.id] = t; userInboxIds.add(t.id); }
+  }
+
+  const dailyNotes = {};
+  const allScheduled = [];
+  const allInbox = [];
+
+  let notePaths;
+  try {
+    notePaths = JSON.parse(bridge.listNotes(folder));
+  } catch {
+    return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+  }
+
+  for (const notePath of notePaths) {
+    // Extract filename from path (may be "Daily Notes/2026-03-10.md" or just "2026-03-10.md")
+    const fileName = notePath.split('/').pop();
+    if (!fileName || !fileName.endsWith('.md')) continue;
+
+    const dateStr = fileName.replace('.md', '');
+    // Only process yyyy-MM-dd named files
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
+    if (dateStr < cutoffStr) continue;
+
+    let text;
+    try {
+      text = bridge.getDailyNote(dateStr);
+    } catch { continue; }
+
+    if (text === null || text === undefined) continue;
+
+    dailyNotes[dateStr] = { text, lastModified: new Date().toISOString(), fromObsidian: true };
+
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr);
+
+    // Same merge logic as syncObsidianVault
+    for (const task of scheduledTasks) {
+      const existing = existingTaskMap[task.id];
+      if (existing) {
+        if (existing.completed) task.completed = true;
+        if (existing.notes !== undefined) task.notes = existing.notes;
+        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
+        if (existing.color !== undefined) task.color = existing.color;
+        if (existing.duration !== undefined) task.duration = existing.duration;
+        if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.date !== undefined) task.date = existing.date;
+        if (existing.startTime !== undefined) task.startTime = existing.startTime;
+        if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+        if (existing.title !== undefined) task.title = existing.title;
+        if (existing.lastModified) task.lastModified = existing.lastModified;
+        if (userInboxIds.has(task.id)) { allInbox.push(task); continue; }
+      } else {
+        task.lastModified = new Date(0).toISOString();
+      }
+      allScheduled.push(task);
+    }
+
+    for (const task of inboxTasks) {
+      const existing = existingTaskMap[task.id];
+      if (existing) {
+        if (existing.completed) task.completed = true;
+        if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.notes !== undefined) task.notes = existing.notes;
+        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
+        if (existing.color !== undefined) task.color = existing.color;
+        if (existing.duration !== undefined) task.duration = existing.duration;
+        if (existing.title !== undefined) task.title = existing.title;
+        if (existing.lastModified) task.lastModified = existing.lastModified;
+        if (userScheduledIds.has(task.id)) {
+          if (existing.date !== undefined) task.date = existing.date;
+          if (existing.startTime !== undefined) task.startTime = existing.startTime;
+          if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+          allScheduled.push(task);
+          continue;
+        }
+      } else {
+        task.lastModified = new Date(0).toISOString();
+      }
+      allInbox.push(task);
+    }
+  }
+
+  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+}

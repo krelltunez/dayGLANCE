@@ -7,7 +7,7 @@ import com.dayglance.app.data.ObsidianRepository
 /**
  * Phase 4: Obsidian vault bridge.
  *
- * Exposes vault file I/O to the WebView via window.DayGlanceNative. The vault
+ * Exposes vault file I/O to the WebView via window.DayGlanceObsidian. The vault
  * root URI and daily note settings are configured in SettingsActivity.
  *
  * All methods run synchronously on the JavascriptInterface background thread —
@@ -46,4 +46,24 @@ class ObsidianBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun getTasksFromNote(path: String): String = repository.getTasksFromNote(path)
+
+    /** Returns true if the vault root URI has been configured via SettingsActivity. */
+    @JavascriptInterface
+    fun isVaultConfigured(): Boolean = repository.isVaultConfigured()
+
+    /**
+     * Returns JSON: { configured: Boolean, folder: String, pattern: String }.
+     * Called by the web frontend on Android startup to detect vault state and
+     * learn which daily-note sub-folder has been set natively.
+     */
+    @JavascriptInterface
+    fun getVaultConfig(): String = repository.getVaultConfig()
+
+    /**
+     * Creates or overwrites the daily note for [date] (ISO: yyyy-MM-dd) with [content].
+     * Returns false if the vault isn't configured or a write error occurs.
+     */
+    @JavascriptInterface
+    fun writeDailyNote(date: String, content: String): Boolean =
+        repository.writeDailyNote(date, content)
 }

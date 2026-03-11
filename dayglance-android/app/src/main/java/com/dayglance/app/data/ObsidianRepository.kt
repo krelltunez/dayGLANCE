@@ -144,6 +144,52 @@ class ObsidianRepository(private val context: Context) {
      * Returns a JSON array: [{ "text": "...", "completed": false, "line": 1 }, ...]
      * Line numbers are 1-based.
      */
+    /** Returns true if a vault root URI has been configured. */
+    fun isVaultConfigured(): Boolean = dataStore.vaultPath != null
+
+    /**
+     * Returns a JSON object with the current vault configuration:
+     *   { configured: Boolean, folder: String, pattern: String }
+     * The web frontend calls this on Android to detect vault state and
+     * synchronise the dailyNotesPath it uses for native bridge calls.
+     */
+    fun getVaultConfig(): String = JSONObject().apply {
+        put("configured", dataStore.vaultPath != null)
+        put("folder", dataStore.dailyNoteFolder)
+        put("pattern", dataStore.dailyNotePattern)
+    }.toString()
+
+    /**
+     * Creates or overwrites the daily note for [date] (ISO: yyyy-MM-dd) with [content].
+     * Creates the daily note folder and file if they don't already exist.
+     * Returns false if the vault isn't configured or a write error occurs.
+     */
+    fun writeDailyNote(date: String, content: String): Boolean = runCatching {
+        val root = vaultRoot() ?: return false
+        val folder = dataStore.dailyNoteFolder
+        val pattern = dataStore.dailyNotePattern
+
+        val localDate = try {
+            LocalDate.parse(date)
+        } catch (e: DateTimeParseException) {
+            return false
+        }
+        val formatter = try {
+            DateTimeFormatter.ofPattern(pattern)
+        } catch (e: IllegalArgumentException) {
+            return false
+        }
+
+        val fileName = "${localDate.format(formatter)}.md"
+        val dir = if (folder.isBlank()) root else (root.navigateOrCreate(folder) ?: return false)
+        val file = dir.findFile(fileName)
+            ?: dir.createFile("text/markdown", fileName)
+            ?: return false
+
+        writeText(file, content)
+        true
+    }.getOrDefault(false)
+
     fun getTasksFromNote(path: String): String {
         val root = vaultRoot() ?: return "[]"
         val segments = path.split("/").filter { it.isNotBlank() }

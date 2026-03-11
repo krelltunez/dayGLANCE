@@ -154,6 +154,33 @@ export const nativeAppendToNote = (path, content) => {
   return bridge.appendToNote(path, content);
 };
 
+/** Returns true if the vault root has been configured in the native settings. */
+export const nativeIsVaultConfigured = () => {
+  const bridge = obsidianBridge();
+  if (!bridge?.isVaultConfigured) return false;
+  try { return bridge.isVaultConfigured(); } catch { return false; }
+};
+
+/**
+ * Returns { configured, folder, pattern } from the native settings store.
+ * Used on Android startup to detect vault state and retrieve the folder path.
+ */
+export const nativeGetVaultConfig = () => {
+  const bridge = obsidianBridge();
+  if (!bridge?.getVaultConfig) return null;
+  try { return JSON.parse(bridge.getVaultConfig()); } catch { return null; }
+};
+
+/**
+ * Creates or overwrites the daily note for [date] (ISO: yyyy-MM-dd) with [content].
+ * Returns false if vault isn't configured or write fails.
+ */
+export const nativeWriteDailyNote = (date, content) => {
+  const bridge = obsidianBridge();
+  if (!bridge?.writeDailyNote) return false;
+  try { return bridge.writeDailyNote(date, content); } catch { return false; }
+};
+
 export const nativeScheduleReminder = (id, title, body, triggerAtMillis) => {
   const bridge = nativeBridge();
   if (!bridge?.scheduleReminder) return;

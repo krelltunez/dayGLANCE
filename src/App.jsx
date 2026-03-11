@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest } from './native.js';
-import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, writeDailyNoteFile, readDailyNoteFresh, writeTaskStateToFile } from './obsidian.js';
+import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote } from './native.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -4060,7 +4060,24 @@ const DayPlanner = () => {
 
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
-    if (!obsidianConfig?.enabled || !dataLoaded) return;
+    if (!dataLoaded) return;
+    if (isNativeAndroid()) {
+      // Android: vault is configured natively — detect and auto-enable
+      try {
+        const cfg = nativeGetVaultConfig();
+        if (cfg?.configured) {
+          obsidianVaultHandleRef.current = 'native';
+          if (!obsidianConfig?.enabled) {
+            setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '' });
+          }
+          performObsidianSync();
+        }
+      } catch (err) {
+        console.error('Obsidian: failed to read native vault config', err);
+      }
+      return;
+    }
+    if (!obsidianConfig?.enabled) return;
     (async () => {
       try {
         const handle = await getVaultAccess();
@@ -4074,11 +4091,25 @@ const DayPlanner = () => {
     })();
   }, [dataLoaded, obsidianConfig?.enabled]);
 
-  // Obsidian sync: on visibility change (user switches back from Obsidian)
+  // Obsidian sync: on visibility change (user switches back from Obsidian / native settings)
   useEffect(() => {
-    if (!obsidianConfig?.enabled) return;
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && obsidianVaultHandleRef.current) {
+      if (document.visibilityState !== 'visible') return;
+      if (isNativeAndroid()) {
+        // Re-check in case user just configured the vault in native settings
+        try {
+          const cfg = nativeGetVaultConfig();
+          if (cfg?.configured) {
+            obsidianVaultHandleRef.current = 'native';
+            if (!obsidianConfig?.enabled) {
+              setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '' });
+            }
+            performObsidianSync();
+          }
+        } catch {}
+        return;
+      }
+      if (obsidianVaultHandleRef.current) {
         performObsidianSync();
       }
     };
@@ -4103,21 +4134,30 @@ const DayPlanner = () => {
 
     const allObsidian = [...tasks, ...unscheduledTasks].filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle);
     const prev = obsidianPrevTaskStateRef.current;
+    const isNative = obsidianVaultHandleRef.current === 'native';
 
     for (const task of allObsidian) {
       const p = prev[task.id];
       if (p && (p.completed !== task.completed || p.startTime !== (task.startTime || null))) {
-        // Extract source date from task ID (obsidian-YYYY-MM-DD-hash)
         const sourceDate = task.date || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1];
         if (sourceDate) {
-          writeTaskStateToFile(
-            obsidianVaultHandleRef.current,
-            obsidianConfig.dailyNotesPath || '',
-            sourceDate,
-            task.obsidianRawTitle,
-            task.completed,
-            task.startTime || null,
-          ).catch(err => console.error('Obsidian: failed to write task state back', err));
+          if (isNative) {
+            writeTaskStateNative(
+              sourceDate,
+              task.obsidianRawTitle,
+              task.completed,
+              task.startTime || null,
+            );
+          } else {
+            writeTaskStateToFile(
+              obsidianVaultHandleRef.current,
+              obsidianConfig.dailyNotesPath || '',
+              sourceDate,
+              task.obsidianRawTitle,
+              task.completed,
+              task.startTime || null,
+            ).catch(err => console.error('Obsidian: failed to write task state back', err));
+          }
         }
       }
     }
@@ -5732,12 +5772,16 @@ const DayPlanner = () => {
     });
     // If Obsidian integration is enabled, write the note to the vault
     if (obsidianConfig?.enabled && obsidianVaultHandleRef.current) {
-      writeDailyNoteFile(
-        obsidianVaultHandleRef.current,
-        obsidianConfig.dailyNotesPath || '',
-        dateStr,
-        text || ''
-      ).catch(err => console.error('Obsidian: failed to write daily note', err));
+      if (obsidianVaultHandleRef.current === 'native') {
+        writeDailyNoteNative(dateStr, text || '');
+      } else {
+        writeDailyNoteFile(
+          obsidianVaultHandleRef.current,
+          obsidianConfig.dailyNotesPath || '',
+          dateStr,
+          text || ''
+        ).catch(err => console.error('Obsidian: failed to write daily note', err));
+      }
     }
   };
 
@@ -5787,13 +5831,21 @@ const DayPlanner = () => {
     setObsidianSyncStatus('syncing');
 
     try {
-      const result = await syncObsidianVault(
-        obsidianVaultHandleRef.current,
-        obsidianConfig?.dailyNotesPath || '',
-        syncRetentionDays,
-        tasks,
-        unscheduledTasks,
-      );
+      const isNative = obsidianVaultHandleRef.current === 'native';
+      const result = isNative
+        ? syncObsidianVaultNative(
+            obsidianConfig?.dailyNotesPath || '',
+            syncRetentionDays,
+            tasks,
+            unscheduledTasks,
+          )
+        : await syncObsidianVault(
+            obsidianVaultHandleRef.current,
+            obsidianConfig?.dailyNotesPath || '',
+            syncRetentionDays,
+            tasks,
+            unscheduledTasks,
+          );
 
       // Update daily notes — replace with Obsidian-sourced notes
       setDailyNotes(prev => {
@@ -16748,16 +16800,41 @@ const DayPlanner = () => {
                     </p>
                     {isNativeAndroid() ? (
                       <div className="space-y-3">
-                        <p className={`text-xs ${textSecondary}`}>
-                          Vault access and daily note settings are configured in the Android app settings.
-                        </p>
-                        <button
-                          onClick={() => window.DayGlanceNative.openSettings()}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
-                        >
-                          <FolderOpen size={14} />
-                          Open Vault Settings
-                        </button>
+                        {obsidianConfig?.enabled ? (
+                          <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
+                            <FolderOpen size={14} className={textSecondary} />
+                            <span className="truncate">Vault connected</span>
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                          </div>
+                        ) : (
+                          <p className={`text-xs ${textSecondary}`}>
+                            No vault configured. Open settings to select your Obsidian vault folder.
+                          </p>
+                        )}
+                        <div className="flex gap-2 flex-wrap">
+                          <button
+                            onClick={() => window.DayGlanceNative.openSettings()}
+                            className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
+                          >
+                            <FolderOpen size={14} />
+                            Vault Settings
+                          </button>
+                          {obsidianConfig?.enabled && (
+                            <button
+                              onClick={() => performObsidianSync()}
+                              disabled={obsidianSyncStatus === 'syncing'}
+                              className="px-3 py-2 bg-purple-600 text-white rounded-lg flex items-center gap-2 text-sm disabled:opacity-50"
+                            >
+                              <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+                              {obsidianSyncStatus === 'syncing' ? 'Syncing…' : 'Sync Now'}
+                            </button>
+                          )}
+                        </div>
+                        {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">Sync complete</p>}
+                        {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed — check that vault is configured</p>}
+                        {obsidianLastSynced && obsidianConfig?.enabled && (
+                          <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
+                        )}
                       </div>
                     ) : obsidianConfig?.enabled ? (
                       <div className="space-y-3">
@@ -21669,7 +21746,9 @@ const DayPlanner = () => {
           isMobile={isMobile}
           template={dailyNoteTemplate}
           loadFresh={obsidianConfig?.enabled && obsidianVaultHandleRef.current
-            ? (d) => readDailyNoteFresh(obsidianVaultHandleRef.current, obsidianConfig.dailyNotesPath || '', d)
+            ? obsidianVaultHandleRef.current === 'native'
+              ? (d) => Promise.resolve(readDailyNoteNative(d))
+              : (d) => readDailyNoteFresh(obsidianVaultHandleRef.current, obsidianConfig.dailyNotesPath || '', d)
             : null}
         />
       )}
