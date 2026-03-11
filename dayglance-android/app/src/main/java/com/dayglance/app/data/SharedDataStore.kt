@@ -66,6 +66,17 @@ class SharedDataStore(context: Context) {
             else remove(KEY_PENDING_COMPLETE)
         }
 
+    /**
+     * Task ID pending a snooze-15-minute shift via the notification "Snooze 15m" button.
+     * Written by NotificationActionReceiver; read and cleared by NativeBridge.getPendingAction().
+     */
+    var pendingSnoozeTaskId: String?
+        get() = prefs.getString(KEY_PENDING_SNOOZE, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_SNOOZE, value)
+            else remove(KEY_PENDING_SNOOZE)
+        }
+
     // ── Scheduled reminders (background alarm persistence) ───────────────────
 
     /**
@@ -100,6 +111,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_SCHEDULED_REMINDERS = "scheduled_reminders"
         private const val KEY_STEPS_CACHE = "steps_cache"
         private const val KEY_PENDING_COMPLETE = "pending_complete_task_id"
+        private const val KEY_PENDING_SNOOZE = "pending_snooze_task_id"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }

@@ -144,9 +144,16 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun getPendingAction(): String {
-        val taskId = dataStore.pendingCompleteTaskId ?: return ""
+        // Snooze takes priority (it was triggered most recently)
+        val snoozeId = dataStore.pendingSnoozeTaskId
+        if (snoozeId != null) {
+            dataStore.pendingSnoozeTaskId = null
+            val escaped = snoozeId.replace("\\", "\\\\").replace("\"", "\\\"")
+            return """{"action":"snooze","taskId":"$escaped","minutes":15}"""
+        }
+        val completeId = dataStore.pendingCompleteTaskId ?: return ""
         dataStore.pendingCompleteTaskId = null
-        val escaped = taskId.replace("\\", "\\\\").replace("\"", "\\\"")
+        val escaped = completeId.replace("\\", "\\\\").replace("\"", "\\\"")
         return """{"action":"complete","taskId":"$escaped"}"""
     }
 }

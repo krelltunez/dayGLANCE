@@ -1,15 +1,19 @@
 package com.dayglance.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -39,6 +43,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nativeBridge: NativeBridge
     private lateinit var obsidianBridge: ObsidianBridge
     private lateinit var healthRepository: HealthRepository
+
+    // File chooser callback for <input type="file"> in WebView
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private val filePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val callback = fileChooserCallback
+        fileChooserCallback = null
+        callback?.onReceiveValue(if (uri != null) arrayOf(uri) else emptyArray())
+    }
 
     // Registered in onCreate (before the activity starts) — safe to call from any thread
     private val requestHealthPermissions = registerForActivityResult(
@@ -102,7 +116,23 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest
             ) = assetLoader.shouldInterceptRequest(request.url)
         }
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView,
+                filePathCallback: ValueCallback<Array<Uri>>,
+                fileChooserParams: FileChooserParams,
+            ): Boolean {
+                // Cancel any previous pending callback
+                fileChooserCallback?.onReceiveValue(emptyArray())
+                fileChooserCallback = filePathCallback
+                val mimeTypes = fileChooserParams.acceptTypes
+                    .filter { it.isNotBlank() }
+                    .toTypedArray()
+                    .ifEmpty { arrayOf("application/json", "*/*") }
+                filePickerLauncher.launch(mimeTypes)
+                return true
+            }
+        }
 
         webView.settings.apply {
             javaScriptEnabled = true

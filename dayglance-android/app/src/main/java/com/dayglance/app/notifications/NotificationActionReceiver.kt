@@ -37,10 +37,17 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     private fun handleSnooze(context: Context, intent: Intent, notifId: Int) {
         val triggerAt = System.currentTimeMillis() + SNOOZE_MS
+        val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: ""
+
+        // Store the snooze request so JS can shift the task start time by 15 minutes
+        // when the app next comes to the foreground.
+        if (taskId.isNotEmpty()) {
+            SharedDataStore(context).pendingSnoozeTaskId = taskId
+        }
 
         val alarmIntent = Intent(context, ReminderReceiver::class.java).apply {
             putExtra(ReminderReceiver.EXTRA_ID, "snooze-$notifId")
-            putExtra(ReminderReceiver.EXTRA_TASK_ID, intent.getStringExtra(EXTRA_TASK_ID))
+            putExtra(ReminderReceiver.EXTRA_TASK_ID, taskId)
             putExtra(ReminderReceiver.EXTRA_TITLE, intent.getStringExtra(EXTRA_TITLE))
             putExtra(ReminderReceiver.EXTRA_BODY, intent.getStringExtra(EXTRA_BODY))
             putExtra(ReminderReceiver.EXTRA_TYPE, intent.getStringExtra(EXTRA_TYPE))

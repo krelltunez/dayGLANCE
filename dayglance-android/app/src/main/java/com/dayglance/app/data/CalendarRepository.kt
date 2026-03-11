@@ -149,6 +149,66 @@ class CalendarRepository(private val context: Context) {
         } catch (_: SecurityException) {
             // READ_CALENDAR permission not yet granted — return empty list
         }
+
+        // Also query VTODO (task) events — these are stored in the Events table with
+        // a non-null DUE date and a STATUS of STATUS_TODO. Not all providers support
+        // this (Google Calendar does not), but apps like Samsung Calendar and DAVx⁵ do.
+        try {
+            val taskProjection = arrayOf(
+                CalendarContract.Events._ID,
+                CalendarContract.Events.TITLE,
+                CalendarContract.Events.DTSTART,
+                CalendarContract.Events.DUE,
+                CalendarContract.Events.DESCRIPTION,
+                CalendarContract.Events.EVENT_LOCATION,
+                CalendarContract.Events.CALENDAR_ID,
+                CalendarContract.Events.CALENDAR_DISPLAY_NAME,
+                CalendarContract.Events.CALENDAR_COLOR,
+            )
+            // DUE is the field used for VTODO tasks; DTSTART may be null
+            val selection = "${CalendarContract.Events.DUE} >= ? AND ${CalendarContract.Events.DUE} < ?"
+            val selectionArgs = arrayOf(startMs.toString(), endMs.toString())
+            context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI, taskProjection, selection, selectionArgs,
+                "${CalendarContract.Events.DTSTART} ASC"
+            )?.use { cursor ->
+                val idIdx      = cursor.getColumnIndex(CalendarContract.Events._ID)
+                val titleIdx   = cursor.getColumnIndex(CalendarContract.Events.TITLE)
+                val startIdx   = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
+                val dueIdx     = cursor.getColumnIndex(CalendarContract.Events.DUE)
+                val descIdx    = cursor.getColumnIndex(CalendarContract.Events.DESCRIPTION)
+                val locIdx     = cursor.getColumnIndex(CalendarContract.Events.EVENT_LOCATION)
+                val calIdIdx   = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_ID)
+                val calNameIdx = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_DISPLAY_NAME)
+                val colorIdx   = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_COLOR)
+
+                while (cursor.moveToNext()) {
+                    val eventId = cursor.getLong(idIdx)
+                    // Skip if already returned from the Instances query
+                    if (events.any { it.id == eventId.toString() }) continue
+
+                    val dueMs = if (dueIdx >= 0 && !cursor.isNull(dueIdx)) cursor.getLong(dueIdx) else endMs
+                    val startMs2 = if (startIdx >= 0 && !cursor.isNull(startIdx)) cursor.getLong(startIdx) else dueMs
+                    val colorInt = if (colorIdx >= 0) cursor.getInt(colorIdx) else 0x6b7280
+
+                    events += CalEvent(
+                        id           = "task-$eventId",
+                        title        = cursor.getString(titleIdx) ?: "",
+                        start        = date.toString(),
+                        end          = date.toString(),
+                        allDay       = true,
+                        notes        = cursor.getString(descIdx) ?: "",
+                        location     = cursor.getString(locIdx) ?: "",
+                        calendarId   = cursor.getLong(calIdIdx).toString(),
+                        calendarName = cursor.getString(calNameIdx) ?: "",
+                        color        = "#%06X".format(colorInt and 0xFFFFFF),
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            // DUE column may not be available on all Android versions — silently skip
+        }
+
         return events
     }
 

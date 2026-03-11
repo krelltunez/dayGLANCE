@@ -159,3 +159,16 @@ body.using-pointer a:focus-visible {
     -webkit-touch-callout: none;
   }
 }
+
+/* Current task ring pulse animation */
+@keyframes current-task-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+  70%  { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+.current-task-pulse {
+  animation: current-task-ring 2s ease-out infinite;
+  outline: 2px solid rgba(251, 191, 36, 0.8);
+  outline-offset: 1px;
+  border-radius: 0.5rem;
+}

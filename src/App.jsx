@@ -2757,7 +2757,7 @@ const DayPlanner = () => {
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
-  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: !isNativeAndroid(), ai: true, obsidian: true, trmnl: true });
+  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: !isNativeAndroid(), ai: true, obsidian: !isNativeAndroid(), trmnl: true });
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -8025,7 +8025,7 @@ const DayPlanner = () => {
       duration,
       isAllDay,
       imported:             true,
-      isTaskCalendar:       false,
+      isTaskCalendar:       String(event.id).startsWith('task-'),
       notes:                event.notes || '',
       location:             event.location || '',
       calendarName:         event.calendarName || '',
@@ -8536,8 +8536,8 @@ const DayPlanner = () => {
 
   // --- Mobile swipe + long-press drag handlers ---
   const handleMobileTaskTouchStart = (e, task, taskType) => {
-    // Skip swipe for all imported items (calendar events and task-calendar tasks are immovable)
-    if (task.imported) return;
+    // Skip swipe for imported items that can't be moved; allow drag for native calendar events
+    if (task.imported && !task.nativeEventId && !task.isTaskCalendar) return;
     const touch = e.touches[0];
     swipeTouchStartX.current = touch.clientX;
     swipeTouchStartY.current = touch.clientY;
@@ -8560,7 +8560,7 @@ const DayPlanner = () => {
       swipedTaskId.current = null;
     }
     const isRoutine = task.isRoutineDrag;
-    if ((taskType === 'timeline' || taskType === 'allday' || taskType === 'deadline') && !task.imported && (isFromDragHandle || isRoutine)) {
+    if ((taskType === 'timeline' || taskType === 'allday' || taskType === 'deadline') && (!task.imported || task.nativeEventId || task.isTaskCalendar) && (isFromDragHandle || isRoutine)) {
       mobileDragTouchStartPos.current = { x: touch.clientX, y: touch.clientY };
       mobileDragTaskId.current = task.id;
       mobileDragOriginalTask.current = task;
@@ -10216,12 +10216,22 @@ const DayPlanner = () => {
         if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
 
         // Reload app to reflect changes
-        window.location.reload();
+        // On Android WebView, use href assignment for a full reload; fall back to reload()
+        try {
+          window.location.href = window.location.href;
+        } catch {
+          window.location.reload();
+        }
       } catch (err) {
         alert('Failed to restore backup: ' + err.message);
         setPendingBackupFile(null);
         setShowRestoreConfirm(false);
       }
+    };
+    reader.onerror = () => {
+      alert('Failed to read backup file. On Android, try sharing the file directly to the app or using a file manager app.');
+      setPendingBackupFile(null);
+      setShowRestoreConfirm(false);
     };
     reader.readAsText(pendingBackupFile);
   };
@@ -12065,8 +12075,29 @@ const DayPlanner = () => {
     if (!isNativeAndroid()) return;
     const checkPending = () => {
       const pending = nativeGetPendingAction();
-      if (pending?.action === 'complete' && pending.taskId) {
+      if (!pending) return;
+      if (pending.action === 'complete' && pending.taskId) {
         toggleComplete(pending.taskId);
+      } else if (pending.action === 'snooze' && pending.taskId) {
+        // Shift the task's start time forward by the snooze duration (default 15 min)
+        const snoozeMin = pending.minutes || 15;
+        const parsed = parseRecurringId(pending.taskId);
+        if (parsed) {
+          setRecurringTasks(prev => prev.map(t => {
+            if (t.id !== parsed.templateId) return t;
+            const exceptions = { ...(t.exceptions || {}) };
+            const baseStart = (exceptions[parsed.dateStr] || t).startTime || '0:00';
+            const newStart = minutesToTime(Math.min(timeToMinutes(baseStart) + snoozeMin, 23 * 60 + 45));
+            exceptions[parsed.dateStr] = { ...(exceptions[parsed.dateStr] || {}), startTime: newStart };
+            return { ...t, exceptions };
+          }));
+        } else {
+          setTasks(prev => prev.map(t => {
+            if (String(t.id) !== String(pending.taskId)) return t;
+            const newStart = minutesToTime(Math.min(timeToMinutes(t.startTime || '0:00') + snoozeMin, 23 * 60 + 45));
+            return { ...t, startTime: newStart };
+          }));
+        }
       }
     };
     const onVisibility = () => { if (document.visibilityState === 'visible') checkPending(); };
@@ -13415,6 +13446,24 @@ const DayPlanner = () => {
                 >
                   {/* Sticky header group: date header + all-day section */}
                   <div ref={mobileDateHeaderRef} className={`sticky top-0 z-40 ${cardBg}`}>
+                  {/* Current task banner */}
+                  {(() => {
+                    const todayStr = dateToString(new Date());
+                    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                    const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
+                      t.date === todayStr && !t.isAllDay && !t.completed &&
+                      !(t.imported && !t.isTaskCalendar) &&
+                      nowMin >= timeToMinutes(t.startTime || '0:00') &&
+                      nowMin < timeToMinutes(t.startTime || '0:00') + (t.duration || 0)
+                    );
+                    if (!runningTask) return null;
+                    return (
+                      <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                        <span className="truncate">Now: {runningTask.title}</span>
+                      </div>
+                    );
+                  })()}
                   <div className={`flex border-b ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                     <div className={`w-12 flex-shrink-0 border-r ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'flex items-center justify-center' : ''}`}>
                       {mobileDragPreviewTime === 'all-day' && (
@@ -13977,6 +14026,9 @@ const DayPlanner = () => {
                               const isImported = task.imported;
                               const isCalendarEvent = task.imported && !task.isTaskCalendar;
                               const isPastEvent = isCalendarEvent && isDateToday && (timeToMinutes(task.startTime) + task.duration) <= (new Date().getHours() * 60 + new Date().getMinutes());
+                              const _nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                              const _taskStart = timeToMinutes(task.startTime || '0:00');
+                              const isCurrentTask = isDateToday && !task.isAllDay && !task.completed && !isCalendarEvent && _nowMin >= _taskStart && _nowMin < _taskStart + (task.duration || 0);
                               const isConflicted = !task.isAllDay && dayTasks.some(other => {
                                 if (other.id === task.id || other.isAllDay || other.completed) return false;
                                 const s1 = timeToMinutes(task.startTime), e1 = s1 + task.duration;
@@ -14062,7 +14114,7 @@ const DayPlanner = () => {
                                       dateStr,
                                     });
                                   }}
-                                  className={`absolute pointer-events-auto ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                  className={`absolute pointer-events-auto ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''} ${isCurrentTask ? 'current-task-pulse' : ''}`}
                                   style={{
                                     top: `${top}px`,
                                     height: `${height}px`,
@@ -14090,12 +14142,12 @@ const DayPlanner = () => {
                                     </>
                                   )}
                                   <div data-swipe-container className="flex h-full items-start">
-                                  {/* Protruding drag tab */}
-                                  {!isCalendarEvent && !isImported && (
+                                  {/* Protruding drag tab — shown for own tasks, task-calendar items, and native calendar events */}
+                                  {(!isImported || task.isTaskCalendar || !!task.nativeEventId) && (
                                     <div
                                       data-drag-handle
-                                      className={`${task.isTaskCalendar ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
-                                      style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : {}) }}
+                                      className={`${task.isTaskCalendar || task.nativeCalendarColor ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                      style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
@@ -14119,30 +14171,39 @@ const DayPlanner = () => {
                                   <div className="flex h-full">
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
-                                    <div className="h-full px-2 py-1.5 flex items-start gap-2 text-white">
-                                      <span className="text-sm font-semibold truncate flex-1 min-w-0">
-                                        {renderTitle(task.title)}
-                                      </span>
-                                      <div className="flex items-center gap-1 flex-shrink-0">
-                                        {task.notes && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
-                                            }}
-                                            className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
-                                            title="View description"
-                                          >
-                                            <FileText size={12} />
-                                          </button>
-                                        )}
-                                        {!isNarrowWidth && (
-                                          <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
-                                            <Clock size={10} />
-                                            {formatTime(task.startTime)} • {task.duration}m
-                                          </div>
-                                        )}
+                                    <div className="h-full px-2 py-1 flex flex-col justify-center text-white overflow-hidden">
+                                      <div className="flex items-start gap-1 min-w-0">
+                                        <span className="text-sm font-semibold truncate flex-1 min-w-0 leading-tight">
+                                          {renderTitle(task.title)}
+                                        </span>
+                                        <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
+                                          {(task.notes) && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                              }}
+                                              className="notes-toggle-button hover:bg-white/20 rounded p-0.5 transition-colors"
+                                              title="View/edit description"
+                                            >
+                                              <FileText size={11} />
+                                            </button>
+                                          )}
+                                          {!isNarrowWidth && (
+                                            <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 ml-1">
+                                              <Clock size={10} />
+                                              {formatTime(task.startTime)} • {task.duration}m
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
+                                      {height > 42 && (task.calendarName || task.location) && (
+                                        <div className="flex items-center gap-1.5 mt-0.5 text-white/75 text-[10px] truncate">
+                                          {task.calendarName && <span className="truncate max-w-[50%]">{task.calendarName}</span>}
+                                          {task.calendarName && task.location && <span className="opacity-50">·</span>}
+                                          {task.location && <span className="truncate">{task.location}</span>}
+                                        </div>
+                                      )}
                                     </div>
                                   ) : isImported ? (
                                     <div className="h-full px-2 py-1.5 flex items-start gap-1.5 text-white">
@@ -14236,6 +14297,47 @@ const DayPlanner = () => {
                                       <div className="w-12 h-1 bg-white rounded-full"></div>
                                     </div>
                                   )}
+                                  {/* Editable notes panel for mobile timeline imported events */}
+                                  {expandedNotesTaskId === task.id && isImported && (() => {
+                                    const startMin = timeToMinutes(task.startTime || '0:00');
+                                    const endMin = startMin + (task.duration || 0);
+                                    const showAbove = endMin >= 22 * 60;
+                                    return (
+                                      <div
+                                        className="notes-panel-container absolute left-0 right-0 z-40"
+                                        style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
+                                          <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`}>
+                                            <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
+                                            <textarea
+                                              defaultValue={task.notes || ''}
+                                              placeholder="Add description…"
+                                              rows={3}
+                                              className="w-full text-sm p-2 rounded bg-white/10 text-white placeholder:text-white/40 resize-y focus:outline-none focus:bg-white/20"
+                                              onBlur={async (e) => {
+                                                const newNotes = e.target.value;
+                                                if (newNotes === (task.notes || '')) return;
+                                                setTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: newNotes } : t));
+                                                if (isNativeAndroid() && task.nativeEventId) {
+                                                  await nativeUpdateEvent({
+                                                    id: task.nativeEventId,
+                                                    title: task.title,
+                                                    start: `${task.date}T${task.startTime}:00`,
+                                                    end: `${task.date}T${minutesToTime(timeToMinutes(task.startTime || '0:00') + (task.duration || 0))}:00`,
+                                                    allDay: false,
+                                                    notes: newNotes,
+                                                    location: task.location || '',
+                                                  });
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                                 );
                               })}
@@ -19870,6 +19972,24 @@ const DayPlanner = () => {
             >
               {/* Combined sticky header — date headers + all-day section */}
               <div ref={(el) => { stickyHeaderRef.current = el; }} className={`sticky top-0 z-20 ${cardBg}`}>
+              {/* Current task banner */}
+              {(() => {
+                const todayStr = dateToString(new Date());
+                const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
+                  t.date === todayStr && !t.isAllDay && !t.completed &&
+                  !(t.imported && !t.isTaskCalendar) &&
+                  nowMin >= timeToMinutes(t.startTime || '0:00') &&
+                  nowMin < timeToMinutes(t.startTime || '0:00') + (t.duration || 0)
+                );
+                if (!runningTask) return null;
+                return (
+                  <div className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                    <span className="truncate">Now: {runningTask.title}</span>
+                  </div>
+                );
+              })()}
               {/* Date headers row */}
               <div ref={(el) => { if (isTablet) mobileDateHeaderRef.current = el; }} className={`flex border-b ${borderClass} ${cardBg}`}>
                 <div className={`w-16 flex-shrink-0 border-r ${borderClass}`}></div>
@@ -20257,14 +20377,33 @@ const DayPlanner = () => {
                                   />
                                 </div>
                               )}
-                              {/* Read-only notes panel for imported events with descriptions */}
-                              {expandedNotesTaskId === task.id && isImported && task.notes && (
+                              {/* Editable notes panel for imported calendar events */}
+                              {expandedNotesTaskId === task.id && isImported && (
                                 <div className="notes-panel-container p-2">
                                   <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
                                     <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
-                                    <div className="text-sm whitespace-pre-wrap p-2 rounded bg-white/10">
-                                      {renderFormattedText(task.notes)}
-                                    </div>
+                                    <textarea
+                                      defaultValue={task.notes || ''}
+                                      placeholder="Add description…"
+                                      rows={3}
+                                      className="w-full text-sm p-2 rounded bg-white/10 text-white placeholder:text-white/40 resize-y focus:outline-none focus:bg-white/20"
+                                      onBlur={async (e) => {
+                                        const newNotes = e.target.value;
+                                        if (newNotes === (task.notes || '')) return;
+                                        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: newNotes } : t));
+                                        if (isNativeAndroid() && task.nativeEventId) {
+                                          await nativeUpdateEvent({
+                                            id: task.nativeEventId,
+                                            title: task.title,
+                                            start: `${task.date}T${task.startTime}:00`,
+                                            end: `${task.date}T${minutesToTime(timeToMinutes(task.startTime || '0:00') + (task.duration || 0))}:00`,
+                                            allDay: false,
+                                            notes: newNotes,
+                                            location: task.location || '',
+                                          });
+                                        }
+                                      }}
+                                    />
                                   </div>
                                 </div>
                               )}
@@ -20663,6 +20802,9 @@ const DayPlanner = () => {
                           const isCalendarEvent = isImported && !task.isTaskCalendar;
                           const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                           const isPastEvent = isCalendarEvent && isDateToday && (timeToMinutes(task.startTime) + task.duration) <= (new Date().getHours() * 60 + new Date().getMinutes());
+                          const _nowMinT = new Date().getHours() * 60 + new Date().getMinutes();
+                          const _taskStartT = timeToMinutes(task.startTime || '0:00');
+                          const isCurrentTask = isDateToday && !task.isAllDay && !task.completed && !isCalendarEvent && _nowMinT >= _taskStartT && _nowMinT < _taskStartT + (task.duration || 0);
 
                           // Layout tiers for timeline tasks
                           const isMicroHeight = height <= 40;  // 15min tasks
@@ -20796,7 +20938,7 @@ const DayPlanner = () => {
                               onDragEnd={handleDragEnd}
                               onDragOver={(e) => handleDragOver(e, date)}
                               onDrop={(e) => handleDropOnCalendar(e, date)}
-                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''} ${isCurrentTask ? 'current-task-pulse' : ''}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
@@ -20891,10 +21033,11 @@ const DayPlanner = () => {
                                         </div>
                                       </div>
                                     </div>
-                                    {task.location && !isMicroHeight && (
+                                    {!isMicroHeight && (task.calendarName || task.location) && (
                                       <div className="text-xs opacity-75 truncate flex items-center gap-1">
-                                        <MapPin size={9} />
-                                        {task.location}
+                                        {task.calendarName && <span className="truncate max-w-[50%]">{task.calendarName}</span>}
+                                        {task.calendarName && task.location && <span className="opacity-50">·</span>}
+                                        {task.location && <><MapPin size={9} /><span className="truncate">{task.location}</span></>}
                                       </div>
                                     )}
                                   </div>
@@ -21094,8 +21237,8 @@ const DayPlanner = () => {
                                     </div>
                                   );
                                 })()}
-                                {/* Read-only notes panel for imported events with descriptions */}
-                                {expandedNotesTaskId === task.id && isImported && task.notes && (() => {
+                                {/* Editable notes panel for imported calendar events */}
+                                {expandedNotesTaskId === task.id && isImported && (() => {
                                   const startMin = timeToMinutes(task.startTime || '0:00');
                                   const endMin = startMin + (task.duration || 0);
                                   const showAbove = endMin >= 22 * 60;
@@ -21107,9 +21250,28 @@ const DayPlanner = () => {
                                       <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
                                         <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
                                           <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
-                                          <div className="text-sm whitespace-pre-wrap p-2 rounded bg-white/10">
-                                            {renderFormattedText(task.notes)}
-                                          </div>
+                                          <textarea
+                                            defaultValue={task.notes || ''}
+                                            placeholder="Add description…"
+                                            rows={3}
+                                            className="w-full text-sm p-2 rounded bg-white/10 text-white placeholder:text-white/40 resize-y focus:outline-none focus:bg-white/20"
+                                            onBlur={async (e) => {
+                                              const newNotes = e.target.value;
+                                              if (newNotes === (task.notes || '')) return;
+                                              setTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: newNotes } : t));
+                                              if (isNativeAndroid() && task.nativeEventId) {
+                                                await nativeUpdateEvent({
+                                                  id: task.nativeEventId,
+                                                  title: task.title,
+                                                  start: `${task.date}T${task.startTime}:00`,
+                                                  end: `${task.date}T${minutesToTime(timeToMinutes(task.startTime || '0:00') + (task.duration || 0))}:00`,
+                                                  allDay: false,
+                                                  notes: newNotes,
+                                                  location: task.location || '',
+                                                });
+                                              }
+                                            }}
+                                          />
                                         </div>
                                       </div>
                                     </div>
