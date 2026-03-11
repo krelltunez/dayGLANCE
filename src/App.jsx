@@ -535,6 +535,24 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   const [localText, setLocalText] = useState(defaultText);
   const [isEditing, setIsEditing] = useState(!note?.text);
   const [loading, setLoading] = useState(!!loadFresh);
+
+  // With windowSoftInputMode="adjustNothing" the layout viewport is never resized.
+  // Track the software keyboard height via visualViewport so the bottom sheet
+  // content can be pushed above the keyboard.
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  useEffect(() => {
+    if (!isMobile || !window.visualViewport) return;
+    const update = () => {
+      setKeyboardOffset(Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop));
+    };
+    window.visualViewport.addEventListener('resize', update);
+    window.visualViewport.addEventListener('scroll', update);
+    update(); // capture current state on mount
+    return () => {
+      window.visualViewport.removeEventListener('resize', update);
+      window.visualViewport.removeEventListener('scroll', update);
+    };
+  }, [isMobile]);
   // Tracks whether loadFresh resolved; save-on-unmount is skipped until it does
   // so a close during loading never overwrites vault content with stale/empty state.
   const freshLoadedRef = useRef(!loadFresh);
@@ -664,7 +682,11 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   if (isMobile) {
     // Bottom sheet style for mobile
     return (
-      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={handleSaveAndClose}>
+      <div
+        className="fixed inset-0 z-50 flex flex-col justify-end"
+        style={keyboardOffset > 0 ? { paddingBottom: `${keyboardOffset}px` } : undefined}
+        onClick={handleSaveAndClose}
+      >
         <div className="bg-black/30 absolute inset-0" />
         <div
           className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[70vh] overflow-y-auto`}
@@ -2408,6 +2430,25 @@ const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
+
+  // Ref for the mobile bottom tab bar. With windowSoftInputMode="adjustNothing" the
+  // layout viewport never resizes, so we track keyboard height via window.visualViewport
+  // and apply a translateY directly to the DOM node (no React state → no re-render).
+  const tabBarRef = useRef(null);
+  useEffect(() => {
+    if (!isMobile || !window.visualViewport) return;
+    const updateTabBar = () => {
+      if (!tabBarRef.current) return;
+      const kh = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+      tabBarRef.current.style.transform = kh > 0 ? `translateY(-${kh}px)` : '';
+    };
+    window.visualViewport.addEventListener('resize', updateTabBar);
+    window.visualViewport.addEventListener('scroll', updateTabBar);
+    return () => {
+      window.visualViewport.removeEventListener('resize', updateTabBar);
+      window.visualViewport.removeEventListener('scroll', updateTabBar);
+    };
+  }, [isMobile]);
   const [timelineScrolledAway, setTimelineScrolledAway] = useState(false);
   const [tabletActiveTab, setTabletActiveTab] = useState('glance'); // 'glance' | 'inbox' — for landscape tabbed panel
   // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop uses width-based hook
@@ -17457,6 +17498,7 @@ const DayPlanner = () => {
             const iconSize = showLabels ? 20 : 22;
             return (
           <div
+            ref={tabBarRef}
             className={`fixed bottom-0 left-0 right-0 z-40 ${cardBg} border-t ${borderClass}`}
             style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           >
