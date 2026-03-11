@@ -13538,7 +13538,7 @@ const DayPlanner = () => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                                   const isImported = task.imported;
                                   return (
-                                    <div key={task.id} className="relative" style={!isImported ? { marginLeft: '12px' } : {}}
+                                    <div key={task.id} className="relative" style={(!isImported || !!task.nativeEventId) ? { marginLeft: '12px' } : {}}
                                       data-ctx-menu
                                       onContextMenu={(e) => {
                                         e.preventDefault();
@@ -13553,11 +13553,11 @@ const DayPlanner = () => {
                                       }}
                                     >
                                       {/* Protruding drag tab */}
-                                      {!isImported && (
+                                      {(!isImported || !!task.nativeEventId) && (
                                         <div
                                           data-drag-handle
-                                          className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
-                                          style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
+                                          className={`absolute ${task.nativeCalendarColor ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                                          style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10, ...(task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}) }}
                                           onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                           onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                           onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
