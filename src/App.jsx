@@ -14198,9 +14198,8 @@ const DayPlanner = () => {
                                         </div>
                                       </div>
                                       {height > 42 && (task.calendarName || task.location) && (
-                                        <div className="flex items-center gap-1.5 mt-0.5 text-white/75 text-[10px] truncate">
-                                          {task.calendarName && <span className="truncate max-w-[50%]">{task.calendarName}</span>}
-                                          {task.calendarName && task.location && <span className="opacity-50">·</span>}
+                                        <div className="flex flex-col mt-0.5 text-white/75 text-[10px]">
+                                          {task.calendarName && <span className="truncate">{task.calendarName}</span>}
                                           {task.location && <span className="truncate">{task.location}</span>}
                                         </div>
                                       )}
@@ -14297,8 +14296,8 @@ const DayPlanner = () => {
                                       <div className="w-12 h-1 bg-white rounded-full"></div>
                                     </div>
                                   )}
-                                  {/* Editable notes panel for mobile timeline imported events */}
-                                  {expandedNotesTaskId === task.id && isImported && (() => {
+                                  {/* Editable notes panel for mobile timeline imported events (not calendar events — they use the bottom sheet) */}
+                                  {expandedNotesTaskId === task.id && isImported && !isCalendarEvent && (() => {
                                     const startMin = timeToMinutes(task.startTime || '0:00');
                                     const endMin = startMin + (task.duration || 0);
                                     const showAbove = endMin >= 22 * 60;
@@ -14467,9 +14466,28 @@ const DayPlanner = () => {
                           {noteTask.imported && !noteTask.isTaskCalendar ? (
                             <div>
                               <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
-                              <div className={`text-sm whitespace-pre-wrap p-3 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-black/5'} ${textPrimary}`}>
-                                {renderFormattedText(noteTask.notes)}
-                              </div>
+                              <textarea
+                                defaultValue={noteTask.notes || ''}
+                                placeholder="Add description…"
+                                rows={4}
+                                className={`w-full text-sm p-3 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-white/5 text-white placeholder:text-white/40' : 'bg-black/5 text-stone-900 placeholder:text-stone-400'}`}
+                                onBlur={async (e) => {
+                                  const newNotes = e.target.value;
+                                  if (newNotes === (noteTask.notes || '')) return;
+                                  setTasks(prev => prev.map(t => t.id === noteTask.id ? { ...t, notes: newNotes } : t));
+                                  if (isNativeAndroid() && noteTask.nativeEventId) {
+                                    await nativeUpdateEvent({
+                                      id: noteTask.nativeEventId,
+                                      title: noteTask.title,
+                                      start: `${noteTask.date}T${noteTask.startTime}:00`,
+                                      end: `${noteTask.date}T${minutesToTime(timeToMinutes(noteTask.startTime || '0:00') + (noteTask.duration || 0))}:00`,
+                                      allDay: false,
+                                      notes: newNotes,
+                                      location: noteTask.location || '',
+                                    });
+                                  }
+                                }}
+                              />
                             </div>
                           ) : (
                             <NotesSubtasksPanel
