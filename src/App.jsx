@@ -527,6 +527,9 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   // Tracks whether loadFresh resolved; save-on-unmount is skipped until it does
   // so a close during loading never overwrites vault content with stale/empty state.
   const freshLoadedRef = useRef(!loadFresh);
+  // Set to true when handleSaveAndClose (or keyboard shortcuts) explicitly save,
+  // so the unmount effect doesn't trigger a redundant second setDailyNotes re-render.
+  const savedOnCloseRef = useRef(false);
 
   // If an async loadFresh callback is provided (Obsidian), read fresh content on mount
   useEffect(() => {
@@ -580,10 +583,11 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   }, [isEditing]);
 
   // Save on unmount — skip if loadFresh never resolved to avoid overwriting vault
-  // content with the stale initial empty state.
+  // content with the stale initial empty state, and skip if already saved on close
+  // to avoid a redundant setDailyNotes re-render after the modal has dismissed.
   useEffect(() => {
     return () => {
-      if (freshLoadedRef.current) {
+      if (freshLoadedRef.current && !savedOnCloseRef.current) {
         onSaveRef.current(dateStrRef.current, localTextRef.current);
       }
     };
@@ -602,7 +606,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      if (!loading) onSave(dateStr, localText);
+      if (!loading) {
+        savedOnCloseRef.current = true;
+        onSave(dateStr, localText);
+      }
       onClose();
     }
   };
@@ -614,7 +621,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
 
   // Skip save if loadFresh hasn't resolved yet to prevent wiping vault content.
   const handleSaveAndClose = () => {
-    if (!loading) onSave(dateStr, localText);
+    if (!loading) {
+      savedOnCloseRef.current = true;
+      onSave(dateStr, localText);
+    }
     onClose();
   };
 
