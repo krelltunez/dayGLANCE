@@ -52,7 +52,18 @@ const useDeviceType = () => {
   const [device, setDevice] = useState(compute);
 
   useEffect(() => {
-    const update = () => setDevice(compute());
+    // Use a functional update so we can return the previous state object unchanged
+    // when the computed values haven't actually changed (e.g. keyboard show/hide
+    // on Android adjustResize fires resize events without changing isMobile/isTablet).
+    // Returning the same reference lets React bail out and avoids a full app re-render
+    // on every keyboard open/close.
+    const update = () => setDevice(prev => {
+      const next = compute();
+      if (prev.isPhone === next.isPhone && prev.isMobile === next.isMobile && prev.isTablet === next.isTablet) {
+        return prev;
+      }
+      return next;
+    });
     window.addEventListener('resize', update);
     window.addEventListener('orientationchange', update);
     // Also listen for pointer/hover changes (e.g. tablet keyboard attached/detached)
@@ -615,14 +626,22 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   };
 
   const handleBlur = () => {
-    if (loading) return;
+    // Skip if we're already in the close flow — handleSaveAndClose handles the save.
+    if (loading || savedOnCloseRef.current) return;
     onSave(dateStr, localText);
   };
 
   // Skip save if loadFresh hasn't resolved yet to prevent wiping vault content.
   const handleSaveAndClose = () => {
+    // Mark as closing BEFORE blurring so handleBlur (which fires synchronously
+    // from the blur event) knows to skip its own save call.
+    savedOnCloseRef.current = true;
+    // Explicitly blur the focused element to start the Android soft-keyboard
+    // dismiss animation as early as possible, before React unmounts the modal.
+    if (typeof document !== 'undefined' && document.activeElement) {
+      document.activeElement.blur();
+    }
     if (!loading) {
-      savedOnCloseRef.current = true;
       onSave(dateStr, localText);
     }
     onClose();

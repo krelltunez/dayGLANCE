@@ -5,6 +5,8 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -40,32 +42,36 @@ class WidgetUpdateWorker(
         // 1. Fetch steps from HealthRepository
         val steps = try {
             HealthRepository(context).getSteps(today)
-        } catch (_: Exception) { -1 }
+        } catch (_: Throwable) { -1 }
 
         // 2. Fetch today's events from CalendarRepository
         val events = try {
             CalendarRepository(context).getEvents(today)
-        } catch (_: Exception) { emptyList() }
+        } catch (_: Throwable) { emptyList() }
 
         // 3. Build and write snapshot JSON to SharedDataStore
         val snapshot = buildSnapshot(today, steps, events)
         dataStore.widgetSnapshot = snapshot.toString()
         dataStore.widgetSnapshotUpdatedAt = System.currentTimeMillis()
 
-        // 4. Trigger widget update
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val widgetIds = appWidgetManager.getAppWidgetIds(
-            ComponentName(context, DayGlanceWidget::class.java)
-        )
-        if (widgetIds.isNotEmpty()) {
-            val intent = android.content.Intent(
-                android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            ).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
-                setPackage(context.packageName)
+        // 4. Trigger widget update via an explicit-component broadcast so the
+        //    delivery is reliable on all launchers and OEM ROMs that may block
+        //    implicit or package-targeted appwidget broadcasts.
+        try {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val widgetIds = appWidgetManager.getAppWidgetIds(
+                ComponentName(context, DayGlanceWidget::class.java)
+            )
+            if (widgetIds.isNotEmpty()) {
+                val intent = android.content.Intent(
+                    android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                ).apply {
+                    component = ComponentName(context, DayGlanceWidget::class.java)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
+                }
+                context.sendBroadcast(intent)
             }
-            context.sendBroadcast(intent)
-        }
+        } catch (_: Throwable) { }
 
         Result.success()
     }
@@ -119,7 +125,9 @@ class WidgetUpdateWorker(
     }
 
     companion object {
-        private const val WORK_NAME = "widget_update"
+        // Internal so DayGlanceWidget can cancel this work in onDisabled.
+        internal const val WORK_NAME = "widget_update"
+        private const val IMMEDIATE_WORK_NAME = "widget_update_immediate"
 
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
@@ -129,6 +137,16 @@ class WidgetUpdateWorker(
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+        }
+
+        /** One-shot fetch run immediately after the widget is first placed. */
+        fun scheduleImmediate(context: Context) {
+            val request = OneTimeWorkRequestBuilder<WidgetUpdateWorker>().build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                IMMEDIATE_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
                 request
             )
         }

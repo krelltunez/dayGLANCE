@@ -2,11 +2,13 @@ package com.dayglance.app.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
+import androidx.work.WorkManager
 import com.dayglance.app.MainActivity
 import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
@@ -61,6 +63,20 @@ class DayGlanceWidget : AppWidgetProvider() {
             // WorkManager not yet initialized on this device — worker will be re-scheduled
             // the next time the app process starts (onEnabled is retriggered on reboot too).
         }
+        // Trigger an immediate one-time data fetch so the widget shows real data quickly
+        // (the periodic job can take up to 15 min for its first run).
+        try {
+            WidgetUpdateWorker.scheduleImmediate(context)
+        } catch (_: Throwable) { }
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        // Cancel the background worker when the last widget instance is removed.
+        // It will be re-scheduled in onEnabled if the user adds a widget again.
+        try {
+            WorkManager.getInstance(context).cancelUniqueWork(WidgetUpdateWorker.WORK_NAME)
+        } catch (_: Throwable) { }
     }
 
     private fun updateWidget(
@@ -68,10 +84,11 @@ class DayGlanceWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        // Step 1: Create RemoteViews — if this fails we truly cannot proceed.
+        // Step 1: Create RemoteViews.  Re-throw on failure so the outer catch in
+        // onUpdate() can attempt its own last-resort RemoteViews push.
         val views = try {
             RemoteViews(context.packageName, R.layout.widget_layout)
-        } catch (_: Throwable) { return }
+        } catch (t: Throwable) { throw t }
 
         // Step 2: Bind data, always falling back to the placeholder on any error.
         // Each sub-step is isolated so a data-layer failure cannot prevent the
