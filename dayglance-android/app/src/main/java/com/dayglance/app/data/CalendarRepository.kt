@@ -154,11 +154,14 @@ class CalendarRepository(private val context: Context) {
         // a non-null DUE date and a STATUS of STATUS_TODO. Not all providers support
         // this (Google Calendar does not), but apps like Samsung Calendar and DAVx⁵ do.
         try {
+            // "due" is the raw column name for DUE in VTODO tasks — CalendarContract.Events.DUE
+            // is a hidden/internal API not exposed in the public SDK, so we use the string directly.
+            val colDue = "due"
             val taskProjection = arrayOf(
                 CalendarContract.Events._ID,
                 CalendarContract.Events.TITLE,
                 CalendarContract.Events.DTSTART,
-                CalendarContract.Events.DUE,
+                colDue,
                 CalendarContract.Events.DESCRIPTION,
                 CalendarContract.Events.EVENT_LOCATION,
                 CalendarContract.Events.CALENDAR_ID,
@@ -166,7 +169,7 @@ class CalendarRepository(private val context: Context) {
                 CalendarContract.Events.CALENDAR_COLOR,
             )
             // DUE is the field used for VTODO tasks; DTSTART may be null
-            val selection = "${CalendarContract.Events.DUE} >= ? AND ${CalendarContract.Events.DUE} < ?"
+            val selection = "$colDue >= ? AND $colDue < ?"
             val selectionArgs = arrayOf(startMs.toString(), endMs.toString())
             context.contentResolver.query(
                 CalendarContract.Events.CONTENT_URI, taskProjection, selection, selectionArgs,
@@ -175,7 +178,7 @@ class CalendarRepository(private val context: Context) {
                 val idIdx      = cursor.getColumnIndex(CalendarContract.Events._ID)
                 val titleIdx   = cursor.getColumnIndex(CalendarContract.Events.TITLE)
                 val startIdx   = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
-                val dueIdx     = cursor.getColumnIndex(CalendarContract.Events.DUE)
+                val dueIdx     = cursor.getColumnIndex(colDue)
                 val descIdx    = cursor.getColumnIndex(CalendarContract.Events.DESCRIPTION)
                 val locIdx     = cursor.getColumnIndex(CalendarContract.Events.EVENT_LOCATION)
                 val calIdIdx   = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_ID)
@@ -187,8 +190,6 @@ class CalendarRepository(private val context: Context) {
                     // Skip if already returned from the Instances query
                     if (events.any { it.id == eventId.toString() }) continue
 
-                    val dueMs = if (dueIdx >= 0 && !cursor.isNull(dueIdx)) cursor.getLong(dueIdx) else endMs
-                    val startMs2 = if (startIdx >= 0 && !cursor.isNull(startIdx)) cursor.getLong(startIdx) else dueMs
                     val colorInt = if (colorIdx >= 0) cursor.getInt(colorIdx) else 0x6b7280
 
                     events += CalEvent(
