@@ -37,7 +37,18 @@ class DayGlanceWidget : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (appWidgetId in appWidgetIds) {
-            updateWidget(context, appWidgetManager, appWidgetId)
+            try {
+                updateWidget(context, appWidgetManager, appWidgetId)
+            } catch (_: Throwable) {
+                // Absolute last resort: push an un-bound layout so the launcher
+                // does not show "Problem loading widget".
+                try {
+                    appWidgetManager.updateAppWidget(
+                        appWidgetId,
+                        RemoteViews(context.packageName, R.layout.widget_layout)
+                    )
+                } catch (_: Throwable) { /* nothing more we can do */ }
+            }
         }
     }
 
@@ -46,7 +57,7 @@ class DayGlanceWidget : AppWidgetProvider() {
         // Schedule periodic refresh when first widget is added
         try {
             WidgetUpdateWorker.schedule(context)
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             // WorkManager not yet initialized on this device — worker will be re-scheduled
             // the next time the app process starts (onEnabled is retriggered on reboot too).
         }
@@ -60,7 +71,7 @@ class DayGlanceWidget : AppWidgetProvider() {
         // Step 1: Create RemoteViews — if this fails we truly cannot proceed.
         val views = try {
             RemoteViews(context.packageName, R.layout.widget_layout)
-        } catch (_: Exception) { return }
+        } catch (_: Throwable) { return }
 
         // Step 2: Bind data, always falling back to the placeholder on any error.
         // Each sub-step is isolated so a data-layer failure cannot prevent the
@@ -71,14 +82,14 @@ class DayGlanceWidget : AppWidgetProvider() {
             if (snapshotJson != null) {
                 try {
                     bindSnapshot(views, JSONObject(snapshotJson), dataStore.widgetSnapshotUpdatedAt)
-                } catch (_: Exception) {
+                } catch (_: Throwable) {
                     bindPlaceholder(views)
                 }
             } else {
                 bindPlaceholder(views)
             }
-        } catch (_: Exception) {
-            try { bindPlaceholder(views) } catch (_: Exception) { /* ignore */ }
+        } catch (_: Throwable) {
+            try { bindPlaceholder(views) } catch (_: Throwable) { /* ignore */ }
         }
 
         // Step 3: Attach the tap-to-open action — non-critical, silently ignored on error.
@@ -89,13 +100,13 @@ class DayGlanceWidget : AppWidgetProvider() {
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-        } catch (_: Exception) { /* Widget still renders, just won't launch the app on tap */ }
+        } catch (_: Throwable) { /* Widget still renders, just won't launch the app on tap */ }
 
         // Step 4: Push the views to the launcher — must always be reached to avoid
         // the launcher showing "Problem loading widget" on freshly placed widgets.
         try {
             appWidgetManager.updateAppWidget(appWidgetId, views)
-        } catch (_: Exception) { /* Nothing further we can do */ }
+        } catch (_: Throwable) { /* Nothing further we can do */ }
     }
 
     private fun bindSnapshot(views: RemoteViews, snapshot: JSONObject, updatedAt: Long) {
@@ -129,7 +140,7 @@ class DayGlanceWidget : AppWidgetProvider() {
             // Color bar for event
             try {
                 views.setInt(R.id.event_color_bar, "setBackgroundColor", Color.parseColor(colorHex))
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 views.setInt(R.id.event_color_bar, "setBackgroundColor", Color.parseColor("#3b82f6"))
             }
         } else {
@@ -182,7 +193,7 @@ class DayGlanceWidget : AppWidgetProvider() {
             val timeFmt = DateTimeFormatter.ofPattern("h:mm")
             val amPmFmt = DateTimeFormatter.ofPattern("h:mm a")
             "${s.format(timeFmt)} – ${e.format(amPmFmt)}"
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             start.take(5) // fallback: just show HH:mm if parsing fails
         }
     }
