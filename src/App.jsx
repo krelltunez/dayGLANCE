@@ -14171,7 +14171,7 @@ const DayPlanner = () => {
                                   <div className="flex h-full">
                                   <div className="flex-1 min-w-0 h-full">
                                   {isCalendarEvent ? (
-                                    <div className="h-full px-2 py-1 flex flex-col justify-center text-white overflow-hidden">
+                                    <div className="h-full px-2 py-1 flex flex-col justify-start text-white overflow-hidden">
                                       <div className="flex items-start gap-1 min-w-0">
                                         <span className="text-sm font-semibold truncate flex-1 min-w-0 leading-tight">
                                           {renderTitle(task.title)}
@@ -14288,7 +14288,7 @@ const DayPlanner = () => {
                                   </div>{/* end inner overflow container */}
                                   </div>{/* end data-swipe-container flex */}
                                   {/* Touch resize handle at bottom */}
-                                  {!isImported && !isCalendarEvent && (
+                                  {(!isImported || (isCalendarEvent && task.nativeEventId)) && (
                                     <div
                                       onTouchStart={(e) => handleTouchResizeStart(task, e)}
                                       className="absolute bottom-0 left-1/3 right-1/3 h-3 hover:bg-white/20 active:bg-white/20 flex items-center justify-center select-none"
