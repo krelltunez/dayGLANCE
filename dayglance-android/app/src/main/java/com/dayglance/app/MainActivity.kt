@@ -17,6 +17,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.health.connect.client.PermissionController
 import androidx.webkit.WebViewAssetLoader
 import com.dayglance.app.bridge.NativeBridge
@@ -80,6 +82,17 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         )
+
+        // Android 15 (targetSdk 35) forces edge-to-edge, so the window extends behind the
+        // gesture navigation bar. Consume the bottom navigation-bar inset as padding on the
+        // root layout so the WebView viewport ends above the bar.  This keeps
+        // env(safe-area-inset-bottom) = 0 inside the WebView, matching the web-browser behaviour
+        // where the tab bar is exactly h-14 (56 dp) tall with no extra space.
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
+            val navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            v.setPadding(0, 0, 0, navBottom)
+            insets
+        }
 
         configureWebView()
         requestRuntimePermissions()
