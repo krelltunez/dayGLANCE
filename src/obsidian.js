@@ -171,7 +171,7 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
  * originally appeared, without #obsidian tag or time prefix). Reconstructs
  * the line with updated checkbox and optional time.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle) {
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
   let fileHandle, text;
   try {
@@ -198,7 +198,8 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     if (lineTitle === obsidianRawTitle) {
       const indent = m[1];
       const timeStr = startTime ? `${startTime} ` : '';
-      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
+      const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
+      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${writtenTitle}`;
       updated = true;
       break; // first match only
     }
@@ -215,7 +216,7 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
 // Markdown task parser
 // ---------------------------------------------------------------------------
 
-function simpleHash(str) {
+export function simpleHash(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) - hash) + str.charCodeAt(i);
@@ -554,7 +555,7 @@ export function writeDailyNoteNative(date, content) {
  * Reads the note with getDailyNote, applies the same regex-replace logic as
  * writeTaskStateToFile, then writes the result back with writeDailyNote.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
 
@@ -576,7 +577,8 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       if (lineTitle === obsidianRawTitle) {
         const indent = m[1];
         const timeStr = startTime ? `${startTime} ` : '';
-        lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
+        const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
+        lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${writtenTitle}`;
         updated = true;
         break;
       }

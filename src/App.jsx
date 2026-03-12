@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote } from './native.js';
-import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative } from './obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -2841,7 +2841,11 @@ const DayPlanner = () => {
   );
   const obsidianVaultHandleRef = useRef(null);
   const obsidianSyncInProgressRef = useRef(false);
-  const obsidianPrevTaskStateRef = useRef({}); // tracks {id: {completed, startTime, date}} for change detection
+  const obsidianPrevTaskStateRef = useRef({}); // tracks {id: {completed, startTime, title}} for change detection
+  // Always-fresh refs so performObsidianSync (called from a long-lived interval)
+  // never reads stale task state from a closed-over render.
+  const obsidianTasksRef = useRef([]);
+  const obsidianInboxRef = useRef([]);
 
   // Auto-Backup state
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
@@ -4248,7 +4252,11 @@ const DayPlanner = () => {
     return () => clearInterval(timer);
   }, [obsidianConfig?.enabled]);
 
-  // Obsidian writeback: detect completion/scheduling changes and write back to vault
+  // Keep always-fresh refs so the interval-triggered performObsidianSync never reads stale state.
+  useEffect(() => { obsidianTasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { obsidianInboxRef.current = unscheduledTasks; }, [unscheduledTasks]);
+
+  // Obsidian writeback: detect completion/scheduling/title changes and write back to vault
   useEffect(() => {
     if (!obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
     // Skip writeback while a sync is replacing the task arrays
@@ -4258,36 +4266,70 @@ const DayPlanner = () => {
     const prev = obsidianPrevTaskStateRef.current;
     const isNative = obsidianVaultHandleRef.current === 'native';
 
+    // IDs of tasks whose obsidianRawTitle / id changed during this loop (title writeback).
+    // We collect them and apply a single batched state update after the loop.
+    const titleUpdates = []; // { oldId, newId, newRawTitle }
+
     for (const task of allObsidian) {
       const p = prev[task.id];
-      if (p && (p.completed !== task.completed || p.startTime !== (task.startTime || null))) {
-        const sourceDate = task.date || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1];
-        if (sourceDate) {
-          if (isNative) {
-            writeTaskStateNative(
-              sourceDate,
-              task.obsidianRawTitle,
-              task.completed,
-              task.startTime || null,
-            );
-          } else {
-            writeTaskStateToFile(
-              obsidianVaultHandleRef.current,
-              obsidianConfig.dailyNotesPath || '',
-              sourceDate,
-              task.obsidianRawTitle,
-              task.completed,
-              task.startTime || null,
-            ).catch(err => console.error('Obsidian: failed to write task state back', err));
-          }
-        }
+      if (!p) continue;
+
+      const titleChanged = p.title !== undefined && p.title !== task.title;
+      const stateChanged = p.completed !== task.completed || p.startTime !== (task.startTime || null);
+
+      if (!titleChanged && !stateChanged) continue;
+
+      const sourceDate = task.date || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1];
+      if (!sourceDate) continue;
+
+      // Derive the new raw title (strip #obsidian tag the app appends for display)
+      const newRawTitle = titleChanged
+        ? task.title.replace(/\s*#obsidian\b/gi, '').trim()
+        : undefined;
+
+      if (isNative) {
+        writeTaskStateNative(
+          sourceDate,
+          task.obsidianRawTitle,
+          task.completed,
+          task.startTime || null,
+          newRawTitle,
+        );
+      } else {
+        writeTaskStateToFile(
+          obsidianVaultHandleRef.current,
+          obsidianConfig.dailyNotesPath || '',
+          sourceDate,
+          task.obsidianRawTitle,
+          task.completed,
+          task.startTime || null,
+          newRawTitle,
+        ).catch(err => console.error('Obsidian: failed to write task state back', err));
+      }
+
+      if (titleChanged && newRawTitle) {
+        // New stable ID based on the updated raw title (mirrors parseTasksFromMarkdown)
+        const newId = `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
+        titleUpdates.push({ oldId: task.id, newId, newRawTitle });
       }
     }
 
-    // Update previous-state snapshot
+    // Apply title-writeback ID/obsidianRawTitle updates to React state
+    if (titleUpdates.length > 0) {
+      const applyUpdates = t => {
+        const u = titleUpdates.find(u => u.oldId === t.id);
+        return u ? { ...t, id: u.newId, obsidianRawTitle: u.newRawTitle } : t;
+      };
+      setTasks(prev => prev.map(applyUpdates));
+      setUnscheduledTasks(prev => prev.map(applyUpdates));
+    }
+
+    // Update previous-state snapshot (keyed by new IDs after title changes)
     const next = {};
     for (const task of allObsidian) {
-      next[task.id] = { completed: task.completed, startTime: task.startTime || null };
+      const u = titleUpdates.find(u => u.oldId === task.id);
+      const snapshotId = u ? u.newId : task.id;
+      next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, title: u ? task.title : task.title };
     }
     obsidianPrevTaskStateRef.current = next;
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
@@ -5963,19 +6005,23 @@ const DayPlanner = () => {
       // setTimeout so React finishes its current render — and the UI stays
       // responsive — before the blocking I/O runs.  This prevents the brief
       // white/blank flash users see when the app is opened with Obsidian enabled.
+      // Use refs so interval-triggered syncs always see the latest task state,
+      // not the stale closure from when the interval was set up.
+      const currentTasks = obsidianTasksRef.current;
+      const currentInbox = obsidianInboxRef.current;
       const result = isNative
         ? await new Promise(resolve => setTimeout(() => resolve(syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
             syncRetentionDays,
-            tasks,
-            unscheduledTasks,
+            currentTasks,
+            currentInbox,
           )), 0))
         : await syncObsidianVault(
             obsidianVaultHandleRef.current,
             obsidianConfig?.dailyNotesPath || '',
             syncRetentionDays,
-            tasks,
-            unscheduledTasks,
+            currentTasks,
+            currentInbox,
           );
 
       // Update daily notes — replace with Obsidian-sourced notes
@@ -5989,9 +6035,9 @@ const DayPlanner = () => {
         return next;
       });
 
-      // Collect IDs of Obsidian tasks that existed before this sync
+      // Collect IDs of Obsidian tasks that existed before this sync (use fresh refs)
       const oldObsidianIds = new Set(
-        [...tasks, ...unscheduledTasks]
+        [...currentTasks, ...currentInbox]
           .filter(t => t.importSource === 'obsidian')
           .map(t => String(t.id))
       );
@@ -6026,7 +6072,7 @@ const DayPlanner = () => {
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
       for (const t of [...result.scheduledTasks, ...result.inboxTasks]) {
-        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null };
+        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, title: t.title };
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
