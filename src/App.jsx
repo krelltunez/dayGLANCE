@@ -2445,16 +2445,24 @@ const DayPlanner = () => {
   const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
   useEffect(() => {
     if (!isMobile || !window.visualViewport) return;
+    let timer = null;
     const updateTabBar = () => {
       if (!tabBarRef.current || suppressTabBarRef.current) return;
       const kh = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
-      tabBarRef.current.style.transform = kh > 0 ? `translateY(-${kh}px)` : '';
+      // Only translate for real keyboard heights (≥ 100 px). Smaller values are
+      // visual-viewport rounding artefacts or transient system-UI animations on
+      // Android and should not shift the tab bar (fixes persistent gap + mid-screen
+      // flash on app open).
+      tabBarRef.current.style.transform = kh >= 100 ? `translateY(-${kh}px)` : '';
     };
-    window.visualViewport.addEventListener('resize', updateTabBar);
-    window.visualViewport.addEventListener('scroll', updateTabBar);
+    // Debounce by 50 ms so transient viewport spikes on app open don't cause a flash.
+    const scheduleUpdate = () => { clearTimeout(timer); timer = setTimeout(updateTabBar, 50); };
+    window.visualViewport.addEventListener('resize', scheduleUpdate);
+    window.visualViewport.addEventListener('scroll', scheduleUpdate);
     return () => {
-      window.visualViewport.removeEventListener('resize', updateTabBar);
-      window.visualViewport.removeEventListener('scroll', updateTabBar);
+      clearTimeout(timer);
+      window.visualViewport.removeEventListener('resize', scheduleUpdate);
+      window.visualViewport.removeEventListener('scroll', scheduleUpdate);
     };
   }, [isMobile]);
   // When the daily-notes modal closes, snap the tab-bar to the bottom immediately
