@@ -2435,10 +2435,14 @@ const DayPlanner = () => {
   // layout viewport never resizes, so we track keyboard height via window.visualViewport
   // and apply a translateY directly to the DOM node (no React state → no re-render).
   const tabBarRef = useRef(null);
+  // When a keyboard-triggering modal (e.g. daily notes) closes, we reset the tab-bar
+  // immediately and suppress visualViewport updates for ~400ms so the tab-bar doesn't
+  // flutter back up while the keyboard's dismiss animation is still in progress.
+  const suppressTabBarRef = useRef(false);
   useEffect(() => {
     if (!isMobile || !window.visualViewport) return;
     const updateTabBar = () => {
-      if (!tabBarRef.current) return;
+      if (!tabBarRef.current || suppressTabBarRef.current) return;
       const kh = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
       tabBarRef.current.style.transform = kh > 0 ? `translateY(-${kh}px)` : '';
     };
@@ -2449,6 +2453,16 @@ const DayPlanner = () => {
       window.visualViewport.removeEventListener('scroll', updateTabBar);
     };
   }, [isMobile]);
+  // When the daily-notes modal closes, snap the tab-bar to the bottom immediately
+  // instead of waiting for the keyboard dismiss animation to complete.
+  useEffect(() => {
+    if (!dailyNotesModalDate && tabBarRef.current) {
+      suppressTabBarRef.current = true;
+      tabBarRef.current.style.transform = '';
+      const t = setTimeout(() => { suppressTabBarRef.current = false; }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [dailyNotesModalDate]);
   const [timelineScrolledAway, setTimelineScrolledAway] = useState(false);
   const [tabletActiveTab, setTabletActiveTab] = useState('glance'); // 'glance' | 'inbox' — for landscape tabbed panel
   // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop uses width-based hook

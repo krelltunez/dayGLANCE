@@ -50,12 +50,14 @@
 
     </LinearLayout>
 
-    <!-- Divider -->
-    <View
+    <!-- Divider — plain <View> is not in the RemoteViews allow-list on API 31+;
+         use <TextView> instead (always allowed) styled as a 1dp hairline. -->
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#e5e7eb"
-        android:layout_marginBottom="10dp" />
+        android:layout_marginBottom="10dp"
+        android:text="" />
 
     <!-- Steps row -->
     <LinearLayout
@@ -147,11 +149,12 @@
         android:textSize="11sp"
         android:layout_marginBottom="6dp" />
 
-    <!-- Spacer -->
-    <View
+    <!-- Spacer — use <TextView> instead of <View> for RemoteViews allow-list compatibility. -->
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:text="" />
 
     <!-- Footer: last updated -->
     <TextView
