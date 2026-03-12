@@ -10866,18 +10866,18 @@ const DayPlanner = () => {
   syncAllRef.current = syncAll;
 
   // Cloud sync functions
-  // Calendar-imported events (importSource !== 'file') are excluded from cloud sync:
-  // they are ephemeral — re-fetched fresh from the calendar URL on every device — and
-  // including them causes duplicate events on Android where native CalendarBridge is the
-  // source of truth. Completion state is preserved separately via completedTaskUids.
-  const excludeImported = tasks => tasks.filter(t => !(t.imported && t.importSource !== 'file'));
+  // Calendar events (imported:true, isTaskCalendar:false, importSource!=='file') are excluded
+  // from cloud sync: they are ephemeral — re-fetched fresh from the calendar URL on every
+  // device — and including them causes duplicate events on Android where native CalendarBridge
+  // is the source of truth. Calendar tasks (isTaskCalendar:true) and file imports are kept.
+  const excludeImportedEvents = tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
 
   const buildSyncPayload = () => ({
     version: 2,
     lastModified: new Date().toISOString(),
     data: {
-      tasks: excludeImported(JSON.parse(localStorage.getItem('day-planner-tasks') || '[]')),
-      unscheduledTasks: excludeImported(JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]')),
+      tasks: excludeImportedEvents(JSON.parse(localStorage.getItem('day-planner-tasks') || '[]')),
+      unscheduledTasks: excludeImportedEvents(JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]')),
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
       syncUrl: localStorage.getItem('day-planner-sync-url') || '',
       taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
