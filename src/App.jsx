@@ -2439,6 +2439,10 @@ const DayPlanner = () => {
   // immediately and suppress visualViewport updates for ~400ms so the tab-bar doesn't
   // flutter back up while the keyboard's dismiss animation is still in progress.
   const suppressTabBarRef = useRef(false);
+  // Declared here (before the useEffect below that depends on it) to avoid a TDZ
+  // ReferenceError. The logical home for daily-notes state is further down but hooks
+  // must be called in the same order on every render and cannot be forward-referenced.
+  const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
   useEffect(() => {
     if (!isMobile || !window.visualViewport) return;
     const updateTabBar = () => {
@@ -2791,7 +2795,6 @@ const DayPlanner = () => {
       return saved ? JSON.parse(saved) : {};
     } catch { return {}; }
   });
-  const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
   const [dailyNoteTemplate, setDailyNoteTemplate] = useState(() => {
     const saved = localStorage.getItem('day-planner-daily-note-template');
     return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks\n';
