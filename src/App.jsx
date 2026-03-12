@@ -798,7 +798,7 @@ const webdavFetch = async (method, targetUrl, authHeaders, body, extraHeaders = 
     return {
       status: result.status,
       ok: result.ok,
-      statusText: result.error || String(result.status),
+      statusText: result.error || '',
       json: async () => JSON.parse(result.body),
       text: async () => result.body,
     };
@@ -855,9 +855,9 @@ const cloudSyncProviders = {
 
       const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
 
-      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and app password.' };
-      return { success: false, error: `Unexpected response: ${res.status} ${res.statusText}` };
+      return { success: false, error: `Unexpected response: ${res.status}${res.statusText ? ' ' + res.statusText : ''}` };
     },
     configFields: [
       { key: 'nextcloudUrl', label: 'Nextcloud URL', type: 'url', placeholder: 'https://cloud.example.com' },
@@ -902,9 +902,9 @@ const cloudSyncProviders = {
       const dirUrl = this.getDirUrl(config);
       const authHeaders = this.getAuthHeaders(config);
       const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
-      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and password.' };
-      return { success: false, error: `Unexpected response: ${res.status} ${res.statusText}` };
+      return { success: false, error: `Unexpected response: ${res.status}${res.statusText ? ' ' + res.statusText : ''}` };
     },
     configFields: [
       { key: 'webdavUrl', label: 'WebDAV URL', type: 'url', placeholder: 'https://app.koofr.net/dav/Koofr/dayGLANCE/' },
@@ -1197,7 +1197,7 @@ const autoBackupProviders = {
         method: 'PROPFIND',
         headers: { ...authHeaders, 'Depth': '0' }
       });
-      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
       return { success: false, error: `Unexpected response: ${res.status}` };
     }
@@ -1287,7 +1287,7 @@ const autoBackupProviders = {
         method: 'PROPFIND',
         headers: { ...authHeaders, 'Depth': '0' }
       });
-      if (res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
       return { success: false, error: `Unexpected response: ${res.status}` };
     }
