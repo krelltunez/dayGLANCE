@@ -10866,12 +10866,18 @@ const DayPlanner = () => {
   syncAllRef.current = syncAll;
 
   // Cloud sync functions
+  // Calendar-imported events (importSource !== 'file') are excluded from cloud sync:
+  // they are ephemeral — re-fetched fresh from the calendar URL on every device — and
+  // including them causes duplicate events on Android where native CalendarBridge is the
+  // source of truth. Completion state is preserved separately via completedTaskUids.
+  const excludeImported = tasks => tasks.filter(t => !(t.imported && t.importSource !== 'file'));
+
   const buildSyncPayload = () => ({
     version: 2,
     lastModified: new Date().toISOString(),
     data: {
-      tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
-      unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
+      tasks: excludeImported(JSON.parse(localStorage.getItem('day-planner-tasks') || '[]')),
+      unscheduledTasks: excludeImported(JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]')),
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
       syncUrl: localStorage.getItem('day-planner-sync-url') || '',
       taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
