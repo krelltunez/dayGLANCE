@@ -13423,7 +13423,7 @@ const DayPlanner = () => {
       {isMobile ? (
         <>
           {/* Mobile Layout */}
-          <div className="mobile-timeline-layout">
+          <div className="mobile-timeline-layout" style={isNativeAndroid() ? { height: 'calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px))' } : undefined}>
             {/* Mobile Header */}
             {mobileActiveTab === 'timeline' && (
               <div className={`${cardBg} border-b ${borderClass} flex-shrink-0 relative ${showMonthView ? 'z-50' : 'z-30'}`}>
