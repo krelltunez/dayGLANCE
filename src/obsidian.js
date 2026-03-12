@@ -165,11 +165,38 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
 }
 
 /**
+ * Strip leading date / date+time / time prefixes from a raw task line body
+ * (the text after `- [x] `) to get the bare title, mirroring
+ * parseTasksFromMarkdown.  Returns { bareTitle, datePrefix } where datePrefix
+ * is the "YYYY-MM-DD " string (with trailing space) if one was present, or ''.
+ */
+function stripLinePrefixes(text) {
+  const trimmed = text.trim();
+  // 1) Leading date: "YYYY-MM-DD ..."
+  const dateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
+  if (dateMatch) {
+    const datePrefix = dateMatch[1] + ' ';
+    const afterDate = dateMatch[2];
+    // Date + time
+    const tm = afterDate.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
+    if (tm) return { bareTitle: tm[4], datePrefix };
+    // Date only
+    return { bareTitle: afterDate, datePrefix };
+  }
+  // 2) Time only
+  const tm = trimmed.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
+  if (tm) return { bareTitle: tm[4], datePrefix: '' };
+  // 3) Plain title
+  return { bareTitle: trimmed, datePrefix: '' };
+}
+
+/**
  * Write a task's completion and scheduling state back to its Obsidian file.
  *
  * Finds the task line by matching `obsidianRawTitle` (the title text as it
  * originally appeared, without #obsidian tag or time prefix). Reconstructs
- * the line with updated checkbox and optional time.
+ * the line with updated checkbox and optional time, preserving any inline
+ * date prefix that was already in the line.
  */
 export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle) {
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
@@ -190,19 +217,15 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
     if (!m) continue;
 
-    // Strip time prefix from the line to get the core title
-    let lineTitle = m[3].trim();
-    const tm = lineTitle.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
-    if (tm) lineTitle = tm[4];
+    const { bareTitle, datePrefix } = stripLinePrefixes(m[3]);
+    if (bareTitle !== obsidianRawTitle) continue;
 
-    if (lineTitle === obsidianRawTitle) {
-      const indent = m[1];
-      const timeStr = startTime ? `${startTime} ` : '';
-      const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
-      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${writtenTitle}`;
-      updated = true;
-      break; // first match only
-    }
+    const indent = m[1];
+    const timeStr = startTime ? `${startTime} ` : '';
+    const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
+    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
+    updated = true;
+    break; // first match only
   }
 
   if (updated) {
@@ -327,6 +350,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         subtasks: [],
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
+        obsidianFileDate: dateStr,
       });
     } else if (isAllDay) {
       // Date-only task → all-day scheduled task
@@ -343,6 +367,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         subtasks: [],
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
+        obsidianFileDate: dateStr,
       });
     } else {
       // No date, no time → inbox
@@ -357,6 +382,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         color: 'bg-purple-600',
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
+        obsidianFileDate: dateStr,
       });
     }
   }
@@ -570,18 +596,15 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
       if (!m) continue;
 
-      let lineTitle = m[3].trim();
-      const tm = lineTitle.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
-      if (tm) lineTitle = tm[4];
+      const { bareTitle, datePrefix } = stripLinePrefixes(m[3]);
+      if (bareTitle !== obsidianRawTitle) continue;
 
-      if (lineTitle === obsidianRawTitle) {
-        const indent = m[1];
-        const timeStr = startTime ? `${startTime} ` : '';
-        const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
-        lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${timeStr}${writtenTitle}`;
-        updated = true;
-        break;
-      }
+      const indent = m[1];
+      const timeStr = startTime ? `${startTime} ` : '';
+      const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
+      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
+      updated = true;
+      break;
     }
 
     if (updated) {

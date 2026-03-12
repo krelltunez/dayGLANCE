@@ -4279,7 +4279,11 @@ const DayPlanner = () => {
 
       if (!titleChanged && !stateChanged) continue;
 
-      const sourceDate = task.date || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1];
+      // Always look up the ORIGINAL file date, not the rescheduled task.date.
+      // obsidianFileDate is set at parse time to the markdown file's date, so
+      // a task that was moved inbox↔timeline or rescheduled to a different day
+      // still writes back to the file where it actually lives.
+      const sourceDate = task.obsidianFileDate || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1] || task.date;
       if (!sourceDate) continue;
 
       // Derive the new raw title (strip #obsidian tag the app appends for display)
