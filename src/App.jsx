@@ -2579,6 +2579,8 @@ const DayPlanner = () => {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
   const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
+  // On Android, calendar events come from the native bridge — only task calendar URL matters for sync
+  const calSyncConfigured = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
   const [taskCalendarAuth, setTaskCalendarAuth] = useState(() => {
     const saved = localStorage.getItem('day-planner-task-calendar-auth');
     return saved ? JSON.parse(saved) : { username: '', appPassword: '', caldavBaseUrl: '' };
@@ -3988,9 +3990,11 @@ const DayPlanner = () => {
     });
   }, []); // Run once on app start
 
-  // Auto-sync calendars every 15 minutes when URLs are configured
+  // Auto-sync calendars every 15 minutes when URLs are configured.
+  // On Android, only the task calendar matters — calendar events come from the native bridge.
   useEffect(() => {
-    if (!syncUrl && !taskCalendarUrl) return;
+    const hasSyncTarget = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    if (!hasSyncTarget) return;
 
     const syncTimer = setInterval(() => {
       syncAllRef.current({ silent: true });
@@ -10471,6 +10475,9 @@ const DayPlanner = () => {
 
   // Returns { success: boolean, count?: number, error?: string }
   const syncWithCalendar = async () => {
+    // On Android, calendar events come from the native CalendarBridge (device accounts).
+    // CalDAV iCal sync would duplicate those events, so skip it entirely.
+    if (isNativeAndroid()) return { success: false, error: 'no-url' };
     if (!syncUrl) {
       return { success: false, error: 'no-url' };
     }
@@ -10796,8 +10803,9 @@ const DayPlanner = () => {
 
   // Combined sync function that shows a single notification
   const syncAll = async ({ silent = false } = {}) => {
-    if (!syncUrl && !taskCalendarUrl) {
-      if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a calendar URL in sync settings' });
+    const hasSyncTarget = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    if (!hasSyncTarget) {
+      if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a task calendar URL in sync settings' });
       return;
     }
 
@@ -16168,10 +16176,10 @@ const DayPlanner = () => {
                   </div>
 
                   {/* Sync buttons */}
-                  {(syncUrl || taskCalendarUrl || cloudSyncConfig?.enabled || obsidianConfig?.enabled) && (
+                  {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled) && (
                     <div className="space-y-2">
                       <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
-                      {(syncUrl || taskCalendarUrl) && (
+                      {calSyncConfigured && (
                         <button
                           onClick={() => { if (!isSyncing) syncAll(); }}
                           disabled={isSyncing}
@@ -16276,10 +16284,11 @@ const DayPlanner = () => {
                       <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                        {(syncUrl || taskCalendarUrl) && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        {calSyncConfigured && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
+                      {!isNativeAndroid() && (
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>Calendar URL (iCal/CalDAV)</label>
                         <input
@@ -16290,6 +16299,12 @@ const DayPlanner = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                       </div>
+                      )}
+                      {isNativeAndroid() && (
+                        <p className={`text-xs ${textSecondary}`}>
+                          Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
+                        </p>
+                      )}
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>Task Calendar URL</label>
                         <input
@@ -16363,8 +16378,8 @@ const DayPlanner = () => {
                       </div>
                       <button
                         onClick={() => syncAll()}
-                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
-                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={isSyncing || !calSyncConfigured}
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${!calSyncConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
                         {isSyncing ? 'Syncing...' : 'Sync Now'}
@@ -17827,7 +17842,7 @@ const DayPlanner = () => {
           <button
             onClick={() => {
               if (isSyncing) return;
-              if (syncUrl || taskCalendarUrl) {
+              if (calSyncConfigured) {
                 syncAll();
               } else {
                 setShowSettings(true);
@@ -17835,10 +17850,10 @@ const DayPlanner = () => {
             }}
             disabled={isSyncing}
             className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
-            title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
+            title={isSyncing ? "Syncing..." : (calSyncConfigured ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
           >
             <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-            {(syncUrl || taskCalendarUrl) && (
+            {calSyncConfigured && (
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
                 isSyncing ? 'bg-blue-500 animate-pulse' :
                 calSyncStatus === 'success' ? 'bg-green-500' :
@@ -17966,7 +17981,7 @@ const DayPlanner = () => {
             <button
               onClick={() => {
                 if (isSyncing) return;
-                if (syncUrl || taskCalendarUrl) {
+                if (calSyncConfigured) {
                   syncAll();
                 } else {
                   setShowSettings(true);
@@ -17974,11 +17989,11 @@ const DayPlanner = () => {
               }}
               disabled={isSyncing}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${isSyncing ? 'opacity-70' : ''}`}
-              title={isSyncing ? "Syncing..." : ((syncUrl || taskCalendarUrl) ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
+              title={isSyncing ? "Syncing..." : (calSyncConfigured ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
               aria-label={isSyncing ? "Syncing" : "Sync calendars"}
             >
               <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-              {(syncUrl || taskCalendarUrl) && (
+              {calSyncConfigured && (
                 <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
                   isSyncing ? 'bg-blue-500 animate-pulse' :
                   calSyncStatus === 'success' ? 'bg-green-500' :
@@ -25235,10 +25250,11 @@ const DayPlanner = () => {
                       <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         Calendar Sync
-                        {(syncUrl || taskCalendarUrl) && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        {calSyncConfigured && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
+                      {!isNativeAndroid() && (
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           Calendar URL (iCal/CalDAV)
@@ -25254,6 +25270,12 @@ const DayPlanner = () => {
                           For Nextcloud: Go to Calendar → Settings → Copy the public link
                         </p>
                       </div>
+                      )}
+                      {isNativeAndroid() && (
+                        <p className={`text-xs ${textSecondary}`}>
+                          Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
+                        </p>
+                      )}
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           Task Calendar URL (iCal/CalDAV)
@@ -25336,8 +25358,8 @@ const DayPlanner = () => {
                       </div>
                       <button
                         onClick={() => syncAll()}
-                        disabled={isSyncing || (!syncUrl && !taskCalendarUrl)}
-                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${(!syncUrl && !taskCalendarUrl) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={isSyncing || !calSyncConfigured}
+                        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${!calSyncConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
                         {isSyncing ? 'Syncing...' : 'Sync Now'}
