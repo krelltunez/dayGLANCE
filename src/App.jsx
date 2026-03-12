@@ -2444,16 +2444,19 @@ const DayPlanner = () => {
   // must be called in the same order on every render and cannot be forward-referenced.
   const [dailyNotesModalDate, setDailyNotesModalDate] = useState(null); // date string when modal is open
   useEffect(() => {
-    if (!isMobile || !window.visualViewport) return;
+    // On native Android the FrameLayout padding in MainActivity already consumes
+    // the navigation-bar inset, so the WebView viewport ends exactly above the
+    // nav bar. Any delta between window.innerHeight and visualViewport.height is
+    // an artefact of the edge-to-edge layout (not a real keyboard), and applying
+    // a translateY here creates a persistent gap below the content on every tab.
+    // The tab bar is fixed bottom-0 and is already in the right place — skip the
+    // listener entirely on Android native.
+    if (!isMobile || !window.visualViewport || isNativeAndroid()) return;
     let timer = null;
     const updateTabBar = () => {
       if (!tabBarRef.current || suppressTabBarRef.current) return;
       const kh = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
-      // Only translate for real keyboard heights (≥ 100 px). Smaller values are
-      // visual-viewport rounding artefacts or transient system-UI animations on
-      // Android and should not shift the tab bar (fixes persistent gap + mid-screen
-      // flash on app open).
-      tabBarRef.current.style.transform = kh >= 100 ? `translateY(-${kh}px)` : '';
+      tabBarRef.current.style.transform = kh > 0 ? `translateY(-${kh}px)` : '';
     };
     // Debounce by 50 ms so transient viewport spikes on app open don't cause a flash.
     const scheduleUpdate = () => { clearTimeout(timer); timer = setTimeout(updateTabBar, 50); };
