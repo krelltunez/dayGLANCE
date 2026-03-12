@@ -10517,11 +10517,18 @@ const DayPlanner = () => {
     }
 
     try {
-      const proxyUrl = `/api/calendar-proxy/?url=${taskCalendarUrl}`;
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error('Failed to fetch task calendar');
-
-      const icsContent = await response.text();
+      let icsContent;
+      if (isNativeAndroid()) {
+        // On Android: fetch directly — no CORS restrictions, no proxy server available
+        const result = nativeHttpRequest('GET', taskCalendarUrl, { Accept: 'text/calendar, text/plain, */*' }, '');
+        if (!result || !result.ok) throw new Error('Failed to fetch task calendar');
+        icsContent = result.body;
+      } else {
+        const proxyUrl = `/api/calendar-proxy/?url=${taskCalendarUrl}`;
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Failed to fetch task calendar');
+        icsContent = await response.text();
+      }
       const events = parseICS(icsContent);
 
       // Read fresh completedTaskUids from localStorage to avoid stale closure
