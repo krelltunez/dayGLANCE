@@ -8047,7 +8047,7 @@ const DayPlanner = () => {
         recurringTasks: structuredClone(recurringTasksRef.current),
       }
     ];
-    setTasks(snapshot.tasks);
+    setTasks(prev => [...snapshot.tasks.filter(t => !t._native), ...prev.filter(t => t._native)]);
     setUnscheduledTasks(snapshot.unscheduledTasks);
     setRecycleBin(snapshot.recycleBin);
     setRecurringTasks(snapshot.recurringTasks);
@@ -8068,7 +8068,7 @@ const DayPlanner = () => {
         recurringTasks: structuredClone(recurringTasksRef.current),
       }
     ];
-    setTasks(snapshot.tasks);
+    setTasks(prev => [...snapshot.tasks.filter(t => !t._native), ...prev.filter(t => t._native)]);
     setUnscheduledTasks(snapshot.unscheduledTasks);
     setRecycleBin(snapshot.recycleBin);
     setRecurringTasks(snapshot.recurringTasks);
@@ -11101,7 +11101,7 @@ const DayPlanner = () => {
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload)
-    if (normalizedTasks) setTasks(normalizedTasks);
+    if (normalizedTasks) setTasks(prev => [...normalizedTasks, ...prev.filter(t => t._native)]);
     if (normalizedUnsched) setUnscheduledTasks(normalizedUnsched);
     if (data.recycleBin) setRecycleBin(data.recycleBin);
     if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
