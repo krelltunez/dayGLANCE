@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/ic_launcher_fg"
-    android:gravity="fill" />
+<!-- Adaptive icon foreground: regular (transparent-bg) icon inset to
+     keep artwork within Android's 72dp safe zone (108dp canvas).
+     20dp insets on each side → icon occupies the center 68dp (~63%). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:drawable="@drawable/ic_launcher_fg"
+        android:top="20dp"
+        android:bottom="20dp"
+        android:left="20dp"
+        android:right="20dp" />
+</layer-list>
