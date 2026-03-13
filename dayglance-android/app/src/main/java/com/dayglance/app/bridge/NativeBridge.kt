@@ -3,9 +3,11 @@ package com.dayglance.app.bridge
 import android.content.Context
 import android.content.Intent
 import android.webkit.JavascriptInterface
+import androidx.core.content.FileProvider
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.settings.SettingsActivity
+import java.io.File
 
 /**
  * Main bridge — exposed to JS as `window.DayGlanceNative`.
@@ -119,6 +121,45 @@ class NativeBridge(
     @JavascriptInterface
     fun httpRequest(method: String, url: String, headersJson: String, body: String): String =
         http.request(method, url, headersJson, body)
+
+    // ── File sharing ─────────────────────────────────────────────────────────
+
+    /**
+     * Saves [content] to the app's cache directory as [filename] then launches
+     * the system share sheet so the user can send it to Files, Drive, etc.
+     *
+     * This is the Android replacement for the web `<a download>` trick, which
+     * is silently ignored inside a WebView.
+     *
+     * Returns JSON: { "success": true } or { "success": false, "error": "…" }
+     */
+    @JavascriptInterface
+    fun shareFile(filename: String, content: String): String {
+        return try {
+            val file = File(context.cacheDir, filename)
+            file.writeText(content)
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, filename)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(sendIntent, "Save backup").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+            """{"success":true}"""
+        } catch (e: Exception) {
+            val msg = (e.message ?: "unknown").replace("\\", "\\\\").replace("\"", "\\\"")
+            """{"success":false,"error":"$msg"}"""
+        }
+    }
 
     // ── Settings ─────────────────────────────────────────────────────────────
 

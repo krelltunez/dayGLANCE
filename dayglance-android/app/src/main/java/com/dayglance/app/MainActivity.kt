@@ -3,6 +3,7 @@ package com.dayglance.app
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.health.connect.client.PermissionController
 import androidx.webkit.WebViewAssetLoader
@@ -68,6 +70,16 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Enforce correct status-bar icon colour regardless of Android version or
+        // edge-to-edge behaviour.  android:windowLightStatusBar in themes.xml is
+        // not reliably honoured on API 35 when the window is forced edge-to-edge.
+        // isAppearanceLightStatusBars = true  → dark (black) icons  → use in light mode
+        // isAppearanceLightStatusBars = false → light (white) icons → use in dark mode
+        val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(window, window.decorView)
+            .isAppearanceLightStatusBars = !isNightMode
 
         webView = binding.webView
         healthRepository = HealthRepository(this)

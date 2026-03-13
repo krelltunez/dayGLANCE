@@ -271,3 +271,24 @@ export const nativeSyncReminders = (reminders) => {
   if (!bridge?.syncReminders) return;
   bridge.syncReminders(JSON.stringify(reminders));
 };
+
+/**
+ * Triggers the Android system share sheet for a JSON backup file.
+ *
+ * The web `<a download>` trick is silently ignored inside a WebView; this
+ * native bridge call writes the file to the app cache dir and opens the
+ * share sheet so the user can send it to Files, Drive, email, etc.
+ *
+ * @param filename  Suggested file name, e.g. "dayglance-backup-2026-03-13.json"
+ * @param content   The file contents as a string
+ * @returns         { success: true } or { success: false, error: string }
+ */
+export const nativeShareFile = (filename, content) => {
+  const bridge = nativeBridge();
+  if (!bridge?.shareFile) return null;
+  try {
+    return JSON.parse(bridge.shareFile(filename, content));
+  } catch {
+    return null;
+  }
+};

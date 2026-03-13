@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote } from './native.js';
+import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -10283,11 +10283,21 @@ const DayPlanner = () => {
       }
     };
 
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const filename = `dayglance-backup-${dateToString(new Date())}.json`;
+    const jsonStr = JSON.stringify(backup, null, 2);
+
+    // On Android the <a download> trick is silently ignored inside a WebView.
+    // Use the native share sheet instead so the user can save to Files / Drive.
+    if (isNativeAndroid()) {
+      nativeShareFile(filename, jsonStr);
+      return;
+    }
+
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dayglance-backup-${dateToString(new Date())}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };

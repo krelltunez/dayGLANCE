@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider path configuration for NativeBridge.shareFile().
+
+  Exposes the app's internal cache directory so JSON backup files written
+  there can be shared via the system share sheet without requiring
+  WRITE_EXTERNAL_STORAGE permission.
+-->
+<paths>
+    <cache-path name="cache" path="." />
+</paths>
