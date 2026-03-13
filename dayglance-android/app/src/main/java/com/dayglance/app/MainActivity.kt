@@ -131,13 +131,6 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest
             ) = assetLoader.shouldInterceptRequest(request.url)
 
-            override fun onPageFinished(view: WebView, url: String) {
-                super.onPageFinished(view, url)
-                // WebView can reset the status-bar appearance when it commits its first
-                // paint (especially on API 35 with edge-to-edge).  Re-apply our setting
-                // after the page is fully loaded to ensure it wins.
-                applyStatusBarAppearance()
-            }
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(

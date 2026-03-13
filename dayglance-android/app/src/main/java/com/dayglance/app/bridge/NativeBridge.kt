@@ -161,6 +161,40 @@ class NativeBridge(
         }
     }
 
+    // ── UI ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Called by the web app whenever its own dark/light mode changes so the
+     * native side can match the status-bar icon colour to the app theme.
+     *
+     * The app has its own dark-mode toggle (stored in localStorage) that is
+     * independent of the Android OS dark-mode setting, so reading
+     * resources.configuration.uiMode from Kotlin gives the wrong answer.
+     *
+     * [isDark] — true  → app is in dark mode → use light (white) icons
+     *            false → app is in light mode → use dark (black) icons
+     */
+    @JavascriptInterface
+    fun setStatusBarAppearance(isDark: Boolean) {
+        (context as? android.app.Activity)?.runOnUiThread {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                (context as android.app.Activity).window.isStatusBarContrastEnforced = false
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                val appearance = if (!isDark) android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS else 0
+                (context as android.app.Activity).window.insetsController?.setSystemBarsAppearance(
+                    appearance,
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                )
+            } else {
+                androidx.core.view.WindowCompat.getInsetsController(
+                    (context as android.app.Activity).window,
+                    (context as android.app.Activity).window.decorView,
+                ).isAppearanceLightStatusBars = !isDark
+            }
+        }
+    }
+
     // ── Settings ─────────────────────────────────────────────────────────────
 
     /**
