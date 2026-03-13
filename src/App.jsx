@@ -7591,40 +7591,70 @@ const DayPlanner = () => {
     });
   };
 
-  const saveMobileEditNativeEvent = () => {
+  const saveMobileEditNativeEvent = async () => {
     if (!mobileEditingNativeEvent) return;
-    const id = String(mobileEditingNativeEvent.nativeEventId);
-    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
     const orig = mobileEditingNativeEvent;
-    const updated = {};
-    if (newTask.title.trim() !== orig.title) updated.title = newTask.title.trim();
-    if (newTask.date !== orig.date) updated.date = newTask.date;
-    if (!newTask.isAllDay) {
-      updated.startTime = newTask.startTime;
-      updated.duration = newTask.duration;
-    }
-    if ((newTask.notes || '').trim() !== (orig.notes || '').trim()) updated.notes = newTask.notes.trim();
-    if (newTask.color) updated.color = newTask.color;
-    if (Object.keys(updated).length === 0) {
-      delete overrides[id];
+    const title = newTask.title.trim() || orig.title;
+    const date = newTask.date || orig.date;
+    const isAllDay = newTask.isAllDay;
+    const startTime = isAllDay ? null : (newTask.startTime || orig.startTime || '09:00');
+    const duration = isAllDay ? (orig.duration || 60) : (newTask.duration || orig.duration || 60);
+    const notes = newTask.notes || '';
+
+    // Optimistically update state immediately
+    const applyToTask = (t) => ({
+      ...t,
+      title,
+      date,
+      startTime,
+      isAllDay,
+      duration,
+      notes,
+      color: newTask.color || '',
+    });
+    setTasks(prev => prev.map(t => t.nativeEventId === orig.nativeEventId ? applyToTask(t) : t));
+    setMobileEditingNativeEvent(null);
+
+    // Attempt to write back to the device calendar
+    const endMin = startTime ? timeToMinutes(startTime) + duration : 0;
+    const newStart = isAllDay ? date : `${date}T${startTime}:00`;
+    const newEnd = isAllDay ? date : `${date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+    const result = await nativeUpdateEvent({
+      id: orig.nativeEventId,
+      title,
+      start: newStart,
+      end: newEnd,
+      allDay: isAllDay,
+      notes,
+      location: orig.location || '',
+    });
+
+    const id = String(orig.nativeEventId);
+    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+
+    if (result?.success) {
+      // Write succeeded — keep state update, clear any stale local override
+      // (but preserve color override since the calendar has no color field)
+      if (newTask.color) {
+        overrides[id] = { ...(overrides[id] || {}), color: newTask.color };
+      } else {
+        const { color: _c, ...rest } = overrides[id] || {};
+        if (Object.keys(rest).length === 0) delete overrides[id];
+        else overrides[id] = rest;
+      }
     } else {
-      overrides[id] = updated;
+      // Write failed (e.g. read-only calendar) — store as local override so
+      // the changes survive re-fetches
+      const updated = {};
+      if (title !== orig.title) updated.title = title;
+      if (date !== orig.date) updated.date = date;
+      if (!isAllDay) { updated.startTime = startTime; updated.duration = duration; }
+      if (notes.trim() !== (orig.notes || '').trim()) updated.notes = notes.trim();
+      if (newTask.color) updated.color = newTask.color;
+      if (Object.keys(updated).length === 0) delete overrides[id];
+      else overrides[id] = updated;
     }
     localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
-    setTasks(prev => prev.map(t => {
-      if (t.nativeEventId !== mobileEditingNativeEvent.nativeEventId) return t;
-      return {
-        ...t,
-        title: updated.title !== undefined ? updated.title : orig.title,
-        date: updated.date !== undefined ? updated.date : orig.date,
-        startTime: updated.startTime !== undefined ? updated.startTime : orig.startTime,
-        duration: updated.duration !== undefined ? updated.duration : orig.duration,
-        isAllDay: updated.startTime === undefined && orig.isAllDay,
-        notes: updated.notes !== undefined ? updated.notes : (orig.notes || ''),
-        color: updated.color || '',
-      };
-    }));
-    setMobileEditingNativeEvent(null);
   };
 
   const clearNativeEventOverride = (task) => {
@@ -23820,7 +23850,7 @@ const DayPlanner = () => {
               {/* Calendar source info */}
               {mobileEditingNativeEvent.calendarName && (
                 <p className={`text-xs ${textSecondary}`}>
-                  From <span className="font-medium">{mobileEditingNativeEvent.calendarName}</span> · Changes are local only
+                  From <span className="font-medium">{mobileEditingNativeEvent.calendarName}</span>
                 </p>
               )}
 
@@ -23929,13 +23959,13 @@ const DayPlanner = () => {
                 </button>
               </div>
 
-              {/* Reset to original */}
+              {/* Clear local overrides */}
               <button
                 type="button"
                 onClick={() => clearNativeEventOverride(mobileEditingNativeEvent)}
                 className={`w-full px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-stone-500 hover:bg-stone-100'}`}
               >
-                Reset to calendar original
+                Reload from calendar
               </button>
             </form>
           </div>
