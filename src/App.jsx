@@ -8335,10 +8335,18 @@ const DayPlanner = () => {
           return true;
         });
 
-      setTasks(prev => [
-        ...prev.filter(t => !t._native),
-        ...fetched,
-      ]);
+      setTasks(prev => {
+        // If the user scheduled a native all-day event on the timeline it was promoted
+        // to a local (non-_native) task.  Exclude any newly-fetched native version of
+        // the same event so it doesn't reappear as a duplicate in the all-day section.
+        const localNativeIds = new Set(
+          prev.filter(t => !t._native && t.nativeEventId).map(t => String(t.nativeEventId))
+        );
+        return [
+          ...prev.filter(t => !t._native),
+          ...fetched.filter(t => !localNativeIds.has(String(t.nativeEventId))),
+        ];
+      });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter]);
@@ -9223,11 +9231,16 @@ const DayPlanner = () => {
         // Regular task: update time, isAllDay status, and date (for cross-column drag)
         pushUndo();
         const prevTask = task;
+        // Scheduling an all-day native calendar event on the timeline: promote it to a
+        // local task so the placement survives native calendar re-fetches.  The original
+        // all-day event stays in the device calendar (or is updated there if writable).
+        const fromAllDayToTimed = fromAllDay && !droppingToAllDay && !!task.nativeEventId;
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
           startTime: finalTime,
           isAllDay: droppingToAllDay,
           date: dropDateStr,
+          ...(fromAllDayToTimed ? { _native: false, imported: false } : {}),
         } : t));
         // Sync native Android calendar events back to the device calendar
         if (task.nativeEventId && !droppingToAllDay && finalTime) {
@@ -9239,7 +9252,10 @@ const DayPlanner = () => {
             start: newStart, end: newEnd, allDay: false,
             notes: task.notes || '', location: task.location || '',
           }).then(result => {
-            if (!result?.success) {
+            // For all-day → timed scheduling, keep the local task even if the native
+            // calendar is read-only — the task was already promoted to a local task above.
+            // For timed → timed rescheduling, revert on failure (no local promotion).
+            if (!result?.success && !fromAllDayToTimed) {
               setTasks(prev => prev.map(t => t.id === prevTask.id ? prevTask : t));
             }
           });

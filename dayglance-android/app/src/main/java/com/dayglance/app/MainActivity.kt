@@ -71,16 +71,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Enforce correct status-bar icon colour regardless of Android version or
-        // edge-to-edge behaviour.  android:windowLightStatusBar in themes.xml is
-        // not reliably honoured on API 35 when the window is forced edge-to-edge.
-        // isAppearanceLightStatusBars = true  → dark (black) icons  → use in light mode
-        // isAppearanceLightStatusBars = false → light (white) icons → use in dark mode
-        val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
-        WindowCompat.getInsetsController(window, window.decorView)
-            .isAppearanceLightStatusBars = !isNightMode
-
         webView = binding.webView
         healthRepository = HealthRepository(this)
         obsidianBridge = ObsidianBridge(this)
@@ -192,6 +182,38 @@ class MainActivity : AppCompatActivity() {
         if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), RC_PERMISSIONS)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyStatusBarAppearance()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyStatusBarAppearance()
+    }
+
+    /**
+     * Sets the status-bar icon colour to match the current light/dark mode.
+     *
+     * Called in onResume (not onCreate) so the window is fully laid out, and in
+     * onConfigurationChanged to react to dark-mode toggles without restarting.
+     *
+     * On API 29+ we also disable automatic contrast enforcement, which can
+     * override isAppearanceLightStatusBars on API 35 edge-to-edge windows.
+     */
+    private fun applyStatusBarAppearance() {
+        val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        // Prevent Android 10+ from auto-adjusting icon colour based on content contrast.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+        }
+        // isAppearanceLightStatusBars = true  → dark (black) icons → light mode
+        // isAppearanceLightStatusBars = false → light (white) icons → dark mode
+        WindowCompat.getInsetsController(window, window.decorView)
+            .isAppearanceLightStatusBars = !isNightMode
     }
 
     override fun onBackPressed() {
