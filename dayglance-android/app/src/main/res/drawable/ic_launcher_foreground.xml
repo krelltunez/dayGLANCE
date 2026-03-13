@@ -1,24 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Simple calendar/day icon for DayGlance -->
-    <path
-        android:fillColor="#E0E0FF"
-        android:pathData="M34,28 h40 a6,6 0 0 1 6,6 v40 a6,6 0 0 1 -6,6 h-40 a6,6 0 0 1 -6,-6 v-40 a6,6 0 0 1 6,-6 z" />
-    <path
-        android:fillColor="#1A1A2E"
-        android:pathData="M28,40 h52 v2 h-52 z" />
-    <path
-        android:fillColor="#1A1A2E"
-        android:pathData="M40,28 v-4 a2,2 0 0 1 4,0 v4 z" />
-    <path
-        android:fillColor="#1A1A2E"
-        android:pathData="M64,28 v-4 a2,2 0 0 1 4,0 v4 z" />
-    <!-- Day number "G" simplified as a bold text block -->
-    <path
-        android:fillColor="#6060FF"
-        android:pathData="M46,50 h16 v4 h-10 v8 h10 v4 h-16 z" />
-</vector>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_launcher_fg"
+    android:gravity="fill" />
