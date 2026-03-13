@@ -2707,6 +2707,10 @@ const DayPlanner = () => {
   const mobileDateHeaderRef = useRef(null);
   const mobileAllDaySectionRef = useRef(null);
   const mobileDragSourceType = useRef(null); // 'timeline' or 'allday'
+  // Refs that mirror mobileDragPreviewTime/Date state — read in handleMobileLongPressEnd
+  // to avoid stale-closure bugs when touchend fires before React commits the latest render.
+  const mobileDragPreviewTimeRef = useRef(null);
+  const mobileDragPreviewDateRef = useRef(null);
 
   // Routines state
   const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
@@ -8811,8 +8815,12 @@ const DayPlanner = () => {
           calendarRef.current.style.overflowY = 'hidden';
         }
         // Set initial preview based on source
-        setMobileDragPreviewTime((taskType === 'allday' || taskType === 'deadline') ? 'all-day' : task.startTime);
-        setMobileDragPreviewDate(task.date || dateToString(selectedDate));
+        const _initTime = (taskType === 'allday' || taskType === 'deadline') ? 'all-day' : task.startTime;
+        const _initDate = task.date || dateToString(selectedDate);
+        mobileDragPreviewTimeRef.current = _initTime;
+        mobileDragPreviewDateRef.current = _initDate;
+        setMobileDragPreviewTime(_initTime);
+        setMobileDragPreviewDate(_initDate);
         // Add native non-passive touchmove listener to prevent browser scroll
         // (React 18 registers touchmove as passive, so e.preventDefault() in onTouchMove is a no-op)
         const preventScroll = (e) => e.preventDefault();
@@ -9030,7 +9038,8 @@ const DayPlanner = () => {
     for (const col of columns) {
       const rect = col.getBoundingClientRect();
       if (touch.clientX >= rect.left && touch.clientX < rect.right) {
-        setMobileDragPreviewDate(col.getAttribute('data-date-column'));
+        mobileDragPreviewDateRef.current = col.getAttribute('data-date-column');
+        setMobileDragPreviewDate(mobileDragPreviewDateRef.current);
         break;
       }
     }
@@ -9039,6 +9048,7 @@ const DayPlanner = () => {
     const allDayBottom = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom;
     const allDayZoneBottom = allDayBottom || headerBottom;
     if (touch.clientY < allDayZoneBottom) {
+      mobileDragPreviewTimeRef.current = 'all-day';
       setMobileDragPreviewTime('all-day');
       return;
     }
@@ -9052,7 +9062,8 @@ const DayPlanner = () => {
       const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
       const hrs = Math.floor(clampedMinutes / 60);
       const mins = clampedMinutes % 60;
-      setMobileDragPreviewTime(`${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+      mobileDragPreviewTimeRef.current = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      setMobileDragPreviewTime(mobileDragPreviewTimeRef.current);
       return;
     }
     // For timeline source tasks, use delta-based computation (no jump)
@@ -9067,6 +9078,7 @@ const DayPlanner = () => {
     const hrs = Math.floor(clampedMinutes / 60);
     const mins = clampedMinutes % 60;
     const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    mobileDragPreviewTimeRef.current = timeStr;
     setMobileDragPreviewTime(timeStr);
   };
 
@@ -9131,12 +9143,16 @@ const DayPlanner = () => {
     document.body.style.webkitUserSelect = '';
     document.body.style.userSelect = '';
 
-    if (mobileDragActive.current && mobileDragPreviewTime && mobileDragOriginalTask.current) {
+    // Use refs instead of state to avoid stale-closure bugs when touchend fires
+    // before React has committed the latest setMobileDragPreviewTime render.
+    const _previewTime = mobileDragPreviewTimeRef.current;
+    const _previewDate = mobileDragPreviewDateRef.current;
+    if (mobileDragActive.current && _previewTime && mobileDragOriginalTask.current) {
       const task = mobileDragOriginalTask.current;
-      const droppingToAllDay = mobileDragPreviewTime === 'all-day';
-      const newTime = droppingToAllDay ? '00:00' : mobileDragPreviewTime;
+      const droppingToAllDay = _previewTime === 'all-day';
+      const newTime = droppingToAllDay ? '00:00' : _previewTime;
       const fromAllDay = mobileDragSourceType.current === 'allday';
-      const dropDateStr = mobileDragPreviewDate || dateToString(selectedDate);
+      const dropDateStr = _previewDate || dateToString(selectedDate);
 
       // Check for conflicts with imported calendar events and routines (same as desktop)
       let finalTime = newTime;
@@ -9247,6 +9263,8 @@ const DayPlanner = () => {
     mobileDragTaskId.current = null;
     mobileDragOriginalTask.current = null;
     mobileDragSourceType.current = null;
+    mobileDragPreviewTimeRef.current = null;
+    mobileDragPreviewDateRef.current = null;
     setMobileDragPreviewTime(null);
     setMobileDragPreviewDate(null);
     setMobileDragTaskIdState(null);
