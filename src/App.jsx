@@ -4876,7 +4876,8 @@ const DayPlanner = () => {
 
   const getTaskCalendarStyle = (task, isDarkMode) => {
     // Native Android calendar events: apply the calendar color from the device.
-    if (task.nativeCalendarColor && !task.isTaskCalendar) {
+    // Skip if the user has set a color override (task.color) — the Tailwind class handles it.
+    if (task.nativeCalendarColor && !task.isTaskCalendar && !task.color) {
       return { backgroundColor: task.nativeCalendarColor };
     }
     if (!task.isTaskCalendar) return {};
