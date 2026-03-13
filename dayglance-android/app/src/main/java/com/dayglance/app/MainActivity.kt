@@ -130,6 +130,14 @@ class MainActivity : AppCompatActivity() {
                 view: WebView,
                 request: WebResourceRequest
             ) = assetLoader.shouldInterceptRequest(request.url)
+
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                // WebView can reset the status-bar appearance when it commits its first
+                // paint (especially on API 35 with edge-to-edge).  Re-apply our setting
+                // after the page is fully loaded to ensure it wins.
+                applyStatusBarAppearance()
+            }
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
@@ -197,23 +205,34 @@ class MainActivity : AppCompatActivity() {
     /**
      * Sets the status-bar icon colour to match the current light/dark mode.
      *
-     * Called in onResume (not onCreate) so the window is fully laid out, and in
-     * onConfigurationChanged to react to dark-mode toggles without restarting.
+     * Called from onResume, onPageFinished, and onConfigurationChanged so it
+     * wins over any resets by Android 15's edge-to-edge enforcement or the
+     * WebView's first paint.
      *
-     * On API 29+ we also disable automatic contrast enforcement, which can
-     * override isAppearanceLightStatusBars on API 35 edge-to-edge windows.
+     * Uses the direct WindowInsetsController API on API 30+ (more reliable on
+     * API 35 than the compat wrapper), with the compat path as fallback.
      */
     private fun applyStatusBarAppearance() {
         val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
-        // Prevent Android 10+ from auto-adjusting icon colour based on content contrast.
+        // Disable automatic contrast enforcement so our flag isn't overridden.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = false
         }
         // isAppearanceLightStatusBars = true  → dark (black) icons → light mode
         // isAppearanceLightStatusBars = false → light (white) icons → dark mode
-        WindowCompat.getInsetsController(window, window.decorView)
-            .isAppearanceLightStatusBars = !isNightMode
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Direct platform API — bypasses the compat wrapper which can be unreliable
+            // when the window is in forced edge-to-edge mode on API 35.
+            val appearance = if (!isNightMode) android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS else 0
+            window.insetsController?.setSystemBarsAppearance(
+                appearance,
+                android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+            )
+        } else {
+            WindowCompat.getInsetsController(window, window.decorView)
+                .isAppearanceLightStatusBars = !isNightMode
+        }
     }
 
     override fun onBackPressed() {
