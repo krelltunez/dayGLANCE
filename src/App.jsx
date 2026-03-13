@@ -2629,6 +2629,8 @@ const DayPlanner = () => {
   const [desktopWelcomeStep, setDesktopWelcomeStep] = useState(0);
   const [mobileEditingTask, setMobileEditingTask] = useState(null);
   const [mobileEditIsInbox, setMobileEditIsInbox] = useState(false);
+  const [mobileEditingNativeEvent, setMobileEditingNativeEvent] = useState(null);
+  const [nativeCalendarKey, setNativeCalendarKey] = useState(0);
   const [mobileSettingsView, setMobileSettingsView] = useState('main');
   const [mobileDragPreviewTime, setMobileDragPreviewTime] = useState(null);
   const [mobileDragPreviewDate, setMobileDragPreviewDate] = useState(null);
@@ -7574,6 +7576,66 @@ const DayPlanner = () => {
     setShowAddTask(true);
   };
 
+  const openMobileEditNativeEvent = (task) => {
+    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+    const override = (task.nativeEventId && overrides[String(task.nativeEventId)]) || {};
+    setMobileEditingNativeEvent(task);
+    setNewTask({
+      title: override.title !== undefined ? override.title : task.title,
+      date: override.date !== undefined ? override.date : task.date,
+      startTime: override.startTime !== undefined ? override.startTime : (task.startTime || '09:00'),
+      duration: override.duration !== undefined ? override.duration : (task.duration || 60),
+      isAllDay: override.startTime === undefined && (task.isAllDay || false),
+      color: override.color || '',
+      notes: override.notes !== undefined ? override.notes : (task.notes || ''),
+    });
+  };
+
+  const saveMobileEditNativeEvent = () => {
+    if (!mobileEditingNativeEvent) return;
+    const id = String(mobileEditingNativeEvent.nativeEventId);
+    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+    const orig = mobileEditingNativeEvent;
+    const updated = {};
+    if (newTask.title.trim() !== orig.title) updated.title = newTask.title.trim();
+    if (newTask.date !== orig.date) updated.date = newTask.date;
+    if (!newTask.isAllDay) {
+      updated.startTime = newTask.startTime;
+      updated.duration = newTask.duration;
+    }
+    if ((newTask.notes || '').trim() !== (orig.notes || '').trim()) updated.notes = newTask.notes.trim();
+    if (newTask.color) updated.color = newTask.color;
+    if (Object.keys(updated).length === 0) {
+      delete overrides[id];
+    } else {
+      overrides[id] = updated;
+    }
+    localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+    setTasks(prev => prev.map(t => {
+      if (t.nativeEventId !== mobileEditingNativeEvent.nativeEventId) return t;
+      return {
+        ...t,
+        title: updated.title !== undefined ? updated.title : orig.title,
+        date: updated.date !== undefined ? updated.date : orig.date,
+        startTime: updated.startTime !== undefined ? updated.startTime : orig.startTime,
+        duration: updated.duration !== undefined ? updated.duration : orig.duration,
+        isAllDay: updated.startTime === undefined && orig.isAllDay,
+        notes: updated.notes !== undefined ? updated.notes : (orig.notes || ''),
+        color: updated.color || '',
+      };
+    }));
+    setMobileEditingNativeEvent(null);
+  };
+
+  const clearNativeEventOverride = (task) => {
+    const id = String(task.nativeEventId);
+    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+    delete overrides[id];
+    localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+    setMobileEditingNativeEvent(null);
+    setNativeCalendarKey(k => k + 1);
+  };
+
   const saveMobileEditTask = () => {
     if (!mobileEditingTask || !newTask.title.trim()) return;
     pushUndo();
@@ -8345,7 +8407,15 @@ const DayPlanner = () => {
       const fetchedWithOverrides = fetched.map(t => {
         const override = t.nativeEventId && overrides[String(t.nativeEventId)];
         if (!override) return t;
-        return { ...t, startTime: override.startTime, duration: override.duration, isAllDay: false, date: override.date };
+        return {
+          ...t,
+          ...(override.date !== undefined ? { date: override.date } : {}),
+          ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
+          ...(override.duration !== undefined ? { duration: override.duration } : {}),
+          ...(override.title !== undefined ? { title: override.title } : {}),
+          ...(override.notes !== undefined ? { notes: override.notes } : {}),
+          ...(override.color !== undefined ? { color: override.color } : {}),
+        };
       });
 
       setTasks(prev => [
@@ -8354,7 +8424,7 @@ const DayPlanner = () => {
       ]);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, calendarFilter]);
+  }, [selectedDate, calendarFilter, nativeCalendarKey]);
 
   // Reminder snooze: push task start time forward 15 minutes
   const snoozeReminder = (reminder) => {
@@ -8967,7 +9037,10 @@ const DayPlanner = () => {
       setTimeout(() => {
         if (direction === 'right') {
           if (taskType === 'timeline') {
-            if (isRecurring) {
+            const swipedTask = tasks.find(t => t.id === taskId);
+            if (swipedTask?._native) {
+              // Native calendar events can't be moved to inbox; no-op
+            } else if (isRecurring) {
               // Recurring: trigger delete popup
               moveToRecycleBin(taskId);
             } else {
@@ -9012,7 +9085,9 @@ const DayPlanner = () => {
                   ? expandedRecurringTasks.find(t => t.id === taskId)
                   : null
               );
-          if (task && !task.imported) {
+          if (task && task._native && task.nativeEventId) {
+            openMobileEditNativeEvent(task);
+          } else if (task && !task.imported) {
             openMobileEditTask(task, isInbox);
           }
         }
@@ -14483,15 +14558,17 @@ const DayPlanner = () => {
                                   }}
                                 >
                                   {/* Swipe action strips - outside flex wrapper so they stay stationary */}
-                                  {!task.imported && (
+                                  {(!task.imported || !!task.nativeEventId) && (
                                     <>
-                                      <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                                        {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
-                                          <><Trash2 size={14} className="mr-1" />Delete</>
-                                        ) : (
-                                          <><Inbox size={14} className="mr-1" />Inbox</>
-                                        )}
-                                      </div>
+                                      {!task.imported && (
+                                        <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                                          {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
+                                            <><Trash2 size={14} className="mr-1" />Delete</>
+                                          ) : (
+                                            <><Inbox size={14} className="mr-1" />Inbox</>
+                                          )}
+                                        </div>
+                                      )}
                                       <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
                                         Edit<Settings size={14} className="ml-1" />
                                       </div>
@@ -14502,8 +14579,8 @@ const DayPlanner = () => {
                                   {(!isImported || task.isTaskCalendar || !!task.nativeEventId) && (
                                     <div
                                       data-drag-handle
-                                      className={`${task.isTaskCalendar || task.nativeCalendarColor ? '' : task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
-                                      style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}) }}
+                                      className={`${task.isTaskCalendar ? '' : task.color || ''} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 flex-shrink-0 relative`}
+                                      style={{ width: '20px', height: '24px', marginTop: '3px', marginRight: '-8px', touchAction: 'none', zIndex: 10, ...(task.isTaskCalendar ? { backgroundColor: darkMode ? '#4b5563' : '#6b7280' } : !task.color && task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'timeline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                                       onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'timeline')}
@@ -23708,6 +23785,158 @@ const DayPlanner = () => {
                   Delete Task
                 </button>
               )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Native Calendar Event Edit Modal (mobile) */}
+      {mobileEditingNativeEvent && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setMobileEditingNativeEvent(null)}>
+          <div className="bg-black/30 absolute inset-0" />
+          <div
+            className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto`}
+            style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+              <div className="flex items-center gap-2">
+                {mobileEditingNativeEvent.nativeCalendarColor && !newTask.color && (
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: mobileEditingNativeEvent.nativeCalendarColor }} />
+                )}
+                {newTask.color && (
+                  <div className={`w-3 h-3 rounded-full flex-shrink-0 ${newTask.color}`} />
+                )}
+                <h3 className={`font-semibold ${textPrimary} text-lg`}>Edit Event</h3>
+              </div>
+              <button onClick={() => setMobileEditingNativeEvent(null)} className={`p-1 rounded-lg ${hoverBg}`}>
+                <X size={18} className={textSecondary} />
+              </button>
+            </div>
+            <form
+              className="p-4 space-y-4"
+              onSubmit={(e) => { e.preventDefault(); saveMobileEditNativeEvent(); }}
+            >
+              {/* Calendar source info */}
+              {mobileEditingNativeEvent.calendarName && (
+                <p className={`text-xs ${textSecondary}`}>
+                  From <span className="font-medium">{mobileEditingNativeEvent.calendarName}</span> · Changes are local only
+                </p>
+              )}
+
+              {/* Title */}
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-1`}>Title</label>
+                <input
+                  type="text"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  className={`w-full px-3 py-3 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-base`}
+                />
+              </div>
+
+              {/* Color row */}
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-2`}>Color override</label>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setNewTask({ ...newTask, color: '' })}
+                    title="Use calendar color"
+                    className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-transform ${!newTask.color ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : darkMode ? 'border-gray-600' : 'border-stone-300'}`}
+                    style={mobileEditingNativeEvent.nativeCalendarColor ? { backgroundColor: mobileEditingNativeEvent.nativeCalendarColor } : {}}
+                  >
+                    {!mobileEditingNativeEvent.nativeCalendarColor && <span className={`text-xs ${textSecondary}`}>—</span>}
+                  </button>
+                  {colors.map((color) => (
+                    <button
+                      type="button"
+                      key={color.class}
+                      onClick={() => setNewTask({ ...newTask, color: color.class })}
+                      className={`${color.class} w-8 h-8 rounded-full transition-transform ${newTask.color === color.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : ''}`}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Date / Time / Duration / All Day */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(true)}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                  >
+                    {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
+                  </button>
+                </div>
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
+                  <button
+                    type="button"
+                    onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
+                    disabled={newTask.isAllDay}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                  >
+                    {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
+                  </button>
+                </div>
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                  <select
+                    value={newTask.duration}
+                    onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                    disabled={newTask.isAllDay}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                  >
+                    {durationOptions.map(minutes => (
+                      <option key={minutes} value={minutes}>{minutes} min</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
+                  <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
+                      {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
+                    </div>
+                    <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className={`block text-sm ${textSecondary} mb-1`}>Notes</label>
+                <textarea
+                  value={newTask.notes || ''}
+                  onChange={(e) => setNewTask({ ...newTask, notes: e.target.value })}
+                  rows={2}
+                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-sm resize-none`}
+                  placeholder="Add notes…"
+                />
+              </div>
+
+              {/* Save */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Save Changes
+                </button>
+              </div>
+
+              {/* Reset to original */}
+              <button
+                type="button"
+                onClick={() => clearNativeEventOverride(mobileEditingNativeEvent)}
+                className={`w-full px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-stone-500 hover:bg-stone-100'}`}
+              >
+                Reset to calendar original
+              </button>
             </form>
           </div>
         </div>
