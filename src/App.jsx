@@ -3163,30 +3163,32 @@ const DayPlanner = () => {
     return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
   };
 
+  // Extract all wikilink note names from a title string
+  const extractWikilinks = (title) => {
+    const matches = [...title.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)];
+    return matches.map(m => m[1]);
+  };
+
   const renderTitle = (title) => {
-    // Match hashtags and Obsidian wikilinks [[Note]] / [[Note|Alias]]
-    const parts = title.split(/(#[a-zA-Z]\w*|\[\[[^\]]+\]\])/g);
-    return parts.map((part, i) => {
+    // Strip wikilinks from displayed text; collect them as icon buttons
+    const wikilinks = extractWikilinks(title);
+    const stripped = title.replace(/\[\[[^\]]+\]\]/g, '');
+    const parts = stripped.split(/(#[a-zA-Z]\w*)/g);
+    const textParts = parts.map((part, i) => {
       if (part.match(/^#[a-zA-Z]\w*$/)) {
         return <span key={i} className="text-xs italic opacity-75">{part}</span>;
       }
-      const wikiMatch = part.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
-      if (wikiMatch) {
-        const noteName = wikiMatch[1];
-        const displayText = wikiMatch[2] || noteName;
-        return (
-          <span
-            key={i}
-            className="text-orange-400 underline cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.DayGlanceObsidian?.openNote(noteName);
-            }}
-          >{displayText}</span>
-        );
-      }
       return part;
     });
+    const linkIcons = wikilinks.map((note, i) => (
+      <button
+        key={`wl-${i}`}
+        className="inline-flex flex-shrink-0 text-orange-400 active:text-orange-300"
+        onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }}
+        title={`Open "${note}" in Obsidian`}
+      ><FileText size={13} /></button>
+    ));
+    return [...textParts, ...linkIcons];
   };
 
   const highlightMatch = (text, query) => {
@@ -3212,8 +3214,8 @@ const DayPlanner = () => {
   };
 
   const renderTitleWithoutTags = (title) => {
-    // Remove tags and trim extra whitespace
-    return title.replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
+    // Remove wikilinks and hashtags, collapse whitespace
+    return title.replace(/\[\[[^\]]+\]\]/g, '').replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
   };
 
 
@@ -19044,6 +19046,9 @@ const DayPlanner = () => {
                                   {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                                   {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
                                   <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                                  {extractWikilinks(task.title).map((note, i) => (
+                                    <button key={i} className="flex-shrink-0 text-orange-400 active:text-orange-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><FileText size={13} /></button>
+                                  ))}
                                 </div>
                                 <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                                   {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
@@ -20137,6 +20142,9 @@ const DayPlanner = () => {
                             <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
                               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                               <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                              {extractWikilinks(task.title).map((note, i) => (
+                                <button key={i} className="flex-shrink-0 text-orange-400 hover:text-orange-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><FileText size={13} /></button>
+                              ))}
                             </div>
                             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
