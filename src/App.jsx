@@ -8335,18 +8335,19 @@ const DayPlanner = () => {
           return true;
         });
 
-      setTasks(prev => {
-        // If the user scheduled a native all-day event on the timeline it was promoted
-        // to a local (non-_native) task.  Exclude any newly-fetched native version of
-        // the same event so it doesn't reappear as a duplicate in the all-day section.
-        const localNativeIds = new Set(
-          prev.filter(t => !t._native && t.nativeEventId).map(t => String(t.nativeEventId))
-        );
-        return [
-          ...prev.filter(t => !t._native),
-          ...fetched.filter(t => !localNativeIds.has(String(t.nativeEventId))),
-        ];
+      // Apply any stored time overrides (from dragging all-day events to the timeline)
+      // so the scheduled position survives date navigation and native calendar re-fetches.
+      const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+      const fetchedWithOverrides = fetched.map(t => {
+        const override = t.nativeEventId && overrides[String(t.nativeEventId)];
+        if (!override) return t;
+        return { ...t, startTime: override.startTime, duration: override.duration, isAllDay: false, date: override.date };
       });
+
+      setTasks(prev => [
+        ...prev.filter(t => !t._native),
+        ...fetchedWithOverrides,
+      ]);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter]);
@@ -9231,16 +9232,30 @@ const DayPlanner = () => {
         // Regular task: update time, isAllDay status, and date (for cross-column drag)
         pushUndo();
         const prevTask = task;
-        // Scheduling an all-day native calendar event on the timeline: promote it to a
-        // local task so the placement survives native calendar re-fetches.  The original
-        // all-day event stays in the device calendar (or is updated there if writable).
         const fromAllDayToTimed = fromAllDay && !droppingToAllDay && !!task.nativeEventId;
+
+        // Native all-day calendar event time overrides.
+        // Stored in localStorage under 'day-planner-native-time-overrides' as a map of
+        // nativeEventId → { startTime, duration, date }.  The native calendar re-fetch
+        // re-applies any stored override so the scheduled time survives date navigation
+        // regardless of whether the device calendar is writable.
+        if (task.nativeEventId) {
+          const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+          const key = String(task.nativeEventId);
+          if (droppingToAllDay && overrides[key]) {
+            delete overrides[key];
+            localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+          } else if (fromAllDayToTimed) {
+            overrides[key] = { startTime: finalTime, duration: task.duration || 60, date: dropDateStr };
+            localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+          }
+        }
+
         setTasks(prev => prev.map(t => t.id === task.id ? {
           ...t,
           startTime: finalTime,
           isAllDay: droppingToAllDay,
           date: dropDateStr,
-          ...(fromAllDayToTimed ? { _native: false, imported: false } : {}),
         } : t));
         // Sync native Android calendar events back to the device calendar
         if (task.nativeEventId && !droppingToAllDay && finalTime) {
@@ -9252,11 +9267,21 @@ const DayPlanner = () => {
             start: newStart, end: newEnd, allDay: false,
             notes: task.notes || '', location: task.location || '',
           }).then(result => {
-            // For all-day → timed scheduling, keep the local task even if the native
-            // calendar is read-only — the task was already promoted to a local task above.
-            // For timed → timed rescheduling, revert on failure (no local promotion).
-            if (!result?.success && !fromAllDayToTimed) {
-              setTasks(prev => prev.map(t => t.id === prevTask.id ? prevTask : t));
+            if (!result?.success) {
+              // For all-day → timed: the override already persists the placement, so
+              // no revert.  For timed → timed: revert to keep in sync with the calendar.
+              if (!fromAllDayToTimed) {
+                setTasks(prev => prev.map(t => t.id === prevTask.id ? prevTask : t));
+              }
+            } else if (task.nativeEventId) {
+              // Update any existing override so a subsequent re-fetch reflects the new
+              // time rather than snapping back to the stale override value.
+              const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+              const key = String(task.nativeEventId);
+              if (overrides[key]) {
+                overrides[key] = { startTime: finalTime, duration: task.duration || 60, date: dropDateStr };
+                localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+              }
             }
           });
         }
