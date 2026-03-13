@@ -1,15 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive icon foreground: icon tinted white, inset to keep artwork
-     within Android's 72dp safe zone (108dp canvas). -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:top="20dp"
-        android:bottom="20dp"
-        android:left="20dp"
-        android:right="20dp">
-        <bitmap
-            android:src="@drawable/ic_launcher_fg"
-            android:gravity="fill"
-            android:tint="#FFFFFF" />
-    </item>
-</layer-list>
+<!-- Adaptive icon foreground: white icon with transparent padding baked into
+     the PNG (icon artwork at 60% of canvas, centered). No XML insets needed. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_launcher_fg"
+    android:gravity="fill" />
