@@ -1,6 +1,9 @@
 package com.dayglance.app.bridge
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.webkit.JavascriptInterface
 import com.dayglance.app.data.ObsidianRepository
 
@@ -62,6 +65,30 @@ class ObsidianBridge(private val context: Context) {
     /** Returns true if the vault root URI has been configured via SettingsActivity. */
     @JavascriptInterface
     fun isVaultConfigured(): Boolean = repository.isVaultConfigured()
+
+    /**
+     * Opens [noteName] (e.g. "My Note" or "folder/My Note") in the Obsidian app
+     * using the obsidian:// URI scheme. The vault name is derived from the configured
+     * vault root folder. Silently does nothing if Obsidian isn't installed.
+     */
+    @JavascriptInterface
+    fun openNote(noteName: String) {
+        val vaultName = repository.getVaultName() ?: return
+        val uri = Uri.Builder()
+            .scheme("obsidian")
+            .authority("open")
+            .appendQueryParameter("vault", vaultName)
+            .appendQueryParameter("file", noteName)
+            .build()
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            // Obsidian not installed — silently ignore
+        }
+    }
 
     /**
      * Returns JSON: { configured: Boolean, folder: String, pattern: String }.

@@ -3164,11 +3164,26 @@ const DayPlanner = () => {
   };
 
   const renderTitle = (title) => {
-    // Only style tags that start with a letter (not pure numbers)
-    const parts = title.split(/(#[a-zA-Z]\w*)/g);
+    // Match hashtags and Obsidian wikilinks [[Note]] / [[Note|Alias]]
+    const parts = title.split(/(#[a-zA-Z]\w*|\[\[[^\]]+\]\])/g);
     return parts.map((part, i) => {
       if (part.match(/^#[a-zA-Z]\w*$/)) {
         return <span key={i} className="text-xs italic opacity-75">{part}</span>;
+      }
+      const wikiMatch = part.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
+      if (wikiMatch) {
+        const noteName = wikiMatch[1];
+        const displayText = wikiMatch[2] || noteName;
+        return (
+          <span
+            key={i}
+            className="text-orange-400 underline cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.DayGlanceObsidian?.openNote(noteName);
+            }}
+          >{displayText}</span>
+        );
       }
       return part;
     });

@@ -153,6 +153,9 @@ class ObsidianRepository(private val context: Context) {
     /** Returns true if a vault root URI has been configured. */
     fun isVaultConfigured(): Boolean = dataStore.vaultPath != null
 
+    /** Returns the vault folder name (e.g. "MyVault"), or null if not configured. */
+    fun getVaultName(): String? = vaultRoot()?.name
+
     /**
      * Returns a JSON object with the current vault configuration:
      *   { configured: Boolean, folder: String, pattern: String }
