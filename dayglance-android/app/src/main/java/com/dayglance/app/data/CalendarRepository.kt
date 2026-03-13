@@ -264,6 +264,11 @@ class CalendarRepository(private val context: Context) {
             put(CalendarContract.Events.DESCRIPTION,    notes)
             put(CalendarContract.Events.EVENT_LOCATION, location)
             put(CalendarContract.Events.EVENT_TIMEZONE, zone.id)
+            // All-day CalDAV events often store DURATION (e.g. "P1D") instead of DTEND.
+            // RFC 5545 forbids both DTEND and DURATION on the same event; some providers
+            // silently reject the update when DURATION is still present.  Clear it
+            // explicitly when converting an all-day event to a timed event.
+            if (!allDay) putNull(CalendarContract.Events.DURATION)
         }
         return try {
             val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id.toLong())

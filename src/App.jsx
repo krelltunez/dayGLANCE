@@ -9508,6 +9508,15 @@ const DayPlanner = () => {
           }).then(result => {
             if (!result?.success) {
               setTasks(prev => prev.map(t => t.id === prevDraggedTask.id ? { ...prevDraggedTask } : t));
+            } else {
+              // Keep any localStorage time-override in sync with the new position so
+              // a subsequent calendar re-fetch doesn't revert to the stale override value.
+              const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+              const key = String(draggedTask.nativeEventId);
+              if (overrides[key]) {
+                overrides[key] = { startTime, duration: draggedTask.duration || 60, date: dropDateStr };
+                localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+              }
             }
           });
         }
@@ -9814,6 +9823,15 @@ const DayPlanner = () => {
         }).then(result => {
           if (!result?.success) {
             setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+          } else {
+            // Keep the localStorage time-override in sync so a subsequent calendar
+            // re-fetch doesn't restore the stale pre-resize duration from the override.
+            const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+            const key = String(task.nativeEventId);
+            if (overrides[key]) {
+              overrides[key] = { ...overrides[key], duration: finalDuration };
+              localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+            }
           }
         });
       }
@@ -9872,6 +9890,15 @@ const DayPlanner = () => {
         }).then(result => {
           if (!result?.success) {
             setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+          } else {
+            // Keep the localStorage time-override in sync so a subsequent calendar
+            // re-fetch doesn't restore the stale pre-resize duration from the override.
+            const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+            const key = String(task.nativeEventId);
+            if (overrides[key]) {
+              overrides[key] = { ...overrides[key], duration: finalDuration };
+              localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+            }
           }
         });
       }
