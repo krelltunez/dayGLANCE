@@ -15077,7 +15077,7 @@ const DayPlanner = () => {
                   )
                 )}
                 {/* Evening Reflection — AI end-of-day card (mobile) */}
-                {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && (
+                {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && currentTime.getHours() >= 17 && (
                   (eveningGlanceText || eveningGlanceLoading || eveningGlanceError) ? (
                   <div className={`mb-4 rounded-lg border p-3 ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50'}`}>
                     <div className="flex items-start justify-between gap-2">
@@ -18562,7 +18562,7 @@ const DayPlanner = () => {
                       )}
 
                       {/* Evening Reflection — AI end-of-day card */}
-                      {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && (
+                      {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && currentTime.getHours() >= 17 && (
                         (eveningGlanceText || eveningGlanceLoading || eveningGlanceError) ? (
                         <div className={`rounded-lg border p-3 ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50'}`}>
                           <div className="flex items-start justify-between gap-2">
@@ -19664,7 +19664,7 @@ const DayPlanner = () => {
                   )}
 
                   {/* Evening Reflection — AI end-of-day card (desktop) */}
-                  {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && (
+                  {aiConfig.enabled && aiConfig.features.eveningReflection && !eveningGlanceDismissed && currentTime.getHours() >= 17 && (
                     (eveningGlanceText || eveningGlanceLoading || eveningGlanceError) ? (
                     <div className={`rounded-lg border p-3 ${darkMode ? 'border-indigo-800/50 bg-indigo-900/20' : 'border-indigo-200 bg-indigo-50'}`}>
                       <div className="flex items-start justify-between gap-2">
