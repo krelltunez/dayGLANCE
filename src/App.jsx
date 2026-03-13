@@ -10866,18 +10866,12 @@ const DayPlanner = () => {
   syncAllRef.current = syncAll;
 
   // Cloud sync functions
-  // Calendar events (imported:true, isTaskCalendar:false, importSource!=='file') are excluded
-  // from cloud sync: they are ephemeral — re-fetched fresh from the calendar URL on every
-  // device — and including them causes duplicate events on Android where native CalendarBridge
-  // is the source of truth. Calendar tasks (isTaskCalendar:true) and file imports are kept.
-  const excludeImportedEvents = tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
-
   const buildSyncPayload = () => ({
     version: 2,
     lastModified: new Date().toISOString(),
     data: {
-      tasks: excludeImportedEvents(JSON.parse(localStorage.getItem('day-planner-tasks') || '[]')),
-      unscheduledTasks: excludeImportedEvents(JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]')),
+      tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
+      unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
       syncUrl: localStorage.getItem('day-planner-sync-url') || '',
       taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
@@ -10944,8 +10938,16 @@ const DayPlanner = () => {
     // missing notes/subtasks) and re-stamps lastModified, making stale local
     // tasks appear newer than actual remote changes during merge.
     const normalizeTasks = (tasks) => tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
-    const normalizedTasks = data.tasks ? normalizeTasks(data.tasks) : null;
-    const normalizedUnsched = data.unscheduledTasks ? normalizeTasks(data.unscheduledTasks) : null;
+
+    // On Android, drop imported calendar events that arrived via cloud sync — the native
+    // CalendarBridge already provides those events and syncing them in causes duplicates.
+    // Calendar tasks (isTaskCalendar:true) and file imports are kept as normal.
+    const filterTasks = isNativeAndroid()
+      ? tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'))
+      : tasks => tasks;
+
+    const normalizedTasks = data.tasks ? filterTasks(normalizeTasks(data.tasks)) : null;
+    const normalizedUnsched = data.unscheduledTasks ? filterTasks(normalizeTasks(data.unscheduledTasks)) : null;
 
     // Update localStorage
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
