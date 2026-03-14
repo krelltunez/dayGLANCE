@@ -13,7 +13,7 @@
 
 ## Why dayGLANCE?
 
-Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure. Even on the hosted version, your data never leaves your machine — everything is stored locally in your browser. Optionally sync across devices through your own Nextcloud or generic WebDAV server, and work offline as a full PWA.
+Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure. Even on the hosted version, your data never leaves your machine — everything is stored locally in your browser. Optionally sync across devices through your own Nextcloud or generic WebDAV server, and work offline as a full PWA. A native Android app is now available (see below)!
 
 ---
 
@@ -123,6 +123,7 @@ Sync tasks and daily notes with your **Obsidian vault** via the Obsidian Local R
 
 An optional AI layer (powered by any OpenAI-compatible API) surfaces suggestions throughout the day:
 
+- **AI voice assistant** - create tasks or manipulate existing ones, all via natural language
 - **Frame nudge** — when a time block is active, the Glance panel suggests a specific task to work on
 - **Duration & tag estimates** — AI pre-fills likely duration and tags when you create a task
 - **Subtask generation** — generate a subtask list from the notes panel or task context menu
@@ -264,11 +265,8 @@ npm run test
 ## Planned Improvements
 
 - **PWA shortcuts** — Quick actions from the app icon (new task, open inbox, etc.)
-- **Actionable browser notifications** — Complete or snooze tasks directly from notifications
 - **IndexedDB storage** — Optional self-hosted database backend for persistent server-side storage
 - **iOS app** — Native iOS wrapper with widget and Obsidian deep-link support
-- **TRMNL support** — Display your daily agenda on a TRMNL e-ink dashboard
-- **DAVx5 support** — Sync with Android calendars and task apps via DAVx5
 
 ---
 
@@ -279,7 +277,6 @@ Contributions are welcome! Please open an issue or pull request on [GitHub](http
 We'd especially appreciate help with:
 
 - **Sync providers** — Dropbox, Google Drive, and other cloud storage integrations
-- **Improved icons** — Better app icons and PWA assets
 - **Documentation** — Guides, tutorials, and translations
 
 ---
