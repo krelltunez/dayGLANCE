@@ -3204,9 +3204,13 @@ const DayPlanner = () => {
   };
 
   const renderTitleWithoutTags = (title) => {
-    // Remove wikilinks and hashtags, collapse whitespace
+    // Remove wikilinks AND hashtags (used for AI context only)
     return title.replace(/\[\[[^\]]+\]\]/g, '').replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
   };
+
+  // Strip only [[wikilinks]] — hashtags stay visible in the UI
+  const stripWikilinks = (title) =>
+    title.replace(/\[\[[^\]]+\]\]/g, '').replace(/\s+/g, ' ').trim();
 
 
   // Extract partial tag being typed at cursor position
@@ -13929,7 +13933,7 @@ const DayPlanner = () => {
                     return (
                       <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
                         <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                        <span className="truncate">Now: {renderTitleWithoutTags(runningTask.title)}</span>
+                        <span className="truncate">Now: {stripWikilinks(runningTask.title)}</span>
                       </div>
                     );
                   })()}
@@ -15563,7 +15567,7 @@ const DayPlanner = () => {
                         <div className="min-w-0 flex-1">
                           <div className={`text-base font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
                             {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
-                            <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                            <span className="truncate">{stripWikilinks(task.title)}</span>
                             {hasNotesOrSubtasks(task) && (
                               <button
                                 onMouseDown={() => {
@@ -19053,7 +19057,7 @@ const DayPlanner = () => {
                                 <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
                                   {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                                   {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
-                                  <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                                  <span className="truncate">{stripWikilinks(task.title)}</span>
                                   {extractWikilinks(task.title).map((note, i) => (
                                     <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                                   ))}
@@ -20149,7 +20153,7 @@ const DayPlanner = () => {
                           <div className="min-w-0 flex-1">
                             <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
                               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
-                              <span className="truncate">{renderTitleWithoutTags(task.title)}</span>
+                              <span className="truncate">{stripWikilinks(task.title)}</span>
                               {extractWikilinks(task.title).map((note, i) => (
                                 <button key={i} className="flex-shrink-0 text-purple-400 hover:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                               ))}
@@ -21684,7 +21688,7 @@ const DayPlanner = () => {
                                         className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
                                         title={task.title}
                                       >
-                                        {renderTitleWithoutTags(task.title)}
+                                        {stripWikilinks(task.title)}
                                       </div>
                                       <div className="flex items-center gap-1 flex-shrink-0">
                                         {task.notes && (
@@ -21780,7 +21784,7 @@ const DayPlanner = () => {
                                                 } : undefined}
                                                 title={task.title}
                                               >
-                                                {renderTitleWithoutTags(task.title)}
+                                                {stripWikilinks(task.title)}
                                               </div>
                                               {extractWikilinks(task.title).map((note, i) => (
                                                 <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={11} /></button>
@@ -21850,7 +21854,7 @@ const DayPlanner = () => {
                                                 } : undefined}
                                                 title={!isImported && !isTablet ? "Double-click to edit" : undefined}
                                               >
-                                                {renderTitleWithoutTags(task.title)}
+                                                {stripWikilinks(task.title)}
                                               </div>
                                               {extractWikilinks(task.title).map((note, i) => (
                                                 <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={11} /></button>
@@ -25116,7 +25120,7 @@ const DayPlanner = () => {
                 {focusBlockTasks.map(task => (
                   <div key={task.id} className="flex items-center gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
                     <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0`} />
-                    <span className="text-gray-200 text-sm truncate flex-1">{renderTitleWithoutTags(task.title)}</span>
+                    <span className="text-gray-200 text-sm truncate flex-1">{stripWikilinks(task.title)}</span>
                     <span className="text-gray-500 text-xs">{task.duration}m</span>
                   </div>
                 ))}
@@ -25181,7 +25185,7 @@ const DayPlanner = () => {
                     <div key={task.id} className={`bg-gray-800 rounded-lg p-3 flex items-start gap-3 transition-opacity ${isDone ? 'opacity-40' : ''}`}>
                       <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{renderTitleWithoutTags(task.title)}</div>
+                        <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{stripWikilinks(task.title)}</div>
                         <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
                         {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
                           <div className="mt-2">
@@ -26602,7 +26606,7 @@ const DayPlanner = () => {
                       >
                         <span className={`w-3 h-3 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
                         <div className="min-w-0 flex-1">
-                          <div className={`text-sm ${textPrimary} truncate`}>{renderTitleWithoutTags(task.title)}</div>
+                          <div className={`text-sm ${textPrimary} truncate`}>{stripWikilinks(task.title)}</div>
                           <div className={`text-xs ${textSecondary}`}>
                             {isDaily
                               ? (task.startTime ? formatTime(task.startTime) : 'All day')
@@ -27187,7 +27191,7 @@ const DayPlanner = () => {
                       >
                         <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
                         <div className="flex-1 min-w-0">
-                          <div className={`text-sm ${textPrimary} truncate`}>{renderTitleWithoutTags(task.title)}</div>
+                          <div className={`text-sm ${textPrimary} truncate`}>{stripWikilinks(task.title)}</div>
                           <div className={`text-xs ${textSecondary} flex items-center gap-2 mt-0.5`}>
                             <span>{task.duration || 30}min</span>
                             {task.priority >= 1 && <span className={task.priority >= 2 ? 'text-red-500' : 'text-amber-500'}>P{task.priority}</span>}
@@ -27555,7 +27559,7 @@ const DayPlanner = () => {
                             }}
                           >
                             <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
-                            <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{renderTitleWithoutTags(task.title)}</span>
+                            <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{stripWikilinks(task.title)}</span>
                             <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
                               {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               {!isMobile && task.startTime ? ` \u00b7 ${formatTime(task.startTime)}` : ''}
