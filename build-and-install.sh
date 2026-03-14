@@ -2,14 +2,23 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APK_PATH="$SCRIPT_DIR/dayglance-android/app/build/outputs/apk/debug/app-debug.apk"
 ANDROID_DIR="$SCRIPT_DIR/dayglance-android"
 
-# --clean: full Gradle clean (slow; use after a crashed build or Kotlin cache corruption)
+# Flags
 FULL_CLEAN=false
+RELEASE=false
 for arg in "$@"; do
   [[ "$arg" == "--clean" ]] && FULL_CLEAN=true
+  [[ "$arg" == "--release" ]] && RELEASE=true
 done
+
+if $RELEASE; then
+  APK_PATH="$ANDROID_DIR/app/build/outputs/apk/release/dayglance.apk"
+  GRADLE_TASK="assembleRelease"
+else
+  APK_PATH="$ANDROID_DIR/app/build/outputs/apk/debug/app-debug.apk"
+  GRADLE_TASK="assembleDebug"
+fi
 
 if $FULL_CLEAN; then
   echo "==> Full clean..."
@@ -31,11 +40,15 @@ echo "==> Building web assets..."
 cd "$SCRIPT_DIR"
 npm run build:android
 
-echo "==> Building Android APK..."
+echo "==> Building Android APK (${GRADLE_TASK})..."
 cd "$ANDROID_DIR"
-./gradlew assembleDebug
+./gradlew "$GRADLE_TASK"
 
-echo "==> Installing on connected device..."
-adb install -r "$APK_PATH"
-
-echo "==> Done! App installed."
+if $RELEASE; then
+  echo "==> Release APK: $APK_PATH"
+  echo "==> Done! Copy dayglance.apk to your F-Droid repo."
+else
+  echo "==> Installing on connected device..."
+  adb install -r "$APK_PATH"
+  echo "==> Done! App installed."
+fi

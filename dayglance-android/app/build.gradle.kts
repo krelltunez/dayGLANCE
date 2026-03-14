@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.ksp)
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasKeystore = keystorePropertiesFile.exists()
+val keystoreProperties = if (hasKeystore) {
+    java.util.Properties().also { it.load(keystorePropertiesFile.inputStream()) }
+} else null
+
 android {
     namespace = "com.dayglance.app"
     compileSdk = 35
@@ -17,13 +23,37 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    if (hasKeystore && keystoreProperties != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    // Name the release APK dayglance.apk
+    applicationVariants.all {
+        outputs.all {
+            this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            if (buildType.name == "release") {
+                outputFileName = "dayglance.apk"
+            }
         }
     }
 
