@@ -272,6 +272,41 @@ export const nativeSyncReminders = (reminders) => {
   bridge.syncReminders(JSON.stringify(reminders));
 };
 
+// ── Audio recording ───────────────────────────────────────────────────────────
+
+/**
+ * Starts native audio capture via Android's MediaRecorder.
+ * Returns "ok" on success, or { error: string } on failure.
+ * Returns null when the bridge is unavailable (PWA / web).
+ */
+export const nativeStartRecording = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.startRecording) return null;
+  const result = bridge.startRecording();
+  if (result === 'ok') return 'ok';
+  try { return JSON.parse(result); } catch { return { error: result }; }
+};
+
+/**
+ * Stops native audio capture and returns the audio as a Blob (audio/mp4).
+ * Returns null when the bridge is unavailable or if an error occurred.
+ */
+export const nativeStopRecording = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.stopRecording) return null;
+  const result = bridge.stopRecording();
+  if (!result.startsWith('data:')) {
+    let error = result;
+    try { error = JSON.parse(result).error; } catch { /* use raw */ }
+    return { error };
+  }
+  const base64 = result.split(',')[1];
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: 'audio/mp4' });
+};
+
 // ── Focus mode ────────────────────────────────────────────────────────────────
 
 /**
