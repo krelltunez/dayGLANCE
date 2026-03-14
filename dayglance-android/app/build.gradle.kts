@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,8 +8,8 @@ plugins {
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val hasKeystore = keystorePropertiesFile.exists()
-val keystoreProperties = if (hasKeystore) {
-    java.util.Properties().also { it.load(keystorePropertiesFile.inputStream()) }
+val keystoreProperties: Properties? = if (hasKeystore) {
+    Properties().apply { load(keystorePropertiesFile.inputStream()) }
 } else null
 
 android {
@@ -23,13 +25,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    if (hasKeystore && keystoreProperties != null) {
-        signingConfigs {
+    signingConfigs {
+        if (hasKeystore && keystoreProperties != null) {
             create("release") {
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
             }
         }
     }
