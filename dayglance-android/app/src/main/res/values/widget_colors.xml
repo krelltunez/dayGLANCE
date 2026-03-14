@@ -20,8 +20,8 @@
     <color name="widget_section_bg">#FFf3f4f6</color>
     <!-- Section header text -->
     <color name="widget_section_text">#FF374151</color>
-    <!-- Frame header background -->
-    <color name="widget_frame_bg">#FFf0f9ff</color>
+    <!-- Frame header + nested task background -->
+    <color name="widget_frame_bg">#FFf3f4f6</color>
     <!-- Overdue section tint -->
     <color name="widget_overdue_text">#FFef4444</color>
     <!-- Habit ring track (unfilled) -->

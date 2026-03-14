@@ -311,9 +311,12 @@ class DayGlanceWidgetListFactory(
         val color = safeParseColor(item.colorHex, "#3b82f6")
         rv.setInt(R.id.task_color_bar, "setBackgroundColor", color)
 
-        // Indent frame-nested tasks by shifting start padding
+        // Indent frame-nested tasks and give them the same gray background as the frame header
         val startPad = if (item.indent) dpToPx(14) else 0
         rv.setViewPadding(R.id.task_item_root, startPad, dpToPx(4), 0, dpToPx(4))
+        if (item.indent) {
+            rv.setInt(R.id.task_item_root, "setBackgroundColor", colorRes(R.color.widget_frame_bg))
+        }
 
         // Badge
         if (item.badge.isNotEmpty()) {
