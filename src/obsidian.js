@@ -447,6 +447,22 @@ export async function syncObsidianVault(
       userInboxIds.add(t.id);
     }
   }
+  // Supplement with localStorage — handles the race on app open where the
+  // Obsidian sync fires before cloud-sync's applyRemoteData has had a chance
+  // to push the remote state into React state.  Without this, a desktop
+  // session whose Obsidian sync wins the race would see an empty
+  // existingTaskMap, default every duration to 30, then upload that stale
+  // value with a fresh timestamp that beats Android's custom duration in the
+  // next cloud merge.
+  try {
+    const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
+    const lsUnsched = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
+    for (const t of [...lsTasks, ...lsUnsched]) {
+      if (t.importSource === 'obsidian' && !existingTaskMap[t.id]) {
+        existingTaskMap[t.id] = t;
+      }
+    }
+  } catch { /* localStorage unavailable or corrupt — skip */ }
 
   // Iterate files in the daily notes directory
   for await (const [name, handle] of dirHandle) {
@@ -649,6 +665,16 @@ export function syncObsidianVaultNative(folder, retentionDays, existingTasks, ex
   for (const t of existingInbox) {
     if (t.importSource === 'obsidian') { existingTaskMap[t.id] = t; userInboxIds.add(t.id); }
   }
+  // Supplement with localStorage — same race-condition fix as syncObsidianVault.
+  try {
+    const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
+    const lsUnsched = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
+    for (const t of [...lsTasks, ...lsUnsched]) {
+      if (t.importSource === 'obsidian' && !existingTaskMap[t.id]) {
+        existingTaskMap[t.id] = t;
+      }
+    }
+  } catch { /* localStorage unavailable or corrupt — skip */ }
 
   const dailyNotes = {};
   const allScheduled = [];
