@@ -16899,7 +16899,7 @@ const DayPlanner = () => {
                                       const next = [...prev, cal.id];
                                       return next.length === availableCalendars.length ? [] : next;
                                     })}
-                                    className="rounded"
+                                    className="rounded accent-blue-500"
                                   />
                                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
                                   <span className="flex-1 truncate">{cal.name}</span>
@@ -26098,7 +26098,7 @@ const DayPlanner = () => {
                                       const next = [...prev, cal.id];
                                       return next.length === availableCalendars.length ? [] : next;
                                     })}
-                                    className="rounded"
+                                    className="rounded accent-blue-500"
                                   />
                                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cal.color }} />
                                   <span className="flex-1 truncate">{cal.name}</span>
