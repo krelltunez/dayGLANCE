@@ -25212,41 +25212,43 @@ const DayPlanner = () => {
                 {focusBlockTasks.map(task => {
                   const isDone = task.completed || focusCompletedTasks.has(task.id);
                   return (
-                    <div key={task.id} className={`bg-gray-800 rounded-lg p-3 flex items-start gap-3 transition-opacity ${isDone ? 'opacity-40' : ''}`}>
-                      <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{stripWikilinks(task.title)}</div>
-                        <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
-                        {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
-                          <div className="mt-2">
-                            <NotesSubtasksPanel
-                              task={task}
-                              isInbox={false}
-                              darkMode={true}
-                              updateTaskNotes={focusUpdateTaskNotes}
-                              addSubtask={focusAddSubtask}
-                              toggleSubtask={focusToggleSubtask}
-                              deleteSubtask={focusDeleteSubtask}
-                              updateSubtaskTitle={focusUpdateSubtaskTitle}
-                              compact={false}
-                              noAutoFocus
-                              aiConfig={aiConfig}
-                              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
-                              onGenerateSubtasks={generateAISubtasks}
-                            />
-                          </div>
+                    <div key={task.id} className={`bg-gray-800 rounded-lg p-3 flex flex-col gap-2 transition-opacity ${isDone ? 'opacity-40' : ''}`}>
+                      {/* Header row: dot + title/time + complete button */}
+                      <div className="flex items-start gap-3">
+                        <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{stripWikilinks(task.title)}</div>
+                          <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
+                        </div>
+                        {!isDone && (
+                          <button
+                            onClick={() => focusCompleteTask(task.id)}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg transition-colors flex-shrink-0"
+                          >
+                            Complete
+                          </button>
+                        )}
+                        {isDone && (
+                          <Check size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
                         )}
                       </div>
-                      {!isDone && (
-                        <button
-                          onClick={() => focusCompleteTask(task.id)}
-                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg transition-colors flex-shrink-0"
-                        >
-                          Complete
-                        </button>
-                      )}
-                      {isDone && (
-                        <Check size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
+                      {/* Notes/subtasks panel — full card width */}
+                      {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
+                        <NotesSubtasksPanel
+                          task={task}
+                          isInbox={false}
+                          darkMode={true}
+                          updateTaskNotes={focusUpdateTaskNotes}
+                          addSubtask={focusAddSubtask}
+                          toggleSubtask={focusToggleSubtask}
+                          deleteSubtask={focusDeleteSubtask}
+                          updateSubtaskTitle={focusUpdateSubtaskTitle}
+                          compact={false}
+                          noAutoFocus
+                          aiConfig={aiConfig}
+                          aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                          onGenerateSubtasks={generateAISubtasks}
+                        />
                       )}
                     </div>
                   );
