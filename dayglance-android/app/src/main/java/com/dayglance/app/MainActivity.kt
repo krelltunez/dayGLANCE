@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -54,6 +55,9 @@ class MainActivity : AppCompatActivity() {
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
+
+    // Pending WebRTC permission request (microphone) waiting for Android runtime permission result
+    private var pendingWebPermissionRequest: PermissionRequest? = null
 
     // File chooser callback for <input type="file"> in WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
@@ -140,6 +144,25 @@ class MainActivity : AppCompatActivity() {
 
         }
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                val wantsAudio = PermissionRequest.RESOURCE_AUDIO_CAPTURE in request.resources
+                if (!wantsAudio) {
+                    request.deny()
+                    return
+                }
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
+                    request.grant(request.resources)
+                } else {
+                    pendingWebPermissionRequest = request
+                    ActivityCompat.requestPermissions(
+                        this@MainActivity,
+                        arrayOf(Manifest.permission.RECORD_AUDIO),
+                        RC_MICROPHONE
+                    )
+                }
+            }
+
             override fun onShowFileChooser(
                 webView: WebView,
                 filePathCallback: ValueCallback<Array<Uri>>,
@@ -280,6 +303,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == RC_MICROPHONE) {
+            val pending = pendingWebPermissionRequest
+            pendingWebPermissionRequest = null
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                pending?.grant(pending.resources)
+            } else {
+                pending?.deny()
+            }
+        }
+    }
+
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
@@ -290,5 +330,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val RC_PERMISSIONS = 1001
+        private const val RC_MICROPHONE = 1002
     }
 }

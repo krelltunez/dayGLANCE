@@ -21,6 +21,9 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
+    <!-- Microphone — for voice-to-task input via WebView getUserMedia -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Health Connect — runtime permissions (required on Android 14+ where HC is built in) -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
