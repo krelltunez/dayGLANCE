@@ -101,6 +101,14 @@ class DayGlanceWidget : AppWidgetProvider() {
             val serviceIntent = Intent(context, DayGlanceWidgetListService::class.java)
             views.setRemoteAdapter(R.id.lv_agenda, serviceIntent)
             views.setEmptyView(R.id.lv_agenda, android.R.id.empty)
+
+            // Pending intent template — list items fire fill-in intents against this
+            val listItemLaunchIntent = Intent(context, MainActivity::class.java)
+            val listItemPi = android.app.PendingIntent.getActivity(
+                context, 1, listItemLaunchIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setPendingIntentTemplate(R.id.lv_agenda, listItemPi)
         } catch (_: Throwable) { /* ListView stays empty — header still renders */ }
 
         // ── Tap-to-open ───────────────────────────────────────────────────

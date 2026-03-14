@@ -3,6 +3,7 @@
   Widget list item: section header (e.g. "⚠ Overdue (2)", "ALL DAY", "DUE TODAY").
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/section_item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"

@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Widget list item: a routine row.
-  Shows the routine name and its scheduled start time (if any).
+  Widget list item: grouped routines row.
+  Shows all routines compactly on one or two lines, joined with " · ".
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/routine_item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:gravity="center_vertical"
+    android:gravity="start"
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
 
@@ -18,6 +19,7 @@
         android:layout_height="22dp"
         android:background="@color/widget_divider"
         android:layout_marginEnd="7dp"
+        android:layout_marginTop="2dp"
         android:text="" />
 
     <!-- Routine icon placeholder -->
@@ -26,9 +28,10 @@
         android:layout_height="wrap_content"
         android:text="↺ "
         android:textColor="@color/widget_text_secondary"
-        android:textSize="11sp" />
+        android:textSize="11sp"
+        android:layout_marginTop="1dp" />
 
-    <!-- Name -->
+    <!-- All routine names, joined with " · ", wrapped to 2 lines -->
     <TextView
         android:id="@+id/tv_routine_name"
         android:layout_width="0dp"
@@ -36,18 +39,8 @@
         android:layout_weight="1"
         android:text="Routine"
         android:textColor="@color/widget_text_primary"
-        android:textSize="12sp"
-        android:maxLines="1"
+        android:textSize="11sp"
+        android:maxLines="2"
         android:ellipsize="end" />
-
-    <!-- Start time (hidden when isAllDay) -->
-    <TextView
-        android:id="@+id/tv_routine_time"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="@color/widget_text_secondary"
-        android:textSize="10sp"
-        android:visibility="gone" />
 
 </LinearLayout>

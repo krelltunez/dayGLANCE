@@ -67,7 +67,7 @@ class DayGlanceWidgetListFactory(
             val end: String,
             val availableMinutes: Int,
         ) : AgendaItem(TYPE_FRAME_HEADER)
-        class Routine(val name: String, val startTime: String, val isAllDay: Boolean) : AgendaItem(TYPE_ROUTINE)
+        class RoutineGroup(val names: List<String>) : AgendaItem(TYPE_ROUTINE)
         object Empty : AgendaItem(TYPE_EMPTY)
     }
 
@@ -217,17 +217,15 @@ class DayGlanceWidgetListFactory(
             }
         }
 
-        // 6. Routines
+        // 6. Routines — collapsed into a single grouped row
         val routinesArray = snapshot.optJSONArray("routines")
         if (routinesArray != null && routinesArray.length() > 0) {
-            items += AgendaItem.Section("ROUTINES")
-            for (i in 0 until routinesArray.length()) {
-                val r = routinesArray.optJSONObject(i) ?: continue
-                items += AgendaItem.Routine(
-                    name = r.optString("name", "Routine"),
-                    startTime = r.optString("startTime", ""),
-                    isAllDay = r.optBoolean("isAllDay", true),
-                )
+            val names = (0 until routinesArray.length()).mapNotNull { i ->
+                routinesArray.optJSONObject(i)?.optString("name", "Routine")
+            }
+            if (names.isNotEmpty()) {
+                items += AgendaItem.Section("ROUTINES")
+                items += AgendaItem.RoutineGroup(names)
             }
         }
 
@@ -265,7 +263,7 @@ class DayGlanceWidgetListFactory(
         is AgendaItem.Section -> buildSectionView(item)
         is AgendaItem.Task -> buildTaskView(item)
         is AgendaItem.FrameHeader -> buildFrameHeaderView(item)
-        is AgendaItem.Routine -> buildRoutineView(item)
+        is AgendaItem.RoutineGroup -> buildRoutineGroupView(item)
         AgendaItem.Empty -> buildEmptyView()
     }
 
@@ -293,6 +291,7 @@ class DayGlanceWidgetListFactory(
                 rv.setTextViewText(nameId, habit.name)
             }
         }
+        rv.setOnClickFillInIntent(R.id.habits_item_root, android.content.Intent())
         return rv
     }
 
@@ -302,6 +301,7 @@ class DayGlanceWidgetListFactory(
         if (item.isOverdue) {
             rv.setTextColor(R.id.tv_section_label, colorRes(R.color.widget_overdue_text))
         }
+        rv.setOnClickFillInIntent(R.id.section_item_root, android.content.Intent())
         return rv
     }
 
@@ -340,6 +340,7 @@ class DayGlanceWidgetListFactory(
             rv.setViewVisibility(R.id.tv_task_time, View.GONE)
         }
 
+        rv.setOnClickFillInIntent(R.id.task_item_root, android.content.Intent())
         return rv
     }
 
@@ -361,19 +362,14 @@ class DayGlanceWidgetListFactory(
         } else {
             rv.setViewVisibility(R.id.tv_frame_avail, View.GONE)
         }
+        rv.setOnClickFillInIntent(R.id.frame_header_item_root, android.content.Intent())
         return rv
     }
 
-    private fun buildRoutineView(item: AgendaItem.Routine): RemoteViews {
+    private fun buildRoutineGroupView(item: AgendaItem.RoutineGroup): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_item_routine)
-        rv.setTextViewText(R.id.tv_routine_name, item.name)
-        if (!item.isAllDay && item.startTime.isNotEmpty()) {
-            val formatted = formatHhMm(item.startTime)
-            rv.setTextViewText(R.id.tv_routine_time, formatted)
-            rv.setViewVisibility(R.id.tv_routine_time, View.VISIBLE)
-        } else {
-            rv.setViewVisibility(R.id.tv_routine_time, View.GONE)
-        }
+        rv.setTextViewText(R.id.tv_routine_name, item.names.joinToString("  ·  "))
+        rv.setOnClickFillInIntent(R.id.routine_item_root, android.content.Intent())
         return rv
     }
 
@@ -381,6 +377,7 @@ class DayGlanceWidgetListFactory(
         // Reuse the section layout to show an "all caught up" message
         val rv = RemoteViews(context.packageName, R.layout.widget_item_section)
         rv.setTextViewText(R.id.tv_section_label, "All caught up ✓")
+        rv.setOnClickFillInIntent(R.id.section_item_root, android.content.Intent())
         return rv
     }
 
