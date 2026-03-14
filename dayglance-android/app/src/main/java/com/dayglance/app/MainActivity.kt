@@ -1,12 +1,14 @@
 package com.dayglance.app
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -15,6 +17,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -47,6 +50,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nativeBridge: NativeBridge
     private lateinit var obsidianBridge: ObsidianBridge
     private lateinit var healthRepository: HealthRepository
+
+    // Shown at most once per session so we don't nag the user repeatedly
+    private var exactAlarmPromptShown = false
 
     // File chooser callback for <input type="file"> in WebView
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
@@ -188,6 +194,40 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         applyStatusBarAppearance()
+        maybePromptExactAlarmPermission()
+    }
+
+    /**
+     * On Android 12+ (API 31+), SCHEDULE_EXACT_ALARM requires explicit user approval
+     * via Settings → Apps → Special app access → Alarms & Reminders. Without it,
+     * AlarmManager falls back to inexact alarms that Android batches during Doze mode —
+     * causing all missed notifications to arrive at once when the device wakes up.
+     *
+     * We show a one-time-per-session dialog directing the user to the right settings page.
+     */
+    private fun maybePromptExactAlarmPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        if (am.canScheduleExactAlarms()) return
+        if (exactAlarmPromptShown) return
+        exactAlarmPromptShown = true
+
+        AlertDialog.Builder(this)
+            .setTitle("Enable precise reminders")
+            .setMessage(
+                "DayGlance needs permission to schedule exact alarms so your task " +
+                "reminders arrive on time, even when the app is closed.\n\n" +
+                "Tap \"Grant access\", then enable \"DayGlance\" on the next screen."
+            )
+            .setPositiveButton("Grant access") { _, _ ->
+                startActivity(
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                        data = Uri.fromParts("package", packageName, null)
+                    }
+                )
+            }
+            .setNegativeButton("Not now", null)
+            .show()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

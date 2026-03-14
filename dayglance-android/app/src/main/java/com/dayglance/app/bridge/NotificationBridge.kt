@@ -139,7 +139,12 @@ class NotificationBridge(private val context: Context) {
     // ── Background alarm sync ────────────────────────────────────────────────
 
     /**
-     * Replaces all scheduled reminder alarms with a new set.
+     * Syncs scheduled reminder alarms with the new set using a diff-based approach.
+     *
+     * Only cancels alarms that have been removed or whose trigger time changed,
+     * and only schedules alarms that are new or updated. Alarms that are unchanged
+     * are left alone — this prevents the cancel-then-reschedule gap that could
+     * cause a pending alarm to miss its window.
      *
      * Called by the JS layer whenever tasks or reminder settings change so that
      * AlarmManager always has the correct upcoming alarms — even when the app
@@ -150,17 +155,52 @@ class NotificationBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun syncReminders(remindersJson: String) {
-        // Cancel all previously scheduled alarms
-        dataStore.scheduledRemindersJson?.let { cancelAlarmsFromJson(it) }
+        // Build a map of currently scheduled alarms: id → triggerAtMillis
+        val oldMap = mutableMapOf<String, Long>()
+        dataStore.scheduledRemindersJson?.let { oldJson ->
+            runCatching {
+                val arr = JSONArray(oldJson)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    oldMap[obj.getString("id")] = obj.getLong("triggerAtMillis")
+                }
+            }
+        }
 
-        // Persist the new list (used by ReminderReceiver.BOOT_COMPLETED)
-        dataStore.scheduledRemindersJson = remindersJson
-
-        // Schedule each new alarm
+        // Build a map of the new desired alarms: id → object
+        val newMap = mutableMapOf<String, JSONObject>()
         runCatching {
             val arr = JSONArray(remindersJson)
             for (i in 0 until arr.length()) {
-                scheduleFromJson(arr.getJSONObject(i))
+                val obj = arr.getJSONObject(i)
+                newMap[obj.getString("id")] = obj
+            }
+        }
+
+        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // Cancel alarms that were removed or whose trigger time changed
+        for ((id, oldTrigger) in oldMap) {
+            val newTrigger = newMap[id]?.optLong("triggerAtMillis", -1L) ?: -1L
+            if (newTrigger == oldTrigger) continue // unchanged — leave it alone
+            val pi = PendingIntent.getBroadcast(
+                context, id.hashCode(),
+                Intent(context, ReminderReceiver::class.java),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            ) ?: continue
+            am.cancel(pi)
+            pi.cancel()
+        }
+
+        // Persist the new list (used by ReminderReceiver on BOOT_COMPLETED)
+        dataStore.scheduledRemindersJson = remindersJson
+
+        // Schedule only new or changed alarms
+        runCatching {
+            for ((id, newObj) in newMap) {
+                val oldTrigger = oldMap[id]
+                if (oldTrigger == newObj.getLong("triggerAtMillis")) continue // unchanged — skip
+                scheduleFromJson(newObj)
             }
         }
     }
