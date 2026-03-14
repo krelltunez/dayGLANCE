@@ -172,20 +172,22 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
  */
 function stripLinePrefixes(text) {
   const trimmed = text.trim();
+  // Regex that matches a single time or a duration range (HH:MM or HH:MM-HH:MM) with optional AM/PM
+  const timeRe = /^(\d{1,2}):(\d{2})\s*(?:[AaPp][Mm])?(?:-\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?)?\s+(.+)$/;
   // 1) Leading date: "YYYY-MM-DD ..."
   const dateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
   if (dateMatch) {
     const datePrefix = dateMatch[1] + ' ';
     const afterDate = dateMatch[2];
-    // Date + time
-    const tm = afterDate.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
-    if (tm) return { bareTitle: tm[4], datePrefix };
+    // Date + time (or date + range)
+    const tm = afterDate.match(timeRe);
+    if (tm) return { bareTitle: tm[3], datePrefix };
     // Date only
     return { bareTitle: afterDate, datePrefix };
   }
-  // 2) Time only
-  const tm = trimmed.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/);
-  if (tm) return { bareTitle: tm[4], datePrefix: '' };
+  // 2) Time only (or range only)
+  const tm = trimmed.match(timeRe);
+  if (tm) return { bareTitle: tm[3], datePrefix: '' };
   // 3) Plain title
   return { bareTitle: trimmed, datePrefix: '' };
 }
@@ -198,7 +200,7 @@ function stripLinePrefixes(text) {
  * the line with updated checkbox and optional time, preserving any inline
  * date prefix that was already in the line.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration) {
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
   let fileHandle, text;
   try {
@@ -221,7 +223,7 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     if (bareTitle !== obsidianRawTitle) continue;
 
     const indent = m[1];
-    const timeStr = startTime ? `${startTime} ` : '';
+    const timeStr = buildTimePrefix(startTime, duration);
     const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
     lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
     updated = true;
@@ -250,9 +252,39 @@ export function simpleHash(str) {
 
 /**
  * Try to parse a time string from the beginning of text.
- * Returns { hours, minutes, rest } or null.
+ * Supports single times ("09:00", "9:00 AM") and duration ranges ("09:00-10:00").
+ * Returns { startTime, duration, rest } or null.  duration is null when no range.
  */
 function parseLeadingTime(text) {
+  // Try duration range first: HH:MM[-HH:MM] [AM/PM] Title
+  const rangeMatch = text.match(
+    /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?-(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/
+  );
+  if (rangeMatch) {
+    let startH = parseInt(rangeMatch[1], 10);
+    const startM = parseInt(rangeMatch[2], 10);
+    const startAmpm = rangeMatch[3];
+    let endH = parseInt(rangeMatch[4], 10);
+    const endM = parseInt(rangeMatch[5], 10);
+    const endAmpm = rangeMatch[6];
+    if (startAmpm) {
+      const upper = startAmpm.toUpperCase();
+      if (upper === 'PM' && startH < 12) startH += 12;
+      if (upper === 'AM' && startH === 12) startH = 0;
+    }
+    if (endAmpm) {
+      const upper = endAmpm.toUpperCase();
+      if (upper === 'PM' && endH < 12) endH += 12;
+      if (upper === 'AM' && endH === 12) endH = 0;
+    }
+    if (startH < 0 || startH > 23 || endH < 0 || endH > 23) return null;
+    const startTime = `${startH.toString().padStart(2, '0')}:${rangeMatch[2]}`;
+    const rawDuration = (endH * 60 + endM) - (startH * 60 + startM);
+    const duration = rawDuration > 0 ? rawDuration : rawDuration + 1440; // handle midnight wrap
+    return { startTime, duration, rest: rangeMatch[7] };
+  }
+
+  // Fall back to single time: HH:MM [AM/PM] Title
   const timeMatch = text.match(
     /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s+(.+)$/
   );
@@ -268,8 +300,24 @@ function parseLeadingTime(text) {
   if (hours < 0 || hours > 23) return null;
   return {
     startTime: `${hours.toString().padStart(2, '0')}:${minutes}`,
+    duration: null,
     rest: timeMatch[4],
   };
+}
+
+/**
+ * Build the time prefix string for writing back to a task line.
+ * Produces "HH:MM-HH:MM " when duration is provided, otherwise "HH:MM ".
+ */
+function buildTimePrefix(startTime, duration) {
+  if (!startTime) return '';
+  if (!duration) return `${startTime} `;
+  const [h, m] = startTime.split(':').map(Number);
+  const endTotal = h * 60 + m + duration;
+  const eh = Math.floor(endTotal / 60) % 24;
+  const em = endTotal % 60;
+  const endTime = `${eh.toString().padStart(2, '0')}:${em.toString().padStart(2, '0')}`;
+  return `${startTime}-${endTime} `;
 }
 
 /**
@@ -303,6 +351,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
     let taskDate = dateStr;
     let startTime = null;
     let isAllDay = false;
+    let parsedDuration = null;
 
     // 1) Try inline date: "YYYY-MM-DD ..." at the beginning
     const dateMatch = rawTitle.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
@@ -310,10 +359,11 @@ export function parseTasksFromMarkdown(content, dateStr) {
       taskDate = dateMatch[1];
       const afterDate = dateMatch[2];
 
-      // 1a) Try date + time: "YYYY-MM-DD HH:MM[am/pm] Title"
+      // 1a) Try date + time/range: "YYYY-MM-DD HH:MM[-HH:MM][am/pm] Title"
       const timePart = parseLeadingTime(afterDate);
       if (timePart) {
         startTime = timePart.startTime;
+        if (timePart.duration) parsedDuration = timePart.duration;
         rawTitle = timePart.rest;
       } else {
         // 1b) Date only → all-day task
@@ -321,10 +371,11 @@ export function parseTasksFromMarkdown(content, dateStr) {
         rawTitle = afterDate;
       }
     } else {
-      // 2) Try time only: "HH:MM[am/pm] Title"
+      // 2) Try time/range only: "HH:MM[-HH:MM][am/pm] Title"
       const timePart = parseLeadingTime(rawTitle);
       if (timePart) {
         startTime = timePart.startTime;
+        if (timePart.duration) parsedDuration = timePart.duration;
         rawTitle = timePart.rest;
       }
     }
@@ -342,7 +393,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         title,
         date: taskDate,
         startTime,
-        duration: 30,
+        duration: parsedDuration || 30,
         color: 'bg-purple-600',
         completed,
         isAllDay: false,
@@ -597,7 +648,7 @@ export function writeDailyNoteNative(date, content) {
  * Reads the note with getDailyNote, applies the same regex-replace logic as
  * writeTaskStateToFile, then writes the result back with writeDailyNote.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
 
@@ -616,7 +667,7 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       if (bareTitle !== obsidianRawTitle) continue;
 
       const indent = m[1];
-      const timeStr = startTime ? `${startTime} ` : '';
+      const timeStr = buildTimePrefix(startTime, duration);
       const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
       lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
       updated = true;

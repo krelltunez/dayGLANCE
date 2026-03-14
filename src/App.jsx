@@ -4300,7 +4300,7 @@ const DayPlanner = () => {
       if (!p) continue;
 
       const titleChanged = p.title !== undefined && p.title !== task.title;
-      const stateChanged = p.completed !== task.completed || p.startTime !== (task.startTime || null);
+      const stateChanged = p.completed !== task.completed || p.startTime !== (task.startTime || null) || p.duration !== (task.duration || null);
 
       if (!titleChanged && !stateChanged) continue;
 
@@ -4323,6 +4323,7 @@ const DayPlanner = () => {
           task.completed,
           task.startTime || null,
           newRawTitle,
+          task.duration || null,
         );
       } else {
         writeTaskStateToFile(
@@ -4333,6 +4334,7 @@ const DayPlanner = () => {
           task.completed,
           task.startTime || null,
           newRawTitle,
+          task.duration || null,
         ).catch(err => console.error('Obsidian: failed to write task state back', err));
       }
 
@@ -4358,7 +4360,7 @@ const DayPlanner = () => {
     for (const task of allObsidian) {
       const u = titleUpdates.find(u => u.oldId === task.id);
       const snapshotId = u ? u.newId : task.id;
-      next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, title: u ? task.title : task.title };
+      next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title };
     }
     obsidianPrevTaskStateRef.current = next;
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
@@ -6102,7 +6104,7 @@ const DayPlanner = () => {
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
       for (const t of [...result.scheduledTasks, ...result.inboxTasks]) {
-        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, title: t.title };
+        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title };
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
