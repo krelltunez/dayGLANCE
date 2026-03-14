@@ -25098,7 +25098,7 @@ const DayPlanner = () => {
 
       {/* Focus Mode Overlay */}
       {showFocusMode && (
-        <div className="fixed inset-0 bg-gray-950 z-[70] flex flex-col items-center justify-center overflow-auto">
+        <div className="fixed inset-0 bg-gray-950 z-[70] flex flex-col items-center overflow-y-auto">
           {/* Exit button */}
           <button
             onClick={() => exitFocusMode(true)}
@@ -25109,7 +25109,7 @@ const DayPlanner = () => {
 
           {/* Settings view */}
           {focusShowSettings && !focusShowStats && (
-            <div className="w-full max-w-md px-6 py-8 flex flex-col items-center gap-6">
+            <div className="w-full max-w-md px-6 py-8 my-auto flex flex-col items-center gap-6">
               <Target size={48} className="text-blue-400" />
               <h1 className="text-2xl font-bold text-white">Focus Mode</h1>
 
@@ -25167,7 +25167,7 @@ const DayPlanner = () => {
 
           {/* Main focus view */}
           {!focusShowSettings && !focusShowStats && (
-            <div className="w-full max-w-lg px-6 py-8 flex flex-col items-center gap-6">
+            <div className="w-full max-w-lg px-6 py-8 my-auto flex flex-col items-center gap-6">
               {/* Phase indicator */}
               <div className="flex items-center gap-3">
                 <span className={`px-4 py-1.5 rounded-full text-sm font-medium ${
@@ -25266,7 +25266,7 @@ const DayPlanner = () => {
 
           {/* Stats view */}
           {focusShowStats && (
-            <div className="w-full max-w-sm px-6 py-8 flex flex-col items-center gap-6">
+            <div className="w-full max-w-sm px-6 py-8 my-auto flex flex-col items-center gap-6">
               <Trophy size={48} className="text-yellow-400" />
               <h1 className="text-2xl font-bold text-white">Session Complete!</h1>
 
