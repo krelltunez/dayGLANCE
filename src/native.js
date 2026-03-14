@@ -272,6 +272,58 @@ export const nativeSyncReminders = (reminders) => {
   bridge.syncReminders(JSON.stringify(reminders));
 };
 
+// ── Focus mode ────────────────────────────────────────────────────────────────
+
+/**
+ * Enters native focus mode: hides status bar + nav bar (immersive mode),
+ * cancels own scheduled reminder alarms, and enables Do Not Disturb
+ * (INTERRUPTION_FILTER_ALARMS) if ACCESS_NOTIFICATION_POLICY is granted.
+ *
+ * Returns { dndEnabled: bool } — false means DND permission hasn't been granted yet.
+ * No-op when running as a PWA (bridge absent).
+ */
+export const nativeEnterFocusMode = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.enterFocusMode) return null;
+  try {
+    return JSON.parse(bridge.enterFocusMode());
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Exits native focus mode: restores system bars, previous DND filter,
+ * and reschedules reminder alarms paused on entry.
+ * No-op when running as a PWA.
+ */
+export const nativeExitFocusMode = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.exitFocusMode) return;
+  bridge.exitFocusMode();
+};
+
+/**
+ * Returns true if the user has granted Do Not Disturb access to this app.
+ * Always returns false when running as a PWA.
+ */
+export const nativeIsDndPermissionGranted = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.isDndPermissionGranted) return false;
+  try { return bridge.isDndPermissionGranted(); } catch { return false; }
+};
+
+/**
+ * Opens the system Do Not Disturb access settings screen so the user can
+ * grant ACCESS_NOTIFICATION_POLICY. Call this when isDndPermissionGranted()
+ * returns false and the user taps the "Enable DND" prompt.
+ */
+export const nativeRequestDndPermission = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.requestDndPermission) return;
+  bridge.requestDndPermission();
+};
+
 /**
  * Triggers the Android system share sheet for a JSON backup file.
  *

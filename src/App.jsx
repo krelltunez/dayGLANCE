@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote } from './native.js';
+import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -8551,7 +8551,7 @@ const DayPlanner = () => {
     setFocusWorkMinutes(25);
     setFocusBreakMinutes(5);
     setFocusLongBreakMinutes(15);
-    // Request fullscreen
+    // Request fullscreen (web fallback; Android uses native immersive mode below)
     try { document.documentElement.requestFullscreen?.(); } catch (e) {}
     // Request wake lock
     (async () => {
@@ -8561,6 +8561,8 @@ const DayPlanner = () => {
         }
       } catch (e) {}
     })();
+    // Android: immersive mode + pause notifications + DND
+    nativeEnterFocusMode();
   };
 
   const startFocusTimer = () => {
@@ -8607,6 +8609,8 @@ const DayPlanner = () => {
       // Exit fullscreen and release wake lock only when closing entirely
       try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
       try { wakeLockSentinel.current?.release(); wakeLockSentinel.current = null; } catch (e) {}
+      // Android: restore system bars + DND + reschedule notifications
+      nativeExitFocusMode();
       setShowFocusMode(false);
     }
   };
@@ -8614,6 +8618,8 @@ const DayPlanner = () => {
   const dismissFocusStats = () => {
     try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
     try { wakeLockSentinel.current?.release(); wakeLockSentinel.current = null; } catch (e) {}
+    // Android: restore system bars + DND + reschedule notifications
+    nativeExitFocusMode();
     setFocusShowStats(false);
     setShowFocusMode(false);
   };
@@ -25136,6 +25142,19 @@ const DayPlanner = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Android DND permission prompt */}
+              {isNativeAndroid() && !nativeIsDndPermissionGranted() && (
+                <div className="w-full flex items-center justify-between bg-gray-800/60 border border-gray-700 rounded-lg px-4 py-3 text-sm">
+                  <span className="text-gray-300">Enable Do Not Disturb during focus?</span>
+                  <button
+                    onClick={nativeRequestDndPermission}
+                    className="ml-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex-shrink-0"
+                  >
+                    Grant access
+                  </button>
+                </div>
+              )}
 
               <button
                 onClick={startFocusTimer}

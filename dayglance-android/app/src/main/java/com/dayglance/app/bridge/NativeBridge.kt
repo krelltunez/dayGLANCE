@@ -29,6 +29,7 @@ class NativeBridge(
     private val calendar = CalendarBridge(context)
     private val obsidian = ObsidianBridge(context)
     private val notifications = NotificationBridge(context)
+    private val focus = FocusBridge(context, notifications)
     private val dataStore = SharedDataStore(context)
     private val http = HttpBridge()
 
@@ -160,6 +161,37 @@ class NativeBridge(
             """{"success":false,"error":"$msg"}"""
         }
     }
+
+    // ── Focus mode ───────────────────────────────────────────────────────────
+
+    /**
+     * Called when the JS app enters focus mode.
+     * Hides system bars (immersive mode), cancels own reminder alarms, and
+     * enables Do Not Disturb (INTERRUPTION_FILTER_ALARMS) if permission has
+     * been granted.
+     *
+     * Returns JSON: { "dndEnabled": bool }
+     */
+    @JavascriptInterface
+    fun enterFocusMode(): String = focus.enter()
+
+    /**
+     * Called when the JS app exits focus mode (including after the stats screen).
+     * Restores system bars, previous DND filter, and rescheduled reminder alarms.
+     */
+    @JavascriptInterface
+    fun exitFocusMode() = focus.exit()
+
+    /** Returns true if the user has granted Do Not Disturb access to this app. */
+    @JavascriptInterface
+    fun isDndPermissionGranted(): Boolean = focus.isDndPermissionGranted()
+
+    /**
+     * Opens the system Do Not Disturb access settings screen so the user can
+     * grant ACCESS_NOTIFICATION_POLICY to this app.
+     */
+    @JavascriptInterface
+    fun requestDndPermission() = focus.requestDndPermission()
 
     // ── UI ───────────────────────────────────────────────────────────────────
 
