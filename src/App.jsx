@@ -2763,6 +2763,7 @@ const DayPlanner = () => {
   const [habitOverflowOpen, setHabitOverflowOpen] = useState(false);
   const [habitLongPressId, setHabitLongPressId] = useState(null); // ID of habit showing long-press popover
   const [habitEditingCountId, setHabitEditingCountId] = useState(null); // ID of habit with count input open
+  const [habitDayPopup, setHabitDayPopup] = useState(null); // date string for prior-day habit summary popup
   const habitLongPressTimer = useRef(null);
   useEffect(() => {
     if (!habitLongPressId) return;
@@ -13981,7 +13982,7 @@ const DayPlanner = () => {
                             </button>
                           </div>
                           {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
-                            <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                            <div className="flex items-center justify-center gap-0.5 mt-0.5 cursor-pointer" onClick={(e) => { e.stopPropagation(); setHabitDayPopup(dateStr); }}>
                               {activeHabits.slice(0, 6).map(habit => (
                                 <MiniHabitRing key={habit.id} habit={habit} count={habitLogs[dateStr]?.[habit.id] || 0} darkMode={darkMode} />
                               ))}
@@ -20729,7 +20730,7 @@ const DayPlanner = () => {
                         </button>
                       </div>
                       {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
-                        <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                        <div className="flex items-center justify-center gap-0.5 mt-0.5 cursor-pointer" onClick={(e) => { e.stopPropagation(); setHabitDayPopup(dateStr); }}>
                           {activeHabits.slice(0, 6).map(habit => (
                             <MiniHabitRing key={habit.id} habit={habit} count={habitLogs[dateStr]?.[habit.id] || 0} darkMode={darkMode} />
                           ))}
@@ -24533,6 +24534,39 @@ const DayPlanner = () => {
                 gtdFrames={gtdFrames}
                 formatTime={formatTime}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prior-day habit summary popup */}
+      {habitDayPopup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setHabitDayPopup(null)}>
+          <div className={`${cardBg} rounded-xl shadow-2xl border ${borderClass} max-w-sm w-full p-5`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className={`font-semibold ${textPrimary}`}>
+                  {new Date(habitDayPopup + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </div>
+                <div className={`text-xs ${textSecondary} mt-0.5`}>Habit summary</div>
+              </div>
+              <button onClick={() => setHabitDayPopup(null)} className={`${textSecondary} hover:${textPrimary} transition-colors`}><X size={18} /></button>
+            </div>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {activeHabits.map(habit => (
+                <div key={habit.id} className="flex flex-col items-center gap-1">
+                  <div className="pointer-events-none">
+                    <HabitRing
+                      size={44}
+                      habit={habit}
+                      count={habitLogs[habitDayPopup]?.[habit.id] || 0}
+                      darkMode={darkMode}
+                      autoSynced={false}
+                    />
+                  </div>
+                  <span className={`text-[10px] text-center max-w-[52px] truncate ${textSecondary}`}>{habit.name}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
