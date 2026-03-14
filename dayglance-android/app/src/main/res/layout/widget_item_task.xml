@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget list item: a single task/event row.
+
+  Used for: overdue tasks, all-day events, deadline tasks, scheduled tasks,
+            and indented frame tasks (indent is applied programmatically via
+            setViewPadding on the root view).
+
+  Structure:
+    [color bar 3dp] [title + label row]
+                    [time/tag line]
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/task_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp"
+    android:paddingStart="0dp"
+    android:paddingEnd="0dp">
+
+    <!-- Color bar -->
+    <TextView
+        android:id="@+id/task_color_bar"
+        android:layout_width="3dp"
+        android:layout_height="28dp"
+        android:background="#3b82f6"
+        android:layout_marginEnd="7dp"
+        android:text="" />
+
+    <!-- Text content -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Title row: task name + badge (ALL DAY / DUE TODAY / OVERDUE) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_task_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Task title"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- Badge: e.g. "ALL DAY", "DUE TODAY", "OVERDUE" — hidden when empty -->
+            <TextView
+                android:id="@+id/tv_task_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06"
+                android:layout_marginStart="4dp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- Time + tags line -->
+        <TextView
+            android:id="@+id/tv_task_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="10sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget list item: section header (e.g. "⚠ Overdue (2)", "ALL DAY", "DUE TODAY").
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="2dp">
+
+    <TextView
+        android:id="@+id/tv_section_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SECTION"
+        android:textColor="@color/widget_section_text"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.08"
+        android:paddingStart="5dp"
+        android:paddingEnd="5dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:background="@drawable/widget_section_pill" />
+
+</LinearLayout>

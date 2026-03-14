@@ -5,8 +5,6 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.view.View
 import android.widget.RemoteViews
 import androidx.work.WorkManager
 import com.dayglance.app.MainActivity
@@ -14,39 +12,41 @@ import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
 import org.json.JSONObject
 import java.text.SimpleDateFormat
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
 /**
- * Phase 6: Home screen widget.
+ * Home screen widget AppWidgetProvider.
  *
- * Displays today's agenda using RemoteViews (Android widgets cannot use WebView).
- * Tapping the widget opens the full DayGlance app (the WebView).
+ * The widget shows the full DayGlance agenda in a scrollable [android.widget.ListView]
+ * backed by [DayGlanceWidgetListService] / [DayGlanceWidgetListFactory].
  *
- * Data is read from SharedDataStore, populated every 15 min by WidgetUpdateWorker.
+ * Data sources:
+ *  - Rich task/habit/routine/frame data — pushed by the JS app via
+ *    [com.dayglance.app.bridge.NativeBridge.updateWidgetSnapshot] whenever state
+ *    changes (task edit, habit log, etc.).
+ *  - Steps + calendar events — refreshed in the background every 15 minutes by
+ *    [WidgetUpdateWorker] even when the app is closed.
  *
- * Visual design matches DayGlance's design language:
- *   - Colors: blue (#3b82f6) / orange (#f97316) on white/dark backgrounds
- *   - Lora font is unavailable in RemoteViews; serif fallback is used
+ * Tapping anywhere on the widget opens the DayGlance app.
+ * Supports system light/dark mode automatically via @color/widget_* resources
+ * with night-mode variants.
  */
 class DayGlanceWidget : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
+        appWidgetIds: IntArray,
     ) {
-        for (appWidgetId in appWidgetIds) {
+        for (id in appWidgetIds) {
             try {
-                updateWidget(context, appWidgetManager, appWidgetId)
+                updateWidget(context, appWidgetManager, id)
             } catch (_: Throwable) {
-                // Absolute last resort: push an un-bound layout so the launcher
-                // does not show "Problem loading widget".
                 try {
                     appWidgetManager.updateAppWidget(
-                        appWidgetId,
+                        id,
                         RemoteViews(context.packageName, R.layout.widget_layout)
                     )
                 } catch (_: Throwable) { /* nothing more we can do */ }
@@ -56,162 +56,104 @@ class DayGlanceWidget : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // Schedule periodic refresh when first widget is added
-        try {
-            WidgetUpdateWorker.schedule(context)
-        } catch (_: Throwable) {
-            // WorkManager not yet initialized on this device — worker will be re-scheduled
-            // the next time the app process starts (onEnabled is retriggered on reboot too).
-        }
-        // Trigger an immediate one-time data fetch so the widget shows real data quickly
-        // (the periodic job can take up to 15 min for its first run).
-        try {
-            WidgetUpdateWorker.scheduleImmediate(context)
-        } catch (_: Throwable) { }
+        try { WidgetUpdateWorker.schedule(context) } catch (_: Throwable) { }
+        try { WidgetUpdateWorker.scheduleImmediate(context) } catch (_: Throwable) { }
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        // Cancel the background worker when the last widget instance is removed.
-        // It will be re-scheduled in onEnabled if the user adds a widget again.
         try {
             WorkManager.getInstance(context).cancelUniqueWork(WidgetUpdateWorker.WORK_NAME)
         } catch (_: Throwable) { }
     }
 
+    // ── Widget rendering ──────────────────────────────────────────────────────
+
     private fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetId: Int
+        appWidgetId: Int,
     ) {
-        // Step 1: Create RemoteViews.  Re-throw on failure so the outer catch in
-        // onUpdate() can attempt its own last-resort RemoteViews push.
-        val views = try {
-            RemoteViews(context.packageName, R.layout.widget_layout)
-        } catch (t: Throwable) { throw t }
+        val views = RemoteViews(context.packageName, R.layout.widget_layout)
 
-        // Step 2: Bind data, always falling back to the placeholder on any error.
-        // Each sub-step is isolated so a data-layer failure cannot prevent the
-        // widget from rendering something reasonable.
+        // ── Header: date label + steps ─────────────────────────────────────
         try {
             val dataStore = SharedDataStore(context)
-            val snapshotJson = dataStore.widgetSnapshot
-            if (snapshotJson != null) {
-                try {
-                    bindSnapshot(views, JSONObject(snapshotJson), dataStore.widgetSnapshotUpdatedAt)
-                } catch (_: Throwable) {
-                    bindPlaceholder(views)
-                }
+            val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
+            val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel()
+            views.setTextViewText(R.id.tv_date, dateLabel)
+
+            val steps = snapshot?.optInt("steps", -1) ?: -1
+            val stepsText = if (steps < 0) "Steps: —" else "Steps: ${formatNumber(steps)}"
+            views.setTextViewText(R.id.tv_steps, stepsText)
+
+            val updatedAt = dataStore.widgetSnapshotUpdatedAt
+            if (updatedAt > 0) {
+                val time = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(updatedAt))
+                views.setTextViewText(R.id.tv_updated, time)
             } else {
-                bindPlaceholder(views)
+                views.setTextViewText(R.id.tv_updated, "")
             }
         } catch (_: Throwable) {
-            try { bindPlaceholder(views) } catch (_: Throwable) { /* ignore */ }
-        }
-
-        // Step 3: Attach the tap-to-open action — non-critical, silently ignored on error.
-        try {
-            val launchIntent = Intent(context, MainActivity::class.java)
-            val pendingIntent = android.app.PendingIntent.getActivity(
-                context, 0, launchIntent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-        } catch (_: Throwable) { /* Widget still renders, just won't launch the app on tap */ }
-
-        // Step 4: Push the views to the launcher — must always be reached to avoid
-        // the launcher showing "Problem loading widget" on freshly placed widgets.
-        try {
-            appWidgetManager.updateAppWidget(appWidgetId, views)
-        } catch (_: Throwable) { /* Nothing further we can do */ }
-    }
-
-    private fun bindSnapshot(views: RemoteViews, snapshot: JSONObject, updatedAt: Long) {
-        // Date header
-        val dateLabel = snapshot.optString("dateLabel", "Today")
-        views.setTextViewText(R.id.tv_date, dateLabel)
-
-        // Steps
-        val steps = snapshot.optInt("steps", -1)
-        val stepsText = when {
-            steps < 0 -> "Steps: —"
-            steps == 0 -> "Steps: 0"
-            else -> "Steps: ${formatNumber(steps)}"
-        }
-        views.setTextViewText(R.id.tv_steps, stepsText)
-
-        // Next/current event
-        val nextEvent = snapshot.optJSONObject("nextEvent")
-        if (nextEvent != null) {
-            val title = nextEvent.optString("title", "Untitled")
-            val startStr = nextEvent.optString("start", "")
-            val endStr = nextEvent.optString("end", "")
-            val timeRange = formatTimeRange(startStr, endStr)
-            val colorHex = nextEvent.optString("color", "#3b82f6")
-
-            views.setTextViewText(R.id.tv_next_event_label, "NEXT")
-            views.setTextViewText(R.id.tv_next_event, title)
-            views.setTextViewText(R.id.tv_next_event_time, timeRange)
-            views.setViewVisibility(R.id.row_next_event, View.VISIBLE)
-
-            // Color bar for event
-            try {
-                views.setInt(R.id.event_color_bar, "setBackgroundColor", Color.parseColor(colorHex))
-            } catch (_: Throwable) {
-                views.setInt(R.id.event_color_bar, "setBackgroundColor", Color.parseColor("#3b82f6"))
-            }
-        } else {
-            views.setTextViewText(R.id.tv_next_event_label, "")
-            views.setTextViewText(R.id.tv_next_event, "No upcoming events")
-            views.setTextViewText(R.id.tv_next_event_time, "")
-            views.setInt(R.id.event_color_bar, "setBackgroundColor", Color.parseColor("#e5e7eb"))
-        }
-
-        // All-day events
-        val allDayCount = snapshot.optInt("allDayCount", 0)
-        if (allDayCount > 0) {
-            val label = if (allDayCount == 1) "1 all-day event" else "$allDayCount all-day events"
-            views.setTextViewText(R.id.tv_all_day, "📅 $label")
-            views.setViewVisibility(R.id.tv_all_day, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.tv_all_day, View.GONE)
-        }
-
-        // Last updated footer
-        if (updatedAt > 0) {
-            val time = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(updatedAt))
-            views.setTextViewText(R.id.tv_updated, "Updated $time")
-        } else {
+            views.setTextViewText(R.id.tv_date, formatTodayLabel())
+            views.setTextViewText(R.id.tv_steps, "Steps: —")
             views.setTextViewText(R.id.tv_updated, "")
         }
+
+        // ── Scrollable agenda list ─────────────────────────────────────────
+        try {
+            val serviceIntent = Intent(context, DayGlanceWidgetListService::class.java)
+            views.setRemoteAdapter(R.id.lv_agenda, serviceIntent)
+            views.setEmptyView(R.id.lv_agenda, android.R.id.empty)
+        } catch (_: Throwable) { /* ListView stays empty — header still renders */ }
+
+        // ── Tap-to-open ───────────────────────────────────────────────────
+        try {
+            val launchIntent = Intent(context, MainActivity::class.java)
+            val pi = android.app.PendingIntent.getActivity(
+                context, 0, launchIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.widget_root, pi)
+        } catch (_: Throwable) { }
+
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+
+        // Notify the list service that data may have changed so it calls onDataSetChanged
+        try {
+            appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.lv_agenda)
+        } catch (_: Throwable) { }
     }
 
-    private fun bindPlaceholder(views: RemoteViews) {
-        views.setTextViewText(R.id.tv_date, "Today")
-        views.setTextViewText(R.id.tv_steps, "Steps: —")
-        views.setTextViewText(R.id.tv_next_event_label, "")
-        views.setTextViewText(R.id.tv_next_event, "Tap to open dayGLANCE")
-        views.setTextViewText(R.id.tv_next_event_time, "")
-        views.setViewVisibility(R.id.tv_all_day, View.GONE)
-        views.setTextViewText(R.id.tv_updated, "")
-        views.setInt(R.id.event_color_bar, "setBackgroundColor", Color.parseColor("#e5e7eb"))
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /** Format a number with commas: 10432 → "10,432" */
+    private fun formatTodayLabel(): String = try {
+        java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+    } catch (_: Throwable) { "Today" }
+
     private fun formatNumber(n: Int): String =
         String.format(Locale.getDefault(), "%,d", n)
 
-    /** Format start–end ISO local datetime strings to "9:00 – 10:00 AM" style */
-    private fun formatTimeRange(start: String, end: String): String {
-        return try {
-            val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
-            val s = LocalDateTime.parse(start, fmt)
-            val e = LocalDateTime.parse(end, fmt)
-            val timeFmt = DateTimeFormatter.ofPattern("h:mm")
-            val amPmFmt = DateTimeFormatter.ofPattern("h:mm a")
-            "${s.format(timeFmt)} – ${e.format(amPmFmt)}"
-        } catch (_: Throwable) {
-            start.take(5) // fallback: just show HH:mm if parsing fails
+    // ── Companion: trigger widget refresh from outside ────────────────────────
+
+    companion object {
+        /**
+         * Sends a broadcast that causes all DayGlance widget instances to re-bind
+         * their data from SharedDataStore. Call this after writing a new snapshot.
+         */
+        fun requestUpdate(context: Context) {
+            try {
+                val manager = AppWidgetManager.getInstance(context)
+                val ids = manager.getAppWidgetIds(
+                    ComponentName(context, DayGlanceWidget::class.java)
+                )
+                if (ids.isEmpty()) return
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                    component = ComponentName(context, DayGlanceWidget::class.java)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                }
+                context.sendBroadcast(intent)
+            } catch (_: Throwable) { }
         }
     }
 }

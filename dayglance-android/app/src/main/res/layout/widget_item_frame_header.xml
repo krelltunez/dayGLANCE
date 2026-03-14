@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget list item: GTD frame block header.
+  Shows the frame name, time range, and available minutes.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="3dp"
+    android:background="@color/widget_frame_bg">
+
+    <!-- Left color accent bar -->
+    <TextView
+        android:id="@+id/frame_color_bar"
+        android:layout_width="3dp"
+        android:layout_height="22dp"
+        android:background="#3b82f6"
+        android:layout_marginEnd="7dp"
+        android:text="" />
+
+    <!-- Frame name -->
+    <TextView
+        android:id="@+id/tv_frame_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Frame"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <!-- Time range + available time -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="end">
+
+        <TextView
+            android:id="@+id/tv_frame_times"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="9:00 – 10:00"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="9sp" />
+
+        <TextView
+            android:id="@+id/tv_frame_avail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="45 min free"
+            android:textColor="@color/widget_brand"
+            android:textSize="9sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</LinearLayout>

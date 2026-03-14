@@ -1,171 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Phase 6: Home screen widget layout.
+  Home screen widget root layout.
 
-  RemoteViews constraints: only standard Android view types are supported —
-  no WebView, no custom views. Use TextView, ImageView, LinearLayout, etc.
+  Structure:
+    FrameLayout (root, tap target)
+    └── LinearLayout (vertical)
+        ├── Header row  (date + "dayGLANCE")
+        ├── Hairline divider
+        ├── Steps row
+        ├── Hairline divider
+        └── ListView  (scrollable agenda — powered by DayGlanceWidgetListService)
 
-  Design language (from DayGlance web frontend):
-    Primary blue:  #3b82f6 (Tailwind blue-500)
-    Accent orange: #f97316 (Tailwind orange-500)
-    Text dark:     #1f2937 (Tailwind gray-800)
-    Text muted:    #6b7280 (Tailwind gray-500)
-    Divider:       #e5e7eb (Tailwind gray-200)
-    Font:          serif fallback (Lora is not available in RemoteViews)
+  RemoteViews notes:
+  • <View> is not on the RemoteViews allow-list on API 31+; styled <TextView> is used
+    for hairlines instead.
+  • ListView in a widget requires a RemoteViewsService declared in the manifest.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="14dp"
     android:background="@drawable/widget_background">
 
-    <!-- Header: date + app name -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="10dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp">
 
-        <TextView
-            android:id="@+id/tv_date"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Today"
-            android:textColor="#1f2937"
-            android:textStyle="bold"
-            android:textSize="15sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="dayGLANCE"
-            android:textColor="#3b82f6"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.05" />
-
-    </LinearLayout>
-
-    <!-- Divider — plain <View> is not in the RemoteViews allow-list on API 31+;
-         use <TextView> instead (always allowed) styled as a 1dp hairline. -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#e5e7eb"
-        android:layout_marginBottom="10dp"
-        android:text="" />
-
-    <!-- Steps row -->
-    <LinearLayout
-        android:id="@+id/row_steps"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="👟 "
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/tv_steps"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Steps: —"
-            android:textColor="#6b7280"
-            android:textSize="12sp" />
-
-    </LinearLayout>
-
-    <!-- Next / current event -->
-    <LinearLayout
-        android:id="@+id/row_next_event"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginBottom="8dp">
-
-        <!-- <View> is not in the RemoteViews allow-list on API 31+; use <TextView> instead. -->
-        <TextView
-            android:id="@+id/event_color_bar"
-            android:layout_width="3dp"
-            android:layout_height="32dp"
-            android:background="#3b82f6"
-            android:layout_marginEnd="8dp"
-            android:text="" />
-
+        <!-- ── Header ───────────────────────────────────────────────────── -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
 
             <TextView
-                android:id="@+id/tv_next_event_label"
+                android:id="@+id/tv_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Today"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="NEXT"
-                android:textColor="#6b7280"
+                android:text="dayGLANCE"
+                android:textColor="@color/widget_brand"
                 android:textSize="9sp"
                 android:textStyle="bold"
-                android:letterSpacing="0.1" />
-
-            <TextView
-                android:id="@+id/tv_next_event"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="No upcoming events"
-                android:textColor="#1f2937"
-                android:textSize="13sp"
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <TextView
-                android:id="@+id/tv_next_event_time"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="#6b7280"
-                android:textSize="11sp" />
+                android:letterSpacing="0.05" />
 
         </LinearLayout>
 
+        <!-- Hairline divider -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider"
+            android:layout_marginBottom="5dp"
+            android:text="" />
+
+        <!-- ── Steps row ─────────────────────────────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/row_steps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="5dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="👟 "
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/tv_steps"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Steps: —"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/tv_updated"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="9sp" />
+
+        </LinearLayout>
+
+        <!-- Hairline divider -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider"
+            android:layout_marginBottom="4dp"
+            android:text="" />
+
+        <!-- ── Agenda list ─────────────────────────────────────────────── -->
+        <!--
+          ListView is populated by DayGlanceWidgetListService (RemoteViewsService).
+          The adapter intent is set programmatically in DayGlanceWidget.updateWidget().
+        -->
+        <ListView
+            android:id="@+id/lv_agenda"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none"
+            android:clipToPadding="false" />
+
     </LinearLayout>
 
-    <!-- All-day events summary (shown only when there are all-day events) -->
-    <TextView
-        android:id="@+id/tv_all_day"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="#6b7280"
-        android:textSize="11sp"
-        android:layout_marginBottom="6dp" />
-
-    <!-- Spacer — use <TextView> instead of <View> for RemoteViews allow-list compatibility. -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:text="" />
-
-    <!-- Footer: last updated -->
-    <TextView
-        android:id="@+id/tv_updated"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="#9ca3af"
-        android:textSize="9sp"
-        android:gravity="end" />
-
-</LinearLayout>
+</FrameLayout>

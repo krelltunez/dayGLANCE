@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget color tokens — dark / night mode overrides. -->
+<resources>
+    <color name="widget_bg">#FF111827</color>
+    <color name="widget_text_primary">#FFf9fafb</color>
+    <color name="widget_text_secondary">#FF9ca3af</color>
+    <color name="widget_divider">#FF374151</color>
+    <color name="widget_brand">#FF60a5fa</color>
+    <color name="widget_section_bg">#FF1f2937</color>
+    <color name="widget_section_text">#FFd1d5db</color>
+    <color name="widget_frame_bg">#FF0c1a2e</color>
+    <color name="widget_overdue_text">#FFf87171</color>
+    <color name="widget_ring_track">#FF374151</color>
+    <color name="widget_deadline_text">#FFfb923c</color>
+</resources>

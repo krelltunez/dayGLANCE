@@ -111,6 +111,38 @@ class NativeBridge(
     @JavascriptInterface
     fun syncReminders(remindersJson: String) = notifications.syncReminders(remindersJson)
 
+    // ── Widget snapshot ──────────────────────────────────────────────────────
+
+    /**
+     * Receives the full agenda snapshot from the JS app and stores it in
+     * SharedDataStore so the home screen widget can render it.
+     *
+     * Called by the web app whenever any state that affects the Glance tab
+     * changes (task edits, habit logs, routine changes, etc.), and on every
+     * app startup after data is loaded.
+     *
+     * [snapshotJson] schema:
+     * {
+     *   date, dateLabel, steps,
+     *   overdue:   [{ id, title, colorHex, overdueType, startTime }],
+     *   habits:    [{ id, name, colorHex, ringColorHex, count, target, type, progress, complete }],
+     *   allDay:    [{ id, title, colorHex }],
+     *   deadlines: [{ id, title, colorHex }],
+     *   sections:  [{ type:"frame"|"unframed", name?, colorHex?, start?, end?,
+     *                 availableMinutes?, tasks:[{ id, title, colorHex, startTime, duration, tags[] }] }],
+     *   routines:  [{ id, name, startTime, isAllDay }],
+     *   updatedAt
+     * }
+     */
+    @JavascriptInterface
+    fun updateWidgetSnapshot(snapshotJson: String) {
+        try {
+            dataStore.widgetSnapshot = snapshotJson
+            dataStore.widgetSnapshotUpdatedAt = System.currentTimeMillis()
+            com.dayglance.app.widget.DayGlanceWidget.requestUpdate(context)
+        } catch (_: Throwable) { /* ignore — widget is non-critical */ }
+    }
+
     // ── HTTP ─────────────────────────────────────────────────────────────────
 
     /**

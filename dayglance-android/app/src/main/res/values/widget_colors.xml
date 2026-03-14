@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget color tokens — light mode.
+  Night-mode overrides live in res/values-night/widget_colors.xml.
+  All widget layouts reference these instead of raw hex so system
+  dark-mode is honoured automatically by the launcher's RemoteViews rendering.
+-->
+<resources>
+    <!-- Canvas background -->
+    <color name="widget_bg">#FFFFFFFF</color>
+    <!-- Header date text -->
+    <color name="widget_text_primary">#FF1f2937</color>
+    <!-- Secondary / muted text (times, labels) -->
+    <color name="widget_text_secondary">#FF6b7280</color>
+    <!-- Hairline divider -->
+    <color name="widget_divider">#FFe5e7eb</color>
+    <!-- Brand accent (app name, steps count) -->
+    <color name="widget_brand">#FF3b82f6</color>
+    <!-- Section header background pill -->
+    <color name="widget_section_bg">#FFf3f4f6</color>
+    <!-- Section header text -->
+    <color name="widget_section_text">#FF374151</color>
+    <!-- Frame header background -->
+    <color name="widget_frame_bg">#FFf0f9ff</color>
+    <!-- Overdue section tint -->
+    <color name="widget_overdue_text">#FFef4444</color>
+    <!-- Habit ring track (unfilled) -->
+    <color name="widget_ring_track">#FFe5e7eb</color>
+    <!-- "Due Today" deadline label -->
+    <color name="widget_deadline_text">#FFf97316</color>
+</resources>

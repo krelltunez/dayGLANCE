@@ -84,6 +84,16 @@
                 android:resource="@xml/widget_info" />
         </receiver>
 
+        <!--
+          RemoteViewsService that backs the scrollable ListView inside the widget.
+          Must be exported=true so the launcher process can bind to it, but the
+          binding is gated by the BIND_REMOTEVIEWS permission (held only by the system).
+        -->
+        <service
+            android:name=".widget.DayGlanceWidgetListService"
+            android:exported="true"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <!-- Alarm broadcast receiver for scheduled reminders -->
         <receiver
             android:name=".notifications.ReminderReceiver"

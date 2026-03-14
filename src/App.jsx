@@ -1479,6 +1479,35 @@ const HABIT_COLORS = [
   { name: 'orange', ring: '#f97316', bg: 'bg-orange-500', text: 'text-orange-500' },
 ];
 
+// Maps Tailwind CSS background-color classes to hex values for the native Android widget.
+// The widget renders in a separate process and cannot resolve Tailwind classes.
+const TAILWIND_TO_HEX = {
+  'bg-blue-500': '#3b82f6', 'bg-blue-400': '#60a5fa', 'bg-blue-600': '#2563eb',
+  'bg-red-500': '#ef4444',  'bg-red-400': '#f87171',  'bg-red-600': '#dc2626',
+  'bg-green-500': '#22c55e','bg-green-400': '#4ade80', 'bg-green-600': '#16a34a',
+  'bg-purple-500': '#a855f7','bg-purple-400': '#c084fc','bg-purple-600': '#9333ea',
+  'bg-orange-500': '#f97316','bg-orange-400': '#fb923c','bg-orange-600': '#ea580c',
+  'bg-pink-500': '#ec4899', 'bg-pink-400': '#f472b6', 'bg-pink-600': '#db2777',
+  'bg-indigo-500': '#6366f1','bg-indigo-400': '#818cf8','bg-indigo-600': '#4f46e5',
+  'bg-teal-500': '#14b8a6', 'bg-teal-400': '#2dd4bf', 'bg-teal-600': '#0d9488',
+  'bg-yellow-500': '#eab308','bg-yellow-400': '#facc15','bg-yellow-600': '#ca8a04',
+  'bg-amber-500': '#f59e0b', 'bg-amber-400': '#fbbf24','bg-amber-600': '#d97706',
+  'bg-cyan-500': '#06b6d4', 'bg-cyan-400': '#22d3ee', 'bg-cyan-600': '#0891b2',
+  'bg-emerald-500': '#10b981','bg-emerald-400': '#34d399',
+  'bg-violet-500': '#8b5cf6','bg-violet-400': '#a78bfa',
+  'bg-rose-500': '#f43f5e', 'bg-rose-400': '#fb7185',
+  'bg-sky-500': '#0ea5e9',  'bg-sky-400': '#38bdf8',
+  'bg-lime-500': '#84cc16', 'bg-fuchsia-500': '#d946ef',
+};
+
+/** Converts a task's .color field (Tailwind class or native hex) to a hex string. */
+const taskColorToHex = (color, nativeCalendarColor) => {
+  if (nativeCalendarColor) return nativeCalendarColor;
+  if (!color || color === 'task-calendar') return '#3b82f6';
+  if (color.startsWith('#')) return color;
+  return TAILWIND_TO_HEX[color] || '#3b82f6';
+};
+
 // HabitRing — SVG circular progress ring component
 // autoSynced: true when the count comes from Health Connect — disables tap interactions
 const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false }) => {
@@ -13042,6 +13071,195 @@ const DayPlanner = () => {
 
     return slots;
   }, [getTasksForDate]);
+
+  // ── Native Android widget snapshot sync ──────────────────────────────────
+  // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
+  // Runs whenever tasks, habits, routines, or frames change so the widget is always
+  // current. Also runs on app startup (dataLoaded) for the first render.
+  //
+  // The snapshot mirrors what the Glance tab shows: overdue tasks, habit rings,
+  // all-day events, deadline tasks, GTD frame sections with nested tasks, and routines.
+  // The native WidgetUpdateWorker patches in fresh step counts and calendar events
+  // every 15 minutes when the app is closed.
+  useEffect(() => {
+    if (!dataLoaded) return;
+    if (!isNativeAndroid() || !window.DayGlanceNative?.updateWidgetSnapshot) return;
+
+    const today = new Date();
+    const todayStr = getTodayStr();
+
+    // ── Overdue tasks ──────────────────────────────────────────────────────
+    const overdueItems = getOverdueTasks().map(t => ({
+      id: t.id,
+      title: t.title,
+      colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+      overdueType: t._overdueType || 'scheduled',
+      startTime: t.startTime || '',
+    }));
+
+    // ── Habits (up to 5) ──────────────────────────────────────────────────
+    const habitItems = activeHabits.slice(0, 5).map(h => {
+      const colorObj = HABIT_COLORS.find(c => c.name === h.color) || HABIT_COLORS[0];
+      const count = getTodayHabitCount(h.id);
+      let progress, ringColorHex, isComplete;
+      if (h.type === 'doMore') {
+        progress = h.target > 0 ? Math.min(count / h.target, 1) : 0;
+        isComplete = h.target > 0 && count >= h.target;
+        ringColorHex = count === 0 ? '#d1d5db' : colorObj.ring;
+      } else {
+        progress = 1;
+        isComplete = false;
+        if (count === 0) ringColorHex = '#22c55e';
+        else if (count <= h.target * 0.5) ringColorHex = '#eab308';
+        else if (count <= h.target) ringColorHex = '#f59e0b';
+        else ringColorHex = '#ef4444';
+      }
+      return {
+        id: h.id,
+        name: h.name,
+        colorHex: colorObj.ring,
+        ringColorHex,
+        count,
+        target: h.target,
+        type: h.type || 'doMore',
+        progress,
+        complete: isComplete,
+      };
+    });
+
+    // ── All-day tasks/events ───────────────────────────────────────────────
+    const allDayItems = todayAgenda
+      .filter(t => t._agendaType === 'allday')
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+      }));
+
+    // ── Deadline tasks (due today) ─────────────────────────────────────────
+    const deadlineItems = todayAgenda
+      .filter(t => t._agendaType === 'deadline')
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+      }));
+
+    // ── Frame sections + unframed scheduled tasks ─────────────────────────
+    const nowMinW = today.getHours() * 60 + today.getMinutes();
+    const todayFramesW = getFrameInstancesForDate(today).filter(
+      f => timeToMinutes(f.end) > nowMinW
+    );
+    const scheduledW = todayAgenda.filter(t => t._agendaType === 'scheduled');
+
+    const taskFrameMapW = new Map();
+    for (const task of scheduledW) {
+      if (!task.startTime) continue;
+      const tStart = timeToMinutes(task.startTime);
+      const tEnd = tStart + (task.duration || 0);
+      for (const frame of todayFramesW) {
+        if (tStart >= timeToMinutes(frame.start) && tEnd <= timeToMinutes(frame.end)) {
+          taskFrameMapW.set(String(task.id), frame.frameId);
+          break;
+        }
+      }
+    }
+
+    const serTask = t => ({
+      id: t.id,
+      title: t.title,
+      colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+      startTime: t.startTime || '',
+      duration: t.duration || 0,
+      tags: (t.tags || []).slice(0, 3),
+    });
+
+    const sections = [];
+    const sortedFramesW = [...todayFramesW].sort(
+      (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start)
+    );
+    const assignedIdsW = new Set();
+    let schedIdxW = 0;
+
+    for (const frame of sortedFramesW) {
+      const fStart = timeToMinutes(frame.start);
+      const beforeTasks = [];
+      while (schedIdxW < scheduledW.length) {
+        const t = scheduledW[schedIdxW];
+        if (timeToMinutes(t.startTime || '00:00') < fStart && !taskFrameMapW.has(String(t.id))) {
+          beforeTasks.push(t);
+          assignedIdsW.add(String(t.id));
+          schedIdxW++;
+        } else break;
+      }
+      if (beforeTasks.length > 0) {
+        sections.push({ type: 'unframed', tasks: beforeTasks.map(serTask) });
+      }
+
+      const frameTasks = scheduledW.filter(t => taskFrameMapW.get(String(t.id)) === frame.frameId);
+      const availSlots = computeAvailableSlots(frame, today);
+      const totalAvail = availSlots.reduce((s, slot) => s + slot.minutes, 0);
+      const frameColorHex = TAILWIND_TO_HEX[frame.color] || '#3b82f6';
+
+      if (totalAvail > 0 || frameTasks.length > 0) {
+        sections.push({
+          type: 'frame',
+          name: frame.name,
+          colorHex: frameColorHex,
+          start: frame.start,
+          end: frame.end,
+          availableMinutes: totalAvail,
+          tasks: frameTasks.map(serTask),
+        });
+      }
+      frameTasks.forEach(t => assignedIdsW.add(String(t.id)));
+      while (schedIdxW < scheduledW.length && assignedIdsW.has(String(scheduledW[schedIdxW].id))) schedIdxW++;
+    }
+    const remainingW = scheduledW.filter(t => !assignedIdsW.has(String(t.id)));
+    if (remainingW.length > 0) {
+      sections.push({ type: 'unframed', tasks: remainingW.map(serTask) });
+    }
+
+    // ── Routines ──────────────────────────────────────────────────────────
+    const routineItems = todayRoutines.map(r => ({
+      id: r.id,
+      name: r.name,
+      startTime: r.startTime || '',
+      isAllDay: !r.startTime || r.isAllDay || false,
+    }));
+
+    // ── Steps (from HealthConnect cache if available) ─────────────────────
+    let steps = -1;
+    try {
+      const cachedSteps = JSON.parse(localStorage.getItem('day-planner-steps-cache') || 'null');
+      if (cachedSteps?.date === todayStr) steps = cachedSteps.steps ?? -1;
+    } catch (_) {}
+
+    const snapshot = {
+      date: todayStr,
+      dateLabel: today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      steps,
+      overdue: overdueItems,
+      habits: habitItems,
+      allDay: allDayItems,
+      deadlines: deadlineItems,
+      sections,
+      routines: routineItems,
+      updatedAt: Date.now(),
+    };
+
+    try {
+      window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
+    } catch (_) {}
+  }, [
+    dataLoaded,
+    todayAgenda,
+    activeHabits,
+    habitLogs,
+    todayRoutines,
+    tasks,
+    unscheduledTasks,
+  ]);
 
   // GTD Frame CRUD operations
   const saveFrame = (frame) => {
