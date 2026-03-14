@@ -221,6 +221,16 @@ class MainActivity : AppCompatActivity() {
             permissions += Manifest.permission.POST_NOTIFICATIONS
         }
 
+        // Request RECORD_AUDIO at startup so the WebView renderer process inherits the
+        // permission before getUserMedia is ever called. Granting it mid-session via
+        // onPermissionRequest alone is not sufficient — the renderer can fail to open the
+        // audio HAL with NotReadableError ("could not start audio source") because it
+        // checked permission state at process creation time.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissions += Manifest.permission.RECORD_AUDIO
+        }
+
         if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), RC_PERMISSIONS)
         }
