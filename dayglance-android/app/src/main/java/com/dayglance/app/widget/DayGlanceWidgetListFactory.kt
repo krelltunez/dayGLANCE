@@ -112,8 +112,6 @@ class DayGlanceWidgetListFactory(
     // ── Snapshot parsing → AgendaItem list ──────────────────────────────────
 
     private fun buildItems(snapshot: JSONObject) {
-        val isDark = isDarkMode()
-
         // 1. Habits
         val habitsArray = snapshot.optJSONArray("habits")
         if (habitsArray != null && habitsArray.length() > 0) {
