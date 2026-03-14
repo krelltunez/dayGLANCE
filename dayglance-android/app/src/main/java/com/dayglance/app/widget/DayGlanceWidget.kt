@@ -113,6 +113,18 @@ class DayGlanceWidget : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_root, pi)
         } catch (_: Throwable) { }
 
+        // ── Refresh button ────────────────────────────────────────────────
+        try {
+            val refreshIntent = Intent(ACTION_REFRESH).apply {
+                component = ComponentName(context, DayGlanceWidget::class.java)
+            }
+            val refreshPi = android.app.PendingIntent.getBroadcast(
+                context, 0, refreshIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.btn_refresh, refreshPi)
+        } catch (_: Throwable) { }
+
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
         // Notify the list service that data may have changed so it calls onDataSetChanged
@@ -127,9 +139,21 @@ class DayGlanceWidget : AppWidgetProvider() {
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
     } catch (_: Throwable) { "Today" }
 
+    // ── Manual refresh broadcast ──────────────────────────────────────────────
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_REFRESH) {
+            try { WidgetUpdateWorker.scheduleImmediate(context) } catch (_: Throwable) { }
+            requestUpdate(context)
+        } else {
+            super.onReceive(context, intent)
+        }
+    }
+
     // ── Companion: trigger widget refresh from outside ────────────────────────
 
     companion object {
+        const val ACTION_REFRESH = "com.dayglance.app.widget.ACTION_REFRESH"
         /**
          * Sends a broadcast that causes all DayGlance widget instances to re-bind
          * their data from SharedDataStore. Call this after writing a new snapshot.
