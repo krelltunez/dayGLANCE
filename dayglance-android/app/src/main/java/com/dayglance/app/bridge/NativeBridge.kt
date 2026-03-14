@@ -2,6 +2,9 @@ package com.dayglance.app.bridge
 
 import android.content.Context
 import android.content.Intent
+import android.media.MediaRecorder
+import android.os.Build
+import android.util.Base64
 import android.webkit.JavascriptInterface
 import androidx.core.content.FileProvider
 import com.dayglance.app.data.HealthRepository
@@ -32,6 +35,78 @@ class NativeBridge(
     private val focus = FocusBridge(context, notifications)
     private val dataStore = SharedDataStore(context)
     private val http = HttpBridge()
+
+    private var mediaRecorder: MediaRecorder? = null
+    private var recordingFile: File? = null
+
+    // ── Audio recording ─────────────────────────────────────────────────────
+
+    /**
+     * Starts native audio capture using Android's MediaRecorder.
+     * Returns "ok" on success, or JSON {"error":"..."} on failure.
+     *
+     * Called by the JS voice-to-task feature instead of getUserMedia(),
+     * which is unreliable inside Android WebView.
+     */
+    @JavascriptInterface
+    fun startRecording(): String {
+        return try {
+            mediaRecorder?.release()
+            mediaRecorder = null
+
+            val file = File(context.cacheDir, "voice_input.mp4")
+            recordingFile = file
+
+            @Suppress("DEPRECATION")
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                MediaRecorder()
+            }
+            recorder.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(16000)
+                setAudioEncodingBitRate(32000)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
+            }
+            mediaRecorder = recorder
+            "ok"
+        } catch (e: Exception) {
+            val msg = (e.message ?: "unknown").replace("\\", "\\\\").replace("\"", "\\\"")
+            """{"error":"$msg"}"""
+        }
+    }
+
+    /**
+     * Stops native audio capture and returns the recording as a base64 data URL
+     * ("data:audio/mp4;base64,...") that JS can convert to a Blob for transcription.
+     * Returns JSON {"error":"..."} if no recording was active or on failure.
+     */
+    @JavascriptInterface
+    fun stopRecording(): String {
+        return try {
+            val recorder = mediaRecorder ?: return """{"error":"no active recording"}"""
+            recorder.stop()
+            recorder.release()
+            mediaRecorder = null
+
+            val file = recordingFile ?: return """{"error":"no recording file"}"""
+            recordingFile = null
+
+            val bytes = file.readBytes()
+            file.delete()
+
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            "data:audio/mp4;base64,$base64"
+        } catch (e: Exception) {
+            val msg = (e.message ?: "unknown").replace("\\", "\\\\").replace("\"", "\\\"")
+            """{"error":"$msg"}"""
+        }
+    }
 
     // ── Health Connect ──────────────────────────────────────────────────────
 
