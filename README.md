@@ -3,7 +3,7 @@
 **Your day, at a glance.** A beautiful, feature-rich day planner with visual time-blocking, task management, and calendar sync. Use it instantly at [dayglance.app](https://dayglance.app) or self-host it on your own server. All data is stored locally in your browser -- nothing is ever sent to a server.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/krelltunez/day-planner)
+[![Version](https://img.shields.io/badge/version-1.2.2-green.svg)](https://github.com/krelltunez/day-planner)
 
 [Live App](https://dayglance.app) | [Documentation](https://docs.dayglance.app)
 
@@ -13,7 +13,7 @@
 
 ## Why dayGLANCE?
 
-Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure. Even on the hosted version, your data never leaves your machine — everything is stored locally in your browser. Optionally sync across devices through your own Nextcloud instance (more sync providers coming soon), and work offline as a full PWA.
+Most planners either lock your data in someone else's cloud or lack the polish of commercial apps. dayGLANCE gives you both: **a rich, intuitive planning experience** you can use right away at [dayglance.app](https://dayglance.app), or deploy on your own infrastructure. Even on the hosted version, your data never leaves your machine — everything is stored locally in your browser. Optionally sync across devices through your own Nextcloud or generic WebDAV server, and work offline as a full PWA.
 
 ---
 
@@ -43,13 +43,13 @@ Set tasks to repeat daily, weekly on specific days, monthly, or on custom interv
 
 ### Focus Mode
 
-A built-in Pomodoro-style timer with customizable work, short break, and long break durations. Associate a timer session with a specific task and mark it complete when you're done. Keeps your screen awake during focus sessions.
+A built-in Pomodoro-style timer with customizable work, short break, and long break durations. Associate a timer session with a specific task and mark it complete when you're done. Keeps your screen awake during focus sessions. On mobile, Focus Mode goes fully immersive — enabling Do Not Disturb, locking to portrait, and expanding the notes/subtasks panel to fill the screen.
 
 ![Focus Mode Timer](screenshots/focus-mode.png)
 
 ### Daily Summary & Statistics
 
-Track your productivity with a daily dashboard: tasks completed, completion rate ring, time planned vs. time spent, and focus time logged. An all-time statistics view shows lifetime trends, averages, and streaks.
+Track your productivity with a daily dashboard: tasks completed, completion rate ring, time planned vs. time spent, and focus time logged. Tap the habit ring row to see a popup summary of the prior day's habit completion. An all-time statistics view shows lifetime trends, averages, and streaks.
 
 ![Daily Summary & All-Time Statistics](screenshots/daily-summary.png)
 
@@ -63,11 +63,11 @@ Import events from **iCal, Google Calendar, or Nextcloud** calendar URLs. Import
 
 ### Cloud Sync
 
-Sync your entire planner across devices through your own Nextcloud instance via WebDAV, with additional sync providers planned for future releases. The smart merge engine resolves conflicts at the task level using timestamps — not last-write-wins — so simultaneous edits from two devices won't clobber each other.
+Sync your entire planner across devices via WebDAV. dayGLANCE supports **Nextcloud** and any **generic WebDAV** server (e.g. Hetzner Storage Box, Synology, Seafile, Radicale). The smart merge engine resolves conflicts at the task level using timestamps — not last-write-wins — so simultaneous edits from two devices won't clobber each other.
 
 ### Auto-Backup
 
-Automatic local and remote backups with configurable frequency (hourly, daily, weekly) and retention policies. Restore from any backup with one click. Remote backups stored on your Nextcloud instance.
+Automatic local and remote backups with configurable frequency (hourly, daily, weekly) and retention policies. Restore from any backup with one click. Remote backups are stored on your WebDAV server (Nextcloud, generic WebDAV, etc.).
 
 ### Daily Notes
 
@@ -114,6 +114,33 @@ dayGLANCE adapts its layout and interactions per device:
 ### Progressive Web App
 
 Install dayGLANCE on any device — desktop, tablet, or phone — for a native app-like experience. Works fully offline after first load with service worker caching. Auto-updates when a new version is deployed.
+
+### Obsidian Integration
+
+Sync tasks and daily notes with your **Obsidian vault** via the Obsidian Local REST API plugin. Scheduled tasks with `[[wikilinks]]` link directly back to notes in your vault — tap the link icon in any task title to open the note. Supports reading and writing all Obsidian task formats, duration ranges (`HH:MM-HH:MM`), moves, rescheduling, and title edits. Daily notes sync bidirectionally. Configure vault connection in **Settings > Obsidian**.
+
+### AI Assistant
+
+An optional AI layer (powered by any OpenAI-compatible API) surfaces suggestions throughout the day:
+
+- **Frame nudge** — when a time block is active, the Glance panel suggests a specific task to work on
+- **Duration & tag estimates** — AI pre-fills likely duration and tags when you create a task
+- **Subtask generation** — generate a subtask list from the notes panel or task context menu
+- **End-of-day rescheduling** — review incomplete tasks and move them forward with AI-suggested times
+- **Evening reflection** — a guided end-of-day prompt to capture wins and plan tomorrow
+
+Enable AI features in **Settings > AI** and enter your API key and endpoint.
+
+### Android App
+
+A native Android wrapper is available as an APK download from the [Releases](https://github.com/krelltunez/dayglance/releases) page. It ships the full web app in a WebView with native enhancements:
+
+- **Home screen widget** — live view of your current frame and upcoming tasks, with a manual refresh button
+- **Obsidian deep links** — tap `[[wikilinks]]` to open notes directly in the Obsidian Android app
+- **Background notifications** — task and event reminders fire reliably even when the app is closed
+- **Immersive Focus Mode** — full-screen timer with automatic Do Not Disturb and portrait lock
+- **Calendar integration** — read-only access to your Android calendar; events appear on the timeline
+- **Theme-aware status bar** — status bar icons match the app's light/dark theme
 
 ### Getting Started Checklist
 
@@ -190,11 +217,12 @@ For detailed deployment instructions, see the [Documentation](https://docs.daygl
 
 ## Cloud Sync Setup
 
-dayGLANCE currently syncs through **Nextcloud** via WebDAV, with more sync providers on the roadmap. To configure:
+dayGLANCE syncs via WebDAV and supports **Nextcloud** and any **generic WebDAV** server. To configure:
 
-1. Open **Settings** in dayGLANCE.
-2. Enter your Nextcloud WebDAV URL and credentials.
-3. Sync runs automatically every 15 minutes, or trigger it manually.
+1. Open **Settings > Cloud Sync** in dayGLANCE.
+2. Choose your provider (Nextcloud or Generic WebDAV).
+3. Enter your WebDAV URL and credentials.
+4. Sync runs automatically every 15 minutes, or trigger it manually.
 
 The sync engine merges at the task level, so edits made on different devices to different tasks will be combined cleanly. When the same task is edited on two devices, the most recent edit wins.
 
@@ -238,12 +266,9 @@ npm run test
 - **PWA shortcuts** — Quick actions from the app icon (new task, open inbox, etc.)
 - **Actionable browser notifications** — Complete or snooze tasks directly from notifications
 - **IndexedDB storage** — Optional self-hosted database backend for persistent server-side storage
-- **Habit tracking** — Track daily habits and streaks alongside your tasks
-- **Native apps** — Dedicated iOS and Android apps
-- **Obsidian integration** — Sync tasks and daily notes with your Obsidian vault
+- **iOS app** — Native iOS wrapper with widget and Obsidian deep-link support
 - **TRMNL support** — Display your daily agenda on a TRMNL e-ink dashboard
 - **DAVx5 support** — Sync with Android calendars and task apps via DAVx5
-- **Widgets** — Home screen widgets for mobile and desktop
 
 ---
 
@@ -253,7 +278,7 @@ Contributions are welcome! Please open an issue or pull request on [GitHub](http
 
 We'd especially appreciate help with:
 
-- **Sync providers** — Dropbox, Google Drive, WebDAV (generic), and other cloud storage integrations
+- **Sync providers** — Dropbox, Google Drive, and other cloud storage integrations
 - **Improved icons** — Better app icons and PWA assets
 - **Documentation** — Guides, tutorials, and translations
 
