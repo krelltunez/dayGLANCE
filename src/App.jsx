@@ -12486,7 +12486,7 @@ const DayPlanner = () => {
           newReminders.push({
             id: `${point.key}-${Date.now()}`,
             taskId: task.id,
-            taskTitle: task.title,
+            taskTitle: stripWikilinks(task.title),
             taskColor: task.color,
             startTime: task.startTime || null,
             message: messageMap[point.type] || 'Reminder',
