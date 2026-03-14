@@ -12,6 +12,7 @@ import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
@@ -76,16 +77,12 @@ class DayGlanceWidget : AppWidgetProvider() {
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_layout)
 
-        // ── Header: date label + steps ─────────────────────────────────────
+        // ── Header: date label + last-updated ─────────────────────────────
         try {
             val dataStore = SharedDataStore(context)
             val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
             val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel()
             views.setTextViewText(R.id.tv_date, dateLabel)
-
-            val steps = snapshot?.optInt("steps", -1) ?: -1
-            val stepsText = if (steps < 0) "Steps: —" else "Steps: ${formatNumber(steps)}"
-            views.setTextViewText(R.id.tv_steps, stepsText)
 
             val updatedAt = dataStore.widgetSnapshotUpdatedAt
             if (updatedAt > 0) {
@@ -96,7 +93,6 @@ class DayGlanceWidget : AppWidgetProvider() {
             }
         } catch (_: Throwable) {
             views.setTextViewText(R.id.tv_date, formatTodayLabel())
-            views.setTextViewText(R.id.tv_steps, "Steps: —")
             views.setTextViewText(R.id.tv_updated, "")
         }
 
@@ -128,11 +124,8 @@ class DayGlanceWidget : AppWidgetProvider() {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun formatTodayLabel(): String = try {
-        java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
     } catch (_: Throwable) { "Today" }
-
-    private fun formatNumber(n: Int): String =
-        String.format(Locale.getDefault(), "%,d", n)
 
     // ── Companion: trigger widget refresh from outside ────────────────────────
 

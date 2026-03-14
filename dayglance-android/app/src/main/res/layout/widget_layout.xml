@@ -5,9 +5,7 @@
   Structure:
     FrameLayout (root, tap target)
     └── LinearLayout (vertical)
-        ├── Header row  (date + "dayGLANCE")
-        ├── Hairline divider
-        ├── Steps row
+        ├── Header row  (date left, last-updated right)
         ├── Hairline divider
         └── ListView  (scrollable agenda — powered by DayGlanceWidgetListService)
 
@@ -31,7 +29,7 @@
         android:paddingTop="10dp"
         android:paddingBottom="8dp">
 
-        <!-- ── Header ───────────────────────────────────────────────────── -->
+        <!-- ── Header: date + last-updated timestamp ────────────────────── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -48,49 +46,6 @@
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="dayGLANCE"
-                android:textColor="@color/widget_brand"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05" />
-
-        </LinearLayout>
-
-        <!-- Hairline divider -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/widget_divider"
-            android:layout_marginBottom="5dp"
-            android:text="" />
-
-        <!-- ── Steps row ─────────────────────────────────────────────────── -->
-        <LinearLayout
-            android:id="@+id/row_steps"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="5dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="👟 "
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/tv_steps"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Steps: —"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/tv_updated"
@@ -111,10 +66,6 @@
             android:text="" />
 
         <!-- ── Agenda list ─────────────────────────────────────────────── -->
-        <!--
-          ListView is populated by DayGlanceWidgetListService (RemoteViewsService).
-          The adapter intent is set programmatically in DayGlanceWidget.updateWidget().
-        -->
         <ListView
             android:id="@+id/lv_agenda"
             android:layout_width="match_parent"
