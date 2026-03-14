@@ -16695,16 +16695,18 @@ const DayPlanner = () => {
                           <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
                         </button>
                       )}
-                      {obsidianConfig?.enabled && (
+                      {isNativeAndroid() && (
                         <button
                           onClick={() => setMobileSettingsView('obsidian')}
                           className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
                         >
                           <div className="relative">
-                            <BookOpen size={20} className="text-purple-400" />
-                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                              obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-                            }`} />
+                            <BookOpen size={20} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
+                            {obsidianConfig?.enabled && (
+                              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                                obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+                              }`} />
+                            )}
                           </div>
                           <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
                           <ChevronRight size={18} className={textSecondary} />

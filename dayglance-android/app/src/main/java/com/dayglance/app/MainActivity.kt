@@ -150,6 +150,17 @@ class MainActivity : AppCompatActivity() {
                 fileChooserCallback = filePathCallback
                 val mimeTypes = fileChooserParams.acceptTypes
                     .filter { it.isNotBlank() }
+                    .map { type ->
+                        // Android's OpenDocument contract requires MIME types, not file extensions.
+                        // Convert common extensions that the web frontend may pass via accept="…".
+                        when (type.lowercase()) {
+                            ".json" -> "application/json"
+                            ".ics"  -> "text/calendar"
+                            ".csv"  -> "text/csv"
+                            ".txt"  -> "text/plain"
+                            else    -> type
+                        }
+                    }
                     .toTypedArray()
                     .ifEmpty { arrayOf("application/json", "*/*") }
                 filePickerLauncher.launch(mimeTypes)
