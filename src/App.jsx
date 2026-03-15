@@ -27814,6 +27814,17 @@ const DayPlanner = () => {
         const tagBreakdown = Object.entries(tagStats).map(([tag, s]) => ({ tag, ...s })).sort((a, b) => b.total - a.total).slice(0, 8);
 
         // Stats for AI weekly summary (used by click-to-reveal prompt)
+        const nextWeekTopTasks = nextRegular
+          .filter(t => !t.isExample)
+          .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+          .slice(0, 5)
+          .map(t => ({ title: t.title, date: t.date, priority: t.priority || 0 }));
+        const nextWeekCalendarEvents = nextImported
+          .filter(t => !t.isTaskCalendar)
+          .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.startTime || '').localeCompare(b.startTime || ''))
+          .slice(0, 5)
+          .map(t => ({ title: t.title, date: t.date, time: t.startTime, isAllDay: t.isAllDay || false }));
+
         const weeklyAIStats = {
           dateRange: `${pastStartStr} to ${pastEndStr}`,
           tasksCompleted: pastCompleted,
@@ -27829,6 +27840,9 @@ const DayPlanner = () => {
           incompleteCount: pastIncomplete.length,
           tagBreakdown,
           inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample).length,
+          nextWeekTaskCount: nextScheduled,
+          nextWeekTopTasks,
+          nextWeekCalendarEvents,
         };
 
         const StatCard = ({ value, label, icon }) => (

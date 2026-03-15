@@ -339,7 +339,8 @@ Rules:
 export function weeklySummaryUserPrompt(data) {
   const { dateRange, tasksCompleted, tasksScheduled, completionRate, timeSpent, timePlanned, focusMinutes,
     recurringCompleted, recurringScheduled, bestDay, bestDayCount,
-    incompleteCount, tagBreakdown, inboxCount } = data;
+    incompleteCount, tagBreakdown, inboxCount,
+    nextWeekTaskCount = 0, nextWeekTopTasks = [], nextWeekCalendarEvents = [] } = data;
 
   const lines = [`Week: ${dateRange}.`];
   lines.push(`Tasks completed: ${tasksCompleted} of ${tasksScheduled} (${completionRate}% completion rate).`);
@@ -365,6 +366,20 @@ export function weeklySummaryUserPrompt(data) {
 
   if (inboxCount > 0) {
     lines.push(`${inboxCount} tasks currently in inbox.`);
+  }
+
+  lines.push(`\nNext week: ${nextWeekTaskCount} task(s) already scheduled.`);
+  if (nextWeekTopTasks.length > 0) {
+    lines.push(`Notable tasks next week: ${nextWeekTopTasks.map(t => {
+      let s = `${t.title} (${t.date})`;
+      if (t.priority === 3) s += ' [HIGH PRIORITY]';
+      return s;
+    }).join('; ')}.`);
+  }
+  if (nextWeekCalendarEvents.length > 0) {
+    lines.push(`Calendar events next week: ${nextWeekCalendarEvents.map(t =>
+      t.isAllDay ? `${t.title} on ${t.date} (all day)` : `${t.title} on ${t.date}${t.time ? ` at ${t.time}` : ''}`
+    ).join('; ')}.`);
   }
 
   return lines.join('\n');
