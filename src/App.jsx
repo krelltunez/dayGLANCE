@@ -12133,7 +12133,11 @@ const DayPlanner = () => {
       const completedToday = tasks.filter(t => t.date === todayStr && t.completed && !t.imported && !t.isExample);
       const incompleteToday = tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample);
       const tomorrowTasks = tasks.filter(t => t.date === tomorrowStr && !t.imported && !t.isExample);
-      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      const tomorrowCalendarEvents = tasks.filter(t => t.date === tomorrowStr && t.imported && !t.isTaskCalendar)
+        .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false }))
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample)
+        .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
       const total = completedToday.length + incompleteToday.length;
       const completionRate = total > 0 ? Math.round((completedToday.length / total) * 100) : 0;
@@ -12142,10 +12146,11 @@ const DayPlanner = () => {
         todayDate: todayStr,
         dayOfWeek,
         completedTasks: completedToday.map(t => ({ title: t.title, priority: t.priority || 0 })),
-        incompleteTasks: incompleteToday.map(t => ({ title: t.title })),
+        incompleteTasks: incompleteToday.map(t => ({ title: t.title, priority: t.priority || 0 })),
         completionRate,
         tomorrowTasks: tomorrowTasks.map(t => ({ title: t.title, time: t.startTime })),
-        inboxSuggestions: inboxItems.slice(0, 3).map(t => ({ title: t.title })),
+        tomorrowCalendarEvents,
+        inboxSuggestions: inboxItems.slice(0, 3).map(t => ({ title: t.title, priority: t.priority || 0 })),
       };
 
       const text = await aiComplete(eveningReflectionSystemPrompt(), eveningReflectionUserPrompt(data), aiConfig);

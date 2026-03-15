@@ -271,7 +271,7 @@ Rules:
 }
 
 export function eveningReflectionUserPrompt(data) {
-  const { todayDate, dayOfWeek, completedTasks, incompleteTasks, completionRate, tomorrowTasks, inboxSuggestions } = data;
+  const { todayDate, dayOfWeek, completedTasks, incompleteTasks, completionRate, tomorrowTasks, tomorrowCalendarEvents = [], inboxSuggestions } = data;
   const lines = [`Today is ${dayOfWeek}, ${todayDate}.`];
 
   if (completedTasks.length > 0) {
@@ -285,17 +285,34 @@ export function eveningReflectionUserPrompt(data) {
   }
 
   if (incompleteTasks.length > 0) {
-    lines.push(`Left incomplete (${incompleteTasks.length}): ${incompleteTasks.map(t => t.title).join('; ')}.`);
+    lines.push(`Left incomplete (${incompleteTasks.length}): ${incompleteTasks.map(t => {
+      let s = t.title;
+      if (t.priority === 3) s += ' [HIGH PRIORITY]';
+      return s;
+    }).join('; ')}.`);
   }
 
   lines.push(`Completion rate: ${completionRate}%.`);
 
-  if (tomorrowTasks.length > 0) {
-    lines.push(`Already scheduled for tomorrow (${tomorrowTasks.length}): ${tomorrowTasks.map(t => t.title + (t.time ? ` at ${t.time}` : '')).join('; ')}.`);
+  if (tomorrowTasks.length > 0 || tomorrowCalendarEvents.length > 0) {
+    const taskParts = tomorrowTasks.map(t => t.title + (t.time ? ` at ${t.time}` : ''));
+    const eventParts = tomorrowCalendarEvents.map(t =>
+      t.isAllDay ? `${t.title} (all day, calendar)` : `${t.title}${t.time ? ` at ${t.time}` : ''} (calendar)`
+    );
+    const all = [...taskParts, ...eventParts];
+    lines.push(`Already on tomorrow's plate (${all.length}): ${all.join('; ')}.`);
   }
 
-  if (inboxSuggestions.length > 0) {
-    lines.push(`Top unscheduled inbox items to consider for tomorrow: ${inboxSuggestions.map(t => t.title).join('; ')}.`);
+  const suggestions = [
+    ...incompleteTasks.map(t => ({ ...t, source: 'incomplete' })),
+    ...inboxSuggestions.map(t => ({ ...t, source: 'inbox' })),
+  ].slice(0, 4);
+  if (suggestions.length > 0) {
+    lines.push(`To consider for tomorrow (incomplete tasks and top inbox items): ${suggestions.map(t => {
+      let s = t.title;
+      if (t.priority === 3) s += ' [HIGH PRIORITY]';
+      return s;
+    }).join('; ')}.`);
   }
 
   return lines.join('\n');
