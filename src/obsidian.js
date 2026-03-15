@@ -120,10 +120,19 @@ export async function disconnectVault() {
 /**
  * Navigate into a sub-path within the vault (e.g. "Daily Notes").
  * Creates directories if they don't exist.
+ *
+ * Path segments are sanitised: empty, `.`, and `..` components are rejected
+ * so that a misconfigured or maliciously crafted dailyNotesPath cannot
+ * traverse outside the user-selected vault root.
  */
 async function getDailyNotesDir(vaultHandle, subPath) {
   if (!subPath || subPath === '/' || subPath === '.') return vaultHandle;
   const parts = subPath.split('/').filter(Boolean);
+  for (const part of parts) {
+    if (part === '..' || part === '.') {
+      throw new Error(`Obsidian: unsafe path segment "${part}" in dailyNotesPath`);
+    }
+  }
   let current = vaultHandle;
   for (const part of parts) {
     current = await current.getDirectoryHandle(part, { create: true });
@@ -131,10 +140,18 @@ async function getDailyNotesDir(vaultHandle, subPath) {
   return current;
 }
 
+/** Reject date strings that aren't strictly YYYY-MM-DD to prevent path injection. */
+function assertSafeDateStr(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    throw new Error(`Obsidian: invalid date string "${dateStr}"`);
+  }
+}
+
 /**
  * Read a single daily note markdown file. Returns the text or null.
  */
 async function readDailyNoteFile(dirHandle, dateStr) {
+  assertSafeDateStr(dateStr);
   try {
     const fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
     const file = await fileHandle.getFile();
@@ -149,6 +166,7 @@ async function readDailyNoteFile(dirHandle, dateStr) {
  * Write (create or overwrite) a daily note markdown file.
  */
 export async function writeDailyNoteFile(vaultHandle, dailyNotesPath, dateStr, content) {
+  assertSafeDateStr(dateStr);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
   const fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`, { create: true });
   const writable = await fileHandle.createWritable();
@@ -201,6 +219,7 @@ function stripLinePrefixes(text) {
  * date prefix that was already in the line.
  */
 export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration) {
+  assertSafeDateStr(dateStr);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
   let fileHandle, text;
   try {
