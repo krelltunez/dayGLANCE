@@ -8426,10 +8426,11 @@ const DayPlanner = () => {
     const endStr   = event.end;
     const startDate = startStr.substring(0, 10);
     const endDate   = endStr ? endStr.substring(0, 10) : startDate;
-    // For all-day events use the queried date so multi-day events appear on each day
-    // they span, not just the first day. For timed events use the event's own start.
-    const date = isAllDay && event._queryDate ? event._queryDate : startDate;
     const isMultiDay = isAllDay && endDate > startDate;
+    // For multi-day all-day events use the queried date so each day they span appears
+    // correctly. Single-day all-day events always use their own startDate so they are
+    // not shifted to whichever day they were queried from within the ±2 fetch window.
+    const date = isMultiDay && event._queryDate ? event._queryDate : startDate;
     const startTime = isAllDay ? null : startStr.substring(11, 16); // "HH:MM"
     let duration = 60;
     if (!isAllDay && endStr.length >= 16) {
