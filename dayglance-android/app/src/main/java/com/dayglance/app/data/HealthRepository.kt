@@ -5,6 +5,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +34,16 @@ class HealthRepository(context: Context) {
         val start = date.atStartOfDay(zone).toInstant()
         val end = date.plusDays(1).atStartOfDay(zone).toInstant()
         try {
-            c.readRecords(
-                ReadRecordsRequest(StepsRecord::class, TimeRangeFilter.between(start, end))
-            ).records.sumOf { it.count }.toInt()
+            // Use aggregate() rather than readRecords().sumOf{} to avoid double-counting
+            // when multiple sources (e.g. Samsung Health + wearable) each write their own
+            // StepsRecord entries for the same time window.
+            val response = c.aggregate(
+                AggregateRequest(
+                    metrics = setOf(StepsRecord.COUNT_TOTAL),
+                    timeRangeFilter = TimeRangeFilter.between(start, end),
+                )
+            )
+            response[StepsRecord.COUNT_TOTAL]?.toInt() ?: 0
         } catch (e: Exception) {
             0
         }
