@@ -13000,6 +13000,11 @@ const DayPlanner = () => {
     const minutesRemaining = timeToMinutes(activeF.end) - nowMin;
     if (minutesRemaining <= 30) return;
 
+    // Effective free time = gap to the next scheduled task (or end of frame), whichever is sooner.
+    // This prevents nudging when the calendar is back-to-back even if the frame has time left.
+    const effectiveMinutes = Math.min(minutesRemaining, agendaNowMarker.gapMinutes);
+    if (effectiveMinutes < 15) return;
+
     setFrameNudgeLoading(true);
     setFrameNudgeError('');
     setFrameNudgeSuggestion(null);
@@ -13015,10 +13020,14 @@ const DayPlanner = () => {
         return true;
       });
       const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      // Only include tasks that can actually fit in the available slot.
+      // Tasks with no duration are always included (we don't know how long they take).
       const candidates = [
         ...inboxItems.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), tags: extractTags(t.title), duration: t.duration || null, isInbox: true })),
         ...todayScheduled.map(t => ({ id: t.id, title: renderTitleWithoutTags(t.title), tags: extractTags(t.title), duration: t.duration || null, isInbox: false })),
-      ].slice(0, 20);
+      ]
+        .filter(t => !t.duration || t.duration <= effectiveMinutes)
+        .slice(0, 20);
 
       if (candidates.length === 0) { setFrameNudgeLoading(false); return; }
 
@@ -13028,7 +13037,7 @@ const DayPlanner = () => {
         activeFrame: {
           label: activeF.label,
           energyLevel: activeF.energyLevel,
-          minutesRemaining,
+          minutesRemaining: effectiveMinutes,
           tagAffinity: activeF.tagAffinity || [],
         },
         candidates,
@@ -13037,6 +13046,11 @@ const DayPlanner = () => {
       const result = await aiJSON(frameNudgeSystemPrompt(), frameNudgeUserPrompt(ctx), aiConfig);
       if (result?.taskId) {
         const matched = candidates.find(t => t.id === result.taskId || String(t.id) === String(result.taskId));
+        // Discard the suggestion if the AI picked a task that won't fit in the available slot.
+        if (matched?.duration && matched.duration > effectiveMinutes) {
+          setFrameNudgeLoading(false);
+          return;
+        }
         setFrameNudgeSuggestion({
           taskId: result.taskId,
           taskTitle: matched ? matched.title : (result.taskTitle || ''),
@@ -13048,7 +13062,7 @@ const DayPlanner = () => {
       setFrameNudgeError('Could not get suggestion.');
     }
     setFrameNudgeLoading(false);
-  }, [aiConfig, currentTime, extractTags, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
+  }, [agendaNowMarker, aiConfig, currentTime, extractTags, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
 
   // Auto-trigger frame nudge when entering a new Frame
   const prevFrameNudgeKeyRef = useRef(null);
@@ -15458,7 +15472,7 @@ const DayPlanner = () => {
                   )
                 )}
                 {/* Frame Nudge card (mobile) */}
-                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
+                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && agendaNowMarker.gapMinutes >= 15 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
                   <FrameNudgeCard
                     suggestion={frameNudgeSuggestion}
                     loading={frameNudgeLoading}
@@ -18960,7 +18974,7 @@ const DayPlanner = () => {
                       )}
 
                       {/* Frame Nudge card (tablet) */}
-                      {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
+                      {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && agendaNowMarker.gapMinutes >= 15 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
                         <FrameNudgeCard
                           suggestion={frameNudgeSuggestion}
                           loading={frameNudgeLoading}
@@ -20065,7 +20079,7 @@ const DayPlanner = () => {
                   )}
 
                   {/* Frame Nudge card (desktop) */}
-                  {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
+                  {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && activeFrameForNudge.minutesRemaining > 30 && agendaNowMarker.gapMinutes >= 15 && frameNudgeDismissedKey !== activeFrameNudgeKey && (frameNudgeSuggestion || frameNudgeLoading || frameNudgeError) && (
                     <FrameNudgeCard
                       suggestion={frameNudgeSuggestion}
                       loading={frameNudgeLoading}

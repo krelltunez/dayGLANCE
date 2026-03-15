@@ -74,7 +74,7 @@ export function frameNudgeSystemPrompt() {
 Consider:
 - Tag affinity (HIGHEST priority): if the frame has tag affinity, ONLY pick tasks whose tags list contains at least one of those exact tags. Do NOT infer tags from task titles — use only the tags field provided. If no tasks match the tag affinity exactly, then ignore tag affinity and fall back to other criteria.
 - Energy level match: high energy → deep/complex work, low energy → admin/easy tasks
-- Task duration vs remaining frame time
+- Available time (HARD CONSTRAINT): NEVER suggest a task whose duration exceeds minutesRemaining. Tasks with no duration listed may be suggested freely.
 
 Return ONLY valid JSON with this structure:
 { "taskId": "<id from candidates>", "taskTitle": "<task title>", "reason": "<one short sentence why this task fits now>" }`;
