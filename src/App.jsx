@@ -17623,7 +17623,7 @@ const DayPlanner = () => {
                       <button
                         onClick={async () => {
                           if (!isFileSystemAccessSupported()) {
-                            alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
+                            alert('Your browser does not support the File System Access API. Please use a Chromium-based browser (e.g., Chrome, Edge, Brave) to connect an Obsidian vault.');
                             return;
                           }
                           const handle = await requestVaultAccess();
@@ -26472,7 +26472,7 @@ const DayPlanner = () => {
                         <button
                           onClick={async () => {
                             if (!isFileSystemAccessSupported()) {
-                              alert('Your browser does not support the File System Access API. Please use Chrome or Edge to connect an Obsidian vault.');
+                              alert('Your browser does not support the File System Access API. Please use a Chromium-based browser (e.g., Chrome, Edge, Brave) to connect an Obsidian vault.');
                               return;
                             }
                             const handle = await requestVaultAccess();
