@@ -12037,7 +12037,7 @@ const DayPlanner = () => {
       const scheduledToday = tasks.filter(t => t.date === todayStr && !t.imported && !t.isExample);
       // Gather imported calendar events for today
       const calendarEventsToday = tasks.filter(t => t.date === todayStr && t.imported && !t.isTaskCalendar)
-        .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false }))
+        .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false, duration: t.duration || 0 }))
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       // Gather today's recurring tasks
       const todayRecurring = recurringTasks.flatMap(t => {
@@ -12057,7 +12057,8 @@ const DayPlanner = () => {
       const upcomingDeadlines = unscheduledTasks.filter(t => t.deadline && t.deadline > todayStr && t.deadline <= nextWeekStr && !t.completed).slice(0, 5);
       // Total minutes
       const totalMinutes = scheduledToday.reduce((s, t) => s + (t.duration || 0), 0)
-        + todayRecurring.reduce((s, t) => s + 30, 0); // recurring default 30
+        + todayRecurring.reduce((s, t) => s + 30, 0) // recurring default 30
+        + calendarEventsToday.reduce((s, t) => s + (t.isAllDay ? 0 : t.duration), 0);
 
       const data = {
         todayDate: todayStr,

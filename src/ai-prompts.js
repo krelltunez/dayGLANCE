@@ -194,7 +194,7 @@ export function morningSummarySystemPrompt() {
 Rules:
 - Keep it to 2-4 short sentences
 - Lead with the most important thing (deadlines, high-priority tasks, heavy/light day)
-- Mention the number of tasks and approximate time commitment
+- Mention the number of tasks and approximate time commitment; treat calendar events as committed time when judging whether the day is heavy or light
 - If there are calendar events (meetings, appointments), weave them into the briefing naturally
 - If there are deadlines today or upcoming, highlight them
 - If the day is light, note the free time positively
@@ -212,7 +212,9 @@ export function morningSummaryUserPrompt(data) {
   if (calendarEvents.length > 0) {
     lines.push(`Calendar events today (${calendarEvents.length}): ${calendarEvents.map(t => {
       if (t.isAllDay) return `${t.title} (all day)`;
-      return t.time ? `${t.title} at ${t.time}` : t.title;
+      let s = t.time ? `${t.title} at ${t.time}` : t.title;
+      if (t.duration) s += ` (${t.duration}min)`;
+      return s;
     }).join('; ')}.`);
   }
 
@@ -231,7 +233,7 @@ export function morningSummaryUserPrompt(data) {
     lines.push(`Recurring tasks today (${recurringTasks.length}): ${recurringTasks.map(t => t.title + (t.time ? ` at ${t.time}` : '')).join('; ')}.`);
   }
 
-  lines.push(`Total planned time: ${Math.round(totalMinutes / 60 * 10) / 10} hours (${totalMinutes} min).`);
+  lines.push(`Total committed time: ${Math.round(totalMinutes / 60 * 10) / 10} hours (${totalMinutes} min) — includes tasks and timed calendar events.`);
 
   if (deadlinesToday.length > 0) {
     lines.push(`DEADLINES TODAY: ${deadlinesToday.map(t => t.title).join(', ')}.`);
