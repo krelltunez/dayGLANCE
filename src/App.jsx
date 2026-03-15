@@ -13292,7 +13292,7 @@ const DayPlanner = () => {
       if (totalAvail > 0 || frameTasks.length > 0) {
         sections.push({
           type: 'frame',
-          name: frame.name,
+          name: frame.label,
           colorHex: frameColorHex,
           start: frame.start,
           end: frame.end,
