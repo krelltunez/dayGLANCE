@@ -104,9 +104,9 @@ export function frameNudgeUserPrompt({ currentTimeStr, activeFrame, candidates }
 export function taskSuggestSystemPrompt() {
   return `You are a task duration estimator for a day planner app. Given a task title and the user's existing tag vocabulary, return a JSON object with:
 - "duration": estimated minutes. Must be one of: 15, 30, 45, 60, 90, 120, 180, 240
-- "tags": array of 1-3 relevant tags. Prefer tags from the known list. If none fit well, create short lowercase single-word or hyphenated tags.
+- "tags": array of 1-2 relevant tags (pick only the best fit). Prefer tags from the known list. If none fit well, create short lowercase single-word or hyphenated tags.
 
-Return ONLY valid JSON, no explanation. Example: {"duration": 30, "tags": ["work", "email"]}`;
+Return ONLY valid JSON, no explanation. Example: {"duration": 30, "tags": ["work"]}`;
 }
 
 export function taskSuggestUserPrompt({ title, existingTags }) {

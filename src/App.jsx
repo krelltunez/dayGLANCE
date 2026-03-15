@@ -8424,7 +8424,12 @@ const DayPlanner = () => {
     const isAllDay = event.allDay;
     const startStr = event.start; // "YYYY-MM-DDThh:mm:ss" or "YYYY-MM-DD"
     const endStr   = event.end;
-    const date     = startStr.substring(0, 10);
+    const startDate = startStr.substring(0, 10);
+    const endDate   = endStr ? endStr.substring(0, 10) : startDate;
+    // For all-day events use the queried date so multi-day events appear on each day
+    // they span, not just the first day. For timed events use the event's own start.
+    const date = isAllDay && event._queryDate ? event._queryDate : startDate;
+    const isMultiDay = isAllDay && endDate > startDate;
     const startTime = isAllDay ? null : startStr.substring(11, 16); // "HH:MM"
     let duration = 60;
     if (!isAllDay && endStr.length >= 16) {
@@ -8432,7 +8437,8 @@ const DayPlanner = () => {
       duration = Math.max(15, timeToMinutes(endTime) - timeToMinutes(startTime));
     }
     return {
-      id:                   `native-cal-${event.id}`,
+      // Multi-day all-day events get a per-day ID so each day's copy survives dedup
+      id:                   isMultiDay ? `native-cal-${event.id}-${date}` : `native-cal-${event.id}`,
       nativeEventId:        event.id,
       nativeCalendarColor:  event.color || '',
       title:                event.title || '',
@@ -8473,7 +8479,11 @@ const DayPlanner = () => {
     }
 
     Promise.all(dates.map(d => nativeGetEvents(d))).then(results => {
-      const allEvents = results.flatMap(result => Array.isArray(result) ? result : []);
+      // Tag each event with the date it was queried for so multi-day all-day events
+      // can be shown on every day they span, not just their start date.
+      const allEvents = results.flatMap((result, i) =>
+        Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
+      );
 
       // Discover calendars that appear in events but weren't returned by getCalendars()
       // (e.g. task-only calendars that some providers omit from the calendars list).

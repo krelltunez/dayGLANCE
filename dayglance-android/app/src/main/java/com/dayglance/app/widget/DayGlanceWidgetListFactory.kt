@@ -215,15 +215,37 @@ class DayGlanceWidgetListFactory(
             }
         }
 
-        // 6. Routines — collapsed into a single grouped row
+        // 6. Routines — collapsed into a single grouped row, sorted by start time
         val routinesArray = snapshot.optJSONArray("routines")
         if (routinesArray != null && routinesArray.length() > 0) {
-            val names = (0 until routinesArray.length()).mapNotNull { i ->
-                routinesArray.optJSONObject(i)?.optString("name", "Routine")
+            data class RoutineEntry(val name: String, val startTime: String)
+            val entries = (0 until routinesArray.length()).mapNotNull { i ->
+                val obj = routinesArray.optJSONObject(i) ?: return@mapNotNull null
+                RoutineEntry(
+                    name = obj.optString("name", "Routine"),
+                    startTime = obj.optString("startTime", ""),
+                )
             }
-            if (names.isNotEmpty()) {
+            // Sort: timed routines first (by time), then all-day ones alphabetically
+            val sorted = entries.sortedWith(compareBy(
+                { it.startTime.isEmpty() },          // timed first
+                { it.startTime },                     // chronological for timed
+                { it.name },                          // alpha for all-day
+            ))
+            val labels = sorted.map { entry ->
+                if (entry.startTime.isNotEmpty()) {
+                    val timeLabel = try {
+                        val parts = entry.startTime.split(":").map { it.toInt() }
+                        LocalTime.of(parts[0], parts.getOrNull(1) ?: 0).format(TWELVE_HR_SHORT)
+                    } catch (_: Throwable) { entry.startTime }
+                    "$timeLabel ${entry.name}"
+                } else {
+                    entry.name
+                }
+            }
+            if (labels.isNotEmpty()) {
                 items += AgendaItem.Section("ROUTINES")
-                items += AgendaItem.RoutineGroup(names)
+                items += AgendaItem.RoutineGroup(labels)
             }
         }
 
