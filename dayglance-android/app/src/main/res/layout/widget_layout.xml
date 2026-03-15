@@ -53,7 +53,7 @@
                 android:layout_height="wrap_content"
                 android:text=""
                 android:textColor="@color/widget_text_secondary"
-                android:textSize="9sp" />
+                android:textSize="11sp" />
 
             <ImageView
                 android:id="@+id/btn_refresh"

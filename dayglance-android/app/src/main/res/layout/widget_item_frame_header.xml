@@ -30,7 +30,7 @@
         android:layout_weight="1"
         android:text="Frame"
         android:textColor="@color/widget_text_primary"
-        android:textSize="11sp"
+        android:textSize="12sp"
         android:textStyle="bold"
         android:maxLines="1"
         android:ellipsize="end" />
@@ -48,7 +48,7 @@
             android:layout_height="wrap_content"
             android:text="9:00 – 10:00"
             android:textColor="@color/widget_text_secondary"
-            android:textSize="9sp" />
+            android:textSize="11sp" />
 
         <TextView
             android:id="@+id/tv_frame_avail"
@@ -56,7 +56,7 @@
             android:layout_height="wrap_content"
             android:text="45 min free"
             android:textColor="@color/widget_brand"
-            android:textSize="9sp"
+            android:textSize="11sp"
             android:visibility="gone" />
 
     </LinearLayout>

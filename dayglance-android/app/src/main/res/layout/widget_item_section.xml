@@ -17,7 +17,7 @@
         android:layout_height="wrap_content"
         android:text="SECTION"
         android:textColor="@color/widget_section_text"
-        android:textSize="9sp"
+        android:textSize="11sp"
         android:textStyle="bold"
         android:letterSpacing="0.08"
         android:paddingStart="5dp"
