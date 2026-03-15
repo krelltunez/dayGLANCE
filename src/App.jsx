@@ -17523,6 +17523,11 @@ const DayPlanner = () => {
                     <p className={`text-xs ${textSecondary}`}>
                       Import tasks and sync daily notes with your Obsidian vault.
                     </p>
+                    {!isNativeAndroid() && !isFileSystemAccessSupported() && (
+                      <p className={`text-xs text-amber-500`}>
+                        Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
+                      </p>
+                    )}
                     {isNativeAndroid() ? (
                       <div className="space-y-3">
                         {obsidianConfig?.enabled ? (
@@ -26381,6 +26386,11 @@ const DayPlanner = () => {
                       <p className={`${textSecondary} text-xs`}>
                         Import tasks and sync daily notes with your Obsidian vault.
                       </p>
+                      {!isNativeAndroid() && !isFileSystemAccessSupported() && (
+                        <p className={`text-xs text-amber-500`}>
+                          Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
+                        </p>
+                      )}
                       {isNativeAndroid() ? (
                         <div className="space-y-3">
                           <p className={`text-xs ${textSecondary}`}>
