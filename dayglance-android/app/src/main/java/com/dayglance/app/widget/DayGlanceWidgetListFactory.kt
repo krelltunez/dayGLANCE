@@ -200,6 +200,7 @@ class DayGlanceWidgetListFactory(
                     }
                     "unframed" -> {
                         val tasks = sec.optJSONArray("tasks") ?: continue
+                        if (tasks.length() > 0) items += AgendaItem.Section("SCHEDULED")
                         for (j in 0 until tasks.length()) {
                             val t = tasks.optJSONObject(j) ?: continue
                             items += AgendaItem.Task(
