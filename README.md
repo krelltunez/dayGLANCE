@@ -3,7 +3,7 @@
 **Your day, at a glance.** A beautiful, feature-rich day planner with visual time-blocking, task management, and calendar sync. Use it instantly at [dayglance.app](https://dayglance.app) or self-host it on your own server. All data is stored locally in your browser -- nothing is ever sent to a server.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.3-green.svg)](https://github.com/krelltunez/day-planner)
+[![Version](https://img.shields.io/badge/version-1.2.6-green.svg)](https://github.com/krelltunez/day-planner)
 
 [Live App](https://dayglance.app) | [Documentation](https://docs.dayglance.app)
 
