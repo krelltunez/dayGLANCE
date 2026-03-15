@@ -8424,13 +8424,41 @@ const DayPlanner = () => {
     const isAllDay = event.allDay;
     const startStr = event.start; // "YYYY-MM-DDThh:mm:ss" or "YYYY-MM-DD"
     const endStr   = event.end;
-    const startDate = startStr.substring(0, 10);
-    const endDate   = endStr ? endStr.substring(0, 10) : startDate;
+
+    // Android formats all-day event timestamps (stored as UTC midnight) as local time
+    // strings without a timezone suffix. In UTC- timezones this shifts the date one day
+    // back (e.g. UTC midnight March 15 → local "2026-03-14T19:00:00"). Parse via Date
+    // so JS treats the string as local time, then read the UTC date from toISOString()
+    // to recover the correct calendar date regardless of device timezone.
+    const allDayDateStr = (str) => {
+      if (!str || str.length === 10) return str; // already "YYYY-MM-DD"
+      return new Date(str).toISOString().substring(0, 10);
+    };
+
+    const startDate = isAllDay ? allDayDateStr(startStr) : startStr.substring(0, 10);
+    // Android's dtend for all-day events is exclusive (the day after the last event day).
+    // After UTC-correcting, subtract one day to get the inclusive last day.
+    let endDate;
+    if (isAllDay && endStr) {
+      const excl = allDayDateStr(endStr);
+      const d = new Date(excl + 'T12:00:00');
+      d.setDate(d.getDate() - 1);
+      endDate = dateToString(d);
+    } else {
+      endDate = endStr ? endStr.substring(0, 10) : startDate;
+    }
     const isMultiDay = isAllDay && endDate > startDate;
     // For multi-day all-day events use the queried date so each day they span appears
-    // correctly. Single-day all-day events always use their own startDate so they are
-    // not shifted to whichever day they were queried from within the ±2 fetch window.
-    const date = isMultiDay && event._queryDate ? event._queryDate : startDate;
+    // correctly. Clamp _queryDate to [startDate, endDate]: Android can return an event
+    // one day early/late due to UTC-offset arithmetic, so out-of-range query dates are
+    // snapped to the nearest valid boundary instead of displaying the event off by a day.
+    let date;
+    if (isMultiDay && event._queryDate) {
+      const qd = event._queryDate;
+      date = qd < startDate ? startDate : qd > endDate ? endDate : qd;
+    } else {
+      date = startDate;
+    }
     const startTime = isAllDay ? null : startStr.substring(11, 16); // "HH:MM"
     let duration = 60;
     if (!isAllDay && endStr.length >= 16) {
