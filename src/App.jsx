@@ -6841,7 +6841,9 @@ const DayPlanner = () => {
     } catch (err) {
       console.error('Microphone error:', err);
       const msg = err.name === 'NotAllowedError'
-        ? 'Microphone access denied. Please allow microphone permissions in your browser settings.'
+        ? typeof navigator.brave !== 'undefined'
+          ? 'Microphone access denied. Brave Shields may be blocking access — try disabling Shields for this site, or allow microphone permissions in your browser settings.'
+          : 'Microphone access denied. Please allow microphone permissions in your browser settings.'
         : err.name === 'NotFoundError'
         ? 'No microphone found. Please connect a microphone and try again.'
         : `Microphone error: ${err.message}`;
