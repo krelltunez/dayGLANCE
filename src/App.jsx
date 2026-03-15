@@ -15795,7 +15795,7 @@ const DayPlanner = () => {
                           ) : agendaNowMarker.inboxCount > 0 ? (
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
-                              {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                              {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                                 <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                                   <Sparkles size={9} />AI
                                 </button>
@@ -15981,7 +15981,7 @@ const DayPlanner = () => {
                             ) : agendaNowMarker.inboxCount > 0 ? (
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
-                                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                                   <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                                     <Sparkles size={9} />AI
                                   </button>
@@ -19303,7 +19303,7 @@ const DayPlanner = () => {
                                 ) : agendaNowMarker.inboxCount > 0 ? (
                                   <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
-                                    {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                    {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                                       <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                                         <Sparkles size={9} />AI
                                       </button>
@@ -19444,7 +19444,7 @@ const DayPlanner = () => {
                                   ) : agendaNowMarker.inboxCount > 0 ? (
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                       <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
-                                      {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                      {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                                         <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                                           <Sparkles size={9} />AI
                                         </button>
@@ -20400,7 +20400,7 @@ const DayPlanner = () => {
                             ) : agendaNowMarker.inboxCount > 0 ? (
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
-                                {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                                   <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                                     <Sparkles size={9} />AI
                                   </button>
@@ -20541,7 +20541,7 @@ const DayPlanner = () => {
                               ) : agendaNowMarker.inboxCount > 0 ? (
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
-                                  {aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
+                                  {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                                     <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                                       <Sparkles size={9} />AI
                                     </button>
