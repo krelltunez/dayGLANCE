@@ -226,7 +226,7 @@ class DayGlanceWidgetListFactory(
                                 items += AgendaItem.Task(
                                     title = t.optString("title", "Untitled"),
                                     colorHex = t.optString("colorHex", "#3b82f6"),
-                                    badge = "",
+                                    badge = if (isInProgress(t)) "IN PROGRESS" else "",
                                     timeStr = buildTimeStr(t),
                                     indent = true,
                                 )
@@ -240,7 +240,7 @@ class DayGlanceWidgetListFactory(
                             items += AgendaItem.Task(
                                 title = t.optString("title", "Untitled"),
                                 colorHex = t.optString("colorHex", "#3b82f6"),
-                                badge = "",
+                                badge = if (isInProgress(t)) "IN PROGRESS" else "",
                                 timeStr = buildTimeStr(t),
                                 indent = false,
                             )
@@ -288,6 +288,20 @@ class DayGlanceWidgetListFactory(
     }
 
     /** Builds the "9:30 – 10:00" time string for a task JSON object. */
+    private fun isInProgress(t: JSONObject): Boolean {
+        val start = t.optString("startTime", "")
+        val duration = t.optInt("duration", 0)
+        if (start.isEmpty() || duration <= 0) return false
+        return try {
+            val parts = start.split(":").map { it.toInt() }
+            val startMin = parts[0] * 60 + (parts.getOrNull(1) ?: 0)
+            val endMin = startMin + duration
+            val now = LocalTime.now()
+            val nowMin = now.hour * 60 + now.minute
+            nowMin in startMin until endMin
+        } catch (_: Throwable) { false }
+    }
+
     private fun buildTimeStr(t: JSONObject): String {
         val start = t.optString("startTime", "")
         val duration = t.optInt("duration", 0)
@@ -381,6 +395,7 @@ class DayGlanceWidgetListFactory(
             val badgeColor = when (item.badge) {
                 "OVERDUE" -> colorRes(R.color.widget_overdue_text)
                 "DUE TODAY" -> colorRes(R.color.widget_deadline_text)
+                "IN PROGRESS" -> colorRes(R.color.widget_in_progress_text)
                 else -> colorRes(R.color.widget_text_secondary)
             }
             rv.setTextColor(R.id.tv_task_badge, badgeColor)

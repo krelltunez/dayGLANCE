@@ -28,4 +28,6 @@
     <color name="widget_ring_track">#FFe5e7eb</color>
     <!-- "Due Today" deadline label -->
     <color name="widget_deadline_text">#FFf97316</color>
+    <!-- "In Progress" task badge -->
+    <color name="widget_in_progress_text">#FF10b981</color>
 </resources>

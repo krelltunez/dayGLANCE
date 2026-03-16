@@ -12,4 +12,5 @@
     <color name="widget_overdue_text">#FFf87171</color>
     <color name="widget_ring_track">#FF374151</color>
     <color name="widget_deadline_text">#FFfb923c</color>
+    <color name="widget_in_progress_text">#FF34d399</color>
 </resources>
