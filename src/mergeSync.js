@@ -239,8 +239,10 @@ export const mergeHabits = (localHabits, remoteHabits, localDeletedIds = {}, rem
 
   for (const localHabit of localHabits) {
     const id = String(localHabit.id);
-    // Skip habits that have been deleted on either side
-    if (mergedDeletedIds[id]) {
+    // Skip habits suppressed by a tombstone that is newer than the habit itself.
+    // If the habit was modified after the deletion (e.g. recreated on another device),
+    // the habit's lastModified wins and it is kept — matching task tombstone behaviour.
+    if (mergedDeletedIds[id] && new Date(mergedDeletedIds[id]) > new Date(localHabit.lastModified || localHabit.createdAt || 0)) {
       remoteChanged = true; // remote may still have this habit
       continue;
     }
@@ -271,8 +273,7 @@ export const mergeHabits = (localHabits, remoteHabits, localDeletedIds = {}, rem
 
   for (const remoteHabit of remoteHabits) {
     const id = String(remoteHabit.id);
-    // Skip habits that have been deleted on either side
-    if (mergedDeletedIds[id]) {
+    if (mergedDeletedIds[id] && new Date(mergedDeletedIds[id]) > new Date(remoteHabit.lastModified || remoteHabit.createdAt || 0)) {
       localChanged = true; // local may still have this habit
       continue;
     }
@@ -499,7 +500,9 @@ export const mergeSyncData = (localData, remoteData) => {
   const remoteFrameMap = new Map(remoteFrames.map(f => [String(f.id), f]));
   const mergedFrames = [];
 
-  // Keep local frames that aren't tombstoned, preferring remote version if it differs
+  // Keep local frames that aren't tombstoned, using lastModified to resolve conflicts.
+  // When both sides differ but neither has a lastModified timestamp (legacy frames),
+  // keep local rather than blindly preferring remote.
   for (const localFrame of localFrames) {
     const id = String(localFrame.id);
     if (allDeletedFrameIds[id]) {
@@ -508,8 +511,16 @@ export const mergeSyncData = (localData, remoteData) => {
     }
     const remoteFrame = remoteFrameMap.get(id);
     if (remoteFrame && JSON.stringify(localFrame) !== JSON.stringify(remoteFrame)) {
-      mergedFrames.push(remoteFrame);
-      localChanged = true;
+      const localTime = new Date(localFrame.lastModified || 0);
+      const remoteTime = new Date(remoteFrame.lastModified || 0);
+      if (remoteTime > localTime) {
+        mergedFrames.push(remoteFrame);
+        localChanged = true;
+      } else {
+        // Local is newer, or neither side has a timestamp — keep local.
+        mergedFrames.push(localFrame);
+        remoteChanged = true;
+      }
     } else {
       mergedFrames.push(localFrame);
       if (!remoteFrame) remoteChanged = true; // local-only → remote needs it
@@ -531,9 +542,10 @@ export const mergeSyncData = (localData, remoteData) => {
   const localHabitsEnabled = localData.habitsEnabled !== undefined ? localData.habitsEnabled : true;
   const remoteHabitsEnabled = remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : true;
   if (localHabitsEnabled !== remoteHabitsEnabled) {
-    // Prefer remote (propagates the toggle across devices)
+    // Prefer remote (propagates the toggle across devices).
+    // Only set localChanged — remote already has the value we're adopting,
+    // so remoteChanged must not be cleared here (earlier merges may have set it).
     localChanged = true;
-    remoteChanged = false; // remote already has it
   }
 
   // Check if routinesEnabled setting differs
@@ -541,7 +553,6 @@ export const mergeSyncData = (localData, remoteData) => {
   const remoteRoutinesEnabled = remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : true;
   if (localRoutinesEnabled !== remoteRoutinesEnabled) {
     localChanged = true;
-    remoteChanged = false;
   }
 
   return {

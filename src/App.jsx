@@ -11204,7 +11204,8 @@ const DayPlanner = () => {
       recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
       syncUrl: localStorage.getItem('day-planner-sync-url') || '',
       taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
-      taskCalendarAuth: JSON.parse(localStorage.getItem('day-planner-task-calendar-auth') || 'null'),
+      // taskCalendarAuth is intentionally excluded — credentials must not be written
+      // to the shared sync file on the WebDAV server.
       completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
       recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -11284,7 +11285,7 @@ const DayPlanner = () => {
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
     if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
     if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
-    if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
+    // taskCalendarAuth is not applied from sync — credentials are device-local only.
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
