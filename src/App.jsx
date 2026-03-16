@@ -5407,6 +5407,21 @@ const DayPlanner = () => {
     }
   };
 
+  // Postpone a deadline task by pushing its deadline to the next day
+  const postponeDeadlineTask = (taskId) => {
+    const task = unscheduledTasks.find(t => t.id === taskId);
+    if (!task || !task.deadline) return;
+    const nextDay = new Date(task.deadline + 'T12:00:00');
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextDateStr = nextDay.toISOString().split('T')[0];
+    pushUndo();
+    setUnscheduledTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, deadline: nextDateStr } : t
+    ));
+    setUndoToast({ message: 'Deadline postponed to ' + formatDeadlineDate(nextDateStr), actionable: true });
+    playUISound('slide');
+  };
+
   // Clear deadline from inbox task
   const clearDeadline = (taskId) => {
     pushUndo();
@@ -14714,6 +14729,13 @@ const DayPlanner = () => {
                                       >
                                         {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
                                       </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
+                                        className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
+                                        title="Postpone to tomorrow"
+                                      >
+                                        <SkipForward size={14} />
+                                      </button>
                                       <div className="deadline-picker-container relative">
                                         <button
                                           onClick={(e) => {
@@ -21781,6 +21803,13 @@ const DayPlanner = () => {
                                     title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                                   >
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
+                                    className="hover:bg-white/20 rounded p-1 transition-colors"
+                                    title="Postpone to tomorrow"
+                                  >
+                                    <SkipForward size={14} />
                                   </button>
                                   <div className="deadline-picker-container relative">
                                     <button
