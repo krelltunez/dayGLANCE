@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">dayGLANCE</string>
     <string name="widget_description">Today\'s agenda at a glance</string>
+    <string name="shortcut_voice_short">Voice Input</string>
+    <string name="shortcut_voice_long">Add tasks by voice</string>
 </resources>

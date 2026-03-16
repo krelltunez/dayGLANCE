@@ -2988,6 +2988,7 @@ const DayPlanner = () => {
   const [voiceMicError, setVoiceMicError] = useState(null);
   const voiceRecorderRef = useRef(null); // { recorder: MediaRecorder, stream: MediaStream }
   const voiceAudioChunksRef = useRef([]);
+  const voiceAutoStartRef = useRef(false); // set by voice-input shortcut to auto-start recording
   const voiceTextareaRef = useRef(null);
   const voiceAllTagsRef = useRef([]);
   const voiceBuildTaskContextRef = useRef(() => 'No tasks currently.');
@@ -6846,6 +6847,14 @@ const DayPlanner = () => {
       voiceAudioChunksRef.current = [];
     }
   }, [showVoiceInput]);
+
+  // When the voice modal is opened via the Android launcher shortcut, auto-start recording.
+  useEffect(() => {
+    if (showVoiceInput && voiceAutoStartRef.current) {
+      voiceAutoStartRef.current = false;
+      voiceStartRecording();
+    }
+  }, [showVoiceInput, voiceStartRecording]);
 
   const voiceStartRecording = useCallback(async () => {
     if (!voiceCanRecord) return;
@@ -12728,7 +12737,10 @@ const DayPlanner = () => {
     const checkPending = () => {
       const pending = nativeGetPendingAction();
       if (!pending) return;
-      if (pending.action === 'complete' && pending.taskId) {
+      if (pending.action === 'voice_input') {
+        voiceAutoStartRef.current = true;
+        setShowVoiceInput(true);
+      } else if (pending.action === 'complete' && pending.taskId) {
         toggleComplete(pending.taskId);
       } else if (pending.action === 'snooze' && pending.taskId) {
         // Shift the task's start time forward by the snooze duration (default 15 min)

@@ -77,6 +77,14 @@ class SharedDataStore(context: Context) {
             else remove(KEY_PENDING_SNOOZE)
         }
 
+    /**
+     * True when the app was launched via the "Voice Input" launcher shortcut.
+     * Written by MainActivity; read and cleared by NativeBridge.getPendingAction().
+     */
+    var pendingVoiceInput: Boolean
+        get() = prefs.getBoolean(KEY_PENDING_VOICE_INPUT, false)
+        set(value) = prefs.edit { putBoolean(KEY_PENDING_VOICE_INPUT, value) }
+
     // ── Scheduled reminders (background alarm persistence) ───────────────────
 
     /**
@@ -112,6 +120,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_STEPS_CACHE = "steps_cache"
         private const val KEY_PENDING_COMPLETE = "pending_complete_task_id"
         private const val KEY_PENDING_SNOOZE = "pending_snooze_task_id"
+        private const val KEY_PENDING_VOICE_INPUT = "pending_voice_input"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }

@@ -358,7 +358,12 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun getPendingAction(): String {
-        // Snooze takes priority (it was triggered most recently)
+        // Voice input shortcut takes priority — open mic immediately on launch
+        if (dataStore.pendingVoiceInput) {
+            dataStore.pendingVoiceInput = false
+            return """{"action":"voice_input"}"""
+        }
+        // Snooze takes priority over complete (it was triggered most recently)
         val snoozeId = dataStore.pendingSnoozeTaskId
         if (snoozeId != null) {
             dataStore.pendingSnoozeTaskId = null

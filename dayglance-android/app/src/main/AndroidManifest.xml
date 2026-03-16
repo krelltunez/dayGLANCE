@@ -49,11 +49,20 @@
             android:exported="true"
             android:screenOrientation="portrait"
             android:configChanges="screenSize|keyboardHidden"
-            android:windowSoftInputMode="adjustNothing">
+            android:windowSoftInputMode="adjustNothing"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Launcher shortcut: long-press app icon → "Voice Input" -->
+            <intent-filter>
+                <action android:name="com.dayglance.app.ACTION_VOICE_INPUT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Health Connect: required so the system can show our permission rationale.

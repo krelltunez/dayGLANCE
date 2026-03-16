@@ -31,6 +31,7 @@ import androidx.webkit.WebViewAssetLoader
 import com.dayglance.app.bridge.NativeBridge
 import com.dayglance.app.bridge.ObsidianBridge
 import com.dayglance.app.data.HealthRepository
+import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.databinding.ActivityMainBinding
 
 /**
@@ -81,6 +82,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Store voice-input shortcut intent so JS can pick it up via getPendingAction()
+        // after the WebView finishes loading.
+        if (intent?.action == ACTION_VOICE_INPUT) {
+            SharedDataStore(this).pendingVoiceInput = true
+        }
 
         webView = binding.webView
         healthRepository = HealthRepository(this)
@@ -330,6 +337,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Called when the activity is already running (singleTop) and the user taps the
+     * launcher shortcut again. Store the pending action so JS picks it up on next focus.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == ACTION_VOICE_INPUT) {
+            SharedDataStore(this).pendingVoiceInput = true
+            // The WebView is already loaded; trigger the JS check immediately.
+            webView.post {
+                webView.evaluateJavascript(
+                    "(function(){ if(document.visibilityState==='visible')" +
+                    "document.dispatchEvent(new Event('visibilitychange')); })();",
+                    null
+                )
+            }
+        }
+    }
+
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
@@ -341,5 +367,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val RC_PERMISSIONS = 1001
         private const val RC_MICROPHONE = 1002
+        const val ACTION_VOICE_INPUT = "com.dayglance.app.ACTION_VOICE_INPUT"
     }
 }

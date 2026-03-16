@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Static launcher shortcut: long-press the app icon → tap "Voice Input".
+      Sends ACTION_VOICE_INPUT to MainActivity, which stores a pending action in
+      SharedDataStore. The JS layer reads it on visibilitychange and auto-opens
+      the voice recording modal.
+    -->
+    <shortcut
+        android:shortcutId="voice_input"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_voice"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="com.dayglance.app.ACTION_VOICE_INPUT"
+            android:targetPackage="com.dayglance.app"
+            android:targetClass="com.dayglance.app.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+</shortcuts>
