@@ -8491,17 +8491,9 @@ const DayPlanner = () => {
     };
 
     const startDate = isAllDay ? allDayDateStr(startStr) : startStr.substring(0, 10);
-    // Android's dtend for all-day events is exclusive (the day after the last event day).
-    // After UTC-correcting, subtract one day to get the inclusive last day.
-    let endDate;
-    if (isAllDay && endStr) {
-      const excl = allDayDateStr(endStr);
-      const d = new Date(excl + 'T12:00:00');
-      d.setDate(d.getDate() - 1);
-      endDate = dateToString(d);
-    } else {
-      endDate = endStr ? endStr.substring(0, 10) : startDate;
-    }
+    // CalendarRepository already subtracts 1 day from Android's exclusive dtend before
+    // sending, so the end arrives as the inclusive last day in "YYYY-MM-DD" format.
+    const endDate = endStr ? endStr.substring(0, 10) : startDate;
     const isMultiDay = isAllDay && endDate > startDate;
     // For multi-day all-day events use the queried date so each day they span appears
     // correctly. Clamp _queryDate to [startDate, endDate]: Android can return an event
