@@ -363,6 +363,10 @@ class NativeBridge(
             dataStore.pendingVoiceInput = false
             return """{"action":"voice_input"}"""
         }
+        if (dataStore.pendingAddTask) {
+            dataStore.pendingAddTask = false
+            return """{"action":"add_task"}"""
+        }
         // Snooze takes priority over complete (it was triggered most recently)
         val snoozeId = dataStore.pendingSnoozeTaskId
         if (snoozeId != null) {

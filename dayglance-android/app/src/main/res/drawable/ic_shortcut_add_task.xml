@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Plus / add icon for the "Add Task" launcher shortcut -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M19,11h-6V5a1,1 0,0 0,-2 0v6H5a1,1 0,0 0,0 2h6v6a1,1 0,0 0,2 0v-6h6a1,1 0,0 0,0 -2z" />
+</vector>

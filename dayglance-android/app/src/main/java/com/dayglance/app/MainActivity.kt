@@ -83,10 +83,12 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Store voice-input shortcut intent so JS can pick it up via getPendingAction()
+        // Store shortcut intent so JS can pick it up via getPendingAction()
         // after the WebView finishes loading.
-        if (intent?.action == ACTION_VOICE_INPUT) {
-            SharedDataStore(this).pendingVoiceInput = true
+        val store = SharedDataStore(this)
+        when (intent?.action) {
+            ACTION_VOICE_INPUT -> store.pendingVoiceInput = true
+            ACTION_ADD_TASK    -> store.pendingAddTask = true
         }
 
         webView = binding.webView
@@ -343,16 +345,19 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.action == ACTION_VOICE_INPUT) {
-            SharedDataStore(this).pendingVoiceInput = true
-            // The WebView is already loaded; trigger the JS check immediately.
-            webView.post {
-                webView.evaluateJavascript(
-                    "(function(){ if(document.visibilityState==='visible')" +
-                    "document.dispatchEvent(new Event('visibilitychange')); })();",
-                    null
-                )
-            }
+        val store = SharedDataStore(this)
+        when (intent.action) {
+            ACTION_VOICE_INPUT -> store.pendingVoiceInput = true
+            ACTION_ADD_TASK    -> store.pendingAddTask = true
+            else -> return
+        }
+        // The WebView is already loaded; trigger the JS check immediately.
+        webView.post {
+            webView.evaluateJavascript(
+                "(function(){ if(document.visibilityState==='visible')" +
+                "document.dispatchEvent(new Event('visibilitychange')); })();",
+                null
+            )
         }
     }
 
@@ -368,5 +373,6 @@ class MainActivity : AppCompatActivity() {
         private const val RC_PERMISSIONS = 1001
         private const val RC_MICROPHONE = 1002
         const val ACTION_VOICE_INPUT = "com.dayglance.app.ACTION_VOICE_INPUT"
+        const val ACTION_ADD_TASK    = "com.dayglance.app.ACTION_ADD_TASK"
     }
 }

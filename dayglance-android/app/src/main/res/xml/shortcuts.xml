@@ -19,5 +19,23 @@
             android:targetClass="com.dayglance.app.MainActivity" />
         <categories android:name="android.shortcut.conversation" />
     </shortcut>
+    <!--
+      Static launcher shortcut: long-press the app icon → tap "Add Task".
+      Sends ACTION_ADD_TASK to MainActivity, which stores a pending action in
+      SharedDataStore. The JS layer reads it on visibilitychange and auto-opens
+      the add-task modal.
+    -->
+    <shortcut
+        android:shortcutId="add_task"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_add_task"
+        android:shortcutShortLabel="@string/shortcut_add_task_short"
+        android:shortcutLongLabel="@string/shortcut_add_task_long">
+        <intent
+            android:action="com.dayglance.app.ACTION_ADD_TASK"
+            android:targetPackage="com.dayglance.app"
+            android:targetClass="com.dayglance.app.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
 
 </shortcuts>

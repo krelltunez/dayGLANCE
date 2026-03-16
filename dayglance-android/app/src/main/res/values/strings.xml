@@ -4,4 +4,6 @@
     <string name="widget_description">Today\'s agenda at a glance</string>
     <string name="shortcut_voice_short">Voice Input</string>
     <string name="shortcut_voice_long">Add tasks by voice</string>
+    <string name="shortcut_add_task_short">Add Task</string>
+    <string name="shortcut_add_task_long">Add a new task</string>
 </resources>

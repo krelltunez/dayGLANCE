@@ -12740,6 +12740,8 @@ const DayPlanner = () => {
       if (pending.action === 'voice_input') {
         voiceAutoStartRef.current = true;
         setShowVoiceInput(true);
+      } else if (pending.action === 'add_task') {
+        setShowAddTask(true);
       } else if (pending.action === 'complete' && pending.taskId) {
         toggleComplete(pending.taskId);
       } else if (pending.action === 'snooze' && pending.taskId) {
