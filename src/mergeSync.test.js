@@ -265,11 +265,41 @@ describe('mergeSyncData', () => {
     expect(data.minimizedSections).toEqual({ inbox: true });
   });
 
-  it('prefers remote for shared settings', () => {
+  it('prefers remote calendar URL when both are non-empty', () => {
     const local  = { ...emptyData(), syncUrl: 'http://old' };
     const remote = { ...emptyData(), syncUrl: 'http://new' };
     const { data } = mergeSyncData(local, remote);
     expect(data.syncUrl).toBe('http://new');
+  });
+
+  it('does not wipe local syncUrl when remote is empty', () => {
+    const local  = { ...emptyData(), syncUrl: 'http://my-calendar.ics' };
+    const remote = { ...emptyData(), syncUrl: '' };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.syncUrl).toBe('http://my-calendar.ics');
+  });
+
+  it('does not wipe local taskCalendarUrl when remote is empty', () => {
+    const local  = { ...emptyData(), taskCalendarUrl: 'http://caldav/tasks' };
+    const remote = { ...emptyData(), taskCalendarUrl: '' };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.taskCalendarUrl).toBe('http://caldav/tasks');
+  });
+
+  it('does not wipe local taskCalendarUrl when remote is undefined', () => {
+    const local  = { ...emptyData(), taskCalendarUrl: 'http://caldav/tasks' };
+    const remote = { ...emptyData() };
+    delete remote.taskCalendarUrl;
+    const { data } = mergeSyncData(local, remote);
+    expect(data.taskCalendarUrl).toBe('http://caldav/tasks');
+  });
+
+  it('adopts remote calendar URLs when local has none', () => {
+    const local  = { ...emptyData(), syncUrl: '', taskCalendarUrl: '' };
+    const remote = { ...emptyData(), syncUrl: 'http://remote.ics', taskCalendarUrl: 'http://remote-caldav' };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.syncUrl).toBe('http://remote.ics');
+    expect(data.taskCalendarUrl).toBe('http://remote-caldav');
   });
 
   // ── Bidirectional sync scenario ────────────────────────────────

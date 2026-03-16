@@ -573,9 +573,10 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       deletedRoutineChipIds: allDeletedChipIds,
       deletedFrameIds: allDeletedFrameIds,
       removedTodayRoutineIds: allRemovedTodayIds,
-      // Settings: prefer remote for shared settings, local values are kept per-device
-      syncUrl: remoteData.syncUrl !== undefined ? remoteData.syncUrl : localData.syncUrl,
-      taskCalendarUrl: remoteData.taskCalendarUrl !== undefined ? remoteData.taskCalendarUrl : localData.taskCalendarUrl,
+      // Calendar URLs: prefer non-empty value (don't let a device without URLs configured wipe one that has them).
+      // If both are non-empty and differ, prefer remote so a URL change propagates across devices.
+      syncUrl: (remoteData.syncUrl || localData.syncUrl || ''),
+      taskCalendarUrl: (remoteData.taskCalendarUrl || localData.taskCalendarUrl || ''),
       routineDefinitions: routineMerge.merged,
       todayRoutines: todayRoutinesMerge.merged,
       routinesDate: mergedRoutinesDate,

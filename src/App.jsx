@@ -11379,8 +11379,10 @@ const DayPlanner = () => {
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
     if (normalizedUnsched) localStorage.setItem('day-planner-unscheduled', JSON.stringify(normalizedUnsched));
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
-    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
-    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+    // Calendar URLs: only overwrite if remote provides a non-empty value
+    // (prevents a device without URLs from wiping one that has them configured).
+    if (data.syncUrl) localStorage.setItem('day-planner-sync-url', data.syncUrl);
+    if (data.taskCalendarUrl) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
     // taskCalendarAuth is not applied from sync — credentials are device-local only.
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
@@ -11430,8 +11432,8 @@ const DayPlanner = () => {
     if (normalizedTasks) setTasks(prev => [...normalizedTasks, ...prev.filter(t => t._native)]);
     if (normalizedUnsched) setUnscheduledTasks(normalizedUnsched);
     if (data.recycleBin) setRecycleBin(data.recycleBin);
-    if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
-    if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
+    if (data.syncUrl) setSyncUrl(data.syncUrl);
+    if (data.taskCalendarUrl) setTaskCalendarUrl(data.taskCalendarUrl);
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(data.recurringTasks);
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
