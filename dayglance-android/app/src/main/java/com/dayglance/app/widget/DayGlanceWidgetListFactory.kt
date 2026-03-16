@@ -367,9 +367,9 @@ class DayGlanceWidgetListFactory(
     private fun buildSectionView(item: AgendaItem.Section): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_item_section)
         rv.setTextViewText(R.id.tv_section_label, item.label)
-        if (item.isOverdue) {
-            rv.setTextColor(R.id.tv_section_label, colorRes(R.color.widget_overdue_text))
-        }
+        val labelColor = if (item.isOverdue) colorRes(R.color.widget_overdue_text)
+                         else colorRes(R.color.widget_section_text)
+        rv.setTextColor(R.id.tv_section_label, labelColor)
         rv.boostTextSizeForOneUi(R.id.tv_section_label, 11f)
         rv.setOnClickFillInIntent(R.id.section_item_root, android.content.Intent())
         return rv
