@@ -254,11 +254,23 @@ class DayGlanceWidgetListFactory(
         val routinesArray = snapshot.optJSONArray("routines")
         if (routinesArray != null && routinesArray.length() > 0) {
             data class RoutineEntry(val name: String, val startTime: String)
+            val nowMin = LocalTime.now().let { it.hour * 60 + it.minute }
             val entries = (0 until routinesArray.length()).mapNotNull { i ->
                 val obj = routinesArray.optJSONObject(i) ?: return@mapNotNull null
+                val start = obj.optString("startTime", "")
+                val duration = obj.optInt("duration", 0)
+                // Hide timed routines that ended more than 60 minutes ago
+                if (start.isNotEmpty()) {
+                    try {
+                        val parts = start.split(":").map { it.toInt() }
+                        val startMin = parts[0] * 60 + (parts.getOrNull(1) ?: 0)
+                        val endMin = startMin + duration
+                        if (nowMin > endMin + 60) return@mapNotNull null
+                    } catch (_: Throwable) { /* keep if unparseable */ }
+                }
                 RoutineEntry(
                     name = obj.optString("name", "Routine"),
-                    startTime = obj.optString("startTime", ""),
+                    startTime = start,
                 )
             }
             // Sort: timed routines first (by time), then all-day ones alphabetically
