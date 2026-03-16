@@ -23626,7 +23626,7 @@ const DayPlanner = () => {
             title="GTD Frames & Smart Schedule"
           >
             <LayoutGrid size={22} />
-          </button>}
+          </button>
           <button
             onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
