@@ -192,14 +192,14 @@ class DayGlanceWidgetListFactory(
             items += AgendaItem.Section("SCHEDULED")
         }
 
-        // Today's tasks that have passed their end time — shown with time, no badge
+        // Today's tasks that have passed their end time — shown with time and OVERDUE badge
         if (overdueTodayArray != null) {
             for (i in 0 until overdueTodayArray.length()) {
                 val t = overdueTodayArray.optJSONObject(i) ?: continue
                 items += AgendaItem.Task(
                     title = t.optString("title", "Untitled"),
                     colorHex = t.optString("colorHex", "#ef4444"),
-                    badge = "",
+                    badge = "OVERDUE",
                     timeStr = buildTimeStr(t),
                 )
             }
