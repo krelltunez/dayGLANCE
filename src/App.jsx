@@ -6848,14 +6848,6 @@ const DayPlanner = () => {
     }
   }, [showVoiceInput]);
 
-  // When the voice modal is opened via the Android launcher shortcut, auto-start recording.
-  useEffect(() => {
-    if (showVoiceInput && voiceAutoStartRef.current) {
-      voiceAutoStartRef.current = false;
-      voiceStartRecording();
-    }
-  }, [showVoiceInput, voiceStartRecording]);
-
   const voiceStartRecording = useCallback(async () => {
     if (!voiceCanRecord) return;
     setVoiceMicError(null);
@@ -6906,6 +6898,14 @@ const DayPlanner = () => {
       setVoiceMicError('error');
     }
   }, [voiceCanRecord]);
+
+  // When the voice modal is opened via the Android launcher shortcut, auto-start recording.
+  useEffect(() => {
+    if (showVoiceInput && voiceAutoStartRef.current) {
+      voiceAutoStartRef.current = false;
+      voiceStartRecording();
+    }
+  }, [showVoiceInput, voiceStartRecording]);
 
   const voiceStopRecording = useCallback(async () => {
     const ref = voiceRecorderRef.current;
