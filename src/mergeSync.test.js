@@ -825,11 +825,11 @@ describe('mergeSyncData — routine definitions', () => {
   it('SCENARIO: routine tombstones from both devices are combined', () => {
     const deviceA = {
       ...emptyData(),
-      deletedRoutineChipIds: { '1': '2025-01-01T00:00:00Z' }
+      deletedRoutineChipIds: { '1': ts(60) }
     };
     const deviceB = {
       ...emptyData(),
-      deletedRoutineChipIds: { '2': '2025-01-02T00:00:00Z' }
+      deletedRoutineChipIds: { '2': ts(30) }
     };
 
     const { data } = mergeSyncData(deviceA, deviceB);
@@ -1681,5 +1681,94 @@ describe('mergeSyncData — GTD frames sync', () => {
     const { data } = mergeSyncData(deviceB, deviceA);
     expect(data.gtdFrames).toHaveLength(1);
     expect(data.gtdFrames[0].exceptions['2026-02-25'].deleted).toBe(true);
+  });
+
+  it('frame modified after tombstone survives (tombstone timestamp check)', () => {
+    const frame = F('f1', 'Recreated', { lastModified: ts(1) }); // 1 min ago
+    const deviceA = { ...emptyData(), gtdFrames: [frame] };
+    const deviceB = { ...emptyData(), deletedFrameIds: { 'f1': ts(5) } }; // deleted 5 min ago
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(1);
+    expect(data.gtdFrames[0].name).toBe('Recreated');
+  });
+
+  it('frame deleted after modification is removed (tombstone wins)', () => {
+    const frame = F('f1', 'Old', { lastModified: ts(10) }); // 10 min ago
+    const deviceA = { ...emptyData(), gtdFrames: [frame] };
+    const deviceB = { ...emptyData(), deletedFrameIds: { 'f1': ts(1) } }; // deleted 1 min ago
+
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.gtdFrames).toHaveLength(0);
+  });
+});
+
+// ─── Tombstone pruning ──────────────────────────────────────────────
+
+describe('mergeSyncData — tombstone pruning', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {},
+    syncUrl: null, taskCalendarUrl: null,
+    routineDefinitions: {}, todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false
+  });
+
+  it('prunes tombstones older than retention window', () => {
+    const oldTs = new Date(Date.now() - 100 * 86400000).toISOString(); // 100 days ago
+    const recentTs = ts(5); // 5 min ago
+    const local = {
+      ...emptyData(),
+      deletedTaskIds: { 'old-task': oldTs, 'recent-task': recentTs },
+      deletedRoutineChipIds: { 'old-chip': oldTs },
+      deletedFrameIds: { 'old-frame': oldTs },
+      removedTodayRoutineIds: { 'old-routine': oldTs },
+    };
+    const remote = emptyData();
+
+    const { data } = mergeSyncData(local, remote, 90);
+    expect(data.deletedTaskIds['old-task']).toBeUndefined();
+    expect(data.deletedTaskIds['recent-task']).toBeDefined();
+    expect(data.deletedRoutineChipIds['old-chip']).toBeUndefined();
+    expect(data.deletedFrameIds['old-frame']).toBeUndefined();
+    expect(data.removedTodayRoutineIds['old-routine']).toBeUndefined();
+  });
+
+  it('keeps all tombstones when retentionDays is 0', () => {
+    const oldTs = new Date(Date.now() - 365 * 86400000).toISOString(); // 1 year ago
+    const local = {
+      ...emptyData(),
+      deletedTaskIds: { 'ancient': oldTs },
+    };
+    const remote = emptyData();
+
+    const { data } = mergeSyncData(local, remote, 0);
+    expect(data.deletedTaskIds['ancient']).toBeDefined();
+  });
+});
+
+// ─── Calendar URL change detection ──────────────────────────────────
+
+describe('mergeSyncData — calendar URL change detection', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {},
+    syncUrl: '', taskCalendarUrl: '',
+    routineDefinitions: {}, todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false
+  });
+
+  it('flags remoteChanged when local has URL and remote does not', () => {
+    const local = { ...emptyData(), syncUrl: 'http://cal.ics' };
+    const remote = { ...emptyData(), syncUrl: '' };
+    const { remoteChanged } = mergeSyncData(local, remote);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('flags localChanged when remote has URL and local does not', () => {
+    const local = { ...emptyData(), taskCalendarUrl: '' };
+    const remote = { ...emptyData(), taskCalendarUrl: 'http://caldav' };
+    const { localChanged } = mergeSyncData(local, remote);
+    expect(localChanged).toBe(true);
   });
 });

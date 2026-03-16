@@ -345,6 +345,16 @@ export const mergeHabitLogs = (localLogs, remoteLogs) => {
  * @param {Object} remoteData - Remote sync payload .data
  * @returns {{ data: Object, localChanged: boolean, remoteChanged: boolean }}
  */
+// Prune tombstone entries older than the cutoff date.
+const pruneTombstones = (tombstones, cutoff) => {
+  if (!cutoff) return tombstones;
+  const pruned = {};
+  for (const [id, ts] of Object.entries(tombstones)) {
+    if (new Date(ts) >= cutoff) pruned[id] = ts;
+  }
+  return pruned;
+};
+
 export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   // Combine tombstones (permanently deleted task IDs) from both sides
   const localDeleted = localData.deletedTaskIds || {};
@@ -512,8 +522,8 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   // keep local rather than blindly preferring remote.
   for (const localFrame of localFrames) {
     const id = String(localFrame.id);
-    if (allDeletedFrameIds[id]) {
-      localChanged = true; // frame was deleted
+    if (allDeletedFrameIds[id] && new Date(allDeletedFrameIds[id]) > new Date(localFrame.lastModified || 0)) {
+      localChanged = true; // frame was deleted (tombstone is newer)
       continue;
     }
     const remoteFrame = remoteFrameMap.get(id);
@@ -537,7 +547,7 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   for (const remoteFrame of remoteFrames) {
     const id = String(remoteFrame.id);
     if (localFrameIds.has(id)) continue;
-    if (allDeletedFrameIds[id]) {
+    if (allDeletedFrameIds[id] && new Date(allDeletedFrameIds[id]) > new Date(remoteFrame.lastModified || 0)) {
       remoteChanged = true; // tell remote this was deleted
       continue;
     }
@@ -562,6 +572,25 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     localChanged = true;
   }
 
+  // Detect calendar URL changes so the sync cycle completes even when URLs
+  // are the only difference between local and remote.
+  const mergedSyncUrl = remoteData.syncUrl || localData.syncUrl || '';
+  const mergedTaskCalUrl = remoteData.taskCalendarUrl || localData.taskCalendarUrl || '';
+  if (mergedSyncUrl !== (localData.syncUrl || '')) localChanged = true;
+  if (mergedSyncUrl !== (remoteData.syncUrl || '')) remoteChanged = true;
+  if (mergedTaskCalUrl !== (localData.taskCalendarUrl || '')) localChanged = true;
+  if (mergedTaskCalUrl !== (remoteData.taskCalendarUrl || '')) remoteChanged = true;
+
+  // Prune tombstones older than the retention window so they don't grow forever.
+  // Pruning happens after merge resolution so stale tombstones still participate
+  // in the current merge cycle before being discarded.
+  const tombstoneCutoff = retentionDays > 0 ? new Date(Date.now() - retentionDays * 86400000) : null;
+  const prunedDeletedIds = pruneTombstones(allDeletedIds, tombstoneCutoff);
+  const prunedDeletedChipIds = pruneTombstones(allDeletedChipIds, tombstoneCutoff);
+  const prunedDeletedFrameIds = pruneTombstones(allDeletedFrameIds, tombstoneCutoff);
+  const prunedRemovedTodayIds = pruneTombstones(allRemovedTodayIds, tombstoneCutoff);
+  const prunedDeletedHabitIds = pruneTombstones(habitsMerge.mergedDeletedIds, tombstoneCutoff);
+
   return {
     data: {
       tasks: finalTasks,
@@ -569,10 +598,10 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       recycleBin: reconciledBin,
       recurringTasks: recurMerge.merged,
       completedTaskUids: mergedCompletedUids,
-      deletedTaskIds: allDeletedIds,
-      deletedRoutineChipIds: allDeletedChipIds,
-      deletedFrameIds: allDeletedFrameIds,
-      removedTodayRoutineIds: allRemovedTodayIds,
+      deletedTaskIds: prunedDeletedIds,
+      deletedRoutineChipIds: prunedDeletedChipIds,
+      deletedFrameIds: prunedDeletedFrameIds,
+      removedTodayRoutineIds: prunedRemovedTodayIds,
       // Calendar URLs: prefer non-empty value (don't let a device without URLs configured wipe one that has them).
       // If both are non-empty and differ, prefer remote so a URL change propagates across devices.
       syncUrl: (remoteData.syncUrl || localData.syncUrl || ''),
@@ -582,7 +611,7 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       routinesDate: mergedRoutinesDate,
       dailyNotes: dailyNotesMerge.merged,
       habits: habitsMerge.merged,
-      deletedHabitIds: habitsMerge.mergedDeletedIds,
+      deletedHabitIds: prunedDeletedHabitIds,
       habitLogs: habitLogsMerge.merged,
       habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
       routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,
