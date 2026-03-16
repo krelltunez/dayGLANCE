@@ -60,7 +60,12 @@
                 <action android:name="com.dayglance.app.ACTION_VOICE_INPUT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            <!-- Launcher shortcut: long-press app icon → "Add Task" -->
+            <!-- Launcher shortcut: long-press app icon → "Inbox Task" -->
+            <intent-filter>
+                <action android:name="com.dayglance.app.ACTION_ADD_INBOX_TASK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Launcher shortcut: long-press app icon → "Scheduled Task" -->
             <intent-filter>
                 <action android:name="com.dayglance.app.ACTION_ADD_TASK" />
                 <category android:name="android.intent.category.DEFAULT" />

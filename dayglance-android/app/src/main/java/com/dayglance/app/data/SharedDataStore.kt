@@ -93,6 +93,14 @@ class SharedDataStore(context: Context) {
         get() = prefs.getBoolean(KEY_PENDING_ADD_TASK, false)
         set(value) = prefs.edit { putBoolean(KEY_PENDING_ADD_TASK, value) }
 
+    /**
+     * True when the app was launched via the "Inbox Task" launcher shortcut.
+     * Written by MainActivity; read and cleared by NativeBridge.getPendingAction().
+     */
+    var pendingAddInboxTask: Boolean
+        get() = prefs.getBoolean(KEY_PENDING_ADD_INBOX_TASK, false)
+        set(value) = prefs.edit { putBoolean(KEY_PENDING_ADD_INBOX_TASK, value) }
+
     // ── Scheduled reminders (background alarm persistence) ───────────────────
 
     /**
@@ -130,6 +138,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_SNOOZE = "pending_snooze_task_id"
         private const val KEY_PENDING_VOICE_INPUT = "pending_voice_input"
         private const val KEY_PENDING_ADD_TASK = "pending_add_task"
+        private const val KEY_PENDING_ADD_INBOX_TASK = "pending_add_inbox_task"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }

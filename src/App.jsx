@@ -12742,6 +12742,8 @@ const DayPlanner = () => {
         setShowVoiceInput(true);
       } else if (pending.action === 'add_task') {
         setShowAddTask(true);
+      } else if (pending.action === 'add_inbox_task') {
+        openNewInboxTask();
       } else if (pending.action === 'complete' && pending.taskId) {
         toggleComplete(pending.taskId);
       } else if (pending.action === 'snooze' && pending.taskId) {

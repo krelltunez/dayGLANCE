@@ -4,6 +4,8 @@
     <string name="widget_description">Today\'s agenda at a glance</string>
     <string name="shortcut_voice_short">Voice Input</string>
     <string name="shortcut_voice_long">Add tasks by voice</string>
-    <string name="shortcut_add_task_short">Add Task</string>
-    <string name="shortcut_add_task_long">Add a new task</string>
+    <string name="shortcut_add_task_short">Scheduled Task</string>
+    <string name="shortcut_add_task_long">Add a scheduled task</string>
+    <string name="shortcut_add_inbox_task_short">Inbox Task</string>
+    <string name="shortcut_add_inbox_task_long">Add a task to inbox</string>
 </resources>

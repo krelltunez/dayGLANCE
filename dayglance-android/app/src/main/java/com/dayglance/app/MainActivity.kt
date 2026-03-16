@@ -87,8 +87,9 @@ class MainActivity : AppCompatActivity() {
         // after the WebView finishes loading.
         val store = SharedDataStore(this)
         when (intent?.action) {
-            ACTION_VOICE_INPUT -> store.pendingVoiceInput = true
-            ACTION_ADD_TASK    -> store.pendingAddTask = true
+            ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
+            ACTION_ADD_TASK       -> store.pendingAddTask = true
+            ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
         }
 
         webView = binding.webView
@@ -347,8 +348,9 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         val store = SharedDataStore(this)
         when (intent.action) {
-            ACTION_VOICE_INPUT -> store.pendingVoiceInput = true
-            ACTION_ADD_TASK    -> store.pendingAddTask = true
+            ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
+            ACTION_ADD_TASK       -> store.pendingAddTask = true
+            ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
             else -> return
         }
         // The WebView is already loaded; trigger the JS check immediately.
@@ -373,6 +375,7 @@ class MainActivity : AppCompatActivity() {
         private const val RC_PERMISSIONS = 1001
         private const val RC_MICROPHONE = 1002
         const val ACTION_VOICE_INPUT = "com.dayglance.app.ACTION_VOICE_INPUT"
-        const val ACTION_ADD_TASK    = "com.dayglance.app.ACTION_ADD_TASK"
+        const val ACTION_ADD_TASK       = "com.dayglance.app.ACTION_ADD_TASK"
+        const val ACTION_ADD_INBOX_TASK = "com.dayglance.app.ACTION_ADD_INBOX_TASK"
     }
 }
