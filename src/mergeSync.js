@@ -345,7 +345,7 @@ export const mergeHabitLogs = (localLogs, remoteLogs) => {
  * @param {Object} remoteData - Remote sync payload .data
  * @returns {{ data: Object, localChanged: boolean, remoteChanged: boolean }}
  */
-export const mergeSyncData = (localData, remoteData) => {
+export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   // Combine tombstones (permanently deleted task IDs) from both sides
   const localDeleted = localData.deletedTaskIds || {};
   const remoteDeleted = remoteData.deletedTaskIds || {};
@@ -465,11 +465,18 @@ export const mergeSyncData = (localData, remoteData) => {
     finalUnsched = reconciledUnsched.filter(t => !crossListIds.has(String(t.id)) || keepInInbox.has(String(t.id)));
   }
 
-  // Union of completed task UIDs
+  // Union of completed task UIDs, pruned to the retention window.
+  // UIDs are "icalUid::YYYY-MM-DD"; entries with a parseable date outside the
+  // retention window are dropped so the set doesn't grow unboundedly.
+  const uidCutoff = retentionDays > 0 ? new Date(Date.now() - retentionDays * 86400000) : null;
   const mergedCompletedUids = [...new Set([
     ...(localData.completedTaskUids || []),
     ...(remoteData.completedTaskUids || [])
-  ])];
+  ])].filter(uid => {
+    if (!uidCutoff) return true;
+    const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
+    return !m || new Date(m[1]) >= uidCutoff;
+  });
   if (mergedCompletedUids.length !== (localData.completedTaskUids || []).length) localChanged = true;
   if (mergedCompletedUids.length !== (remoteData.completedTaskUids || []).length) remoteChanged = true;
 

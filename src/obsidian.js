@@ -213,10 +213,11 @@ function stripLinePrefixes(text) {
 /**
  * Write a task's completion and scheduling state back to its Obsidian file.
  *
- * Finds the task line by matching `obsidianRawTitle` (the title text as it
- * originally appeared, without #obsidian tag or time prefix). Reconstructs
- * the line with updated checkbox and optional time, preserving any inline
- * date prefix that was already in the line.
+ * Finds every line matching `obsidianRawTitle` (the title text as it originally
+ * appeared, without #obsidian tag or time prefix) and updates all of them.
+ * Updating all occurrences is correct because dayGLANCE deduplicates tasks by
+ * title-hash at import time, so a single task object in the app corresponds to
+ * every occurrence of that title in the file.
  */
 export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration) {
   assertSafeDateStr(dateStr);
@@ -246,7 +247,7 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
     lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
     updated = true;
-    break; // first match only
+    // Continue — update every occurrence, not just the first.
   }
 
   if (updated) {
@@ -690,7 +691,7 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
       lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
       updated = true;
-      break;
+      // Continue — update every occurrence, not just the first.
     }
 
     if (updated) {

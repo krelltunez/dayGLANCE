@@ -4714,37 +4714,59 @@ const DayPlanner = () => {
   };
 
   const saveData = () => {
-    try {
-      const stampedTasks = stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks');
-      const stampedUnscheduled = stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled');
-      const stampedRecycleBin = stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin');
-      const stampedRecurring = stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks');
-      const stampedTodayRoutines = stampTaskTimestamps(todayRoutines, 'day-planner-today-routines');
-      localStorage.setItem('day-planner-tasks', JSON.stringify(stampedTasks));
-      localStorage.setItem('day-planner-unscheduled', JSON.stringify(stampedUnscheduled));
-      localStorage.setItem('day-planner-recycle-bin', JSON.stringify(stampedRecycleBin));
-      localStorage.setItem('day-planner-darkmode', JSON.stringify(darkMode));
-      localStorage.setItem('day-planner-sync-url', syncUrl);
-      localStorage.setItem('day-planner-task-calendar-url', taskCalendarUrl);
-      localStorage.setItem('day-planner-sync-retention-days', JSON.stringify(syncRetentionDays));
-      localStorage.setItem('day-planner-task-completed-uids', JSON.stringify([...completedTaskUids]));
-      localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(stampedRecurring));
-      localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
-      localStorage.setItem('day-planner-today-routines', JSON.stringify(stampedTodayRoutines));
-      localStorage.setItem('day-planner-routines-date', routinesDate);
-      localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(removedTodayRoutineIds));
-      localStorage.setItem('day-planner-habits', JSON.stringify(habits));
-      localStorage.setItem('day-planner-habit-logs', JSON.stringify(habitLogs));
-      localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabled));
-      localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabled));
-      localStorage.setItem('day-planner-gtd-frames', JSON.stringify(gtdFrames));
-      // Only update local-modified after initial cloud sync has run,
-      // otherwise the initial loadData() sets it to "now" and overwrites remote
-      if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
-        localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+    // Write each key individually so a QuotaExceededError on one key does not
+    // leave earlier keys updated and later keys stale (partial-write corruption).
+    let quotaHit = false;
+    const safeSet = (key, value) => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (e) {
+        console.error('Error saving data:', key, e);
+        if (!quotaHit && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+          quotaHit = true;
+          setUndoToast({ message: 'Storage full — some data may not have saved. Clear old data or free browser storage.', actionable: false });
+        }
       }
-    } catch (error) {
-      console.error('Error saving data:', error);
+    };
+
+    const stampedTasks = stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks');
+    const stampedUnscheduled = stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled');
+    const stampedRecycleBin = stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin');
+    const stampedRecurring = stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks');
+    const stampedTodayRoutines = stampTaskTimestamps(todayRoutines, 'day-planner-today-routines');
+
+    // Prune completedTaskUids to the retention window to prevent unbounded growth.
+    // UIDs have the format "icalUid::YYYY-MM-DD"; discard entries whose date is
+    // older than syncRetentionDays (same window used for task import).
+    const uidCutoff = syncRetentionDays > 0 ? new Date(Date.now() - syncRetentionDays * 86400000) : null;
+    const prunedUids = [...completedTaskUids].filter(uid => {
+      if (!uidCutoff) return true;
+      const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
+      return !m || new Date(m[1]) >= uidCutoff;
+    });
+
+    safeSet('day-planner-tasks', JSON.stringify(stampedTasks));
+    safeSet('day-planner-unscheduled', JSON.stringify(stampedUnscheduled));
+    safeSet('day-planner-recycle-bin', JSON.stringify(stampedRecycleBin));
+    safeSet('day-planner-darkmode', JSON.stringify(darkMode));
+    safeSet('day-planner-sync-url', syncUrl);
+    safeSet('day-planner-task-calendar-url', taskCalendarUrl);
+    safeSet('day-planner-sync-retention-days', JSON.stringify(syncRetentionDays));
+    safeSet('day-planner-task-completed-uids', JSON.stringify(prunedUids));
+    safeSet('day-planner-recurring-tasks', JSON.stringify(stampedRecurring));
+    safeSet('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
+    safeSet('day-planner-today-routines', JSON.stringify(stampedTodayRoutines));
+    safeSet('day-planner-routines-date', routinesDate);
+    safeSet('day-planner-removed-today-routine-ids', JSON.stringify(removedTodayRoutineIds));
+    safeSet('day-planner-habits', JSON.stringify(habits));
+    safeSet('day-planner-habit-logs', JSON.stringify(habitLogs));
+    safeSet('day-planner-habits-enabled', JSON.stringify(habitsEnabled));
+    safeSet('day-planner-routines-enabled', JSON.stringify(routinesEnabled));
+    safeSet('day-planner-gtd-frames', JSON.stringify(gtdFrames));
+    // Only update local-modified after initial cloud sync has run,
+    // otherwise the initial loadData() sets it to "now" and overwrites remote
+    if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
+      safeSet('day-planner-cloud-sync-local-modified', new Date().toISOString());
     }
   };
 
@@ -11199,39 +11221,53 @@ const DayPlanner = () => {
   syncAllRef.current = syncAll;
 
   // Cloud sync functions
-  const buildSyncPayload = () => ({
-    version: 2,
-    lastModified: new Date().toISOString(),
-    data: {
-      tasks: JSON.parse(localStorage.getItem('day-planner-tasks') || '[]'),
-      unscheduledTasks: JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]'),
-      recycleBin: JSON.parse(localStorage.getItem('day-planner-recycle-bin') || '[]'),
-      syncUrl: localStorage.getItem('day-planner-sync-url') || '',
-      taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
-      // taskCalendarAuth is intentionally excluded — credentials must not be written
-      // to the shared sync file on the WebDAV server.
-      completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
-      recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
-      routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
-      todayRoutines: JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]'),
-      routinesDate: localStorage.getItem('day-planner-routines-date') || '',
-      minimizedSections: JSON.parse(localStorage.getItem('minimizedSections') || '{}'),
-      use24HourClock: JSON.parse(localStorage.getItem('day-planner-use-24h-clock') || 'false'),
-      weatherZip: localStorage.getItem('day-planner-weather-zip') || '',
-      weatherTempUnit: localStorage.getItem('day-planner-weather-temp-unit') || 'fahrenheit',
-      deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
-      deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
-      deletedFrameIds: JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}'),
-      removedTodayRoutineIds: JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}'),
-      dailyNotes: JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}'),
-      habits: JSON.parse(localStorage.getItem('day-planner-habits') || '[]'),
-      habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
-      habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
-      deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
-      routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
-      gtdFrames: JSON.parse(localStorage.getItem('day-planner-gtd-frames') || '[]')
-    }
-  });
+  const buildSyncPayload = () => {
+    // Read directly from React state (always current) rather than localStorage to
+    // avoid a stale-read race when a state change hasn't flushed to localStorage yet.
+    // Task arrays need timestamp-stamping (mirrors saveData); tombstone maps that
+    // have no React state counterpart still fall back to localStorage.
+    const uidCutoff = syncRetentionDays > 0 ? new Date(Date.now() - syncRetentionDays * 86400000) : null;
+    const prunedUids = [...completedTaskUids].filter(uid => {
+      if (!uidCutoff) return true;
+      const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
+      return !m || new Date(m[1]) >= uidCutoff;
+    });
+    return {
+      version: 2,
+      lastModified: new Date().toISOString(),
+      data: {
+        tasks: stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks'),
+        unscheduledTasks: stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled'),
+        recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
+        syncUrl,
+        taskCalendarUrl,
+        // taskCalendarAuth is intentionally excluded — credentials must not be written
+        // to the shared sync file on the WebDAV server.
+        completedTaskUids: prunedUids,
+        recurringTasks: stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks'),
+        routineDefinitions,
+        todayRoutines: stampTaskTimestamps(todayRoutines, 'day-planner-today-routines'),
+        routinesDate,
+        minimizedSections,
+        use24HourClock,
+        weatherZip,
+        weatherTempUnit,
+        // Tombstone maps have no React state — read from localStorage (they only
+        // change during sync, never between a state change and the next flush).
+        deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
+        deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
+        deletedFrameIds: JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}'),
+        removedTodayRoutineIds,
+        dailyNotes,
+        habits,
+        habitLogs,
+        habitsEnabled,
+        deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
+        routinesEnabled,
+        gtdFrames,
+      }
+    };
+  };
 
   const cloudSyncUpload = async () => {
     if (!cloudSyncConfig?.enabled || cloudSyncInProgressRef.current) return;
@@ -11387,7 +11423,7 @@ const DayPlanner = () => {
 
       // Build local snapshot and merge with remote at the task level
       const localData = buildSyncPayload().data;
-      const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data);
+      const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
       if (localChanged) {
         applyRemoteData(mergedData);
@@ -22930,7 +22966,7 @@ const DayPlanner = () => {
               <button
                 onClick={async () => {
                   const localData = buildSyncPayload().data;
-                  const { data: mergedData, remoteChanged } = mergeSyncData(localData, cloudSyncConflict.remoteData);
+                  const { data: mergedData, remoteChanged } = mergeSyncData(localData, cloudSyncConflict.remoteData, syncRetentionDays);
                   applyRemoteData(mergedData);
                   const now = new Date().toISOString();
                   localStorage.setItem('day-planner-cloud-sync-local-modified', now);
