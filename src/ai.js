@@ -181,9 +181,9 @@ async function _aiComplete(systemPrompt, userMessage, config) {
 
     case 'gemini': {
       const base = getBaseUrl(config);
-      const res = await fetch(`${base}:generateContent?key=${apiKey}`, {
+      const res = await fetch(`${base}:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ parts: [{ text: userMessage }] }],
@@ -289,9 +289,9 @@ async function _aiTranscribe(audioBlob, config) {
       }
       const base64 = btoa(binary);
       const base = `https://generativelanguage.googleapis.com/v1beta/models/${model}`;
-      const res = await fetch(`${base}:generateContent?key=${apiKey}`, {
+      const res = await fetch(`${base}:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{
             parts: [

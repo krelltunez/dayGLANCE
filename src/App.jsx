@@ -8,6 +8,10 @@ import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, 
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 
+// Encode a string that may contain non-ASCII characters as Base64.
+// btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
+const toBase64 = (str) => btoa(unescape(encodeURIComponent(str)));
+
 // Hook to determine how many days to show based on window width
 const useVisibleDays = () => {
   const [visibleDays, setVisibleDays] = useState(() => {
@@ -819,7 +823,7 @@ const cloudSyncProviders = {
     getDirUrl: (config) =>
       `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/`,
     getAuthHeaders: (config) => ({
-      'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword)
+      'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
     }),
     async upload(config, data) {
       const fileUrl = this.getFileUrl(config);
@@ -873,7 +877,7 @@ const cloudSyncProviders = {
     getDirUrl: (config) =>
       `${config.webdavUrl.replace(/\/+$/, '')}/`,
     getAuthHeaders: (config) => ({
-      'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword)
+      'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
     }),
     async upload(config, data) {
       const fileUrl = this.getFileUrl(config);
@@ -1121,7 +1125,7 @@ const autoBackupProviders = {
       return `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/backups/`;
     },
     _getAuthHeaders(config) {
-      return { 'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword) };
+      return { 'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword) };
     },
     async uploadBackup(config, data) {
       const dirUrl = this._getBackupDirUrl(config);
@@ -1216,7 +1220,7 @@ const autoBackupProviders = {
       return `${config.webdavUrl.replace(/\/+$/, '')}/`;
     },
     _getAuthHeaders(config) {
-      return { 'X-WebDAV-Auth': 'Basic ' + btoa(config.username + ':' + config.appPassword) };
+      return { 'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword) };
     },
     async uploadBackup(config, data) {
       const dirUrl = this._getBackupDirUrl(config);
@@ -10901,7 +10905,7 @@ const DayPlanner = () => {
     // @ and other characters that are valid in URL paths but encodeURIComponent would escape
     const resourceUrl = `${baseUrl}/${encodeURI(icalUid)}.ics`;
     const authHeaders = {
-      'X-WebDAV-Auth': 'Basic ' + btoa(username + ':' + appPassword)
+      'X-WebDAV-Auth': 'Basic ' + toBase64(username + ':' + appPassword)
     };
 
     try {
