@@ -398,6 +398,8 @@ class DayGlanceWidgetListFactory(
         rv.setViewPadding(R.id.task_item_root, startPad, dpToPx(4), 0, dpToPx(4))
         if (item.indent) {
             rv.setInt(R.id.task_item_root, "setBackgroundColor", colorRes(R.color.widget_frame_bg))
+        } else {
+            rv.setInt(R.id.task_item_root, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
         }
 
         // Badge
