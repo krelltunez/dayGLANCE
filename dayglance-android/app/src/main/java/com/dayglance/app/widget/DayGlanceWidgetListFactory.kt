@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
@@ -127,18 +128,17 @@ class DayGlanceWidgetListFactory(
             if (habits.isNotEmpty()) items += AgendaItem.Habits(habits)
         }
 
-        // 2. Overdue tasks
+        // 2. Overdue tasks — collected here, injected into SCHEDULED below
+        val overdueItems = mutableListOf<AgendaItem.Task>()
         val overdueArray = snapshot.optJSONArray("overdue")
-        if (overdueArray != null && overdueArray.length() > 0) {
-            items += AgendaItem.Section("⚠ OVERDUE (${overdueArray.length()})", isOverdue = true)
+        if (overdueArray != null) {
             for (i in 0 until overdueArray.length()) {
                 val t = overdueArray.optJSONObject(i) ?: continue
-                val timeStr = t.optString("startTime", "")
-                items += AgendaItem.Task(
+                overdueItems += AgendaItem.Task(
                     title = t.optString("title", "Untitled"),
                     colorHex = t.optString("colorHex", "#ef4444"),
                     badge = "OVERDUE",
-                    timeStr = timeStr,
+                    timeStr = t.optString("startTime", ""),
                 )
             }
         }
@@ -200,7 +200,11 @@ class DayGlanceWidgetListFactory(
                     }
                     "unframed" -> {
                         val tasks = sec.optJSONArray("tasks") ?: continue
-                        if (tasks.length() > 0) items += AgendaItem.Section("SCHEDULED")
+                        if (tasks.length() > 0 || overdueItems.isNotEmpty()) {
+                            items += AgendaItem.Section("SCHEDULED")
+                            items.addAll(overdueItems)
+                            overdueItems.clear()
+                        }
                         for (j in 0 until tasks.length()) {
                             val t = tasks.optJSONObject(j) ?: continue
                             items += AgendaItem.Task(
@@ -214,6 +218,12 @@ class DayGlanceWidgetListFactory(
                     }
                 }
             }
+        }
+
+        // Overdue items not yet consumed (no unframed section existed) — add SCHEDULED now
+        if (overdueItems.isNotEmpty()) {
+            items += AgendaItem.Section("SCHEDULED")
+            items.addAll(overdueItems)
         }
 
         // 6. Routines — collapsed into a single grouped row, sorted by start time
@@ -322,6 +332,7 @@ class DayGlanceWidgetListFactory(
         if (item.isOverdue) {
             rv.setTextColor(R.id.tv_section_label, colorRes(R.color.widget_overdue_text))
         }
+        rv.boostTextSizeForOneUi(R.id.tv_section_label, 11f)
         rv.setOnClickFillInIntent(R.id.section_item_root, android.content.Intent())
         return rv
     }
@@ -361,6 +372,9 @@ class DayGlanceWidgetListFactory(
             rv.setViewVisibility(R.id.tv_task_time, View.GONE)
         }
 
+        rv.boostTextSizeForOneUi(R.id.tv_task_title, 13f)
+        rv.boostTextSizeForOneUi(R.id.tv_task_badge, 11f)
+        rv.boostTextSizeForOneUi(R.id.tv_task_time, 12f)
         rv.setOnClickFillInIntent(R.id.task_item_root, android.content.Intent())
         return rv
     }
@@ -383,6 +397,9 @@ class DayGlanceWidgetListFactory(
         } else {
             rv.setViewVisibility(R.id.tv_frame_avail, View.GONE)
         }
+        rv.boostTextSizeForOneUi(R.id.tv_frame_name, 12f)
+        rv.boostTextSizeForOneUi(R.id.tv_frame_times, 11f)
+        rv.boostTextSizeForOneUi(R.id.tv_frame_avail, 11f)
         rv.setOnClickFillInIntent(R.id.frame_header_item_root, android.content.Intent())
         return rv
     }
@@ -390,6 +407,7 @@ class DayGlanceWidgetListFactory(
     private fun buildRoutineGroupView(item: AgendaItem.RoutineGroup): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_item_routine)
         rv.setTextViewText(R.id.tv_routine_name, item.names.joinToString("  ·  "))
+        rv.boostTextSizeForOneUi(R.id.tv_routine_name, 12f)
         rv.setOnClickFillInIntent(R.id.routine_item_root, android.content.Intent())
         return rv
     }
@@ -460,6 +478,17 @@ class DayGlanceWidgetListFactory(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * One UI (Samsung) applies its own font scaling to widget RemoteViews, making text render
+     * smaller than the declared sp value. Detect Samsung devices and nudge sizes up to compensate.
+     */
+    private val isSamsungDevice: Boolean =
+        android.os.Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+
+    private fun RemoteViews.boostTextSizeForOneUi(viewId: Int, baseSp: Float) {
+        if (isSamsungDevice) setTextViewTextSize(viewId, TypedValue.COMPLEX_UNIT_SP, baseSp + 2f)
+    }
 
     private fun isDarkMode(): Boolean =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
