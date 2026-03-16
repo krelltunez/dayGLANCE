@@ -5050,7 +5050,13 @@ const DayPlanner = () => {
     };
 
     if (rec.type === 'daily') {
-      const cursor = new Date(startDate);
+      // Fast-forward: skip directly to rangeStart instead of iterating from a
+      // potentially distant startDate.  Adjust count so maxOccurrences still works.
+      const cursor = new Date(Math.max(startDate.getTime(), rangeStart.getTime()));
+      if (cursor > startDate) {
+        // All noon-anchored dates, so dividing by 86400000 and rounding handles DST correctly.
+        count = Math.round((cursor.getTime() - startDate.getTime()) / 86400000);
+      }
       while (cursor <= rangeEnd && count < maxOcc) {
         if (endDate && cursor > endDate) break;
         addIfInRange(cursor);
@@ -5062,6 +5068,20 @@ const DayPlanner = () => {
       // Find the week start (Sunday) of the start date
       const weekStart = new Date(startDate);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      // Fast-forward weekStart to the week that contains rangeStart, adjusting count.
+      if (rangeStart > startDate) {
+        const rangeWeekStart = new Date(rangeStart);
+        rangeWeekStart.setDate(rangeWeekStart.getDate() - rangeWeekStart.getDay());
+        const msPerCycle = 7 * step * 86400000;
+        const cyclesSkip = Math.max(0, Math.floor((rangeWeekStart.getTime() - weekStart.getTime()) / msPerCycle));
+        if (cyclesSkip > 0) {
+          weekStart.setDate(weekStart.getDate() + cyclesSkip * 7 * step);
+          // Conservatively under-count to avoid cutting off valid occurrences.
+          // Each skipped cycle has at most days.length occurrences; subtract one
+          // cycle as a safety buffer so early occurrences in the window aren't missed.
+          count = Math.max(0, (cyclesSkip - 1)) * days.length;
+        }
+      }
       const cursor = new Date(weekStart);
       while (cursor <= rangeEnd && count < maxOcc) {
         for (const dow of days.sort((a, b) => a - b)) {

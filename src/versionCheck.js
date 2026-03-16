@@ -3,8 +3,10 @@ const CACHE_KEY = 'dayglance-version-check';
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour cache to avoid redundant API calls within check intervals
 
 function compareVersions(a, b) {
-  const pa = a.replace(/^v/, '').split('.').map(Number);
-  const pb = b.replace(/^v/, '').split('.').map(Number);
+  // Use parseInt so pre-release suffixes like "-beta" or ".rc1" are ignored:
+  // "3-beta".split('.').map(Number) → NaN, but parseInt("3-beta") → 3.
+  const pa = a.replace(/^v/, '').split('.').map(s => parseInt(s, 10) || 0);
+  const pb = b.replace(/^v/, '').split('.').map(s => parseInt(s, 10) || 0);
   for (let i = 0; i < 3; i++) {
     const na = pa[i] || 0;
     const nb = pb[i] || 0;

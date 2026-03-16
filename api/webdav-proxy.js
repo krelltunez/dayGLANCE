@@ -41,8 +41,23 @@ function validateProxyUrl(urlString) {
     }
   }
 
-  // Block IPv6 loopback and private
-  if (hostname === '::1' || /^(fd|fe80)/i.test(hostname)) {
+  // Block IPv6 loopback, unspecified, link-local, and private/ULA ranges.
+  //   ::1        — loopback
+  //   ::         — unspecified
+  //   ::ffff:…   — IPv4-mapped (e.g. ::ffff:127.0.0.1 bypasses the IPv4 check above)
+  //   fe80:…     — link-local
+  //   fc… / fd…  — Unique Local (ULA, fc00::/7); original code only blocked fd
+  // NOTE: DNS rebinding (public hostname → private IP at connection time) is a
+  // known limitation that cannot be fixed without a post-connection IP check,
+  // which fetch() does not expose.  Risk is low on Vercel (IPv4-only runtime).
+  if (
+    hostname === '::1' ||
+    hostname === '::' ||
+    /^::ffff:/i.test(hostname) ||
+    /^fe80:/i.test(hostname) ||
+    /^fc/i.test(hostname) ||
+    /^fd/i.test(hostname)
+  ) {
     throw new Error('Private/reserved addresses are not allowed');
   }
 
