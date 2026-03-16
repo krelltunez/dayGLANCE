@@ -45,6 +45,15 @@ cd "$ANDROID_DIR"
 ./gradlew "$GRADLE_TASK"
 
 if $RELEASE; then
+  RELEASE_DIR="$ANDROID_DIR/app/build/outputs/apk/release"
+  ACTUAL_APK=$(find "$RELEASE_DIR" -name "*.apk" 2>/dev/null | head -1)
+  if [ -z "$ACTUAL_APK" ]; then
+    echo "==> ERROR: No APK found in $RELEASE_DIR"
+    exit 1
+  fi
+  if [ "$ACTUAL_APK" != "$APK_PATH" ]; then
+    mv "$ACTUAL_APK" "$APK_PATH"
+  fi
   echo "==> Release APK: $APK_PATH"
   echo "==> Done! Copy dayglance.apk to your F-Droid repo."
 else
