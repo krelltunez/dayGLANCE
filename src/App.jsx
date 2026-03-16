@@ -13313,7 +13313,8 @@ const DayPlanner = () => {
     const todayFramesW = getFrameInstancesForDate(today).filter(
       f => timeToMinutes(f.end) > nowMinW
     );
-    const scheduledW = todayAgenda.filter(t => t._agendaType === 'scheduled');
+    const overdueIdSet = new Set(overdueItems.map(t => String(t.id)));
+    const scheduledW = todayAgenda.filter(t => t._agendaType === 'scheduled' && !overdueIdSet.has(String(t.id)));
 
     const taskFrameMapW = new Map();
     for (const task of scheduledW) {
@@ -13402,6 +13403,7 @@ const DayPlanner = () => {
       date: todayStr,
       dateLabel: today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
       steps,
+      use24Hour: use24HourClock,
       overdue: overdueItems,
       habits: habitItems,
       allDay: allDayItems,

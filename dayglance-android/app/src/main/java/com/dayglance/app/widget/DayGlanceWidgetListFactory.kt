@@ -47,6 +47,7 @@ class DayGlanceWidgetListFactory(
 
         private val TWELVE_HR = DateTimeFormatter.ofPattern("h:mm a")
         private val TWELVE_HR_SHORT = DateTimeFormatter.ofPattern("h:mm")
+        private val TWENTY_FOUR_HR = DateTimeFormatter.ofPattern("H:mm")
     }
 
     // ── Agenda item data classes ──────────────────────────────────────────────
@@ -82,6 +83,7 @@ class DayGlanceWidgetListFactory(
     // ── State ────────────────────────────────────────────────────────────────
 
     private val items = mutableListOf<AgendaItem>()
+    private var use24Hour = false
 
     // ── RemoteViewsFactory lifecycle ─────────────────────────────────────────
 
@@ -113,6 +115,8 @@ class DayGlanceWidgetListFactory(
     // ── Snapshot parsing → AgendaItem list ──────────────────────────────────
 
     private fun buildItems(snapshot: JSONObject) {
+        use24Hour = snapshot.optBoolean("use24Hour", false)
+
         // 1. Habits
         val habitsArray = snapshot.optJSONArray("habits")
         if (habitsArray != null && habitsArray.length() > 0) {
@@ -138,7 +142,7 @@ class DayGlanceWidgetListFactory(
                     title = t.optString("title", "Untitled"),
                     colorHex = t.optString("colorHex", "#ef4444"),
                     badge = "OVERDUE",
-                    timeStr = t.optString("startTime", ""),
+                    timeStr = buildTimeStr(t),
                 )
             }
         }
@@ -247,7 +251,7 @@ class DayGlanceWidgetListFactory(
                 if (entry.startTime.isNotEmpty()) {
                     val timeLabel = try {
                         val parts = entry.startTime.split(":").map { it.toInt() }
-                        LocalTime.of(parts[0], parts.getOrNull(1) ?: 0).format(TWELVE_HR_SHORT)
+                        LocalTime.of(parts[0], parts.getOrNull(1) ?: 0).format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR_SHORT)
                     } catch (_: Throwable) { entry.startTime }
                     "$timeLabel ${entry.name}"
                 } else {
@@ -280,9 +284,9 @@ class DayGlanceWidgetListFactory(
                 (0 until tagsArr.length()).joinToString(" ") { "#${tagsArr.optString(it)}" }
             else ""
             val timeRange = if (duration > 0)
-                "${s.format(TWELVE_HR_SHORT)} – ${e.format(TWELVE_HR)}"
+                "${s.format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR_SHORT)} – ${e.format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR)}"
             else
-                s.format(TWELVE_HR)
+                s.format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR)
             if (tags.isNotEmpty()) "$timeRange  $tags" else timeRange
         } catch (_: Throwable) { start }
     }
@@ -532,7 +536,9 @@ class DayGlanceWidgetListFactory(
         return try {
             val s = parseHhMm(start)
             val e = parseHhMm(end)
-            "${s.format(TWELVE_HR_SHORT)} – ${e.format(TWELVE_HR)}"
+            val fmt = if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR
+            val fmtShort = if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR_SHORT
+            "${s.format(fmtShort)} – ${e.format(fmt)}"
         } catch (_: Throwable) { "$start – $end" }
     }
 

@@ -86,7 +86,9 @@ class DayGlanceWidget : AppWidgetProvider() {
 
             val updatedAt = dataStore.widgetSnapshotUpdatedAt
             if (updatedAt > 0) {
-                val time = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(updatedAt))
+                val use24Hour = snapshot?.optBoolean("use24Hour", false) ?: false
+                val pattern = if (use24Hour) "H:mm" else "h:mm a"
+                val time = SimpleDateFormat(pattern, Locale.getDefault()).format(Date(updatedAt))
                 views.setTextViewText(R.id.tv_updated, time)
             } else {
                 views.setTextViewText(R.id.tv_updated, "")
