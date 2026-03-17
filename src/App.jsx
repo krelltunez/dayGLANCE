@@ -16375,7 +16375,8 @@ const DayPlanner = () => {
                       <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>
                         <span className="flex items-center gap-1.5">
                           <ChevronRight size={12} />
-                          {dayLabel}
+                          GLANCEahead
+                          <span className="font-normal normal-case">— {dayLabel}</span>
                         </span>
                       </div>
                       {isEmpty ? (
@@ -19918,7 +19919,8 @@ const DayPlanner = () => {
                             <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>
                               <span className="flex items-center gap-1.5">
                                 <ChevronRight size={12} />
-                                {dayLabel}
+                                GLANCEahead
+                                <span className="font-normal normal-case">— {dayLabel}</span>
                               </span>
                             </div>
                             {isEmpty ? (
@@ -21093,7 +21095,8 @@ const DayPlanner = () => {
                         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>
                           <span className="flex items-center gap-1.5">
                             <ChevronRight size={12} />
-                            {dayLabel}
+                            GLANCEahead
+                            <span className="font-normal normal-case">— {dayLabel}</span>
                           </span>
                         </div>
                         {isEmpty ? (
