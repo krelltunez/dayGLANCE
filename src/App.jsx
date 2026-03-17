@@ -11443,8 +11443,17 @@ const DayPlanner = () => {
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
-    // Update React state directly (avoid page reload)
-    if (normalizedTasks) setTasks(prev => [...normalizedTasks, ...prev.filter(t => t._native)]);
+    // Update React state directly (avoid page reload).
+    // Preserve imported events and native tasks from prev that the merge didn't
+    // see.  buildSyncPayload() reads the current `tasks` state variable, but a
+    // concurrent calendar sync may have queued a setTasks updater that React
+    // hasn't rendered yet.  Without this, those queued imported events are
+    // silently discarded by the replacement, causing them to vanish until the
+    // next calendar sync re-imports them.
+    if (normalizedTasks) setTasks(prev => {
+      const mergedIds = new Set(normalizedTasks.map(t => String(t.id)));
+      return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported))];
+    });
     if (normalizedUnsched) setUnscheduledTasks(normalizedUnsched);
     if (data.recycleBin) setRecycleBin(data.recycleBin);
     if (data.syncUrl) setSyncUrl(data.syncUrl);
