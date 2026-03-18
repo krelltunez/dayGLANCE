@@ -16242,7 +16242,7 @@ const DayPlanner = () => {
                               </button>
                             )}
                           </div>
-                          <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                          <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
                             {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                             {relativeLabel === 'In Progress' && focusModeAvailable && (
                               <button
@@ -19780,7 +19780,7 @@ const DayPlanner = () => {
                                     <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                                   ))}
                                 </div>
-                                <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                                <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
                                   {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                                   {relativeLabel === 'In Progress' && focusModeAvailable && (
                                     <button
@@ -20956,7 +20956,7 @@ const DayPlanner = () => {
                                 <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                               ))}
                             </div>
-                            <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                            <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
                               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                               {relativeLabel === 'In Progress' && focusModeAvailable && (
                                 <button
