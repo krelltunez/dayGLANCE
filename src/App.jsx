@@ -13555,6 +13555,38 @@ const DayPlanner = () => {
       if (cachedSteps?.date === todayStr) steps = cachedSteps.steps ?? -1;
     } catch (_) {}
 
+    // ── GLANCEahead — include tomorrow preview when day is done or evening ──
+    const nowHour = today.getHours();
+    const nowMinW2 = nowHour * 60 + today.getMinutes();
+    // "Day done" check: all scheduled tasks are past, or there are none
+    const scheduledTodayW = todayAgenda.filter(t => t._agendaType === 'scheduled');
+    const allPast = scheduledTodayW.length > 0 && scheduledTodayW.every(t => {
+      if (!t.startTime) return true;
+      const parts = t.startTime.split(':').map(Number);
+      const endMin = parts[0] * 60 + (parts[1] || 0) + (t.duration || 0);
+      return nowMinW2 >= endMin;
+    });
+    const isDayDoneW = (allPast && scheduledTodayW.length > 0) || scheduledTodayW.length === 0;
+    const isEveningW = nowHour >= 19;
+    const showGlanceAhead = isDayDoneW || isEveningW;
+
+    let glanceAheadData = null;
+    if (showGlanceAhead) {
+      const { dayLabel, taskCount, eventCount, deadlineCount, firstStartTime, committedMinutes, isEmpty } = glanceAhead;
+      const committedH = Math.floor(committedMinutes / 60);
+      const committedM = committedMinutes % 60;
+      const committedStr = committedH > 0 ? `${committedH}h${committedM > 0 ? ` ${committedM}m` : ''}` : committedM > 0 ? `${committedM}m` : null;
+      glanceAheadData = {
+        dayLabel,
+        taskCount,
+        eventCount,
+        deadlineCount,
+        firstStartTime: firstStartTime || '',
+        committedStr: committedStr || '',
+        isEmpty,
+      };
+    }
+
     const snapshot = {
       date: todayStr,
       dateLabel: today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
@@ -13567,6 +13599,7 @@ const DayPlanner = () => {
       deadlines: deadlineItems,
       sections,
       routines: routineItems,
+      glanceAhead: glanceAheadData,
       updatedAt: Date.now(),
     };
 
@@ -13581,6 +13614,8 @@ const DayPlanner = () => {
     todayRoutines,
     tasks,
     unscheduledTasks,
+    glanceAhead,
+    currentTime,
   ]);
 
   // GTD Frame CRUD operations

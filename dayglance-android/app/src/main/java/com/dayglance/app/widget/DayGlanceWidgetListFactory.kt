@@ -44,6 +44,7 @@ class DayGlanceWidgetListFactory(
         const val TYPE_FRAME_HEADER = 3
         const val TYPE_ROUTINE = 4
         const val TYPE_EMPTY = 5
+        const val TYPE_GLANCEAHEAD = 6
 
         private val TWELVE_HR = DateTimeFormatter.ofPattern("h:mm a")
         private val TWELVE_HR_SHORT = DateTimeFormatter.ofPattern("h:mm")
@@ -70,6 +71,13 @@ class DayGlanceWidgetListFactory(
             val availableMinutes: Int,
         ) : AgendaItem(TYPE_FRAME_HEADER)
         class RoutineGroup(val names: List<String>) : AgendaItem(TYPE_ROUTINE)
+        class GlanceAhead(
+            val dayLabel: String,
+            val startTimeStr: String,
+            val countsStr: String,
+            val committedStr: String,
+            val isEmpty: Boolean,
+        ) : AgendaItem(TYPE_GLANCEAHEAD)
         object Empty : AgendaItem(TYPE_EMPTY)
     }
 
@@ -102,7 +110,7 @@ class DayGlanceWidgetListFactory(
     override fun onDestroy() { items.clear() }
 
     override fun getCount(): Int = items.size.coerceAtLeast(1)
-    override fun getViewTypeCount(): Int = 6
+    override fun getViewTypeCount(): Int = 7
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = false
     override fun getLoadingView(): RemoteViews? = null
@@ -296,6 +304,42 @@ class DayGlanceWidgetListFactory(
             }
         }
 
+        // 7. GLANCEahead — tomorrow preview (when day is done or evening)
+        val glanceAheadObj = snapshot.optJSONObject("glanceAhead")
+        if (glanceAheadObj != null) {
+            val dayLabel = glanceAheadObj.optString("dayLabel", "")
+            val isEmpty = glanceAheadObj.optBoolean("isEmpty", true)
+            val firstStart = glanceAheadObj.optString("firstStartTime", "")
+            val committedStr = glanceAheadObj.optString("committedStr", "")
+            val taskCount = glanceAheadObj.optInt("taskCount", 0)
+            val eventCount = glanceAheadObj.optInt("eventCount", 0)
+            val deadlineCount = glanceAheadObj.optInt("deadlineCount", 0)
+
+            // Build start time label
+            val startTimeStr = if (firstStart.isNotEmpty()) {
+                try {
+                    val parts = firstStart.split(":").map { it.toInt() }
+                    val t = LocalTime.of(parts[0], parts.getOrNull(1) ?: 0)
+                    "Day starts at ${t.format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR)}"
+                } catch (_: Throwable) { "" }
+            } else ""
+
+            // Build counts string
+            val countParts = mutableListOf<String>()
+            if (taskCount > 0) countParts += "$taskCount task${if (taskCount != 1) "s" else ""}"
+            if (eventCount > 0) countParts += "$eventCount event${if (eventCount != 1) "s" else ""}"
+            if (deadlineCount > 0) countParts += "$deadlineCount deadline${if (deadlineCount != 1) "s" else ""}"
+            val countsStr = countParts.joinToString("  ·  ")
+
+            items += AgendaItem.GlanceAhead(
+                dayLabel = dayLabel,
+                startTimeStr = startTimeStr,
+                countsStr = countsStr,
+                committedStr = if (committedStr.isNotEmpty()) "$committedStr committed" else "",
+                isEmpty = isEmpty,
+            )
+        }
+
         if (items.isEmpty()) items += AgendaItem.Empty
     }
 
@@ -345,6 +389,7 @@ class DayGlanceWidgetListFactory(
         is AgendaItem.Task -> buildTaskView(item)
         is AgendaItem.FrameHeader -> buildFrameHeaderView(item)
         is AgendaItem.RoutineGroup -> buildRoutineGroupView(item)
+        is AgendaItem.GlanceAhead -> buildGlanceAheadView(item)
         AgendaItem.Empty -> buildEmptyView()
     }
 
@@ -462,6 +507,50 @@ class DayGlanceWidgetListFactory(
         rv.setTextViewText(R.id.tv_routine_name, item.names.joinToString("  ·  "))
         rv.boostTextSizeForOneUi(R.id.tv_routine_name, 12f)
         rv.setOnClickFillInIntent(R.id.routine_item_root, android.content.Intent())
+        return rv
+    }
+
+    private fun buildGlanceAheadView(item: AgendaItem.GlanceAhead): RemoteViews {
+        val rv = RemoteViews(context.packageName, R.layout.widget_item_glanceahead)
+
+        // Header: "GLANCEahead — Monday"
+        rv.setTextViewText(R.id.tv_glanceahead_header, "GLANCEahead — ${item.dayLabel}")
+
+        if (item.isEmpty) {
+            rv.setViewVisibility(R.id.tv_glanceahead_empty, View.VISIBLE)
+            rv.setViewVisibility(R.id.tv_glanceahead_start, View.GONE)
+            rv.setViewVisibility(R.id.tv_glanceahead_counts, View.GONE)
+            rv.setViewVisibility(R.id.tv_glanceahead_committed, View.GONE)
+        } else {
+            rv.setViewVisibility(R.id.tv_glanceahead_empty, View.GONE)
+
+            if (item.startTimeStr.isNotEmpty()) {
+                rv.setTextViewText(R.id.tv_glanceahead_start, item.startTimeStr)
+                rv.setViewVisibility(R.id.tv_glanceahead_start, View.VISIBLE)
+            } else {
+                rv.setViewVisibility(R.id.tv_glanceahead_start, View.GONE)
+            }
+
+            if (item.countsStr.isNotEmpty()) {
+                rv.setTextViewText(R.id.tv_glanceahead_counts, item.countsStr)
+                rv.setViewVisibility(R.id.tv_glanceahead_counts, View.VISIBLE)
+            } else {
+                rv.setViewVisibility(R.id.tv_glanceahead_counts, View.GONE)
+            }
+
+            if (item.committedStr.isNotEmpty()) {
+                rv.setTextViewText(R.id.tv_glanceahead_committed, item.committedStr)
+                rv.setViewVisibility(R.id.tv_glanceahead_committed, View.VISIBLE)
+            } else {
+                rv.setViewVisibility(R.id.tv_glanceahead_committed, View.GONE)
+            }
+        }
+
+        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_header, 11f)
+        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_start, 12f)
+        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_counts, 12f)
+        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_committed, 11f)
+        rv.setOnClickFillInIntent(R.id.glanceahead_item_root, android.content.Intent())
         return rv
     }
 

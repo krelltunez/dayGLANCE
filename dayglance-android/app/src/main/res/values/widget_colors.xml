@@ -30,4 +30,7 @@
     <color name="widget_deadline_text">#FFf97316</color>
     <!-- "In Progress" task badge -->
     <color name="widget_in_progress_text">#FF10b981</color>
+    <!-- GLANCEahead committed pill -->
+    <color name="widget_committed_bg">#FFdbeafe</color>
+    <color name="widget_committed_text">#FF1d4ed8</color>
 </resources>
