@@ -14663,7 +14663,7 @@ const DayPlanner = () => {
                                         <span className={`truncate flex-1 ${task.isTaskCalendar ? 'font-bold' : 'font-medium'} ${task.completed && !isImported ? 'line-through' : ''}`}>
                                           {renderTitle(task.title)}
                                         </span>
-                                        {extractWikilinks(task.title).map((note, i) => (
+                                        {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                           <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                         ))}
                                         {!isImported && (
@@ -14790,7 +14790,7 @@ const DayPlanner = () => {
                                       </button>
                                       <AlertCircle size={14} className="flex-shrink-0" />
                                       <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</span>
-                                      {extractWikilinks(task.title).map((note, i) => (
+                                      {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                         <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                       ))}
                                       <button
@@ -15250,7 +15250,7 @@ const DayPlanner = () => {
                                           {renderTitle(task.title)}
                                         </span>
                                         <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
-                                          {extractWikilinks(task.title).map((note, i) => (
+                                          {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                             <button key={i} className="text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                           ))}
                                           {(task.notes) && (
@@ -15291,7 +15291,7 @@ const DayPlanner = () => {
                                       <span className={`text-sm font-bold truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''}`}>
                                         {renderTitle(task.title)}
                                       </span>
-                                      {extractWikilinks(task.title).map((note, i) => (
+                                      {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                         <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                       ))}
                                       {!isNarrowWidth && (
@@ -15326,7 +15326,7 @@ const DayPlanner = () => {
                                         <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                                           {renderTitle(task.title)}
                                         </span>
-                                        {extractWikilinks(task.title).map((note, i) => (
+                                        {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                           <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                         ))}
                                       </div>
@@ -15351,7 +15351,7 @@ const DayPlanner = () => {
                                           <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                                             {renderTitle(task.title)}
                                           </span>
-                                          {extractWikilinks(task.title).map((note, i) => (
+                                          {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                             <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                           ))}
                                         </div>
@@ -16194,7 +16194,7 @@ const DayPlanner = () => {
                             {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                             {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
                             <span className="truncate">{renderTitle(task.title)}</span>
-                            {extractWikilinks(task.title).map((note, i) => (
+                            {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                               <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300"
                                 onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }}
                                 title={`Open "${note}" in Obsidian`}>
@@ -19777,7 +19777,7 @@ const DayPlanner = () => {
                                   {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                                   {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
                                   <span className="truncate">{renderTitle(task.title)}</span>
-                                  {extractWikilinks(task.title).map((note, i) => (
+                                  {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                     <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                                   ))}
                                 </div>
@@ -20953,7 +20953,7 @@ const DayPlanner = () => {
                               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
                               {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
                               <span className="truncate">{renderTitle(task.title)}</span>
-                              {extractWikilinks(task.title).map((note, i) => (
+                              {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                 <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                               ))}
                             </div>
@@ -22640,7 +22640,7 @@ const DayPlanner = () => {
                                               >
                                                 {stripWikilinks(task.title)}
                                               </div>
-                                              {extractWikilinks(task.title).map((note, i) => (
+                                              {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                                 <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                               ))}
                                             </div>
@@ -22710,7 +22710,7 @@ const DayPlanner = () => {
                                               >
                                                 {stripWikilinks(task.title)}
                                               </div>
-                                              {extractWikilinks(task.title).map((note, i) => (
+                                              {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
                                                 <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                               ))}
                                             </div>
