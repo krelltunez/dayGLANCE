@@ -33,7 +33,7 @@
         android:layout_height="wrap_content"
         android:text="Day starts at 9:00 AM"
         android:textColor="@color/widget_text_primary"
-        android:textSize="12sp"
+        android:textSize="13sp"
         android:visibility="gone"
         android:paddingBottom="2dp" />
 
@@ -44,7 +44,7 @@
         android:layout_height="wrap_content"
         android:text="2 tasks · 1 event"
         android:textColor="@color/widget_text_primary"
-        android:textSize="12sp"
+        android:textSize="13sp"
         android:visibility="gone"
         android:paddingBottom="2dp" />
 
@@ -71,7 +71,7 @@
         android:layout_height="wrap_content"
         android:text="Tomorrow is wide open"
         android:textColor="@color/widget_text_secondary"
-        android:textSize="12sp"
+        android:textSize="13sp"
         android:textStyle="italic"
         android:visibility="gone" />
 

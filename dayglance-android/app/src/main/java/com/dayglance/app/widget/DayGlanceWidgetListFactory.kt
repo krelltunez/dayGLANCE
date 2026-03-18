@@ -547,8 +547,8 @@ class DayGlanceWidgetListFactory(
         }
 
         rv.boostTextSizeForOneUi(R.id.tv_glanceahead_header, 11f)
-        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_start, 12f)
-        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_counts, 12f)
+        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_start, 13f)
+        rv.boostTextSizeForOneUi(R.id.tv_glanceahead_counts, 13f)
         rv.boostTextSizeForOneUi(R.id.tv_glanceahead_committed, 11f)
         rv.setOnClickFillInIntent(R.id.glanceahead_item_root, android.content.Intent())
         return rv
