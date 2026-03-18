@@ -16242,8 +16242,8 @@ const DayPlanner = () => {
                               </button>
                             )}
                           </div>
-                          <div className={`text-sm ${textSecondary} flex items-center gap-1 flex-wrap`}>
-                            <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
+                          <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
+                            {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                             {relativeLabel === 'In Progress' && focusModeAvailable && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
@@ -19084,7 +19084,7 @@ const DayPlanner = () => {
           {isTablet && (
             <div
               className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0`}
-              style={{ width: '320px', height: '100%' }}
+              style={{ width: '360px', height: '100%' }}
             >
               {/* Tabbed header — both portrait and landscape */}
               <div className={`flex border-b ${borderClass} flex-shrink-0`}>
@@ -20268,7 +20268,7 @@ const DayPlanner = () => {
           {!isTablet && (
           <div
             className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
-            style={{ width: '320px', height: '100%' }}
+            style={{ width: '360px', height: '100%' }}
           >
             {/* Tab bar — matching tablet */}
             <div className={`flex border-b ${borderClass} flex-shrink-0`}>
@@ -23867,7 +23867,7 @@ const DayPlanner = () => {
               <button
                 onClick={() => setShowMobileDailySummary(true)}
                 className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300'}`}
-                style={{ left: '248px', bottom: '5.5rem' }}
+                style={{ left: '288px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
                   <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -23894,7 +23894,7 @@ const DayPlanner = () => {
               setShowWeeklyReview(true);
             }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-            style={{ left: '248px', bottom: '1.5rem' }}
+            style={{ left: '288px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
           </button>
@@ -23903,7 +23903,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowMobileRecycleBin(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '248px', bottom: '9.5rem' }}
+              style={{ left: '288px', bottom: '9.5rem' }}
             >
               <div className="relative">
                 <Trash2 size={22} />
@@ -23918,7 +23918,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowHabitModal(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
+              style={{ left: '288px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
             >
               <Activity size={22} />
             </button>
@@ -23928,7 +23928,7 @@ const DayPlanner = () => {
             <button
               onClick={openRoutinesDashboard}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
+              style={{ left: '288px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
             >
               <Sparkles size={22} />
             </button>
@@ -23967,7 +23967,7 @@ const DayPlanner = () => {
               <button
                 onClick={() => setShowMobileDailySummary(true)}
                 className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'}`}
-                style={{ left: '248px', bottom: '5.5rem' }}
+                style={{ left: '288px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
                   <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -23994,7 +23994,7 @@ const DayPlanner = () => {
               setShowWeeklyReview(true);
             }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-            style={{ left: '248px', bottom: '1.5rem' }}
+            style={{ left: '288px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
           </button>
@@ -24003,7 +24003,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowMobileRecycleBin(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '248px', bottom: '9.5rem' }}
+              style={{ left: '288px', bottom: '9.5rem' }}
             >
               <div className="relative">
                 <Trash2 size={22} />
@@ -24018,7 +24018,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowHabitModal(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
+              style={{ left: '288px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
             >
               <Activity size={22} />
             </button>
@@ -24028,7 +24028,7 @@ const DayPlanner = () => {
             <button
               onClick={openRoutinesDashboard}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
+              style={{ left: '288px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
             >
               <Sparkles size={22} />
             </button>
