@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget list item: GLANCEahead — tomorrow's agenda preview.
+  Matches the GLANCE panel appearance: header, start time, counts, committed badge.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/glanceahead_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:background="@drawable/widget_glanceahead_bg">
+
+    <!-- Header: "GLANCEahead — Monday" -->
+    <TextView
+        android:id="@+id/tv_glanceahead_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GLANCEahead — Monday"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.04"
+        android:paddingBottom="3dp" />
+
+    <!-- "Day starts at 9:00 AM" -->
+    <TextView
+        android:id="@+id/tv_glanceahead_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Day starts at 9:00 AM"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="12sp"
+        android:visibility="gone"
+        android:paddingBottom="2dp" />
+
+    <!-- Counts row: "2 tasks · 1 event · 1 deadline" -->
+    <TextView
+        android:id="@+id/tv_glanceahead_counts"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="2 tasks · 1 event"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="12sp"
+        android:visibility="gone"
+        android:paddingBottom="2dp" />
+
+    <!-- Committed time pill -->
+    <TextView
+        android:id="@+id/tv_glanceahead_committed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="2h 30m committed"
+        android:textColor="@color/widget_committed_text"
+        android:textSize="11sp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:background="@drawable/widget_committed_pill"
+        android:visibility="gone"
+        android:layout_marginTop="2dp" />
+
+    <!-- Empty state: "Tomorrow is wide open" -->
+    <TextView
+        android:id="@+id/tv_glanceahead_empty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tomorrow is wide open"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="12sp"
+        android:textStyle="italic"
+        android:visibility="gone" />
+
+</LinearLayout>

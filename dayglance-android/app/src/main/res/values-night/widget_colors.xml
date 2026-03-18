@@ -13,4 +13,6 @@
     <color name="widget_ring_track">#FF374151</color>
     <color name="widget_deadline_text">#FFfb923c</color>
     <color name="widget_in_progress_text">#FF34d399</color>
+    <color name="widget_committed_bg">#FF1e3a5f</color>
+    <color name="widget_committed_text">#FF93c5fd</color>
 </resources>

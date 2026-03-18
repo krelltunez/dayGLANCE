@@ -3660,7 +3660,7 @@ const DayPlanner = () => {
     const [hours, minutes] = timeStr.split(':').map(Number);
     const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    return `${displayHour}:${minutes.toString().padStart(2, '0')}\u00A0${ampm}`;
   };
 
   // Remove detected date/time from title text
@@ -13555,6 +13555,38 @@ const DayPlanner = () => {
       if (cachedSteps?.date === todayStr) steps = cachedSteps.steps ?? -1;
     } catch (_) {}
 
+    // ── GLANCEahead — include tomorrow preview when day is done or evening ──
+    const nowHour = today.getHours();
+    const nowMinW2 = nowHour * 60 + today.getMinutes();
+    // "Day done" check: all scheduled tasks are past, or there are none
+    const scheduledTodayW = todayAgenda.filter(t => t._agendaType === 'scheduled');
+    const allPast = scheduledTodayW.length > 0 && scheduledTodayW.every(t => {
+      if (!t.startTime) return true;
+      const parts = t.startTime.split(':').map(Number);
+      const endMin = parts[0] * 60 + (parts[1] || 0) + (t.duration || 0);
+      return nowMinW2 >= endMin;
+    });
+    const isDayDoneW = (allPast && scheduledTodayW.length > 0) || scheduledTodayW.length === 0;
+    const isEveningW = nowHour >= 19;
+    const showGlanceAhead = isDayDoneW || isEveningW;
+
+    let glanceAheadData = null;
+    if (showGlanceAhead) {
+      const { dayLabel, taskCount, eventCount, deadlineCount, firstStartTime, committedMinutes, isEmpty } = glanceAhead;
+      const committedH = Math.floor(committedMinutes / 60);
+      const committedM = committedMinutes % 60;
+      const committedStr = committedH > 0 ? `${committedH}h${committedM > 0 ? ` ${committedM}m` : ''}` : committedM > 0 ? `${committedM}m` : null;
+      glanceAheadData = {
+        dayLabel,
+        taskCount,
+        eventCount,
+        deadlineCount,
+        firstStartTime: firstStartTime || '',
+        committedStr: committedStr || '',
+        isEmpty,
+      };
+    }
+
     const snapshot = {
       date: todayStr,
       dateLabel: today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
@@ -13567,6 +13599,7 @@ const DayPlanner = () => {
       deadlines: deadlineItems,
       sections,
       routines: routineItems,
+      glanceAhead: glanceAheadData,
       updatedAt: Date.now(),
     };
 
@@ -13581,6 +13614,8 @@ const DayPlanner = () => {
     todayRoutines,
     tasks,
     unscheduledTasks,
+    glanceAhead,
+    currentTime,
   ]);
 
   // GTD Frame CRUD operations
@@ -16109,7 +16144,7 @@ const DayPlanner = () => {
                       const endMin = startMin + (task.duration || 0);
                       const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
                       const endM = String(endMin % 60).padStart(2, '0');
-                      timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                      timeLabel = `${formatTime(task.startTime)}\u00A0–\u00A0${formatTime(endH + ':' + endM)}`;
                       const diff = startMin - nowMin;
                       if (diff > 0) {
                         relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
@@ -16207,7 +16242,7 @@ const DayPlanner = () => {
                               </button>
                             )}
                           </div>
-                          <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
+                          <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
                             {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                             {relativeLabel === 'In Progress' && focusModeAvailable && (
                               <button
@@ -19049,7 +19084,7 @@ const DayPlanner = () => {
           {isTablet && (
             <div
               className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0`}
-              style={{ width: '320px', height: '100%' }}
+              style={{ width: '340px', height: '100%' }}
             >
               {/* Tabbed header — both portrait and landscape */}
               <div className={`flex border-b ${borderClass} flex-shrink-0`}>
@@ -19695,7 +19730,7 @@ const DayPlanner = () => {
                             const endMin = startMin + (task.duration || 0);
                             const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
                             const endM = String(endMin % 60).padStart(2, '0');
-                            timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                            timeLabel = `${formatTime(task.startTime)}\u00A0–\u00A0${formatTime(endH + ':' + endM)}`;
                             const diff = startMin - nowMin;
                             if (diff > 0) {
                               relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
@@ -19745,8 +19780,8 @@ const DayPlanner = () => {
                                     <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                                   ))}
                                 </div>
-                                <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
-                                  {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                                <div className={`text-sm ${textSecondary} flex items-center gap-1 flex-wrap`}>
+                                  <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
                                   {relativeLabel === 'In Progress' && focusModeAvailable && (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
@@ -20233,7 +20268,7 @@ const DayPlanner = () => {
           {!isTablet && (
           <div
             className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
-            style={{ width: '320px', height: '100%' }}
+            style={{ width: '340px', height: '100%' }}
           >
             {/* Tab bar — matching tablet */}
             <div className={`flex border-b ${borderClass} flex-shrink-0`}>
@@ -20871,7 +20906,7 @@ const DayPlanner = () => {
                         const endMin = startMin + (task.duration || 0);
                         const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
                         const endM = String(endMin % 60).padStart(2, '0');
-                        timeLabel = `${formatTime(task.startTime)} – ${formatTime(endH + ':' + endM)}`;
+                        timeLabel = `${formatTime(task.startTime)}\u00A0–\u00A0${formatTime(endH + ':' + endM)}`;
                         const diff = startMin - nowMin;
                         if (diff > 0) {
                           relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
@@ -20921,8 +20956,8 @@ const DayPlanner = () => {
                                 <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                               ))}
                             </div>
-                            <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
-                              {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
+                            <div className={`text-sm ${textSecondary} flex items-center gap-1 flex-wrap`}>
+                              <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
                               {relativeLabel === 'In Progress' && focusModeAvailable && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
@@ -23832,7 +23867,7 @@ const DayPlanner = () => {
               <button
                 onClick={() => setShowMobileDailySummary(true)}
                 className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300'}`}
-                style={{ left: '248px', bottom: '5.5rem' }}
+                style={{ left: '268px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
                   <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -23859,7 +23894,7 @@ const DayPlanner = () => {
               setShowWeeklyReview(true);
             }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-            style={{ left: '248px', bottom: '1.5rem' }}
+            style={{ left: '268px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
           </button>
@@ -23868,7 +23903,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowMobileRecycleBin(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '248px', bottom: '9.5rem' }}
+              style={{ left: '268px', bottom: '9.5rem' }}
             >
               <div className="relative">
                 <Trash2 size={22} />
@@ -23883,7 +23918,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowHabitModal(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
+              style={{ left: '268px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
             >
               <Activity size={22} />
             </button>
@@ -23893,7 +23928,7 @@ const DayPlanner = () => {
             <button
               onClick={openRoutinesDashboard}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
+              style={{ left: '268px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
             >
               <Sparkles size={22} />
             </button>
@@ -23932,7 +23967,7 @@ const DayPlanner = () => {
               <button
                 onClick={() => setShowMobileDailySummary(true)}
                 className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'}`}
-                style={{ left: '248px', bottom: '5.5rem' }}
+                style={{ left: '268px', bottom: '5.5rem' }}
               >
                 <div className="relative w-11 h-11">
                   <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
@@ -23959,7 +23994,7 @@ const DayPlanner = () => {
               setShowWeeklyReview(true);
             }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-            style={{ left: '248px', bottom: '1.5rem' }}
+            style={{ left: '268px', bottom: '1.5rem' }}
           >
             <BarChart3 size={22} />
           </button>
@@ -23968,7 +24003,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowMobileRecycleBin(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '248px', bottom: '9.5rem' }}
+              style={{ left: '268px', bottom: '9.5rem' }}
             >
               <div className="relative">
                 <Trash2 size={22} />
@@ -23983,7 +24018,7 @@ const DayPlanner = () => {
             <button
               onClick={() => setShowHabitModal(true)}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
+              style={{ left: '268px', bottom: `${recycleBin.filter(t => !t.isExample).length > 0 ? '13.5rem' : '9.5rem'}` }}
             >
               <Activity size={22} />
             </button>
@@ -23993,7 +24028,7 @@ const DayPlanner = () => {
             <button
               onClick={openRoutinesDashboard}
               className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '248px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
+              style={{ left: '268px', bottom: `${(recycleBin.filter(t => !t.isExample).length > 0 ? 13.5 : 9.5) + (habitsEnabled ? 4 : 0)}rem` }}
             >
               <Sparkles size={22} />
             </button>
