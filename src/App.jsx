@@ -16390,13 +16390,13 @@ const DayPlanner = () => {
                           )}
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             {taskCount > 0 && (
-                              <span className={`text-sm ${textPrimary}`}>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+                              <span className={`text-sm ${textPrimary} flex items-center gap-1`}><CheckSquare size={12} className={textSecondary} />{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
                             )}
                             {eventCount > 0 && (
-                              <span className={`text-sm ${textPrimary}`}>{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
+                              <span className={`text-sm ${textPrimary} flex items-center gap-1`}><Calendar size={12} className={textSecondary} />{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
                             )}
                             {deadlineCount > 0 && (
-                              <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
+                              <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-1`}><AlertTriangle size={12} />{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
                             )}
                             {committedStr && (
                               <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>{committedStr} committed</span>
@@ -19933,13 +19933,13 @@ const DayPlanner = () => {
                                 )}
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                   {taskCount > 0 && (
-                                    <span className={`text-sm ${textPrimary}`}>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+                                    <span className={`text-sm ${textPrimary} flex items-center gap-1`}><CheckSquare size={12} className={textSecondary} />{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
                                   )}
                                   {eventCount > 0 && (
-                                    <span className={`text-sm ${textPrimary}`}>{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
+                                    <span className={`text-sm ${textPrimary} flex items-center gap-1`}><Calendar size={12} className={textSecondary} />{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
                                   )}
                                   {deadlineCount > 0 && (
-                                    <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
+                                    <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-1`}><AlertTriangle size={12} />{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
                                   )}
                                   {committedStr && (
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>{committedStr} committed</span>
@@ -21108,13 +21108,13 @@ const DayPlanner = () => {
                             )}
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                               {taskCount > 0 && (
-                                <span className={`text-sm ${textPrimary}`}>{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+                                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><CheckSquare size={12} className={textSecondary} />{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
                               )}
                               {eventCount > 0 && (
-                                <span className={`text-sm ${textPrimary}`}>{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
+                                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><Calendar size={12} className={textSecondary} />{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
                               )}
                               {deadlineCount > 0 && (
-                                <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
+                                <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-1`}><AlertTriangle size={12} />{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
                               )}
                               {committedStr && (
                                 <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>{committedStr} committed</span>
