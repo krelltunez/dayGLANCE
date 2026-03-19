@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
-import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash } from './obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -305,6 +305,10 @@ const NotesSubtasksPanel = ({
   aiConfig,
   aiSubtasksLoadingForTask,
   onGenerateSubtasks,
+  // Wikilink note props (desktop + Obsidian tasks only)
+  wikilinks,       // string[] — note names extracted from task title
+  onLoadWikiNote,  // async (noteName) => { text } | null
+  onSaveWikiNote,  // async (noteName, content) => void
 }) => {
   const isGeneratingSubtasks = aiSubtasksLoadingForTask === task.id;
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
@@ -317,6 +321,42 @@ const NotesSubtasksPanel = ({
   const taskIdRef = useRef(task.id);
   const isInboxRef = useRef(isInbox);
   const updateTaskNotesRef = useRef(updateTaskNotes);
+
+  // Linked wiki note state (desktop Obsidian tasks only)
+  const [linkedNoteStates, setLinkedNoteStates] = useState({}); // { noteName: { text, loading, error } }
+  const linkedNoteTextsRef = useRef({}); // { noteName: currentText } — for save-on-unmount
+  const linkedNoteOriginalRef = useRef({}); // { noteName: textAtLoad } — to detect changes
+  const onSaveWikiNoteRef = useRef(onSaveWikiNote);
+  useEffect(() => { onSaveWikiNoteRef.current = onSaveWikiNote; }, [onSaveWikiNote]);
+
+  // Load wiki notes on mount
+  useEffect(() => {
+    if (!wikilinks || wikilinks.length === 0 || !onLoadWikiNote) return;
+    wikilinks.forEach(async (noteName) => {
+      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', loading: true, error: null } }));
+      try {
+        const result = await onLoadWikiNote(noteName);
+        const text = result?.text ?? '';
+        setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text, loading: false, error: null } }));
+        linkedNoteTextsRef.current[noteName] = text;
+        linkedNoteOriginalRef.current[noteName] = text;
+      } catch (err) {
+        setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', loading: false, error: err.message } }));
+      }
+    });
+  }, []); // load only on mount
+
+  // Save unsaved linked note changes on unmount
+  useEffect(() => {
+    return () => {
+      if (!onSaveWikiNoteRef.current) return;
+      Object.entries(linkedNoteTextsRef.current).forEach(([noteName, text]) => {
+        if (text !== (linkedNoteOriginalRef.current[noteName] ?? '')) {
+          onSaveWikiNoteRef.current(noteName, text);
+        }
+      });
+    };
+  }, []);
 
   // Keep refs in sync
   useEffect(() => {
@@ -529,6 +569,50 @@ const NotesSubtasksPanel = ({
           />
         </form>
       </div>
+
+      {/* Linked wiki note sections (desktop Obsidian tasks only) */}
+      {wikilinks && wikilinks.length > 0 && onLoadWikiNote && (
+        <div className="mt-3 border-t border-white/20 pt-3 space-y-3">
+          {wikilinks.map((noteName) => {
+            const state = linkedNoteStates[noteName] || { text: '', loading: true, error: null };
+            return (
+              <div key={noteName}>
+                <div className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5">
+                  <BookOpen size={11} />
+                  <span className="font-mono opacity-80">[[{noteName}]]</span>
+                </div>
+                {state.loading ? (
+                  <div className="flex items-center gap-1.5 py-2 opacity-60 text-xs">
+                    <Loader size={12} className="animate-spin" />
+                    Loading…
+                  </div>
+                ) : state.error ? (
+                  <div className="text-xs opacity-60 italic">Could not load note: {state.error}</div>
+                ) : (
+                  <textarea
+                    value={state.text}
+                    onChange={(e) => {
+                      const newText = e.target.value;
+                      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { ...prev[noteName], text: newText } }));
+                      linkedNoteTextsRef.current[noteName] = newText;
+                    }}
+                    onBlur={() => {
+                      const text = linkedNoteTextsRef.current[noteName] ?? '';
+                      if (text !== (linkedNoteOriginalRef.current[noteName] ?? '') && onSaveWikiNote) {
+                        onSaveWikiNote(noteName, text);
+                        linkedNoteOriginalRef.current[noteName] = text;
+                      }
+                    }}
+                    placeholder={`Empty note — start typing to create it in your vault`}
+                    className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 resize-y`}
+                    rows={4}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -6117,6 +6201,28 @@ const DayPlanner = () => {
       console.error('TRMNL sync error:', err);
     }
   };
+
+  // Callbacks for reading/writing linked wiki notes from the vault (desktop only)
+  const loadWikiNote = useCallback(async (noteName) => {
+    const handle = obsidianVaultHandleRef.current;
+    if (!handle || handle === 'native') return null;
+    try {
+      return await readWikiNote(handle, noteName);
+    } catch (err) {
+      console.error('Failed to read wiki note:', err);
+      return null;
+    }
+  }, []);
+
+  const saveWikiNote = useCallback(async (noteName, content) => {
+    const handle = obsidianVaultHandleRef.current;
+    if (!handle || handle === 'native') return;
+    try {
+      await writeWikiNote(handle, noteName, content);
+    } catch (err) {
+      console.error('Failed to write wiki note:', err);
+    }
+  }, []);
 
   // Obsidian vault sync — reads daily notes + imports tasks
   const performObsidianSync = async () => {
@@ -21410,7 +21516,7 @@ const DayPlanner = () => {
                                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }
                                   }}
-                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                  className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
                                   title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                                 >
                                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
@@ -21472,6 +21578,9 @@ const DayPlanner = () => {
                               aiConfig={aiConfig}
                               aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                               onGenerateSubtasks={generateAISubtasks}
+                              wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
+                              onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
+                              onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
                             />
                           )}
                         </div>
@@ -21640,7 +21749,7 @@ const DayPlanner = () => {
                                     setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                   }
                                 }}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
                                 title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                               >
                                 {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
@@ -21897,6 +22006,9 @@ const DayPlanner = () => {
                                     aiConfig={aiConfig}
                                     aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                                     onGenerateSubtasks={generateAISubtasks}
+                                    wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
+                                    onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
+                                    onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
                                   />
                                 </div>
                               )}
@@ -22043,7 +22155,7 @@ const DayPlanner = () => {
                                         setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                       }
                                     }}
-                                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
                                     title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                                   >
                                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
@@ -22101,6 +22213,9 @@ const DayPlanner = () => {
                                   aiConfig={aiConfig}
                                   aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                                   onGenerateSubtasks={generateAISubtasks}
+                                  wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
+                                  onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
+                                  onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
                                 />
                               </div>
                             )}
@@ -22373,7 +22488,7 @@ const DayPlanner = () => {
                                     setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                   }
                                 }}
-                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
                                 title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                               >
                                 {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
@@ -22773,6 +22888,9 @@ const DayPlanner = () => {
                                           aiConfig={aiConfig}
                                           aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                                           onGenerateSubtasks={generateAISubtasks}
+                                          wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
+                                          onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
+                                          onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
                                         />
                                       </div>
                                     </div>
@@ -26105,7 +26223,7 @@ const DayPlanner = () => {
                         )}
                       </div>
                       {/* Notes/subtasks panel — full card width */}
-                      {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0)) && (
+                      {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0) || (!isPhone && !isTablet && task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0)) && (
                         <NotesSubtasksPanel
                           task={task}
                           isInbox={false}
@@ -26120,6 +26238,9 @@ const DayPlanner = () => {
                           aiConfig={aiConfig}
                           aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                           onGenerateSubtasks={generateAISubtasks}
+                          wikilinks={!isPhone && !isTablet && task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
+                          onLoadWikiNote={!isPhone && !isTablet && task.importSource === 'obsidian' ? loadWikiNote : undefined}
+                          onSaveWikiNote={!isPhone && !isTablet && task.importSource === 'obsidian' ? saveWikiNote : undefined}
                         />
                       )}
                     </div>
