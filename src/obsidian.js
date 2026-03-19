@@ -183,6 +183,62 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
 }
 
 /**
+ * Read an arbitrary vault note by wikilink name (e.g. "My Note" or "Folder/My Note").
+ * Returns { text, lastModified } or null if the file doesn't exist.
+ * Path segments are sanitised to prevent traversal outside the vault root.
+ */
+export async function readWikiNote(vaultHandle, noteName) {
+  const parts = noteName.split('/').filter(Boolean);
+  for (const part of parts) {
+    if (part === '..' || part === '.') {
+      throw new Error(`Obsidian: unsafe path segment "${part}" in wiki note name`);
+    }
+  }
+  const fileName = parts[parts.length - 1];
+  const dirParts = parts.slice(0, -1);
+  let dir = vaultHandle;
+  for (const part of dirParts) {
+    try {
+      dir = await dir.getDirectoryHandle(part);
+    } catch (err) {
+      if (err.name === 'NotFoundError') return null;
+      throw err;
+    }
+  }
+  try {
+    const fileHandle = await dir.getFileHandle(`${fileName}.md`);
+    const file = await fileHandle.getFile();
+    return { text: await file.text(), lastModified: new Date(file.lastModified).toISOString() };
+  } catch (err) {
+    if (err.name === 'NotFoundError') return null;
+    throw err;
+  }
+}
+
+/**
+ * Write (create or overwrite) an arbitrary vault note by wikilink name.
+ * Creates intermediate directories as needed.
+ */
+export async function writeWikiNote(vaultHandle, noteName, content) {
+  const parts = noteName.split('/').filter(Boolean);
+  for (const part of parts) {
+    if (part === '..' || part === '.') {
+      throw new Error(`Obsidian: unsafe path segment "${part}" in wiki note name`);
+    }
+  }
+  const fileName = parts[parts.length - 1];
+  const dirParts = parts.slice(0, -1);
+  let dir = vaultHandle;
+  for (const part of dirParts) {
+    dir = await dir.getDirectoryHandle(part, { create: true });
+  }
+  const fileHandle = await dir.getFileHandle(`${fileName}.md`, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(content);
+  await writable.close();
+}
+
+/**
  * Strip leading date / date+time / time prefixes from a raw task line body
  * (the text after `- [x] `) to get the bare title, mirroring
  * parseTasksFromMarkdown.  Returns { bareTitle, datePrefix } where datePrefix
