@@ -44,9 +44,10 @@ echo "==> Building Android APK (${GRADLE_TASK})..."
 cd "$ANDROID_DIR"
 ./gradlew "$GRADLE_TASK"
 
+# Gradle on macOS sets the hidden flag on build outputs — unhide so Finder can see the files.
+chflags -R nohidden "$ANDROID_DIR/app/build/outputs/apk" 2>/dev/null || true
+
 if $RELEASE; then
-  # Gradle on macOS sets the hidden flag on build outputs — unhide so Finder can see the APK.
-  chflags -R nohidden "$ANDROID_DIR/app/build/outputs/apk/release" 2>/dev/null || true
   echo "==> Release APK: $APK_PATH"
   echo "==> Done! Copy dayglance.apk to your F-Droid repo."
 else
