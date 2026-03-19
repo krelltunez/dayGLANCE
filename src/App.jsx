@@ -445,42 +445,86 @@ const NotesSubtasksPanel = ({
       className={`mt-2 p-3 rounded-lg ${darkMode ? 'bg-black/50' : 'bg-black/25'} text-white`}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Notes section */}
-      <div className="mb-3">
-        <div className="text-xs font-semibold opacity-90 mb-1">Notes</div>
-        {isEditingNotes ? (
-          <textarea
-            value={localNotes}
-            onChange={handleNotesChange}
-            onKeyDown={handleNotesKeyDown}
-            onBlur={handleNotesBlur}
-            placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter for preview"
-            className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 ${compact ? 'resize-none' : 'resize-y'}`}
-            rows={compact ? 3 : 8}
-            autoFocus={!noAutoFocus}
-          />
-        ) : (
-          <div
-            onClick={() => setIsEditingNotes(true)}
-            className="text-sm whitespace-pre-wrap cursor-text min-h-[4.5rem] p-2 rounded bg-white/10 hover:bg-white/15"
-          >
-            {urlOnlyNote ? (
-              <a
-                href={noteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium break-all"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ExternalLink size={14} className="flex-shrink-0" />
-                {noteUrl}
-              </a>
-            ) : (
-              renderFormattedText(localNotes)
-            )}
-          </div>
-        )}
-      </div>
+      {/* Notes section — replaced by linked vault note for Obsidian wikilink tasks */}
+      {wikilinks && wikilinks.length > 0 && onLoadWikiNote ? (
+        <div className="mb-3 space-y-3">
+          {wikilinks.map((noteName) => {
+            const state = linkedNoteStates[noteName] || { text: '', loading: true, error: null };
+            return (
+              <div key={noteName}>
+                <div className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5">
+                  <BookOpen size={11} />
+                  <span>{noteName}</span>
+                </div>
+                {state.loading ? (
+                  <div className="flex items-center gap-1.5 py-2 opacity-60 text-xs">
+                    <Loader size={12} className="animate-spin" />
+                    Loading…
+                  </div>
+                ) : state.error ? (
+                  <div className="text-xs opacity-60 italic">Could not load note: {state.error}</div>
+                ) : (
+                  <textarea
+                    value={state.text}
+                    onChange={(e) => {
+                      const newText = e.target.value;
+                      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { ...prev[noteName], text: newText } }));
+                      linkedNoteTextsRef.current[noteName] = newText;
+                    }}
+                    onBlur={() => {
+                      const text = linkedNoteTextsRef.current[noteName] ?? '';
+                      if (text !== (linkedNoteOriginalRef.current[noteName] ?? '') && onSaveWikiNote) {
+                        onSaveWikiNote(noteName, text);
+                        linkedNoteOriginalRef.current[noteName] = text;
+                      }
+                    }}
+                    placeholder="Empty note — start typing to create it in your vault"
+                    className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 resize-y`}
+                    rows={compact ? 4 : 8}
+                    autoFocus={!noAutoFocus && !state.loading}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mb-3">
+          <div className="text-xs font-semibold opacity-90 mb-1">Notes</div>
+          {isEditingNotes ? (
+            <textarea
+              value={localNotes}
+              onChange={handleNotesChange}
+              onKeyDown={handleNotesKeyDown}
+              onBlur={handleNotesBlur}
+              placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter for preview"
+              className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 ${compact ? 'resize-none' : 'resize-y'}`}
+              rows={compact ? 3 : 8}
+              autoFocus={!noAutoFocus}
+            />
+          ) : (
+            <div
+              onClick={() => setIsEditingNotes(true)}
+              className="text-sm whitespace-pre-wrap cursor-text min-h-[4.5rem] p-2 rounded bg-white/10 hover:bg-white/15"
+            >
+              {urlOnlyNote ? (
+                <a
+                  href={noteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium break-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink size={14} className="flex-shrink-0" />
+                  {noteUrl}
+                </a>
+              ) : (
+                renderFormattedText(localNotes)
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Subtasks section */}
       <div>
@@ -570,49 +614,6 @@ const NotesSubtasksPanel = ({
         </form>
       </div>
 
-      {/* Linked wiki note sections (desktop Obsidian tasks only) */}
-      {wikilinks && wikilinks.length > 0 && onLoadWikiNote && (
-        <div className="mt-3 border-t border-white/20 pt-3 space-y-3">
-          {wikilinks.map((noteName) => {
-            const state = linkedNoteStates[noteName] || { text: '', loading: true, error: null };
-            return (
-              <div key={noteName}>
-                <div className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5">
-                  <BookOpen size={11} />
-                  <span className="font-mono opacity-80">[[{noteName}]]</span>
-                </div>
-                {state.loading ? (
-                  <div className="flex items-center gap-1.5 py-2 opacity-60 text-xs">
-                    <Loader size={12} className="animate-spin" />
-                    Loading…
-                  </div>
-                ) : state.error ? (
-                  <div className="text-xs opacity-60 italic">Could not load note: {state.error}</div>
-                ) : (
-                  <textarea
-                    value={state.text}
-                    onChange={(e) => {
-                      const newText = e.target.value;
-                      setLinkedNoteStates(prev => ({ ...prev, [noteName]: { ...prev[noteName], text: newText } }));
-                      linkedNoteTextsRef.current[noteName] = newText;
-                    }}
-                    onBlur={() => {
-                      const text = linkedNoteTextsRef.current[noteName] ?? '';
-                      if (text !== (linkedNoteOriginalRef.current[noteName] ?? '') && onSaveWikiNote) {
-                        onSaveWikiNote(noteName, text);
-                        linkedNoteOriginalRef.current[noteName] = text;
-                      }
-                    }}
-                    placeholder={`Empty note — start typing to create it in your vault`}
-                    className={`w-full bg-white/10 text-white text-sm px-2 py-1.5 rounded border border-white/20 outline-none focus:bg-white/20 focus:border-white/40 placeholder:text-white/40 resize-y`}
-                    rows={4}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };

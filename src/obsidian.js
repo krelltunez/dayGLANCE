@@ -183,9 +183,29 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
 }
 
 /**
+ * Recursively search a directory for `{fileName}.md`, skipping hidden dirs.
+ * Returns the FileSystemFileHandle or null. Capped at depth 8 to avoid
+ * runaway traversal of unusually deep vaults.
+ */
+async function findFileHandleInDir(dirHandle, mdFileName, depth = 0) {
+  if (depth > 8) return null;
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'file' && name === mdFileName) return handle;
+    if (handle.kind === 'directory' && !name.startsWith('.')) {
+      const found = await findFileHandleInDir(handle, mdFileName, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
  * Read an arbitrary vault note by wikilink name (e.g. "My Note" or "Folder/My Note").
  * Returns { text, lastModified } or null if the file doesn't exist.
- * Path segments are sanitised to prevent traversal outside the vault root.
+ *
+ * When the name contains path separators (e.g. "Folder/My Note") the exact
+ * path is used. When it is a bare name (e.g. "My Note") the entire vault is
+ * searched recursively — mirroring how Obsidian resolves wikilinks.
  */
 export async function readWikiNote(vaultHandle, noteName) {
   const parts = noteName.split('/').filter(Boolean);
@@ -194,30 +214,33 @@ export async function readWikiNote(vaultHandle, noteName) {
       throw new Error(`Obsidian: unsafe path segment "${part}" in wiki note name`);
     }
   }
-  const fileName = parts[parts.length - 1];
-  const dirParts = parts.slice(0, -1);
-  let dir = vaultHandle;
-  for (const part of dirParts) {
-    try {
-      dir = await dir.getDirectoryHandle(part);
-    } catch (err) {
-      if (err.name === 'NotFoundError') return null;
-      throw err;
+  const mdFileName = `${parts[parts.length - 1]}.md`;
+
+  let fileHandle;
+  if (parts.length > 1) {
+    // Explicit path — navigate directly
+    let dir = vaultHandle;
+    for (const part of parts.slice(0, -1)) {
+      try { dir = await dir.getDirectoryHandle(part); }
+      catch (err) { if (err.name === 'NotFoundError') return null; throw err; }
     }
+    try { fileHandle = await dir.getFileHandle(mdFileName); }
+    catch (err) { if (err.name === 'NotFoundError') return null; throw err; }
+  } else {
+    // Bare name — search whole vault so notes in sub-folders are found
+    fileHandle = await findFileHandleInDir(vaultHandle, mdFileName);
+    if (!fileHandle) return null;
   }
-  try {
-    const fileHandle = await dir.getFileHandle(`${fileName}.md`);
-    const file = await fileHandle.getFile();
-    return { text: await file.text(), lastModified: new Date(file.lastModified).toISOString() };
-  } catch (err) {
-    if (err.name === 'NotFoundError') return null;
-    throw err;
-  }
+
+  const file = await fileHandle.getFile();
+  return { text: await file.text(), lastModified: new Date(file.lastModified).toISOString() };
 }
 
 /**
  * Write (create or overwrite) an arbitrary vault note by wikilink name.
- * Creates intermediate directories as needed.
+ *
+ * For bare names the vault is searched first so edits land in the file's
+ * actual location; if not found the file is created at the vault root.
  */
 export async function writeWikiNote(vaultHandle, noteName, content) {
   const parts = noteName.split('/').filter(Boolean);
@@ -226,13 +249,22 @@ export async function writeWikiNote(vaultHandle, noteName, content) {
       throw new Error(`Obsidian: unsafe path segment "${part}" in wiki note name`);
     }
   }
-  const fileName = parts[parts.length - 1];
-  const dirParts = parts.slice(0, -1);
-  let dir = vaultHandle;
-  for (const part of dirParts) {
-    dir = await dir.getDirectoryHandle(part, { create: true });
+  const mdFileName = `${parts[parts.length - 1]}.md`;
+
+  let fileHandle;
+  if (parts.length > 1) {
+    // Explicit path — create dirs as needed
+    let dir = vaultHandle;
+    for (const part of parts.slice(0, -1)) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
+    }
+    fileHandle = await dir.getFileHandle(mdFileName, { create: true });
+  } else {
+    // Bare name — write to existing location or create at vault root
+    fileHandle = await findFileHandleInDir(vaultHandle, mdFileName)
+      ?? await vaultHandle.getFileHandle(mdFileName, { create: true });
   }
-  const fileHandle = await dir.getFileHandle(`${fileName}.md`, { create: true });
+
   const writable = await fileHandle.createWritable();
   await writable.write(content);
   await writable.close();
