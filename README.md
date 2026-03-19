@@ -139,7 +139,7 @@ Add `#tags` to any task. Filter the timeline and inbox by one or more tags, with
 
 ### Recycle Bin & Undo/Redo
 
-Deleted tasks go to a recycle bin. Full undo/redo stack (`Ctrl+Z` / `Ctrl+Y`) for all actions.
+Deleted tasks go to a recycle bin. Full undo/redo stack (`Ctrl+Z` / `Ctrl+Shift+Z` or `Ctrl+Y`) for all actions.
 
 ### Light & Dark Mode
 
@@ -282,8 +282,13 @@ Attach freeform notes to any day for journaling, reflections, or quick reference
 | `N` | New scheduled task |
 | `I` | New inbox task |
 | `R` | Open routines dashboard |
+| `F` | Focus mode |
+| `T` | Jump to today |
+| `M` | Toggle month view |
+| `D` | Toggle dark mode |
+| `/` | Toggle tag filter |
 | `Ctrl/Cmd + Z` | Undo |
-| `Ctrl/Cmd + Y` | Redo |
+| `Ctrl/Cmd + Shift + Z` / `Ctrl/Cmd + Y` | Redo |
 | `Escape` | Close modal / dropdown |
 | `?` | Show full shortcut list |
 
