@@ -139,7 +139,7 @@ Add `#tags` to any task. Filter the timeline and inbox by one or more tags, with
 
 ### Recycle Bin & Undo/Redo
 
-Deleted tasks go to a recycle bin. Full undo/redo stack (`Ctrl+Z` / `Ctrl+Shift+Z` or `Ctrl+Y`) for all actions.
+Deleted tasks go to a recycle bin. Full undo/redo stack (`Ctrl/Cmd+Z` / `Ctrl/Cmd+Shift+Z` or `Ctrl/Cmd+Y`) for all actions.
 
 ### Light & Dark Mode
 
