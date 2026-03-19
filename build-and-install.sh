@@ -46,7 +46,7 @@ cd "$ANDROID_DIR"
 
 if $RELEASE; then
   # Gradle on macOS sets the hidden flag on build outputs — unhide so Finder can see the APK.
-  chflags -R nohidden "$ANDROID_DIR/app/build/outputs/apk/release" 2>/dev/null || true
+  chflags -R nohidden "$ANDROID_DIR/app/build/outputs" 2>/dev/null || true
   echo "==> Release APK: $APK_PATH"
   echo "==> Done! Copy dayglance.apk to your F-Droid repo."
 else
