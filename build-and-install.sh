@@ -46,8 +46,8 @@ cd "$ANDROID_DIR"
 
 # Gradle on macOS hides build outputs — clear both the BSD hidden flag and the
 # com.apple.FinderInfo extended attribute so Finder can see the files.
-chflags -R nohidden "$ANDROID_DIR/app/build/outputs/apk" 2>/dev/null || true
-xattr -r -d com.apple.FinderInfo "$ANDROID_DIR/app/build/outputs/apk" 2>/dev/null || true
+chflags -R nohidden "$ANDROID_DIR/app/build/outputs" 2>/dev/null || true
+find "$ANDROID_DIR/app/build/outputs" -exec xattr -d com.apple.FinderInfo {} \; 2>/dev/null || true
 
 if $RELEASE; then
   echo "==> Release APK: $APK_PATH"
