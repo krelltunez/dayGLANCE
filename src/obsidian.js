@@ -307,8 +307,9 @@ function stripLinePrefixes(text) {
  * title-hash at import time, so a single task object in the app corresponds to
  * every occurrence of that title in the file.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate) {
   assertSafeDateStr(dateStr);
+  if (targetDate) assertSafeDateStr(targetDate);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
   let fileHandle, text;
   try {
@@ -333,7 +334,11 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     const indent = m[1];
     const timeStr = buildTimePrefix(startTime, duration);
     const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
-    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
+    // When targetDate is provided (task rescheduled to a different day), write
+    // an explicit inline date prefix so the task is attributed to the new date
+    // while remaining in its original daily note file.
+    const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
+    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${writtenTitle}`;
     updated = true;
     // Continue — update every occurrence, not just the first.
   }
@@ -342,107 +347,6 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     const writable = await fileHandle.createWritable();
     await writable.write(lines.join('\n'));
     await writable.close();
-  }
-}
-
-/**
- * Remove a task line from an Obsidian daily note file.
- * Removes every line whose bare title matches obsidianRawTitle.
- */
-export async function removeTaskFromFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle) {
-  assertSafeDateStr(dateStr);
-  const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
-  let fileHandle, text;
-  try {
-    fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
-    const file = await fileHandle.getFile();
-    text = await file.text();
-  } catch (err) {
-    if (err.name === 'NotFoundError') return;
-    throw err;
-  }
-
-  const lines = text.split('\n');
-  const filtered = lines.filter(line => {
-    const m = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
-    if (!m) return true;
-    const { bareTitle } = stripLinePrefixes(m[2]);
-    return bareTitle !== obsidianRawTitle;
-  });
-
-  if (filtered.length !== lines.length) {
-    const writable = await fileHandle.createWritable();
-    await writable.write(filtered.join('\n'));
-    await writable.close();
-  }
-}
-
-/**
- * Append a task line to an Obsidian daily note file, creating the file if needed.
- */
-export async function appendTaskToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, duration) {
-  assertSafeDateStr(dateStr);
-  const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
-  let fileHandle, text;
-  try {
-    fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
-    const file = await fileHandle.getFile();
-    text = await file.text();
-  } catch (err) {
-    if (err.name === 'NotFoundError') {
-      fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`, { create: true });
-      text = '';
-    } else {
-      throw err;
-    }
-  }
-
-  const timeStr = buildTimePrefix(startTime, duration);
-  const newLine = `- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
-  const newText = text ? `${text.trimEnd()}\n${newLine}\n` : `${newLine}\n`;
-  const writable = await fileHandle.createWritable();
-  await writable.write(newText);
-  await writable.close();
-}
-
-/**
- * Remove a task line from an Obsidian daily note via the native bridge.
- */
-export function removeTaskNative(date, obsidianRawTitle) {
-  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
-  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
-  try {
-    const text = bridge.getDailyNote(date);
-    if (!text && text !== '') return;
-    const lines = text.split('\n');
-    const filtered = lines.filter(line => {
-      const m = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
-      if (!m) return true;
-      const { bareTitle } = stripLinePrefixes(m[2]);
-      return bareTitle !== obsidianRawTitle;
-    });
-    if (filtered.length !== lines.length) {
-      bridge.writeDailyNote(date, filtered.join('\n'));
-    }
-  } catch (err) {
-    console.error('Obsidian native removeTask error:', err);
-  }
-}
-
-/**
- * Append a task line to an Obsidian daily note via the native bridge.
- */
-export function appendTaskNative(date, obsidianRawTitle, completed, startTime, duration) {
-  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
-  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
-  try {
-    const text = bridge.getDailyNote(date) || '';
-    const timeStr = buildTimePrefix(startTime, duration);
-    const newLine = `- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
-    const newText = text ? `${text.trimEnd()}\n${newLine}\n` : `${newLine}\n`;
-    bridge.writeDailyNote(date, newText);
-  } catch (err) {
-    console.error('Obsidian native appendTask error:', err);
   }
 }
 
@@ -857,7 +761,7 @@ export function writeDailyNoteNative(date, content) {
  * Reads the note with getDailyNote, applies the same regex-replace logic as
  * writeTaskStateToFile, then writes the result back with writeDailyNote.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
 
@@ -878,7 +782,8 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       const indent = m[1];
       const timeStr = buildTimePrefix(startTime, duration);
       const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
-      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${datePrefix}${timeStr}${writtenTitle}`;
+      const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
+      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${writtenTitle}`;
       updated = true;
       // Continue — update every occurrence, not just the first.
     }
