@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
-import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote } from './obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, removeTaskFromFile, appendTaskToFile, removeTaskNative, appendTaskNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -1669,15 +1669,13 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
             className="transition-all duration-300"
           />
         </svg>
-        {/* Icon overlay */}
+        {/* Icon overlay — always show the habit icon so users can identify it;
+            colour it green on success or red when a limit is exceeded */}
         <div className="absolute inset-0 flex items-center justify-center">
-          {showCheck ? (
-            <Check size={iconSize} strokeWidth={3} style={{ color: '#22c55e' }} />
-          ) : showX ? (
-            <X size={iconSize} strokeWidth={3} style={{ color: '#ef4444' }} />
-          ) : (
-            <IconComponent size={iconSize} style={{ color: ringColor === (darkMode ? '#4b5563' : '#d1d5db') ? (darkMode ? '#9ca3af' : '#9ca3af') : ringColor }} />
-          )}
+          <IconComponent
+            size={iconSize}
+            style={{ color: showCheck ? '#22c55e' : showX ? '#ef4444' : (ringColor === (darkMode ? '#4b5563' : '#d1d5db') ? (darkMode ? '#9ca3af' : '#9ca3af') : ringColor) }}
+          />
         </div>
         {/* Auto-sync indicator — small dot in top-right corner */}
         {autoSynced && (
@@ -4418,6 +4416,8 @@ const DayPlanner = () => {
     // We collect them and apply a single batched state update after the loop.
     const titleUpdates = []; // { oldId, newId, newRawTitle }
 
+    const fileDateUpdates = []; // { id, newFileDate }
+
     for (const task of allObsidian) {
       const p = prev[task.id];
       if (!p) continue;
@@ -4425,13 +4425,11 @@ const DayPlanner = () => {
       const titleChanged = p.title !== undefined && p.title !== task.title;
       const stateChanged = p.completed !== task.completed || p.startTime !== (task.startTime || null) || p.duration !== (task.duration || null);
 
-      if (!titleChanged && !stateChanged) continue;
-
-      // Always look up the ORIGINAL file date, not the rescheduled task.date.
-      // obsidianFileDate is set at parse time to the markdown file's date, so
-      // a task that was moved inbox↔timeline or rescheduled to a different day
-      // still writes back to the file where it actually lives.
+      // Detect when the task has been rescheduled to a different calendar day
       const sourceDate = task.obsidianFileDate || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1] || task.date;
+      const dateChanged = !!(task.date && sourceDate && task.date !== sourceDate);
+
+      if (!titleChanged && !stateChanged && !dateChanged) continue;
       if (!sourceDate) continue;
 
       // Derive the new raw title (strip #obsidian tag the app appends for display)
@@ -4439,51 +4437,88 @@ const DayPlanner = () => {
         ? task.title.replace(/\s*#obsidian\b/gi, '').trim()
         : undefined;
 
-      if (isNative) {
-        writeTaskStateNative(
-          sourceDate,
-          task.obsidianRawTitle,
-          task.completed,
-          task.startTime || null,
-          newRawTitle,
-          task.duration || null,
-        );
-      } else {
-        writeTaskStateToFile(
-          obsidianVaultHandleRef.current,
-          obsidianConfig.dailyNotesPath || '',
-          sourceDate,
-          task.obsidianRawTitle,
-          task.completed,
-          task.startTime || null,
-          newRawTitle,
-          task.duration || null,
-        ).catch(err => console.error('Obsidian: failed to write task state back', err));
-      }
+      const titleToWrite = newRawTitle !== undefined ? newRawTitle : task.obsidianRawTitle;
 
-      if (titleChanged && newRawTitle) {
-        // New stable ID based on the updated raw title (mirrors parseTasksFromMarkdown)
-        const newId = `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
-        titleUpdates.push({ oldId: task.id, newId, newRawTitle });
+      if (dateChanged) {
+        // Move the task: remove from the original file, append to the new date's file
+        if (isNative) {
+          removeTaskNative(sourceDate, task.obsidianRawTitle);
+          appendTaskNative(task.date, titleToWrite, task.completed, task.startTime || null, task.duration || null);
+        } else {
+          removeTaskFromFile(
+            obsidianVaultHandleRef.current,
+            obsidianConfig.dailyNotesPath || '',
+            sourceDate,
+            task.obsidianRawTitle,
+          ).catch(err => console.error('Obsidian: failed to remove task from old file', err));
+          appendTaskToFile(
+            obsidianVaultHandleRef.current,
+            obsidianConfig.dailyNotesPath || '',
+            task.date,
+            titleToWrite,
+            task.completed,
+            task.startTime || null,
+            task.duration || null,
+          ).catch(err => console.error('Obsidian: failed to append task to new file', err));
+        }
+        fileDateUpdates.push({ id: task.id, newFileDate: task.date });
+        if (titleChanged && newRawTitle) {
+          const newId = `obsidian-${task.date}-${obsidianSimpleHash(newRawTitle)}`;
+          titleUpdates.push({ oldId: task.id, newId, newRawTitle });
+        }
+      } else {
+        // In-place update: completion, time, or title changed within the same file
+        if (isNative) {
+          writeTaskStateNative(
+            sourceDate,
+            task.obsidianRawTitle,
+            task.completed,
+            task.startTime || null,
+            newRawTitle,
+            task.duration || null,
+          );
+        } else {
+          writeTaskStateToFile(
+            obsidianVaultHandleRef.current,
+            obsidianConfig.dailyNotesPath || '',
+            sourceDate,
+            task.obsidianRawTitle,
+            task.completed,
+            task.startTime || null,
+            newRawTitle,
+            task.duration || null,
+          ).catch(err => console.error('Obsidian: failed to write task state back', err));
+        }
+
+        if (titleChanged && newRawTitle) {
+          // New stable ID based on the updated raw title (mirrors parseTasksFromMarkdown)
+          const newId = `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
+          titleUpdates.push({ oldId: task.id, newId, newRawTitle });
+        }
       }
     }
 
-    // Apply title-writeback ID/obsidianRawTitle updates to React state
-    if (titleUpdates.length > 0) {
+    // Apply title-writeback ID/obsidianRawTitle updates and file-date updates to React state
+    if (titleUpdates.length > 0 || fileDateUpdates.length > 0) {
       const applyUpdates = t => {
+        let result = t;
         const u = titleUpdates.find(u => u.oldId === t.id);
-        return u ? { ...t, id: u.newId, obsidianRawTitle: u.newRawTitle } : t;
+        if (u) result = { ...result, id: u.newId, obsidianRawTitle: u.newRawTitle };
+        const fd = fileDateUpdates.find(fd => fd.id === t.id);
+        if (fd) result = { ...result, obsidianFileDate: fd.newFileDate };
+        return result;
       };
       setTasks(prev => prev.map(applyUpdates));
       setUnscheduledTasks(prev => prev.map(applyUpdates));
     }
 
     // Update previous-state snapshot (keyed by new IDs after title changes)
+    // Include date so we can detect future rescheduling to a different day
     const next = {};
     for (const task of allObsidian) {
       const u = titleUpdates.find(u => u.oldId === task.id);
       const snapshotId = u ? u.newId : task.id;
-      next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title };
+      next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null };
     }
     obsidianPrevTaskStateRef.current = next;
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
@@ -6306,7 +6341,7 @@ const DayPlanner = () => {
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
       for (const t of [...result.scheduledTasks, ...result.inboxTasks]) {
-        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title };
+        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
@@ -7633,8 +7668,15 @@ const DayPlanner = () => {
   };
 
   const goToDate = (date) => {
-    const newDate = new Date(date);
-    newDate.setHours(12, 0, 0, 0);
+    let newDate;
+    if (typeof date === 'string') {
+      // Parse date strings as local time to avoid UTC midnight → previous day shift
+      const [y, m, d] = date.split('-').map(Number);
+      newDate = new Date(y, m - 1, d, 12, 0, 0, 0);
+    } else {
+      newDate = new Date(date);
+      newDate.setHours(12, 0, 0, 0);
+    }
     setSelectedDate(newDate);
     setShowMonthView(false);
   };
@@ -14703,7 +14745,7 @@ const DayPlanner = () => {
                                   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
                                   const isImported = task.imported;
                                   return (
-                                    <div key={task.id} className="relative" style={(!isImported || !!task.nativeEventId) ? { marginLeft: '12px' } : {}}
+                                    <div key={task.id} className={`relative ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''}`} style={(!isImported || !!task.nativeEventId) ? { marginLeft: '12px' } : {}}
                                       data-ctx-menu
                                       onContextMenu={(e) => {
                                         e.preventDefault();
@@ -14751,7 +14793,7 @@ const DayPlanner = () => {
                                       )}
                                     <div
                                       data-task-id={task.id}
-                                      className={`relative ${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                      className={`relative ${task.isTaskCalendar ? '' : task.color} rounded-lg p-2.5 text-white text-sm select-none ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                       style={{ touchAction: 'pan-y', ...(taskCalendarStyle || {}) }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -21854,7 +21896,7 @@ const DayPlanner = () => {
                                 setDragPreviewTime(null);
                               }}
                               onDrop={(e) => handleDropOnDateHeader(e, date)}
-                              className={`notes-panel-container relative`}
+                              className={`notes-panel-container relative ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''}`}
                               style={isTablet && !isImported ? { marginLeft: '12px' } : {}}
                             >
                               {/* Protruding drag tab (tablet only) */}
@@ -21895,7 +21937,7 @@ const DayPlanner = () => {
                                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
                               } : {})}
-                              className={`${!isTablet ? 'notes-panel-container' : 'select-none'} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
+                              className={`${!isTablet ? 'notes-panel-container' : 'select-none'} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
                               style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'pan-y' } : {}) }}
                             >
                               {task.isExample && (

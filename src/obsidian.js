@@ -345,6 +345,107 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
   }
 }
 
+/**
+ * Remove a task line from an Obsidian daily note file.
+ * Removes every line whose bare title matches obsidianRawTitle.
+ */
+export async function removeTaskFromFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle) {
+  assertSafeDateStr(dateStr);
+  const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
+  let fileHandle, text;
+  try {
+    fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
+    const file = await fileHandle.getFile();
+    text = await file.text();
+  } catch (err) {
+    if (err.name === 'NotFoundError') return;
+    throw err;
+  }
+
+  const lines = text.split('\n');
+  const filtered = lines.filter(line => {
+    const m = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
+    if (!m) return true;
+    const { bareTitle } = stripLinePrefixes(m[2]);
+    return bareTitle !== obsidianRawTitle;
+  });
+
+  if (filtered.length !== lines.length) {
+    const writable = await fileHandle.createWritable();
+    await writable.write(filtered.join('\n'));
+    await writable.close();
+  }
+}
+
+/**
+ * Append a task line to an Obsidian daily note file, creating the file if needed.
+ */
+export async function appendTaskToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, duration) {
+  assertSafeDateStr(dateStr);
+  const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
+  let fileHandle, text;
+  try {
+    fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
+    const file = await fileHandle.getFile();
+    text = await file.text();
+  } catch (err) {
+    if (err.name === 'NotFoundError') {
+      fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`, { create: true });
+      text = '';
+    } else {
+      throw err;
+    }
+  }
+
+  const timeStr = buildTimePrefix(startTime, duration);
+  const newLine = `- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
+  const newText = text ? `${text.trimEnd()}\n${newLine}\n` : `${newLine}\n`;
+  const writable = await fileHandle.createWritable();
+  await writable.write(newText);
+  await writable.close();
+}
+
+/**
+ * Remove a task line from an Obsidian daily note via the native bridge.
+ */
+export function removeTaskNative(date, obsidianRawTitle) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
+  try {
+    const text = bridge.getDailyNote(date);
+    if (!text && text !== '') return;
+    const lines = text.split('\n');
+    const filtered = lines.filter(line => {
+      const m = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
+      if (!m) return true;
+      const { bareTitle } = stripLinePrefixes(m[2]);
+      return bareTitle !== obsidianRawTitle;
+    });
+    if (filtered.length !== lines.length) {
+      bridge.writeDailyNote(date, filtered.join('\n'));
+    }
+  } catch (err) {
+    console.error('Obsidian native removeTask error:', err);
+  }
+}
+
+/**
+ * Append a task line to an Obsidian daily note via the native bridge.
+ */
+export function appendTaskNative(date, obsidianRawTitle, completed, startTime, duration) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
+  try {
+    const text = bridge.getDailyNote(date) || '';
+    const timeStr = buildTimePrefix(startTime, duration);
+    const newLine = `- [${completed ? 'x' : ' '}] ${timeStr}${obsidianRawTitle}`;
+    const newText = text ? `${text.trimEnd()}\n${newLine}\n` : `${newLine}\n`;
+    bridge.writeDailyNote(date, newText);
+  } catch (err) {
+    console.error('Obsidian native appendTask error:', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Markdown task parser
 // ---------------------------------------------------------------------------
