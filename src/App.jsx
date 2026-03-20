@@ -2925,6 +2925,8 @@ const DayPlanner = () => {
   const cloudSyncInProgressRef = useRef(false);
   const cloudSyncInitialDoneRef = useRef(false);
   const cloudSyncDownloadRef = useRef(null);
+  const cloudSyncErrorCountRef = useRef(0); // consecutive download failures
+  const cloudSyncBackoffUntilRef = useRef(0); // timestamp: skip poll/visibility retries until this time
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
   // Daily Notes state — keyed by date string "YYYY-MM-DD" → { text, lastModified }
@@ -2951,8 +2953,10 @@ const DayPlanner = () => {
     localStorage.getItem('day-planner-trmnl-last-synced') || null
   );
   const trmnlSyncTimerRef = useRef(null);
-  const trmnlLastPushRef = useRef(0); // timestamp of last successful push
+  const trmnlLastPushRef = useRef(0); // timestamp of last push attempt
   const trmnlBackoffUntilRef = useRef(0); // timestamp: skip auto-sync until this time (429 backoff)
+  const trmnlBackoffCountRef = useRef(0); // consecutive 429s — drives exponential backoff
+  const trmnlSyncInProgressRef = useRef(false); // prevents concurrent pushes
   const performTrmnlSyncRef = useRef(null);
   const [trmnlMarkupCopied, setTrmnlMarkupCopied] = useState('');
 
@@ -4070,7 +4074,9 @@ const DayPlanner = () => {
     const handleVisibility = () => {
       if (!document.hidden) {
         setCurrentTime(new Date());
-        cloudSyncDownloadRef.current?.();
+        if (Date.now() >= cloudSyncBackoffUntilRef.current) {
+          cloudSyncDownloadRef.current?.();
+        }
         syncHealthConnectHabitsRef.current?.();
       }
     };
@@ -4270,7 +4276,9 @@ const DayPlanner = () => {
   useEffect(() => {
     if (!cloudSyncConfig?.enabled) return;
     const pollTimer = setInterval(() => {
-      cloudSyncDownloadRef.current?.();
+      if (Date.now() >= cloudSyncBackoffUntilRef.current) {
+        cloudSyncDownloadRef.current?.();
+      }
     }, 60 * 1000);
     return () => clearInterval(pollTimer);
   }, [cloudSyncConfig?.enabled]);
@@ -6180,6 +6188,8 @@ const DayPlanner = () => {
   // TRMNL e-ink dashboard sync — push today's data to TRMNL webhook
   const performTrmnlSync = async () => {
     if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl) return;
+    if (trmnlSyncInProgressRef.current) return; // prevent concurrent pushes
+    trmnlSyncInProgressRef.current = true;
     setTrmnlSyncStatus('syncing');
     try {
       const today = selectedDate ? dateToString(selectedDate) : new Date().toISOString().slice(0, 10);
@@ -6198,6 +6208,7 @@ const DayPlanner = () => {
       const result = await pushToTrmnl(trmnlConfig, mergeVars);
       trmnlLastPushRef.current = Date.now();
       if (result.success) {
+        trmnlBackoffCountRef.current = 0; // reset exponential backoff on success
         setTrmnlSyncStatus('success');
         const ts = new Date().toISOString();
         setTrmnlLastSynced(ts);
@@ -6206,12 +6217,17 @@ const DayPlanner = () => {
         setTrmnlSyncStatus('error');
         console.warn('TRMNL sync failed:', result.error);
         if (result.rateLimited) {
-          trmnlBackoffUntilRef.current = Date.now() + 5 * 60 * 1000; // 5-min backoff
+          trmnlBackoffCountRef.current += 1;
+          // Exponential backoff: 5 min, 10 min, 20 min, 40 min … capped at 60 min
+          const backoffMins = Math.min(5 * Math.pow(2, trmnlBackoffCountRef.current - 1), 60);
+          trmnlBackoffUntilRef.current = Date.now() + backoffMins * 60 * 1000;
         }
       }
     } catch (err) {
       setTrmnlSyncStatus('error');
       console.error('TRMNL sync error:', err);
+    } finally {
+      trmnlSyncInProgressRef.current = false;
     }
   };
 
@@ -11471,6 +11487,8 @@ const DayPlanner = () => {
       const elapsed = Date.now() - syncStart;
       if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
+      cloudSyncErrorCountRef.current = 0; // reset error backoff on success
+      cloudSyncBackoffUntilRef.current = 0;
       setCloudSyncLastSynced(now);
       localStorage.setItem('day-planner-cloud-sync-last-synced', now);
       localStorage.setItem('day-planner-cloud-sync-local-modified', payload.lastModified);
@@ -11478,6 +11496,9 @@ const DayPlanner = () => {
       setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
     } catch (err) {
       console.error('Cloud sync upload error:', err);
+      cloudSyncErrorCountRef.current += 1;
+      const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), 15 * 60) * 1000;
+      cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
       setCloudSyncError(err.message);
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
@@ -11654,6 +11675,8 @@ const DayPlanner = () => {
         return;
       }
 
+      cloudSyncErrorCountRef.current = 0; // reset error backoff on success
+      cloudSyncBackoffUntilRef.current = 0;
       const elapsed = Date.now() - syncStart;
       if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
@@ -11663,6 +11686,10 @@ const DayPlanner = () => {
       setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
     } catch (err) {
       console.error('Cloud sync download error:', err);
+      cloudSyncErrorCountRef.current += 1;
+      // Exponential backoff: 30s, 60s, 2m, 4m … capped at 15 min
+      const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), 15 * 60) * 1000;
+      cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
       setCloudSyncError(err.message);
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
