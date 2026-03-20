@@ -7,7 +7,7 @@
 
 [**Live App**](https://dayglance.app) · [**Documentation**](https://docs.dayglance.app) · [**Releases**](https://github.com/krelltunez/dayglance/releases) · [**Android APK**](https://github.com/krelltunez/dayglance/releases)
 
-![dayGLANCE Desktop Overview](screenshots/hero-light.png)
+![dayGLANCE Desktop Overview](screenshots/hero-dark.png)
 
 https://github.com/user-attachments/assets/198d77d0-fc60-42b9-a3d4-a160915c197b
 
