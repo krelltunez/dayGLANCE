@@ -262,7 +262,7 @@ Once enabled in **Settings → AI**:
 
 Pull step counts and activity data from **Google Health Connect** into your daily summary. Visualize your movement alongside your schedule.
 
-**Setup:** Enable in the Android app under Settings → Health Connect and grant the requested permissions.
+**Setup:** On first use, dayGLANCE will prompt you to grant Health Connect permissions via Android's standard permissions dialog. To manage or revoke permissions later, go to the **Android Health Connect app → App permissions → dayGLANCE**.
 
 ---
 
