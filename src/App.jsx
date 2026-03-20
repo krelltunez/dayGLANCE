@@ -4444,14 +4444,18 @@ const DayPlanner = () => {
       // (e.g. "- [ ] 2026-03-20 10:00 Task").  No new file is created.
       const targetDate = dateChanged ? task.date : undefined;
 
+      // All-day tasks have startTime: '00:00' in state but must write back with no
+      // time prefix so the line stays as "YYYY-MM-DD Task" (not "YYYY-MM-DD 00:00-00:30 Task").
+      const writeStartTime = task.isAllDay ? null : (task.startTime || null);
+      const writeDuration = task.isAllDay ? null : (task.duration || null);
       if (isNative) {
         writeTaskStateNative(
           sourceDate,
           task.obsidianRawTitle,
           task.completed,
-          task.startTime || null,
+          writeStartTime,
           newRawTitle,
-          task.duration || null,
+          writeDuration,
           targetDate,
         );
       } else {
@@ -4461,9 +4465,9 @@ const DayPlanner = () => {
           sourceDate,
           task.obsidianRawTitle,
           task.completed,
-          task.startTime || null,
+          writeStartTime,
           newRawTitle,
-          task.duration || null,
+          writeDuration,
           targetDate,
         ).catch(err => console.error('Obsidian: failed to write task state back', err));
       }
