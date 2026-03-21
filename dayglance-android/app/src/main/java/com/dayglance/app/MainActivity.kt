@@ -378,7 +378,7 @@ class MainActivity : AppCompatActivity() {
      * Combines subject + text when both are present (e.g. shared from a browser: subject
      * is the page title, text is the URL).
      */
-    private fun storeShareIntent(intent: Intent, store: com.dayglance.app.data.SharedDataStore) {
+    private fun storeShareIntent(intent: Intent, store: SharedDataStore) {
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
         val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)
         val combined = if (!subject.isNullOrBlank() && !text.startsWith(subject)) {
