@@ -330,6 +330,8 @@ Rules:
 - If recurring tasks have low completion, note which ones gently
 - If there are many incomplete tasks, suggest prioritizing or breaking them down
 - Mention any notable tag patterns if data is available
+- If habit data is provided, comment on consistency — celebrate streaks, gently note habits that were missed frequently
+- If frame utilization data is provided, highlight underutilized frames (below 30%) or overloaded ones (above 100%) as actionable observations
 - End with a brief forward-looking note for next week
 - Do NOT use markdown, bullet points, headers, or formatting — plain text only
 - Do NOT use emojis
@@ -340,7 +342,8 @@ export function weeklySummaryUserPrompt(data) {
   const { dateRange, tasksCompleted, tasksScheduled, completionRate, timeSpent, timePlanned, focusMinutes,
     recurringCompleted, recurringScheduled, bestDay, bestDayCount,
     incompleteCount, tagBreakdown, inboxCount,
-    nextWeekTaskCount = 0, nextWeekTopTasks = [], nextWeekCalendarEvents = [] } = data;
+    nextWeekTaskCount = 0, nextWeekTopTasks = [], nextWeekCalendarEvents = [],
+    habitStats = [], frameStats = [] } = data;
 
   const lines = [`Week: ${dateRange}.`];
   lines.push(`Tasks completed: ${tasksCompleted} of ${tasksScheduled} (${completionRate}% completion rate).`);
@@ -366,6 +369,18 @@ export function weeklySummaryUserPrompt(data) {
 
   if (inboxCount > 0) {
     lines.push(`${inboxCount} tasks currently in inbox.`);
+  }
+
+  if (habitStats.length > 0) {
+    lines.push(`Habit tracking: ${habitStats.map(h =>
+      `${h.name}: ${h.daysHit}/7 days (${h.type === 'limit' ? 'stayed under limit' : 'hit target'})`
+    ).join(', ')}.`);
+  }
+
+  if (frameStats.length > 0) {
+    lines.push(`Frame utilization: ${frameStats.map(f =>
+      `${f.label}: ${f.utilizationPct}% (${f.scheduledMin} of ${f.totalCapacityMin} min scheduled)`
+    ).join(', ')}.`);
   }
 
   lines.push(`\nNext week: ${nextWeekTaskCount} task(s) already scheduled.`);
