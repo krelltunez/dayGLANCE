@@ -28860,7 +28860,7 @@ const DayPlanner = () => {
                 }}
               >
                 {/* Card 1: Past 7 Days */}
-                <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
+                <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4" style={{ scrollSnapAlign: 'start', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
                   <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Past 7 Days</h3>
                   <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(pastStartStr, pastEndStr)}</p>
 
@@ -29002,7 +29002,7 @@ const DayPlanner = () => {
                 </div>
 
                 {/* Card 2: Next 7 Days */}
-                <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
+                <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4" style={{ scrollSnapAlign: 'start', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
                   <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Next 7 Days</h3>
                   <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(nextStartStr, nextEndStr)}</p>
 
