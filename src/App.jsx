@@ -2664,6 +2664,7 @@ const DayPlanner = () => {
   });
   const [pendingPriorities, setPendingPriorities] = useState({});
   const [syncUrl, setSyncUrl] = useState('');
+  const [showCalendarUrlHint, setShowCalendarUrlHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
@@ -26991,7 +26992,10 @@ const DayPlanner = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
-                          For public calendars in Nextcloud: Go to Calendar → Settings → Copy the public link. For private (authenticated) calendars, use the internal CalDAV URL with ?export appended (e.g. …/remote.php/dav/calendars/user/personal/?export) and enter your credentials below.
+                          {showCalendarUrlHint
+                            ? <>For public calendars in Nextcloud: Go to Calendar → Settings → Copy the public link. For private (authenticated) calendars, use the internal CalDAV URL with ?export appended (e.g. …/remote.php/dav/calendars/user/personal/?export) and enter your credentials below. <button onClick={() => setShowCalendarUrlHint(false)} className="underline">Show less</button></>
+                            : <>Where do I find this URL? <button onClick={() => setShowCalendarUrlHint(true)} className="underline">Show more</button></>
+                          }
                         </p>
                       </div>
                       )}
