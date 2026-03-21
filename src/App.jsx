@@ -28852,7 +28852,7 @@ const DayPlanner = () => {
               {/* Swipeable cards */}
               <div
                 ref={reviewScrollRef}
-                className="flex-1 flex overflow-x-auto overflow-y-hidden review-carousel"
+                className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden review-carousel"
                 style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 onScroll={(e) => {
                   const page = Math.round(e.target.scrollLeft / e.target.clientWidth);
