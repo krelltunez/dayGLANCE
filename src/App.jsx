@@ -11080,6 +11080,9 @@ const DayPlanner = () => {
       if (!response.ok) throw new Error('Failed to fetch calendar');
 
       const icsContent = await response.text();
+      if (!icsContent.includes('BEGIN:VCALENDAR')) {
+        throw new Error('not-ical');
+      }
       const events = parseICS(icsContent);
 
       const allImported = events.flatMap(event =>
@@ -11096,7 +11099,7 @@ const DayPlanner = () => {
       return { success: true, count: importedTasks.length };
     } catch (error) {
       console.error('Sync error:', error);
-      return { success: false, error: 'calendar' };
+      return { success: false, error: error.message === 'not-ical' ? 'not-ical' : 'calendar' };
     }
   };
 
@@ -11440,6 +11443,10 @@ const DayPlanner = () => {
 
       if (calendarResult.success) {
         successes.push(`${calendarResult.count} event${calendarResult.count !== 1 ? 's' : ''}`);
+      } else if (calendarResult.error === 'not-ical') {
+        if (!silent) setSyncNotification({ type: 'error', title: 'Calendar Sync', message: 'The URL did not return a calendar file. For Nextcloud private calendars, append ?export to the URL (e.g. …/personal/?export).' });
+        setIsSyncing(false);
+        return;
       } else if (calendarResult.error === 'calendar') {
         errors.push('calendar');
       }
@@ -26984,7 +26991,7 @@ const DayPlanner = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
-                          For public calendars in Nextcloud: Go to Calendar → Settings → Copy the public link. For private calendars, use the internal URL and enter your credentials below.
+                          For public calendars in Nextcloud: Go to Calendar → Settings → Copy the public link. For private (authenticated) calendars, use the internal CalDAV URL with ?export appended (e.g. …/remote.php/dav/calendars/user/personal/?export) and enter your credentials below.
                         </p>
                       </div>
                       )}
