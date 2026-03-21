@@ -297,7 +297,7 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
 export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
   <div style="display:flex;justify-content:space-between;align-items:baseline">
     <span class="title title--small">{{ day_name }}, {{ date_label }}</span>
-    <span class="label">| {{ completed }}/{{ total }} · {{ pct }}%</span>
+    <span class="label">&nbsp;|&nbsp; {{ completed }}/{{ total }} · {{ pct }}%</span>
   </div>
   <div class="divider"></div>
   <div class="gap--small">
