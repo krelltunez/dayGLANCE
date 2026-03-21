@@ -371,6 +371,12 @@ class NativeBridge(
             dataStore.pendingAddInboxTask = false
             return """{"action":"add_inbox_task"}"""
         }
+        val shareText = dataStore.pendingShareText
+        if (shareText != null) {
+            dataStore.pendingShareText = null
+            val escaped = shareText.replace("\\", "\\\\").replace("\"", "\\\"")
+            return """{"action":"share","text":"$escaped"}"""
+        }
         // Snooze takes priority over complete (it was triggered most recently)
         val snoozeId = dataStore.pendingSnoozeTaskId
         if (snoozeId != null) {

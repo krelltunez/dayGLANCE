@@ -90,6 +90,7 @@ class MainActivity : AppCompatActivity() {
             ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
             ACTION_ADD_TASK       -> store.pendingAddTask = true
             ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
+            Intent.ACTION_SEND    -> storeShareIntent(intent, store)
         }
 
         webView = binding.webView
@@ -351,6 +352,7 @@ class MainActivity : AppCompatActivity() {
             ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
             ACTION_ADD_TASK       -> store.pendingAddTask = true
             ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
+            Intent.ACTION_SEND    -> storeShareIntent(intent, store)
             else -> return
         }
         // The WebView is already loaded; trigger the JS check immediately.
@@ -369,6 +371,22 @@ class MainActivity : AppCompatActivity() {
         } else {
             super.onBackPressed()
         }
+    }
+
+    /**
+     * Extracts shared text from an ACTION_SEND intent and stores it for the JS layer.
+     * Combines subject + text when both are present (e.g. shared from a browser: subject
+     * is the page title, text is the URL).
+     */
+    private fun storeShareIntent(intent: Intent, store: com.dayglance.app.data.SharedDataStore) {
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+        val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)
+        val combined = if (!subject.isNullOrBlank() && !text.startsWith(subject)) {
+            "$subject $text".trim()
+        } else {
+            text
+        }
+        store.pendingShareText = combined.take(500)
     }
 
     companion object {

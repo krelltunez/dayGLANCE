@@ -70,6 +70,12 @@
                 <action android:name="com.dayglance.app.ACTION_ADD_TASK" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- Share sheet: other apps can share plain text / URLs to dayGLANCE -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
