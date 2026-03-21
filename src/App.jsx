@@ -2866,6 +2866,11 @@ const DayPlanner = () => {
   const [focusTimerRunning, setFocusTimerRunning] = useState(false);
   const [focusTaskMinutes, setFocusTaskMinutes] = useState({});
   const [focusBlockTasks, setFocusBlockTasks] = useState([]);
+  const [focusLog, setFocusLog] = useState(() => {
+    const saved = localStorage.getItem('day-planner-focus-log');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [focusLogModalDate, setFocusLogModalDate] = useState(null);
   const wakeLockSentinel = useRef(null);
   const focusTimerRef = useRef(null);
   const handleFocusTimerEndRef = useRef(null);
@@ -4035,6 +4040,11 @@ const DayPlanner = () => {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [mobileActiveTab, mobileSettingsView, isMobile]);
+
+  // Persist focusLog to localStorage
+  useEffect(() => {
+    localStorage.setItem('day-planner-focus-log', JSON.stringify(focusLog));
+  }, [focusLog]);
 
   // Persist dailyNotes to localStorage and trigger cloud sync upload
   useEffect(() => {
@@ -8918,6 +8928,25 @@ const DayPlanner = () => {
         }
         return t;
       }));
+    }
+    // Record session in daily focus log
+    if (focusSessionStart) {
+      const sessionMinutes = Math.round((new Date() - focusSessionStart) / 60000);
+      if (sessionMinutes > 0) {
+        const sessionDateStr = dateToString(new Date(focusSessionStart));
+        setFocusLog(prev => {
+          const existing = prev[sessionDateStr] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 };
+          return {
+            ...prev,
+            [sessionDateStr]: {
+              totalMinutes: existing.totalMinutes + sessionMinutes,
+              sessions: existing.sessions + 1,
+              cyclesCompleted: existing.cyclesCompleted + focusCycleCount,
+              tasksCompleted: existing.tasksCompleted + focusCompletedTasks.size,
+            },
+          };
+        });
+      }
     }
     if (showStats) {
       setFocusShowStats(true);
@@ -14720,6 +14749,13 @@ const DayPlanner = () => {
                               title="Daily notes"
                             >
                               <NotebookPen size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(dateStr); }}
+                              className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-50'}`}
+                              title="Focus sessions"
+                            >
+                              <Activity size={14} />
                             </button>
                           </div>
                           {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
@@ -21725,6 +21761,13 @@ const DayPlanner = () => {
                         >
                           <NotebookPen size={14} />
                         </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(dateStr); }}
+                          className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-50'}`}
+                          title="Focus sessions"
+                        >
+                          <Activity size={14} />
+                        </button>
                       </div>
                       {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
                         <div className="flex items-center justify-center gap-0.5 mt-0.5 cursor-pointer" onClick={(e) => { e.stopPropagation(); setHabitDayPopup(dateStr); }}>
@@ -23256,6 +23299,125 @@ const DayPlanner = () => {
             : null}
         />
       )}
+
+      {/* Focus Log Modal */}
+      {focusLogModalDate && (() => {
+        const fmtMin = (min) => {
+          const h = Math.floor(min / 60);
+          const m = min % 60;
+          if (h === 0) return `${m}m`;
+          if (m === 0) return `${h}h`;
+          return `${h}h ${m}m`;
+        };
+        const dayData = focusLog[focusLogModalDate] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 };
+        const displayDate = new Date(focusLogModalDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+        // Last 7 days ending on focusLogModalDate
+        const anchorDate = new Date(focusLogModalDate + 'T12:00:00');
+        const last7 = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(anchorDate);
+          d.setDate(d.getDate() - (6 - i));
+          return dateToString(d);
+        });
+        const last7Data = last7.map(ds => focusLog[ds] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 });
+        const totalMin7 = last7Data.reduce((s, d) => s + d.totalMinutes, 0);
+        const activeDays7 = last7Data.filter(d => d.totalMinutes > 0).length;
+        const avgMin7 = activeDays7 > 0 ? Math.round(totalMin7 / activeDays7) : 0;
+        const sessions7 = last7Data.reduce((s, d) => s + d.sessions, 0);
+        const maxMin7 = Math.max(...last7Data.map(d => d.totalMinutes), 1);
+
+        // Streak: consecutive days with focus sessions ending on focusLogModalDate
+        let streak = 0;
+        for (let i = 6; i >= 0; i--) {
+          if (last7Data[i].totalMinutes > 0) streak++;
+          else break;
+        }
+        const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+        const Tile = ({ value, label }) => (
+          <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3 flex-1`}>
+            <div className={`text-lg font-bold ${textPrimary}`}>{value}</div>
+            <div className={`text-xs ${textSecondary} mt-0.5`}>{label}</div>
+          </div>
+        );
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setFocusLogModalDate(null)}>
+            <div
+              className={`${cardBg} rounded-xl shadow-xl p-5 max-w-xs w-full mx-4 ${borderClass} border`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Activity size={16} className="text-purple-500" />
+                  <span className={`font-semibold text-sm ${textPrimary}`}>Focus Log</span>
+                  <span className={`text-xs ${textSecondary}`}>{displayDate}</span>
+                </div>
+                <button
+                  onClick={() => setFocusLogModalDate(null)}
+                  className={`p-1 rounded ${darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'} transition-colors`}
+                >
+                  <X size={16} className={textSecondary} />
+                </button>
+              </div>
+
+              {/* This day */}
+              <div className={`text-xs font-semibold uppercase tracking-wider ${textSecondary} mb-2`}>This Day</div>
+              {dayData.totalMinutes === 0 ? (
+                <p className={`text-sm ${textSecondary} italic mb-4`}>No focus sessions recorded.</p>
+              ) : (
+                <div className="flex gap-2 mb-4">
+                  <Tile value={fmtMin(dayData.totalMinutes)} label="Focus time" />
+                  <Tile value={dayData.sessions} label={dayData.sessions === 1 ? 'Session' : 'Sessions'} />
+                  <Tile value={dayData.tasksCompleted} label={dayData.tasksCompleted === 1 ? 'Task done' : 'Tasks done'} />
+                </div>
+              )}
+
+              {/* Last 7 days */}
+              <div className={`text-xs font-semibold uppercase tracking-wider ${textSecondary} mb-2`}>Last 7 Days</div>
+              {/* Mini bar chart */}
+              <div className="flex items-end gap-1 h-12 mb-1">
+                {last7Data.map((d, i) => {
+                  const pct = d.totalMinutes / maxMin7;
+                  const isAnchor = last7[i] === focusLogModalDate;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5 h-full">
+                      <div className="flex-1 w-full flex items-end">
+                        <div
+                          className="w-full rounded-sm"
+                          style={{
+                            height: d.totalMinutes > 0 ? `${Math.max(pct * 100, 8)}%` : '3px',
+                            backgroundColor: d.totalMinutes > 0
+                              ? (isAnchor ? '#a855f7' : (darkMode ? '#7c3aed80' : '#c4b5fd'))
+                              : (darkMode ? '#374151' : '#e7e5e4'),
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-1 mb-3">
+                {last7.map((ds, i) => (
+                  <div key={i} className={`flex-1 text-center text-[10px] ${ds === focusLogModalDate ? 'text-purple-500 font-bold' : textSecondary}`}>
+                    {dayLetters[new Date(ds + 'T12:00:00').getDay()]}
+                  </div>
+                ))}
+              </div>
+              {totalMin7 === 0 ? (
+                <p className={`text-sm ${textSecondary} italic`}>No focus sessions in the last 7 days.</p>
+              ) : (
+                <div className="flex gap-2">
+                  <Tile value={fmtMin(totalMin7)} label="Total" />
+                  <Tile value={fmtMin(avgMin7)} label="Avg / active day" />
+                  <Tile value={`${streak}d`} label="Streak" />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {showEmptyBinConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}>
