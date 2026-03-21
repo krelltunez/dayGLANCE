@@ -12959,6 +12959,18 @@ const DayPlanner = () => {
         setShowAddTask(true);
       } else if (pending.action === 'add_inbox_task') {
         openNewInboxTask();
+      } else if (pending.action === 'share' && pending.text) {
+        setNewTask({
+          title: pending.text,
+          startTime: getNextQuarterHour(),
+          duration: 30,
+          date: dateToString(selectedDate),
+          isAllDay: false,
+          openInInbox: true,
+          deadline: null,
+          priority: 0
+        });
+        setShowAddTask(true);
       } else if (pending.action === 'complete' && pending.taskId) {
         toggleComplete(pending.taskId);
       } else if (pending.action === 'snooze' && pending.taskId) {

@@ -101,6 +101,17 @@ class SharedDataStore(context: Context) {
         get() = prefs.getBoolean(KEY_PENDING_ADD_INBOX_TASK, false)
         set(value) = prefs.edit { putBoolean(KEY_PENDING_ADD_INBOX_TASK, value) }
 
+    /**
+     * Text shared to dayGLANCE via the Android share sheet (ACTION_SEND).
+     * Written by MainActivity; read and cleared by NativeBridge.getPendingAction().
+     */
+    var pendingShareText: String?
+        get() = prefs.getString(KEY_PENDING_SHARE, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_SHARE, value)
+            else remove(KEY_PENDING_SHARE)
+        }
+
     // ── Scheduled reminders (background alarm persistence) ───────────────────
 
     /**
@@ -139,6 +150,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_VOICE_INPUT = "pending_voice_input"
         private const val KEY_PENDING_ADD_TASK = "pending_add_task"
         private const val KEY_PENDING_ADD_INBOX_TASK = "pending_add_inbox_task"
+        private const val KEY_PENDING_SHARE = "pending_share_text"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }
