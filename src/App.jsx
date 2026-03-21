@@ -28439,6 +28439,22 @@ const DayPlanner = () => {
         const nextScheduled = nextRegular.length + nextRecurringCount;
         const nextPlannedMinutes = nextRegular.reduce((sum, t) => sum + (t.duration || 0), 0) + nextRecurringMinutes;
 
+        // Frame availability for next week
+        let nextFrameTotalMinutes = 0;
+        gtdFrames.filter(f => f.enabled && !f.singleDate).forEach(frame => {
+          nextWeekDates.forEach(ds => {
+            const dayOfWeek = new Date(ds + 'T12:00:00').getDay();
+            if (!frame.days.includes(dayOfWeek)) return;
+            const exception = frame.exceptions?.[ds];
+            if (exception?.deleted) return;
+            const instanceStart = exception?.start || frame.start;
+            const instanceEnd = exception?.end || frame.end;
+            const cap = timeToMinutes(instanceEnd) - timeToMinutes(instanceStart);
+            if (cap > 0) nextFrameTotalMinutes += cap;
+          });
+        });
+        const nextFrameAvailableMinutes = Math.max(0, nextFrameTotalMinutes - nextPlannedMinutes);
+
         // Day load map
         const dayLoad = {};
         nextWeekDates.forEach(ds => { dayLoad[ds] = { count: 0, totalMinutes: 0 }; });
@@ -28838,6 +28854,9 @@ const DayPlanner = () => {
                     )}
                     {nextRecurringCount > 0 && (
                       <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                    )}
+                    {nextFrameTotalMinutes > 0 && (
+                      <StatCard value={formatMinutes(nextFrameAvailableMinutes)} label="Frame availability" icon={<CalendarDays size={16} className="text-green-400" />} />
                     )}
                   </div>
 
