@@ -12,7 +12,8 @@ import { cloudSyncProviders } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
-import { TASK_COLORS, FRAME_COLORS, HABIT_COLORS, TAILWIND_TO_HEX, taskColorToHex, DAY_LABELS } from './utils/colorUtils.js';
+import { TASK_COLORS, FRAME_COLORS, TAILWIND_TO_HEX, taskColorToHex, DAY_LABELS } from './utils/colorUtils.js';
+import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
 import { getOccurrencesInRange, getRecurrencePresets } from './utils/recurrenceEngine.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
@@ -970,14 +971,6 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
     </div>
   );
 };
-
-// Habit tracking: icon lookup map for habit definitions
-const HABIT_ICONS = {
-  Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart,
-  Target, TrendingUp, Zap, Wine, Candy, Pill, Activity, BookOpen, Trophy,
-  CupSoda, Moon, Smartphone
-};
-const HABIT_ICON_NAMES = Object.keys(HABIT_ICONS);
 
 // HabitRing — SVG circular progress ring component
 // autoSynced: true when the count comes from Health Connect — disables tap interactions
