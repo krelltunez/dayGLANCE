@@ -11,21 +11,6 @@ export const TASK_COLORS = [
   { name: 'Yellow', class: 'bg-yellow-500' },
 ];
 
-// Abbreviated day-of-week labels, indexed 0 (Sun) – 6 (Sat).
-export const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-// GTD Frame color palette.
-export const FRAME_COLORS = [
-  { name: 'Indigo', class: 'bg-indigo-200' },
-  { name: 'Amber',  class: 'bg-amber-200' },
-  { name: 'Green',  class: 'bg-green-200' },
-  { name: 'Blue',   class: 'bg-blue-200' },
-  { name: 'Rose',   class: 'bg-rose-200' },
-  { name: 'Purple', class: 'bg-purple-200' },
-  { name: 'Teal',   class: 'bg-teal-200' },
-  { name: 'Orange', class: 'bg-orange-200' },
-];
-
 // Maps Tailwind CSS background-color classes to hex values for the native Android widget.
 // The widget renders in a separate process and cannot resolve Tailwind classes.
 export const TAILWIND_TO_HEX = {
