@@ -7,15 +7,6 @@ import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsT
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
-import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { cloudSyncProviders } from './utils/cloudSyncProviders.js';
-import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
-import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags } from './utils/textFormatting.jsx';
-import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
-import { TASK_COLORS, FRAME_COLORS, TAILWIND_TO_HEX, taskColorToHex, DAY_LABELS } from './utils/colorUtils.js';
-import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
-import { getOccurrencesInRange, getRecurrencePresets } from './utils/recurrenceEngine.js';
-import { getPartialTag, getFilteredTags, applyTagCompletion, getPartialDate, getPartialTime, getPartialDeadline, getPartialPriority, getPartialDuration, getDateCandidates, parseFlexibleDate, getTimeCandidates, parseFlexibleTime, completeShortcutText, cleanTitle, removeFromTitle } from './utils/suggestionParser.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -114,6 +105,189 @@ const useIsLandscape = () => {
   }, []);
 
   return isLandscape;
+};
+
+// Compute localStorage usage with per-key breakdown
+const getStorageUsage = () => {
+  const entries = [];
+  let totalBytes = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      const val = localStorage.getItem(key) || '';
+      const bytes = (key.length + val.length) * 2; // UTF-16
+      // Split day-planner-tasks into user tasks vs imported calendar events
+      if (key === 'day-planner-tasks') {
+        try {
+          const tasks = JSON.parse(val);
+          const userTasks = tasks.filter(t => !t.imported);
+          const importedTasks = tasks.filter(t => t.imported);
+          const userBytes = (key.length + JSON.stringify(userTasks).length) * 2;
+          const importedBytes = bytes - userBytes;
+          if (userTasks.length > 0) entries.push({ key: 'day-planner-tasks:user', bytes: userBytes, count: userTasks.length });
+          if (importedTasks.length > 0) entries.push({ key: 'day-planner-tasks:imported', bytes: importedBytes, count: importedTasks.length });
+        } catch {
+          entries.push({ key, bytes });
+        }
+      } else {
+        entries.push({ key, bytes });
+      }
+      totalBytes += bytes;
+    }
+  } catch {}
+  entries.sort((a, b) => b.bytes - a.bytes);
+  return { totalBytes, entries };
+};
+
+const formatBytes = (bytes) => {
+  if (bytes > 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
+};
+
+// URL detection regex for notes
+const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+
+// Check if entire text is just a URL (with optional whitespace)
+const isOnlyUrl = (text) => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  const match = trimmed.match(URL_REGEX);
+  return match && match.length === 1 && match[0] === trimmed;
+};
+
+// Render formatted text with URLs, **bold**, *italic*, __underline__
+const renderFormattedText = (text) => {
+  if (!text) return null;
+
+  let gk = 0; // global key counter
+
+  // Inline formatting: `code`, **bold**, *italic*, __underline__, URLs
+  const renderInline = (str) => {
+    if (!str) return null;
+    const parts = [];
+    let last = 0;
+    const re = /(`([^`]+)`)|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      if (m.index > last) parts.push(str.slice(last, m.index));
+      if (m[1]) {
+        // `inline code`
+        parts.push(<code key={gk++} className="px-1 py-0.5 rounded text-[0.85em] font-mono" style={{ background: 'rgba(128,128,128,0.18)' }}>{m[2]}</code>);
+      } else if (m[3]) {
+        parts.push(<strong key={gk++}>{m[3]}</strong>);
+      } else if (m[4]) {
+        parts.push(<em key={gk++}>{m[4]}</em>);
+      } else if (m[5]) {
+        parts.push(<span key={gk++} className="underline">{m[5]}</span>);
+      } else if (m[6]) {
+        parts.push(
+          <a key={gk++} href={m[6]} target="_blank" rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline break-all"
+            onClick={(e) => e.stopPropagation()}
+          >{m[6]}</a>
+        );
+      }
+      last = m.index + m[0].length;
+    }
+    if (last < str.length) parts.push(str.slice(last));
+    return parts;
+  };
+
+  const out = [];
+
+  // Split fenced code blocks from regular text
+  const cbRe = /```(?:\w*)\n?([\s\S]*?)```/g;
+  let cbLast = 0;
+  const segments = [];
+  let cbm;
+  while ((cbm = cbRe.exec(text)) !== null) {
+    if (cbm.index > cbLast) segments.push({ type: 't', c: text.slice(cbLast, cbm.index) });
+    segments.push({ type: 'cb', c: cbm[1] });
+    cbLast = cbm.index + cbm[0].length;
+  }
+  if (cbLast < text.length) segments.push({ type: 't', c: text.slice(cbLast) });
+
+  for (const seg of segments) {
+    if (seg.type === 'cb') {
+      out.push(
+        <pre key={gk++} className="rounded px-2.5 py-2 text-xs font-mono overflow-x-auto my-1" style={{ background: 'rgba(128,128,128,0.18)' }}>
+          <code>{seg.c}</code>
+        </pre>
+      );
+      continue;
+    }
+
+    const lines = seg.c.split('\n');
+    for (const line of lines) {
+      // Header: # through ######
+      const hm = line.match(/^(#{1,6})\s+(.+)$/);
+      if (hm) {
+        const lvl = hm[1].length;
+        const cls = lvl === 1 ? 'text-lg font-bold' : lvl === 2 ? 'text-base font-semibold' : lvl === 3 ? 'font-semibold' : 'font-medium opacity-80';
+        out.push(<div key={gk++} className={`${cls} mt-1.5 mb-0.5`}>{renderInline(hm[2])}</div>);
+        continue;
+      }
+
+      // Checkbox: - [ ] or - [x]
+      const ckm = line.match(/^\s*- \[([ xX])\]\s+(.+)$/);
+      if (ckm) {
+        const checked = ckm[1] !== ' ';
+        out.push(
+          <div key={gk++} className="flex items-start gap-1.5 py-px">
+            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 mt-[3px] rounded-sm border flex-shrink-0 text-[10px] leading-none ${checked ? 'bg-purple-500/30 border-purple-400' : 'border-current opacity-40'}`}>
+              {checked && '✓'}
+            </span>
+            <span className={checked ? 'line-through opacity-60' : ''}>{renderInline(ckm[2])}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Bullet: - or * followed by space and text
+      const bm = line.match(/^\s*[-*]\s+(.+)$/);
+      if (bm) {
+        out.push(
+          <div key={gk++} className="flex items-start gap-1.5 py-px">
+            <span className="mt-[7px] w-1 h-1 rounded-full bg-current opacity-40 flex-shrink-0" />
+            <span>{renderInline(bm[1])}</span>
+          </div>
+        );
+        continue;
+      }
+
+      // Blank line
+      if (!line.trim()) {
+        out.push(<div key={gk++} className="h-1.5" />);
+        continue;
+      }
+
+      // Regular text line
+      out.push(<div key={gk++}>{renderInline(line)}</div>);
+    }
+  }
+
+  return out;
+};
+
+// Check if task has any notes or subtasks
+const hasNotesOrSubtasks = (task) => {
+  return (task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0);
+};
+
+// Check if task has only a link (note is URL-only, no subtasks)
+const isLinkOnlyTask = (task) => {
+  if (task.subtasks && task.subtasks.length > 0) return false;
+  return isOnlyUrl(task.notes);
+};
+
+// Get the link URL from a link-only task
+const getLinkUrl = (task) => {
+  return task.notes?.trim() || null;
+};
+
+// Check if task has only subtasks (no notes)
+const hasOnlySubtasks = (task) => {
+  return (!task.notes || !task.notes.trim()) && task.subtasks && task.subtasks.length > 0;
 };
 
 // Notes & Subtasks Panel component - defined outside DayPlanner to prevent remount on re-render
@@ -695,6 +869,141 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
 // Cloud sync provider abstraction
 // Routes a WebDAV HTTP request through the native Android HTTP bridge when
 // running inside the app (no CORS, no proxy server needed), or through the
+// /api/webdav-proxy/ server-side proxy when running as a PWA/web app.
+const webdavFetch = async (method, targetUrl, authHeaders, body, extraHeaders = {}) => {
+  if (typeof window !== 'undefined' && window.DayGlanceNative?.httpRequest) {
+    // On Android: call the target URL directly with a standard Authorization header.
+    const headers = { ...extraHeaders };
+    if (authHeaders['X-WebDAV-Auth']) {
+      headers['Authorization'] = authHeaders['X-WebDAV-Auth'];
+    } else {
+      Object.assign(headers, authHeaders);
+    }
+    if (body !== undefined && body !== null) {
+      headers['Content-Type'] = extraHeaders['Content-Type'] || 'application/octet-stream';
+    }
+    const result = nativeHttpRequest(method, targetUrl, headers, body ?? '');
+    if (!result) throw new Error('Native HTTP bridge unavailable');
+    return {
+      status: result.status,
+      ok: result.ok,
+      statusText: result.error || '',
+      json: async () => JSON.parse(result.body),
+      text: async () => result.body,
+    };
+  }
+  // On web: route through the server-side CORS proxy.
+  return fetch(`/api/webdav-proxy/?url=${targetUrl}`, {
+    method,
+    headers: { ...authHeaders, ...extraHeaders },
+    ...(body !== undefined && body !== null ? { body } : {}),
+  });
+};
+
+const cloudSyncProviders = {
+  nextcloud: {
+    name: 'Nextcloud / WebDAV',
+    getFileUrl: (config) =>
+      `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/dayglance-sync.json`,
+    getDirUrl: (config) =>
+      `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/`,
+    getAuthHeaders: (config) => ({
+      'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
+    }),
+    async upload(config, data) {
+      const fileUrl = this.getFileUrl(config);
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const body = JSON.stringify(data);
+
+      const doUpload = () =>
+        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
+
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        // Directory doesn't exist, create it
+        await webdavFetch('MKCOL', dirUrl, authHeaders);
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return true;
+    },
+    async download(config) {
+      const fileUrl = this.getFileUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+
+      const res = await webdavFetch('GET', fileUrl, authHeaders);
+
+      if (res.status === 404) return null; // No remote file yet
+      if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+      return res.json();
+    },
+    async test(config) {
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+
+      const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
+
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and app password.' };
+      return { success: false, error: `Unexpected response: ${res.status}${res.statusText ? ' ' + res.statusText : ''}` };
+    },
+    configFields: [
+      { key: 'nextcloudUrl', label: 'Nextcloud URL', type: 'url', placeholder: 'https://cloud.example.com' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx' }
+    ],
+    helpText: 'Go to Nextcloud Settings → Security → Devices & sessions → Create new app password'
+  },
+  webdav: {
+    name: 'Generic WebDAV',
+    getFileUrl: (config) =>
+      `${config.webdavUrl.replace(/\/+$/, '')}/dayglance-sync.json`,
+    getDirUrl: (config) =>
+      `${config.webdavUrl.replace(/\/+$/, '')}/`,
+    getAuthHeaders: (config) => ({
+      'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
+    }),
+    async upload(config, data) {
+      const fileUrl = this.getFileUrl(config);
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const body = JSON.stringify(data);
+      const doUpload = () =>
+        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        await webdavFetch('MKCOL', dirUrl, authHeaders);
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return true;
+    },
+    async download(config) {
+      const fileUrl = this.getFileUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const res = await webdavFetch('GET', fileUrl, authHeaders);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+      return res.json();
+    },
+    async test(config) {
+      const dirUrl = this.getDirUrl(config);
+      const authHeaders = this.getAuthHeaders(config);
+      const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and password.' };
+      return { success: false, error: `Unexpected response: ${res.status}${res.statusText ? ' ' + res.statusText : ''}` };
+    },
+    configFields: [
+      { key: 'webdavUrl', label: 'WebDAV URL', type: 'url', placeholder: 'https://app.koofr.net/dav/Koofr/dayGLANCE/' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'Password / App Password', type: 'password', placeholder: 'your-password' }
+    ],
+    helpText: 'Enter the full URL of the WebDAV folder where dayGLANCE should store its sync file. Koofr, pCloud, Seafile, and most WebDAV providers are supported.'
+  }
+};
+
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
 const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced }) => {
   const [formData, setFormData] = useState(() => {
@@ -811,6 +1120,275 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     </div>
   );
 };
+
+// Auto-backup IndexedDB wrapper
+const autoBackupDB = {
+  _db: null,
+  async open() {
+    if (this._db) return this._db;
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('dayglance-auto-backups', 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('backups')) {
+          const store = db.createObjectStore('backups', { keyPath: 'id' });
+          store.createIndex('timestamp', 'timestamp', { unique: false });
+          store.createIndex('frequency', 'frequency', { unique: false });
+        }
+      };
+      req.onsuccess = () => { this._db = req.result; resolve(req.result); };
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async saveBackup(frequency, data) {
+    const db = await this.open();
+    const timestamp = new Date().toISOString();
+    const id = `auto-${frequency}-${timestamp}`;
+    const record = { id, timestamp, frequency, data };
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readwrite');
+      tx.objectStore('backups').put(record);
+      tx.oncomplete = () => resolve(record);
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async listBackups(frequency) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readonly');
+      const store = tx.objectStore('backups');
+      const req = frequency
+        ? store.index('frequency').getAll(frequency)
+        : store.getAll();
+      req.onsuccess = () => resolve(req.result.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async getBackup(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readonly');
+      const req = tx.objectStore('backups').get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async deleteBackup(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readwrite');
+      tx.objectStore('backups').delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async pruneBackups(frequency, maxCount) {
+    const all = await this.listBackups(frequency);
+    if (all.length <= maxCount) return;
+    const toDelete = all.slice(maxCount);
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('backups', 'readwrite');
+      const store = tx.objectStore('backups');
+      toDelete.forEach(b => store.delete(b.id));
+      tx.oncomplete = () => resolve(toDelete.length);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+};
+
+// Auto-backup remote providers (separate from cloudSyncProviders which handles real-time sync)
+const autoBackupProviders = {
+  nextcloud: {
+    name: 'Nextcloud / WebDAV',
+    configFields: [
+      { key: 'nextcloudUrl', label: 'Nextcloud URL', type: 'url', placeholder: 'https://cloud.example.com' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx' }
+    ],
+    _getBackupDirUrl(config) {
+      return `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/backups/`;
+    },
+    _getAuthHeaders(config) {
+      return { 'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword) };
+    },
+    async uploadBackup(config, data) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `dayglance-backup-${timestamp}.json`;
+      const fileUrl = dirUrl + filename;
+      const body = JSON.stringify(data);
+
+      const doUpload = () =>
+        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body
+        });
+
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        // Create /dayglance/ then /dayglance/backups/
+        const parentDir = `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/`;
+        await fetch(`/api/webdav-proxy/?url=${parentDir}`, { method: 'MKCOL', headers: authHeaders });
+        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return filename;
+    },
+    async listBackups(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '1' }
+      });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error(`List failed: ${res.status}`);
+      const xml = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'application/xml');
+      const responses = doc.querySelectorAll('response');
+      const files = [];
+      responses.forEach(r => {
+        const href = r.querySelector('href')?.textContent || '';
+        const filename = decodeURIComponent(href.split('/').filter(Boolean).pop());
+        if (filename.startsWith('dayglance-backup-') && filename.endsWith('.json')) {
+          const lastModified = r.querySelector('getlastmodified')?.textContent;
+          files.push({ filename, lastModified: lastModified ? new Date(lastModified).toISOString() : null });
+        }
+      });
+      return files.sort((a, b) => (b.lastModified || '').localeCompare(a.lastModified || ''));
+    },
+    async downloadBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      return res.json();
+    },
+    async deleteBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
+    },
+    async testConnection(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '0' }
+      });
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
+      return { success: false, error: `Unexpected response: ${res.status}` };
+    }
+  },
+  webdav: {
+    name: 'Generic WebDAV',
+    configFields: [
+      { key: 'webdavUrl', label: 'WebDAV URL', type: 'url', placeholder: 'https://app.koofr.net/dav/Koofr/dayGLANCE/' },
+      { key: 'username', label: 'Username', type: 'text', placeholder: 'your-username' },
+      { key: 'appPassword', label: 'Password / App Password', type: 'password', placeholder: 'your-password' }
+    ],
+    _getBackupDirUrl(config) {
+      return `${config.webdavUrl.replace(/\/+$/, '')}/`;
+    },
+    _getAuthHeaders(config) {
+      return { 'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword) };
+    },
+    async uploadBackup(config, data) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}`;
+      const filename = `dayglance-backup-${timestamp}.json`;
+      const fileUrl = dirUrl + filename;
+      const body = JSON.stringify(data);
+      const doUpload = () =>
+        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+          method: 'PUT',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body
+        });
+      let res = await doUpload();
+      if (res.status === 404 || res.status === 409) {
+        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        res = await doUpload();
+      }
+      if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+      return filename;
+    },
+    async listBackups(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '1' }
+      });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error(`List failed: ${res.status}`);
+      const xml = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'application/xml');
+      const responses = doc.querySelectorAll('response');
+      const files = [];
+      responses.forEach(r => {
+        const href = r.querySelector('href')?.textContent || '';
+        const filename = decodeURIComponent(href.split('/').filter(Boolean).pop());
+        if (filename.startsWith('dayglance-backup-') && filename.endsWith('.json')) {
+          const lastModified = r.querySelector('getlastmodified')?.textContent;
+          files.push({ filename, lastModified: lastModified ? new Date(lastModified).toISOString() : null });
+        }
+      });
+      return files.sort((a, b) => (b.lastModified || '').localeCompare(a.lastModified || ''));
+    },
+    async downloadBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'GET',
+        headers: authHeaders
+      });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      return res.json();
+    },
+    async deleteBackup(config, filename) {
+      const fileUrl = this._getBackupDirUrl(config) + filename;
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
+    },
+    async testConnection(config) {
+      const dirUrl = this._getBackupDirUrl(config);
+      const authHeaders = this._getAuthHeaders(config);
+      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
+        method: 'PROPFIND',
+        headers: { ...authHeaders, 'Depth': '0' }
+      });
+      if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
+      if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
+      return { success: false, error: `Unexpected response: ${res.status}` };
+    }
+  }
+};
+
+// Auto-backup retention limits
+const AUTO_BACKUP_RETENTION = { hourly: 24, daily: 30, weekly: 12 };
+const AUTO_BACKUP_INTERVALS = { hourly: 3600, daily: 86400, weekly: 604800 };
 
 // Auto-Backup Settings Form (extracted to avoid hooks-in-conditional issues)
 const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrimary, textSecondary, borderClass, hoverBg, onRemoteBackupNow }) => {
@@ -973,6 +1551,55 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
   );
 };
 
+// Habit tracking: icon lookup map for habit definitions
+const HABIT_ICONS = {
+  Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart,
+  Target, TrendingUp, Zap, Wine, Candy, Pill, Activity, BookOpen, Trophy,
+  CupSoda, Moon, Smartphone
+};
+const HABIT_ICON_NAMES = Object.keys(HABIT_ICONS);
+
+// Habit tracking: color palette for habits
+const HABIT_COLORS = [
+  { name: 'blue', ring: '#3b82f6', bg: 'bg-blue-500', text: 'text-blue-500' },
+  { name: 'green', ring: '#22c55e', bg: 'bg-green-500', text: 'text-green-500' },
+  { name: 'red', ring: '#ef4444', bg: 'bg-red-500', text: 'text-red-500' },
+  { name: 'amber', ring: '#f59e0b', bg: 'bg-amber-500', text: 'text-amber-500' },
+  { name: 'purple', ring: '#a855f7', bg: 'bg-purple-500', text: 'text-purple-500' },
+  { name: 'pink', ring: '#ec4899', bg: 'bg-pink-500', text: 'text-pink-500' },
+  { name: 'cyan', ring: '#06b6d4', bg: 'bg-cyan-500', text: 'text-cyan-500' },
+  { name: 'orange', ring: '#f97316', bg: 'bg-orange-500', text: 'text-orange-500' },
+];
+
+// Maps Tailwind CSS background-color classes to hex values for the native Android widget.
+// The widget renders in a separate process and cannot resolve Tailwind classes.
+const TAILWIND_TO_HEX = {
+  'bg-blue-500': '#3b82f6', 'bg-blue-400': '#60a5fa', 'bg-blue-600': '#2563eb',
+  'bg-red-500': '#ef4444',  'bg-red-400': '#f87171',  'bg-red-600': '#dc2626',
+  'bg-green-500': '#22c55e','bg-green-400': '#4ade80', 'bg-green-600': '#16a34a',
+  'bg-purple-500': '#a855f7','bg-purple-400': '#c084fc','bg-purple-600': '#9333ea',
+  'bg-orange-500': '#f97316','bg-orange-400': '#fb923c','bg-orange-600': '#ea580c',
+  'bg-pink-500': '#ec4899', 'bg-pink-400': '#f472b6', 'bg-pink-600': '#db2777',
+  'bg-indigo-500': '#6366f1','bg-indigo-400': '#818cf8','bg-indigo-600': '#4f46e5',
+  'bg-teal-500': '#14b8a6', 'bg-teal-400': '#2dd4bf', 'bg-teal-600': '#0d9488',
+  'bg-yellow-500': '#eab308','bg-yellow-400': '#facc15','bg-yellow-600': '#ca8a04',
+  'bg-amber-500': '#f59e0b', 'bg-amber-400': '#fbbf24','bg-amber-600': '#d97706',
+  'bg-cyan-500': '#06b6d4', 'bg-cyan-400': '#22d3ee', 'bg-cyan-600': '#0891b2',
+  'bg-emerald-500': '#10b981','bg-emerald-400': '#34d399',
+  'bg-violet-500': '#8b5cf6','bg-violet-400': '#a78bfa',
+  'bg-rose-500': '#f43f5e', 'bg-rose-400': '#fb7185',
+  'bg-sky-500': '#0ea5e9',  'bg-sky-400': '#38bdf8',
+  'bg-lime-500': '#84cc16', 'bg-fuchsia-500': '#d946ef',
+};
+
+/** Converts a task's .color field (Tailwind class or native hex) to a hex string. */
+const taskColorToHex = (color, nativeCalendarColor) => {
+  if (nativeCalendarColor) return nativeCalendarColor;
+  if (!color || color === 'task-calendar') return '#3b82f6';
+  if (color.startsWith('#')) return color;
+  return TAILWIND_TO_HEX[color] || '#3b82f6';
+};
+
 // HabitRing — SVG circular progress ring component
 // autoSynced: true when the count comes from Health Connect — disables tap interactions
 const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false }) => {
@@ -1096,6 +1723,27 @@ const MiniHabitRing = ({ habit, count = 0, darkMode }) => {
     </svg>
   );
 };
+
+// Local-date string helper (YYYY-MM-DD) — defined outside component so
+// useState initialisers that run before the in-component dateToString can
+// use it.  Using local time (not UTC) avoids the timezone mismatch that
+// caused the morning briefing to stay suppressed across day boundaries.
+const localDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// GTD Frame color options
+const FRAME_COLORS = [
+  { name: 'Indigo', class: 'bg-indigo-200' },
+  { name: 'Amber', class: 'bg-amber-200' },
+  { name: 'Green', class: 'bg-green-200' },
+  { name: 'Blue', class: 'bg-blue-200' },
+  { name: 'Rose', class: 'bg-rose-200' },
+  { name: 'Purple', class: 'bg-purple-200' },
+  { name: 'Teal', class: 'bg-teal-200' },
+  { name: 'Orange', class: 'bg-orange-200' },
+];
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // 12/24hr-aware time picker used inside FrameEditor
 const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) => {
@@ -2544,7 +3192,17 @@ const DayPlanner = () => {
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const firstHour = 0; // Always start at midnight for positioning
-  const colors = TASK_COLORS;
+  const colors = [
+    { name: 'Blue', class: 'bg-blue-500' },
+    { name: 'Purple', class: 'bg-purple-500' },
+    { name: 'Green', class: 'bg-green-500' },
+    { name: 'Orange', class: 'bg-orange-500' },
+    { name: 'Pink', class: 'bg-pink-500' },
+    { name: 'Indigo', class: 'bg-indigo-500' },
+    { name: 'Red', class: 'bg-red-500' },
+    { name: 'Teal', class: 'bg-teal-500' },
+    { name: 'Yellow', class: 'bg-yellow-500' },
+  ];
   const durationOptions = [15, 30, 45, 60, 90, 120];
 
   // Try to lock orientation to portrait on phones (works for installed PWAs)
@@ -2638,7 +3296,464 @@ const DayPlanner = () => {
     }
   };
 
+  const extractTags = (title) => {
+    // Only match tags that start with a letter (not pure numbers)
+    const matches = title.match(/#([a-zA-Z]\w*)/g);
+    return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
+  };
+
+  // Extract all wikilink note names from a title string
+  const extractWikilinks = (title) => {
+    const matches = [...title.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)];
+    return matches.map(m => m[1]);
+  };
+
+  const renderTitle = (title) => {
+    // Strip wikilinks from displayed text; style hashtags
+    const stripped = title.replace(/\[\[[^\]]+\]\]/g, '');
+    const parts = stripped.split(/(#[a-zA-Z]\w*)/g);
+    return parts.map((part, i) => {
+      if (part.match(/^#[a-zA-Z]\w*$/)) {
+        return <span key={i} className="text-xs italic opacity-75">{part}</span>;
+      }
+      return part;
+    });
+  };
+
+  const highlightMatch = (text, query) => {
+    if (!query) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    // Truncate long text (e.g. notes) to ±30 chars around the match
+    let display = text;
+    let matchIdx = idx;
+    if (text.length > 80) {
+      const start = Math.max(0, idx - 30);
+      const end = Math.min(text.length, idx + query.length + 30);
+      display = (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+      matchIdx = idx - start + (start > 0 ? 1 : 0);
+    }
+    return (
+      <span>
+        {display.slice(0, matchIdx)}
+        <span className="font-bold text-blue-500">{display.slice(matchIdx, matchIdx + query.length)}</span>
+        {display.slice(matchIdx + query.length)}
+      </span>
+    );
+  };
+
+  const renderTitleWithoutTags = (title) => {
+    // Remove wikilinks AND hashtags (used for AI context only)
+    return title.replace(/\[\[[^\]]+\]\]/g, '').replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  // Strip only [[wikilinks]] — hashtags stay visible in the UI
+  const stripWikilinks = (title) =>
+    title.replace(/\[\[[^\]]+\]\]/g, '').replace(/\s+/g, ' ').trim();
+
+
   // Extract partial tag being typed at cursor position
+  const getPartialTag = (text, cursorPos) => {
+    // Scan backwards from cursor to find #
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '#') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Only match if partial starts with a letter (valid tag format)
+        if (partial === '' || /^[a-zA-Z]\w*$/.test(partial)) {
+          return { tag: partial.toLowerCase(), startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit a space or other non-word character (except # which we're looking for)
+      if (!/\w/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Filter tags matching partial (case-insensitive prefix match)
+  const getFilteredTags = (partial, allTagsList) => {
+    if (!partial && partial !== '') return [];
+    const lowerPartial = partial.toLowerCase();
+    return allTagsList
+      .filter(tag => tag.toLowerCase().startsWith(lowerPartial))
+      .sort();
+  };
+
+  // Replace partial tag with completed tag
+  const applyTagCompletion = (text, cursorPos, selectedTag) => {
+    const partialInfo = getPartialTag(text, cursorPos);
+    if (!partialInfo) return { text, newCursorPos: cursorPos };
+
+    const before = text.slice(0, partialInfo.startIndex);
+    const after = text.slice(cursorPos);
+    const completedTag = `#${selectedTag}`;
+    const newText = before + completedTag + after;
+    const newCursorPos = before.length + completedTag.length;
+
+    return { text: newText, newCursorPos };
+  };
+
+  // Extract partial date being typed at cursor position (triggered by @)
+  const getPartialDate = (text, cursorPos) => {
+    // Scan backwards from cursor to find @
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '@') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Require at least 1 character after @ and allow letters, numbers, spaces, slashes, dashes
+        if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
+          return { partial, startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit certain characters that wouldn't be part of a date
+      if (/[#~!$%]/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Extract partial time being typed at cursor position (triggered by ~)
+  const getPartialTime = (text, cursorPos) => {
+    // Scan backwards from cursor to find ~
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '~') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Require at least 1 character after ~ and allow letters, numbers, colons, spaces
+        if (partial.length >= 1 && /^[\w\s:]*$/.test(partial)) {
+          return { partial, startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit certain characters that wouldn't be part of a time
+      if (/[#@!$%]/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Extract partial deadline being typed at cursor position (triggered by $)
+  const getPartialDeadline = (text, cursorPos) => {
+    // Scan backwards from cursor to find $
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '$') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        // Require at least 1 character after $ and allow letters, numbers, spaces, slashes, dashes
+        if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
+          return { partial, startIndex };
+        }
+        return null;
+      }
+      // Stop if we hit certain characters that wouldn't be part of a deadline
+      if (/[#@~!%]/.test(char)) {
+        return null;
+      }
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Extract priority being typed at cursor position (triggered by !, !!, or !!!)
+  const getPartialPriority = (text, cursorPos) => {
+    // Scan backwards from cursor to count consecutive ! marks
+    let endIndex = cursorPos;
+    let startIndex = cursorPos - 1;
+    let count = 0;
+
+    while (startIndex >= 0 && text[startIndex] === '!') {
+      count++;
+      startIndex--;
+    }
+
+    if (count === 0) return null;
+
+    // Require ! to be preceded by whitespace or start of string
+    if (startIndex >= 0 && !/\s/.test(text[startIndex])) {
+      return null;
+    }
+
+    // Cap at 3
+    const priority = Math.min(count, 3);
+
+    return {
+      count: priority,
+      startIndex: startIndex + 1,
+      endIndex
+    };
+  };
+
+  // Extract partial duration being typed at cursor position (triggered by %)
+  const getPartialDuration = (text, cursorPos) => {
+    let startIndex = cursorPos - 1;
+    while (startIndex >= 0) {
+      const char = text[startIndex];
+      if (char === '%') {
+        const partial = text.slice(startIndex + 1, cursorPos);
+        if (/^\d*$/.test(partial)) {
+          return { partial, startIndex, endIndex: cursorPos };
+        }
+        return null;
+      }
+      if (!/\d/.test(char)) return null;
+      startIndex--;
+    }
+    return null;
+  };
+
+  // Parse flexible date formats and return ALL matching candidates for prefix
+  const getDateCandidates = (partial) => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const currentYear = today.getFullYear();
+    const lowerPartial = partial.toLowerCase().trim();
+    if (!lowerPartial) return [];
+
+    const candidates = [];
+
+    // Natural language dates — prefix match
+    const naturalDates = [
+      { keywords: ['today', 'tod'], getDate: () => today, display: 'Today', keyword: 'today' },
+      { keywords: ['tomorrow', 'tom'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; }, display: 'Tomorrow', keyword: 'tomorrow' },
+      { keywords: ['yesterday'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; }, display: 'Yesterday', keyword: 'yesterday' },
+    ];
+
+    for (const nd of naturalDates) {
+      if (nd.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
+        candidates.push({ date: nd.getDate(), display: nd.display, keyword: nd.keyword });
+      }
+    }
+
+    // Day names (next occurrence) — prefix match
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayAbbrevs = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    for (let i = 0; i < dayNames.length; i++) {
+      if (dayNames[i].startsWith(lowerPartial) || dayAbbrevs[i] === lowerPartial) {
+        const targetDate = new Date(today);
+        const currentDay = today.getDay();
+        let daysToAdd = i - currentDay;
+        if (daysToAdd <= 0) daysToAdd += 7;
+        targetDate.setDate(targetDate.getDate() + daysToAdd);
+        candidates.push({ date: targetDate, display: dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1), keyword: dayNames[i] });
+      }
+    }
+
+    // "next week" — prefix match
+    if ('next week'.startsWith(lowerPartial) || lowerPartial === 'next week') {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      candidates.push({ date: nextWeek, display: 'Next week', keyword: 'next week' });
+    }
+
+    // "next monday", "next tuesday", etc.
+    const nextDayMatch = lowerPartial.match(/^next\s+(\w+)$/);
+    if (nextDayMatch) {
+      const dayName = nextDayMatch[1];
+      for (let i = 0; i < dayNames.length; i++) {
+        if (dayNames[i].startsWith(dayName) || dayAbbrevs[i] === dayName) {
+          const targetDate = new Date(today);
+          const currentDay = today.getDay();
+          let daysToAdd = i - currentDay;
+          if (daysToAdd <= 0) daysToAdd += 7;
+          targetDate.setDate(targetDate.getDate() + daysToAdd);
+          candidates.push({ date: targetDate, display: `Next ${dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1)}`, keyword: `next ${dayNames[i]}` });
+        }
+      }
+    }
+
+    // Month names
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const monthAbbrevs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+    // "Feb 15" or "February 15" or "Feb 15 2026" or "February 15, 2026"
+    const monthDayMatch = lowerPartial.match(/^(\w+)\s+(\d{1,2})(?:[,\s]+(\d{4}))?$/);
+    if (monthDayMatch) {
+      const [, monthStr, dayStr, yearStr] = monthDayMatch;
+      let monthIdx = monthNames.findIndex(m => m.startsWith(monthStr));
+      if (monthIdx === -1) monthIdx = monthAbbrevs.findIndex(m => m === monthStr);
+      if (monthIdx !== -1) {
+        const day = parseInt(dayStr, 10);
+        const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+        if (day >= 1 && day <= 31) {
+          const targetDate = new Date(year, monthIdx, day, 12, 0, 0);
+          if (!isNaN(targetDate.getTime())) {
+            candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
+          }
+        }
+      }
+    }
+
+    // MM-DD-YYYY or MM-DD
+    const dashMatch = partial.match(/^(\d{1,2})-(\d{1,2})(?:-(\d{4}))?$/);
+    if (dashMatch) {
+      const [, monthStr, dayStr, yearStr] = dashMatch;
+      const month = parseInt(monthStr, 10);
+      const day = parseInt(dayStr, 10);
+      const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const targetDate = new Date(year, month - 1, day, 12, 0, 0);
+        if (!isNaN(targetDate.getTime())) {
+          candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
+        }
+      }
+    }
+
+    // M/D/YYYY or M/D
+    const slashMatch = partial.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+    if (slashMatch) {
+      const [, monthStr, dayStr, yearStr] = slashMatch;
+      const month = parseInt(monthStr, 10);
+      const day = parseInt(dayStr, 10);
+      const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const targetDate = new Date(year, month - 1, day, 12, 0, 0);
+        if (!isNaN(targetDate.getTime())) {
+          candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
+        }
+      }
+    }
+
+    return candidates;
+  };
+
+  // Backward-compat wrapper: returns first match or null
+  const parseFlexibleDate = (partial) => {
+    const candidates = getDateCandidates(partial);
+    return candidates.length > 0 ? candidates[0] : null;
+  };
+
+  // Parse flexible time formats and return ALL matching candidates for prefix
+  const getTimeCandidates = (partial) => {
+    const lowerPartial = partial.toLowerCase().trim();
+    if (!lowerPartial) return [];
+
+    const candidates = [];
+
+    // Natural language times — prefix match
+    const naturalTimes = [
+      { keywords: ['noon'], time: '12:00', display: '12:00 PM (Noon)', keyword: 'noon' },
+      { keywords: ['midnight'], time: '00:00', display: '12:00 AM (Midnight)', keyword: 'midnight' },
+      { keywords: ['morning', 'morn'], time: '09:00', display: '9:00 AM (Morning)', keyword: 'morning' },
+      { keywords: ['afternoon'], time: '14:00', display: '2:00 PM (Afternoon)', keyword: 'afternoon' },
+      { keywords: ['evening', 'eve'], time: '18:00', display: '6:00 PM (Evening)', keyword: 'evening' },
+      { keywords: ['night'], time: '21:00', display: '9:00 PM (Night)', keyword: 'night' },
+    ];
+
+    for (const nt of naturalTimes) {
+      if (nt.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
+        candidates.push({ time: nt.time, display: nt.display, keyword: nt.keyword });
+      }
+    }
+
+    // Bare number: e.g., "3" → 3:00 AM, 3:00 PM
+    const bareNumberMatch = lowerPartial.match(/^(\d{1,2})$/);
+    if (bareNumberMatch) {
+      const num = parseInt(bareNumberMatch[1], 10);
+      if (num >= 1 && num <= 12) {
+        const amHour = num === 12 ? 0 : num;
+        const pmHour = num === 12 ? 12 : num + 12;
+        candidates.push({ time: `${amHour.toString().padStart(2, '0')}:00`, display: `${num}:00 AM`, keyword: `${num}am` });
+        candidates.push({ time: `${pmHour.toString().padStart(2, '0')}:00`, display: `${num}:00 PM`, keyword: `${num}pm` });
+      } else if (num >= 13 && num <= 23) {
+        const displayHour = num > 12 ? num - 12 : num;
+        candidates.push({ time: `${num.toString().padStart(2, '0')}:00`, display: `${displayHour}:00 PM`, keyword: `${num}:00` });
+      }
+    }
+
+    // Number with partial am/pm: e.g., "3p" → 3:00 PM, "3a" → 3:00 AM
+    const partialAmPmMatch = lowerPartial.match(/^(\d{1,2})(a|p)$/);
+    if (partialAmPmMatch) {
+      const num = parseInt(partialAmPmMatch[1], 10);
+      const ap = partialAmPmMatch[2];
+      if (num >= 1 && num <= 12) {
+        if (ap === 'a') {
+          const hour = num === 12 ? 0 : num;
+          candidates.push({ time: `${hour.toString().padStart(2, '0')}:00`, display: `${num}:00 AM`, keyword: `${num}am` });
+        } else {
+          const hour = num === 12 ? 12 : num + 12;
+          candidates.push({ time: `${hour.toString().padStart(2, '0')}:00`, display: `${num}:00 PM`, keyword: `${num}pm` });
+        }
+      }
+    }
+
+    // Number with colon and partial minutes: e.g., "3:" or "3:3" → quarter-hour options
+    const colonPartialMatch = lowerPartial.match(/^(\d{1,2}):(\d?)$/);
+    if (colonPartialMatch) {
+      const hour = parseInt(colonPartialMatch[1], 10);
+      const minPartial = colonPartialMatch[2];
+      if (hour >= 1 && hour <= 12) {
+        const minuteOptions = ['00', '15', '30', '45'].filter(m => m.startsWith(minPartial));
+        for (const min of minuteOptions) {
+          const amHour = hour === 12 ? 0 : hour;
+          const pmHour = hour === 12 ? 12 : hour + 12;
+          candidates.push({ time: `${amHour.toString().padStart(2, '0')}:${min}`, display: `${hour}:${min} AM`, keyword: `${hour}:${min}am` });
+          candidates.push({ time: `${pmHour.toString().padStart(2, '0')}:${min}`, display: `${hour}:${min} PM`, keyword: `${hour}:${min}pm` });
+        }
+      } else if (hour >= 13 && hour <= 23) {
+        const minuteOptions = ['00', '15', '30', '45'].filter(m => m.startsWith(minPartial));
+        const displayHour = hour > 12 ? hour - 12 : hour;
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        for (const min of minuteOptions) {
+          candidates.push({ time: `${hour.toString().padStart(2, '0')}:${min}`, display: `${displayHour}:${min} ${ampm}`, keyword: `${hour}:${min}` });
+        }
+      }
+    }
+
+    // Military time: HH:MM or H:MM (exact)
+    const militaryMatch = partial.match(/^(\d{1,2}):(\d{2})$/);
+    if (militaryMatch) {
+      const hours = parseInt(militaryMatch[1], 10);
+      const minutes = militaryMatch[2];
+      if (hours >= 0 && hours <= 23 && !candidates.some(c => c.time === `${hours.toString().padStart(2, '0')}:${minutes}`)) {
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
+        const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        candidates.push({ time: timeStr, display: `${displayHour}:${minutes} ${ampm}` });
+      }
+    }
+
+    // 12-hour format: 2pm, 2:30pm, 2:30 pm, 2 pm
+    const twelveHourMatch = lowerPartial.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+    if (twelveHourMatch) {
+      let hours = parseInt(twelveHourMatch[1], 10);
+      const minutes = twelveHourMatch[2] || '00';
+      const ampm = twelveHourMatch[3];
+
+      if (hours >= 1 && hours <= 12 && parseInt(minutes, 10) <= 59) {
+        if (ampm === 'pm' && hours !== 12) hours += 12;
+        if (ampm === 'am' && hours === 12) hours = 0;
+
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
+        if (!candidates.some(c => c.time === timeStr)) {
+          const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+          const displayAmpm = hours >= 12 ? 'PM' : 'AM';
+          candidates.push({ time: timeStr, display: `${displayHour}:${minutes} ${displayAmpm}` });
+        }
+      }
+    }
+
+    return candidates;
+  };
+
+  // Backward-compat wrapper: returns first match or null
+  const parseFlexibleTime = (partial) => {
+    const candidates = getTimeCandidates(partial);
+    return candidates.length > 0 ? candidates[0] : null;
+  };
+
   // Format time for display (respects 12h/24h setting)
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -2647,6 +3762,37 @@ const DayPlanner = () => {
     const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     const ampm = hours >= 12 ? 'PM' : 'AM';
     return `${displayHour}:${minutes.toString().padStart(2, '0')}\u00A0${ampm}`;
+  };
+
+  // Remove detected date/time from title text
+  const removeFromTitle = (text, startIndex, endIndex) => {
+    const before = text.slice(0, startIndex);
+    const after = text.slice(endIndex);
+    // Clean up multiple spaces but preserve single trailing space for chaining
+    return (before + after).replace(/\s+/g, ' ').trimStart();
+  };
+
+  // Autocomplete shortcut text in title when a suggestion is accepted
+  // Replaces the partial text (e.g. "@to") with the full keyword (e.g. "@today")
+  const completeShortcutText = (title, suggestion) => {
+    if (!suggestion.keyword) return { text: title, cursorPos: title.length };
+    const triggerChar = title[suggestion.startIndex]; // @, ~, $, etc.
+    const before = title.slice(0, suggestion.startIndex);
+    const after = title.slice(suggestion.endIndex);
+    const completed = before + triggerChar + suggestion.keyword;
+    return { text: completed + after, cursorPos: completed.length };
+  };
+
+  // Strip all special character sequences from a title before saving
+  const cleanTitle = (title) => {
+    return title
+      .replace(/%\d+/g, '')           // %duration
+      .replace(/@[\w\s/\-,]*/g, '')   // @date
+      .replace(/~[\w\s:]*/g, '')      // ~time
+      .replace(/\$[\w\s/\-,]*/g, '')  // $deadline
+      .replace(/!{1,3}(?=\s|$)/g, '') // !priority
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   useEffect(() => {
@@ -4004,6 +5150,192 @@ const DayPlanner = () => {
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
 
+  const dateToString = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Recurrence engine: compute occurrences of a recurring template in a date range
+  const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
+    const rec = template.recurrence;
+    if (!rec) return [];
+    const results = [];
+    const startDate = new Date(rec.startDate + 'T12:00:00');
+    const rangeStart = new Date(rangeStartStr + 'T12:00:00');
+    const rangeEnd = new Date(rangeEndStr + 'T12:00:00');
+    const endDate = rec.endDate ? new Date(rec.endDate + 'T12:00:00') : null;
+    let count = 0;
+    const maxOcc = rec.maxOccurrences || Infinity;
+
+    const addIfInRange = (d) => {
+      if (count >= maxOcc) return false;
+      if (endDate && d > endDate) return false;
+      const ds = dateToString(d);
+      if (template.exceptions && template.exceptions[ds]?.deleted) { count++; return true; }
+      if (d >= rangeStart && d <= rangeEnd) results.push(ds);
+      count++;
+      return true;
+    };
+
+    if (rec.type === 'daily') {
+      // Fast-forward: skip directly to rangeStart instead of iterating from a
+      // potentially distant startDate.  Adjust count so maxOccurrences still works.
+      const cursor = new Date(Math.max(startDate.getTime(), rangeStart.getTime()));
+      if (cursor > startDate) {
+        // All noon-anchored dates, so dividing by 86400000 and rounding handles DST correctly.
+        count = Math.round((cursor.getTime() - startDate.getTime()) / 86400000);
+      }
+      while (cursor <= rangeEnd && count < maxOcc) {
+        if (endDate && cursor > endDate) break;
+        addIfInRange(cursor);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else if (rec.type === 'weekly' || rec.type === 'biweekly') {
+      const step = rec.type === 'biweekly' ? 2 : 1;
+      const days = (rec.daysOfWeek && rec.daysOfWeek.length > 0) ? rec.daysOfWeek : [startDate.getDay()];
+      // Find the week start (Sunday) of the start date
+      const weekStart = new Date(startDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      // Fast-forward weekStart to the week that contains rangeStart, adjusting count.
+      if (rangeStart > startDate) {
+        const rangeWeekStart = new Date(rangeStart);
+        rangeWeekStart.setDate(rangeWeekStart.getDate() - rangeWeekStart.getDay());
+        const msPerCycle = 7 * step * 86400000;
+        const cyclesSkip = Math.max(0, Math.floor((rangeWeekStart.getTime() - weekStart.getTime()) / msPerCycle));
+        if (cyclesSkip > 0) {
+          weekStart.setDate(weekStart.getDate() + cyclesSkip * 7 * step);
+          // Conservatively under-count to avoid cutting off valid occurrences.
+          // Each skipped cycle has at most days.length occurrences; subtract one
+          // cycle as a safety buffer so early occurrences in the window aren't missed.
+          count = Math.max(0, (cyclesSkip - 1)) * days.length;
+        }
+      }
+      const cursor = new Date(weekStart);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        for (const dow of days.sort((a, b) => a - b)) {
+          const d = new Date(cursor);
+          d.setDate(d.getDate() + dow);
+          if (d < startDate) continue;
+          if (endDate && d > endDate) break;
+          if (d > rangeEnd) break;
+          if (!addIfInRange(d)) break;
+        }
+        cursor.setDate(cursor.getDate() + 7 * step);
+      }
+    } else if (rec.type === 'monthly') {
+      const cursor = new Date(startDate);
+      cursor.setDate(1);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        let target;
+        if (rec.monthWeekday) {
+          // Nth weekday of month (e.g., 1st Monday)
+          const { week, day } = rec.monthWeekday;
+          const firstOfMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+          const firstDow = firstOfMonth.getDay();
+          let offset = day - firstDow;
+          if (offset < 0) offset += 7;
+          target = new Date(firstOfMonth);
+          target.setDate(1 + offset + (week - 1) * 7);
+          // Verify still in same month
+          if (target.getMonth() !== cursor.getMonth()) {
+            cursor.setMonth(cursor.getMonth() + 1, 1);
+            continue;
+          }
+        } else {
+          const md = rec.monthDay || startDate.getDate();
+          const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+          target = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(md, daysInMonth));
+        }
+        target.setHours(12, 0, 0, 0);
+        if (target >= startDate) {
+          if (endDate && target > endDate) break;
+          if (!addIfInRange(target)) break;
+        }
+        cursor.setMonth(cursor.getMonth() + 1, 1);
+      }
+    } else if (rec.type === 'yearly') {
+      const cursor = new Date(startDate);
+      while (cursor <= rangeEnd && count < maxOcc) {
+        if (cursor >= startDate) {
+          if (endDate && cursor > endDate) break;
+          if (!addIfInRange(cursor)) break;
+        }
+        cursor.setFullYear(cursor.getFullYear() + 1);
+      }
+    }
+    return results;
+  };
+
+  // Human-readable label for a recurrence pattern
+  const getRecurrenceLabel = (rec) => {
+    if (!rec) return 'None';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
+
+    let label = 'Custom';
+    if (rec.type === 'daily') label = 'Every day';
+    else if (rec.type === 'weekly') {
+      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
+        ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
+        : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
+      label = `Weekly on ${days}`;
+    }
+    else if (rec.type === 'biweekly') {
+      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
+        ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
+        : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
+      label = `Every 2 weeks on ${days}`;
+    }
+    else if (rec.type === 'monthly') {
+      if (rec.monthWeekday) {
+        label = `Monthly on the ${ordinals[rec.monthWeekday.week]} ${fullDayNames[rec.monthWeekday.day]}`;
+      } else {
+        const d = rec.monthDay || new Date(rec.startDate + 'T12:00:00').getDate();
+        const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
+        label = `Monthly on the ${d}${suffix}`;
+      }
+    }
+    else if (rec.type === 'yearly') {
+      const sd = new Date(rec.startDate + 'T12:00:00');
+      label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
+    }
+
+    if (rec.endDate) {
+      const ed = new Date(rec.endDate + 'T12:00:00');
+      label += ` until ${monthNames[ed.getMonth()].slice(0, 3)} ${ed.getDate()}`;
+    } else if (rec.maxOccurrences) {
+      label += ` (${rec.maxOccurrences} times)`;
+    }
+    return label;
+  };
+
+  const getRecurrencePresets = (dateStr) => {
+    const taskDate = new Date(dateStr + 'T12:00:00');
+    const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][taskDate.getDay()];
+    const monthDay = taskDate.getDate();
+    const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][taskDate.getMonth()];
+    const suffix = monthDay === 1 || monthDay === 21 || monthDay === 31 ? 'st' : monthDay === 2 || monthDay === 22 ? 'nd' : monthDay === 3 || monthDay === 23 ? 'rd' : 'th';
+    const weekOfMonth = Math.ceil(monthDay / 7);
+    const ordinals = ['','1st','2nd','3rd','4th','5th'];
+
+    return [
+      { label: 'None', value: null },
+      { label: 'Every day', value: { type: 'daily' } },
+      taskDate.getDay() === 0 || taskDate.getDay() === 6
+        ? { label: 'Every weekend (Sat-Sun)', value: { type: 'weekly', daysOfWeek: [0,6] } }
+        : { label: 'Every weekday (Mon-Fri)', value: { type: 'weekly', daysOfWeek: [1,2,3,4,5] } },
+      { label: `Every week on ${dayName}`, value: { type: 'weekly', daysOfWeek: [taskDate.getDay()] } },
+      { label: `Every 2 weeks on ${dayName}`, value: { type: 'biweekly', daysOfWeek: [taskDate.getDay()] } },
+      { label: `Monthly on the ${monthDay}${suffix}`, value: { type: 'monthly', monthDay: monthDay, monthWeekday: null } },
+      { label: `Monthly on the ${ordinals[weekOfMonth]} ${dayName}`, value: { type: 'monthly', monthDay: null, monthWeekday: { week: weekOfMonth, day: taskDate.getDay() } } },
+      { label: `Yearly on ${monthName} ${monthDay}`, value: { type: 'yearly' } },
+    ];
+  };
+
   const checkConflicts = () => {
     const dateStr = dateToString(selectedDate);
     // Exclude all-day tasks and imported events (not task calendar) from conflict detection
@@ -4226,6 +5558,21 @@ const DayPlanner = () => {
       t.id === taskId ? { ...t, deadline: null } : t
     ));
     setShowDeadlinePicker(null);
+  };
+
+  // Format deadline date for display
+  const formatDeadlineDate = (deadline) => {
+    if (!deadline) return null;
+    const todayStr = getTodayStr();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = dateToString(tomorrow);
+
+    if (deadline === todayStr) return 'Today';
+    if (deadline === tomorrowStr) return 'Tomorrow';
+
+    const date = new Date(deadline + 'T12:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const cyclePriority = (taskId) => {
@@ -6289,6 +7636,38 @@ const DayPlanner = () => {
     setShowEmptyBinConfirm(false);
     setShowMobileRecycleBin(false);
     playUISound('crumple');
+  };
+
+  const formatDate = (date) => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+  };
+
+  const formatDateRange = (dates) => {
+    if (dates.length === 1) {
+      return formatDate(dates[0]);
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const first = dates[0];
+    const last = dates[dates.length - 1];
+
+    if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
+      // Same month: "Jan 31 - Feb 2"
+      return `${months[first.getMonth()]} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`;
+    } else if (first.getFullYear() === last.getFullYear()) {
+      // Different months, same year: "Jan 31 - Feb 2, 2026"
+      return `${months[first.getMonth()]} ${first.getDate()} - ${months[last.getMonth()]} ${last.getDate()}, ${first.getFullYear()}`;
+    } else {
+      // Different years
+      return `${months[first.getMonth()]} ${first.getDate()}, ${first.getFullYear()} - ${months[last.getMonth()]} ${last.getDate()}, ${last.getFullYear()}`;
+    }
+  };
+
+  const formatShortDate = (date) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
   };
 
   const changeDate = (direction) => {

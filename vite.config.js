@@ -11,9 +11,6 @@ export default defineConfig({
     __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
-  build: {
-    sourcemap: true,
-  },
   plugins: [
     react(),
     VitePWA({
