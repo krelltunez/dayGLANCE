@@ -11,6 +11,7 @@ import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { cloudSyncProviders } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags } from './utils/textFormatting.jsx';
+import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -1140,13 +1141,6 @@ const MiniHabitRing = ({ habit, count = 0, darkMode }) => {
     </svg>
   );
 };
-
-// Local-date string helper (YYYY-MM-DD) — defined outside component so
-// useState initialisers that run before the in-component dateToString can
-// use it.  Using local time (not UTC) avoids the timezone mismatch that
-// caused the morning briefing to stay suppressed across day boundaries.
-const localDateStr = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // GTD Frame color options
 const FRAME_COLORS = [
@@ -2712,23 +2706,6 @@ const DayPlanner = () => {
       delete taskElementRefs.current[taskId];
     }
   };
-
-  const extractTags = (title) => {
-    // Only match tags that start with a letter (not pure numbers)
-    const matches = title.match(/#([a-zA-Z]\w*)/g);
-    return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
-  };
-
-  // Extract all wikilink note names from a title string
-  const extractWikilinks = (title) => {
-    const matches = [...title.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)];
-    return matches.map(m => m[1]);
-  };
-
-  // Strip only [[wikilinks]] — hashtags stay visible in the UI
-  const stripWikilinks = (title) =>
-    title.replace(/\[\[[^\]]+\]\]/g, '').replace(/\s+/g, ' ').trim();
-
 
   // Extract partial tag being typed at cursor position
   const getPartialTag = (text, cursorPos) => {
@@ -4528,13 +4505,6 @@ const DayPlanner = () => {
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
 
-  const dateToString = (date) => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   // Recurrence engine: compute occurrences of a recurring template in a date range
   const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
     const rec = template.recurrence;
@@ -4644,51 +4614,6 @@ const DayPlanner = () => {
       }
     }
     return results;
-  };
-
-  // Human-readable label for a recurrence pattern
-  const getRecurrenceLabel = (rec) => {
-    if (!rec) return 'None';
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
-
-    let label = 'Custom';
-    if (rec.type === 'daily') label = 'Every day';
-    else if (rec.type === 'weekly') {
-      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-        ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-        : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
-      label = `Weekly on ${days}`;
-    }
-    else if (rec.type === 'biweekly') {
-      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-        ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-        : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
-      label = `Every 2 weeks on ${days}`;
-    }
-    else if (rec.type === 'monthly') {
-      if (rec.monthWeekday) {
-        label = `Monthly on the ${ordinals[rec.monthWeekday.week]} ${fullDayNames[rec.monthWeekday.day]}`;
-      } else {
-        const d = rec.monthDay || new Date(rec.startDate + 'T12:00:00').getDate();
-        const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
-        label = `Monthly on the ${d}${suffix}`;
-      }
-    }
-    else if (rec.type === 'yearly') {
-      const sd = new Date(rec.startDate + 'T12:00:00');
-      label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
-    }
-
-    if (rec.endDate) {
-      const ed = new Date(rec.endDate + 'T12:00:00');
-      label += ` until ${monthNames[ed.getMonth()].slice(0, 3)} ${ed.getDate()}`;
-    } else if (rec.maxOccurrences) {
-      label += ` (${rec.maxOccurrences} times)`;
-    }
-    return label;
   };
 
   const getRecurrencePresets = (dateStr) => {
@@ -4936,21 +4861,6 @@ const DayPlanner = () => {
       t.id === taskId ? { ...t, deadline: null } : t
     ));
     setShowDeadlinePicker(null);
-  };
-
-  // Format deadline date for display
-  const formatDeadlineDate = (deadline) => {
-    if (!deadline) return null;
-    const todayStr = getTodayStr();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = dateToString(tomorrow);
-
-    if (deadline === todayStr) return 'Today';
-    if (deadline === tomorrowStr) return 'Tomorrow';
-
-    const date = new Date(deadline + 'T12:00:00');
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const cyclePriority = (taskId) => {
@@ -7014,38 +6924,6 @@ const DayPlanner = () => {
     setShowEmptyBinConfirm(false);
     setShowMobileRecycleBin(false);
     playUISound('crumple');
-  };
-
-  const formatDate = (date) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
-  };
-
-  const formatDateRange = (dates) => {
-    if (dates.length === 1) {
-      return formatDate(dates[0]);
-    }
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const first = dates[0];
-    const last = dates[dates.length - 1];
-
-    if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
-      // Same month: "Jan 31 - Feb 2"
-      return `${months[first.getMonth()]} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`;
-    } else if (first.getFullYear() === last.getFullYear()) {
-      // Different months, same year: "Jan 31 - Feb 2, 2026"
-      return `${months[first.getMonth()]} ${first.getDate()} - ${months[last.getMonth()]} ${last.getDate()}, ${first.getFullYear()}`;
-    } else {
-      // Different years
-      return `${months[first.getMonth()]} ${first.getDate()}, ${first.getFullYear()} - ${months[last.getMonth()]} ${last.getDate()}, ${last.getFullYear()}`;
-    }
-  };
-
-  const formatShortDate = (date) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
   };
 
   const changeDate = (direction) => {
