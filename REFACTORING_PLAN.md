@@ -25,6 +25,72 @@ The previous attempt (`claude/app-review-ltS3z`) collapsed under its own weight:
 
 ---
 
+## Branch Workflow
+
+These rules were learned the hard way. Follow them exactly every session.
+
+### Branch Naming
+
+Every step gets its own branch:
+
+```
+claude/step-{phase}-{step}-{slug}-WVZr6
+```
+
+Examples:
+- `claude/step-1-5-task-utils-WVZr6`
+- `claude/step-2-1-clock-time-picker-WVZr6`
+- `claude/step-1-plan-update-WVZr6`
+
+Never reuse `claude/refactor-dayglance-WVZr6` or any generic name — always use the step-specific name.
+
+### Session Startup (do this every single session before touching any code)
+
+```bash
+git fetch origin develop
+git reset --hard origin/develop
+```
+
+This ensures you're starting from the current state of `develop`, not wherever the last session left off.
+Always read this plan file (`REFACTORING_PLAN.md`) at the start of each session before doing anything.
+
+### Development Flow
+
+1. Stay on `develop` locally while editing.
+2. Run `npm run build` — must pass before committing.
+3. Commit with a descriptive message.
+4. Create a step-specific branch and push:
+   ```bash
+   git checkout -b claude/step-{phase}-{step}-{slug}-WVZr6
+   git push -u origin claude/step-{phase}-{step}-{slug}-WVZr6
+   ```
+5. **Always** create the PR with `--base develop`:
+   ```bash
+   gh pr create --base develop --title "..." --body "..."
+   ```
+   Never let GitHub guess the base — it will default to `main` and contaminate production.
+6. After the PR is created (and optionally merged), go back to `develop` and reset:
+   ```bash
+   git checkout develop
+   git reset --hard origin/develop
+   ```
+   This silences the stop hook and prepares for the next step.
+
+### Branch Rules
+
+- **`main` = production (`dayglance.app`). Never push to it or target it with a PR.**
+- **`develop` = all refactor work.** It is the default branch on GitHub.
+- The harness blocks direct pushes to `develop` — you can only push to `claude/` branches.
+- After each push to a `claude/` branch, always `git reset --hard origin/develop` so the stop hook doesn't fire.
+
+### PR Merging
+
+- Always target `develop`, never `main`.
+- Merge one step at a time. Don't batch steps into one PR.
+- After merging, verify `develop` builds before starting the next step.
+
+---
+
 ## Smoke Test Checklist
 
 Run this at the end of every Phase. Keep it open in the browser while testing.
@@ -132,6 +198,29 @@ depend on React state, inbox/tag classification helpers.
 
 **Build:** `npm run build` ✓
 **Test:** Tags display correctly on tasks. Recurrence labels show correctly on recurring tasks.
+
+---
+
+### Step 1.5a — Extract `src/utils/colorUtils.js` ✓ (completed out of order)
+
+`TAILWIND_TO_HEX`, `taskColorToHex`, `TASK_COLORS`. Powers the task color picker and the
+Android home screen widget (which cannot resolve Tailwind classes directly).
+
+**Commit:** `refactor: extract color constants and recurrence engine to utils`
+
+**Build:** `npm run build` ✓
+**Test:** Task color picker shows all colors. Android widget shows correct task colors.
+
+---
+
+### Step 1.5b — Extract `src/utils/recurrenceEngine.js` ✓ (completed out of order)
+
+`getOccurrencesInRange`, `getRecurrencePresets`. The recurrence computation engine.
+
+**Commit:** `refactor: extract color constants and recurrence engine to utils`
+
+**Build:** `npm run build` ✓
+**Test:** Recurring tasks appear on correct dates. Recurrence preset picker shows all options.
 
 ---
 
