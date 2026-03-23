@@ -31,6 +31,7 @@ import AutoBackupSettingsForm from './components/AutoBackupSettingsForm.jsx';
 import useVisibleDays from './hooks/useVisibleDays.js';
 import useDeviceType from './hooks/useDeviceType.js';
 import useIsLandscape from './hooks/useIsLandscape.js';
+import useUndo from './hooks/useUndo.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -600,17 +601,7 @@ const DayPlanner = () => {
   const autoBackupInProgressRef = useRef(false);
   const [showStorageBreakdown, setShowStorageBreakdown] = useState(false);
 
-  // Undo/redo stacks (refs to avoid re-renders)
-  const undoStackRef = useRef([]);
-  const redoStackRef = useRef([]);
-  const tasksRef = useRef(tasks);
-  const unscheduledTasksRef = useRef(unscheduledTasks);
-  const recycleBinRef = useRef(recycleBin);
-  const recurringTasksRef = useRef(recurringTasks);
   const syncAllRef = useRef(null);
-
-  // Undo/redo toast notification — { message: string, actionable: boolean }
-  const [undoToast, setUndoToast] = useState(null);
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
@@ -975,20 +966,6 @@ const DayPlanner = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [expandedNotesTaskId]);
-
-  // Auto-dismiss undo/redo toast — 4s for actionable (with Undo button), 2s for passive
-  useEffect(() => {
-    if (!undoToast) return;
-    const delay = undoToast.actionable ? 4000 : 2000;
-    const timer = setTimeout(() => setUndoToast(null), delay);
-    return () => clearTimeout(timer);
-  }, [undoToast]);
-
-  // Keep undo/redo state refs in sync
-  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  useEffect(() => { unscheduledTasksRef.current = unscheduledTasks; }, [unscheduledTasks]);
-  useEffect(() => { recycleBinRef.current = recycleBin; }, [recycleBin]);
-  useEffect(() => { recurringTasksRef.current = recurringTasks; }, [recurringTasks]);
 
   // Persist darkMode to localStorage and update theme-color meta tag
   useEffect(() => {
@@ -5289,61 +5266,11 @@ const DayPlanner = () => {
     } catch (e) { /* Audio API not available */ }
   };
 
-  // Undo/redo: snapshot all 4 state arrays (read from refs for latest state)
-  const pushUndo = () => {
-    undoStackRef.current = [
-      ...undoStackRef.current.slice(-49),
-      {
-        tasks: structuredClone(tasksRef.current),
-        unscheduledTasks: structuredClone(unscheduledTasksRef.current),
-        recycleBin: structuredClone(recycleBinRef.current),
-        recurringTasks: structuredClone(recurringTasksRef.current),
-      }
-    ];
-    redoStackRef.current = [];
-  };
-
-  const performUndo = () => {
-    if (undoStackRef.current.length === 0) return;
-    const snapshot = undoStackRef.current[undoStackRef.current.length - 1];
-    undoStackRef.current = undoStackRef.current.slice(0, -1);
-    redoStackRef.current = [
-      ...redoStackRef.current,
-      {
-        tasks: structuredClone(tasksRef.current),
-        unscheduledTasks: structuredClone(unscheduledTasksRef.current),
-        recycleBin: structuredClone(recycleBinRef.current),
-        recurringTasks: structuredClone(recurringTasksRef.current),
-      }
-    ];
-    setTasks(prev => [...snapshot.tasks.filter(t => !t._native), ...prev.filter(t => t._native)]);
-    setUnscheduledTasks(snapshot.unscheduledTasks);
-    setRecycleBin(snapshot.recycleBin);
-    setRecurringTasks(snapshot.recurringTasks);
-    playUISound('undo');
-    setUndoToast({ message: 'Undone', actionable: false });
-  };
-
-  const performRedo = () => {
-    if (redoStackRef.current.length === 0) return;
-    const snapshot = redoStackRef.current[redoStackRef.current.length - 1];
-    redoStackRef.current = redoStackRef.current.slice(0, -1);
-    undoStackRef.current = [
-      ...undoStackRef.current,
-      {
-        tasks: structuredClone(tasksRef.current),
-        unscheduledTasks: structuredClone(unscheduledTasksRef.current),
-        recycleBin: structuredClone(recycleBinRef.current),
-        recurringTasks: structuredClone(recurringTasksRef.current),
-      }
-    ];
-    setTasks(prev => [...snapshot.tasks.filter(t => !t._native), ...prev.filter(t => t._native)]);
-    setUnscheduledTasks(snapshot.unscheduledTasks);
-    setRecycleBin(snapshot.recycleBin);
-    setRecurringTasks(snapshot.recurringTasks);
-    playUISound('undo');
-    setUndoToast({ message: 'Redone', actionable: false });
-  };
+  const { undoToast, setUndoToast, pushUndo, performUndo, performRedo } = useUndo({
+    tasks, unscheduledTasks, recycleBin, recurringTasks,
+    setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
+    playUISound,
+  });
 
   // Habit tracking helpers
   const activeHabits = useMemo(() => habits.filter(h => !h.archived), [habits]);
