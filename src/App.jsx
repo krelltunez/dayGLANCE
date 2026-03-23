@@ -30,34 +30,11 @@ import CloudSyncSettingsForm from './components/CloudSyncSettingsForm.jsx';
 import AutoBackupSettingsForm from './components/AutoBackupSettingsForm.jsx';
 import useVisibleDays from './hooks/useVisibleDays.js';
 import useDeviceType from './hooks/useDeviceType.js';
+import useIsLandscape from './hooks/useIsLandscape.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
 const toBase64 = (str) => btoa(unescape(encodeURIComponent(str)));
-
-// Hook to detect landscape orientation
-const useIsLandscape = () => {
-  const [isLandscape, setIsLandscape] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth > window.innerHeight;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    const handleChange = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
-    };
-    window.addEventListener('resize', handleChange);
-    window.addEventListener('orientationchange', handleChange);
-    return () => {
-      window.removeEventListener('resize', handleChange);
-      window.removeEventListener('orientationchange', handleChange);
-    };
-  }, []);
-
-  return isLandscape;
-};
 
 
 
