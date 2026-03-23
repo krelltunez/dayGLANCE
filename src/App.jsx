@@ -34,6 +34,7 @@ import useIsLandscape from './hooks/useIsLandscape.js';
 import useAudio from './hooks/useAudio.js';
 import useUndo from './hooks/useUndo.js';
 import useWeather from './hooks/useWeather.js';
+import useTagFilter from './hooks/useTagFilter.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -232,14 +233,7 @@ const DayPlanner = () => {
       tags: false
     };
   });
-  const [selectedTags, setSelectedTags] = useState(() => {
-    const saved = localStorage.getItem('day-planner-selected-tags');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [showUntagged, setShowUntagged] = useState(() => {
-    const saved = localStorage.getItem('day-planner-show-untagged');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
+  const { selectedTags, setSelectedTags, showUntagged, setShowUntagged, showMobileTagFilter, setShowMobileTagFilter, toggleTag, clearTagFilter } = useTagFilter();
   const [use24HourClock, setUse24HourClock] = useState(() => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
     return saved !== null ? JSON.parse(saved) : false;
@@ -266,7 +260,6 @@ const DayPlanner = () => {
   const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
   const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
-  const [showMobileTagFilter, setShowMobileTagFilter] = useState(false);
   const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
@@ -928,19 +921,6 @@ const DayPlanner = () => {
     };
   }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId]);
 
-  // Close tag filter on ESC and blur the trigger button
-  useEffect(() => {
-    if (!showMobileTagFilter) return;
-    const handleTagFilterEsc = (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowMobileTagFilter(false);
-        if (document.activeElement) document.activeElement.blur();
-      }
-    };
-    document.addEventListener('keydown', handleTagFilterEsc);
-    return () => document.removeEventListener('keydown', handleTagFilterEsc);
-  }, [showMobileTagFilter]);
 
   // Close notes panel on ESC
   useEffect(() => {
@@ -988,16 +968,6 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('minimizedSections', JSON.stringify(minimizedSections));
   }, [minimizedSections]);
-
-  // Persist selectedTags to localStorage
-  useEffect(() => {
-    localStorage.setItem('day-planner-selected-tags', JSON.stringify(selectedTags));
-  }, [selectedTags]);
-
-  // Persist showUntagged to localStorage
-  useEffect(() => {
-    localStorage.setItem('day-planner-show-untagged', JSON.stringify(showUntagged));
-  }, [showUntagged]);
 
   // Persist use24HourClock to localStorage
   useEffect(() => {
@@ -2187,18 +2157,6 @@ const DayPlanner = () => {
       ...prev,
       [sectionName]: !prev[sectionName]
     }));
-  };
-
-  const toggleTag = (tag) => {
-    setSelectedTags(prev =>
-      prev.includes(tag)
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
-  };
-
-  const clearTagFilter = () => {
-    setSelectedTags([]);
   };
 
   const selectAllTags = () => {
