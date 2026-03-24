@@ -54,6 +54,7 @@ import useTaskDerived from './hooks/useTaskDerived.js';
 import useDeadlinePriority from './hooks/useDeadlinePriority.js';
 import useConflictDetection from './hooks/useConflictDetection.js';
 import useNewTaskInput from './hooks/useNewTaskInput.js';
+import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -295,8 +296,6 @@ const DayPlanner = () => {
   const [calendarFilter, setCalendarFilter] = useState(() => {
     try { return JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'); } catch { return []; }
   });
-  const [editingTaskId, setEditingTaskId] = useState(null);
-  const [editingTaskText, setEditingTaskText] = useState('');
   // On Android, calendar events come from the native bridge — only task calendar URL matters for sync
   const calSyncConfigured = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
   const [calendarUrlAuth, setCalendarUrlAuth] = useState(() => {
@@ -350,7 +349,6 @@ const DayPlanner = () => {
   const [showDeadlinePicker, setShowDeadlinePicker] = useState(null); // task id or null
   const calendarRef = useRef(null);
   const suppressScrollAwayRef = useRef(false); // suppress scroll-away detection during programmatic scrolls
-  const editingInputRef = useRef(null);
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
   const autoScrollInterval = useRef(null); // For drag auto-scroll
@@ -2130,6 +2128,36 @@ const DayPlanner = () => {
     return { templateId, dateStr };
   };
 
+  const {
+    editingTaskId, setEditingTaskId,
+    editingTaskText, setEditingTaskText,
+    editingInputRef,
+    startEditingTask,
+    saveTaskTitle,
+    cancelEditingTask,
+    applySuggestionForEdit,
+    handleEditKeyDown,
+    handleEditInputChange,
+  } = useTaskFormHelpers({
+    tasks,
+    setTasks,
+    setUnscheduledTasks,
+    setRecurringTasks,
+    pushUndo,
+    onboardingProgress,
+    setOnboardingProgress,
+    parseRecurringId,
+    getAdjustedTimeForImportedConflicts,
+    buildSuggestions,
+    suggestions,
+    selectedSuggestionIndex,
+    showSuggestions,
+    setSuggestions,
+    setSelectedSuggestionIndex,
+    setShowSuggestions,
+    setSuggestionContext,
+  });
+
   const getTaskCategory = (task) => {
     if (task.isAllDay) return 'allDayTasks';
     if (typeof task.id === 'string' && task.id.startsWith('recurring-')) return 'recurringTasks';
@@ -2299,63 +2327,6 @@ const DayPlanner = () => {
     if (!onboardingProgress.hasUsedActionButtons) {
       setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
     }
-  };
-
-  const startEditingTask = (task, isInbox = false) => {
-    if (task.imported) return; // Don't allow editing imported tasks
-    // Reset any existing tag suggestions
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setSelectedSuggestionIndex(0);
-    setEditingTaskId(task.id);
-    setEditingTaskText(task.title);
-  };
-
-  const saveTaskTitle = (isInbox = false) => {
-    pushUndo();
-    if (!editingTaskId || !editingTaskText.trim()) {
-      cancelEditingTask();
-      return;
-    }
-
-    const cleanedTitle = cleanTitle(editingTaskText);
-
-    // Handle recurring task instances - update the template title
-    if (typeof editingTaskId === 'string' && editingTaskId.startsWith('recurring-')) {
-      const parsed = parseRecurringId(editingTaskId);
-      if (parsed) {
-        setRecurringTasks(prev => prev.map(t =>
-          t.id === parsed.templateId ? { ...t, title: cleanedTitle } : t
-        ));
-      }
-    } else if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
-      ));
-    } else {
-      setTasks(prev => prev.map(t =>
-        t.id === editingTaskId ? { ...t, title: cleanedTitle } : t
-      ));
-    }
-
-    // Track for onboarding if task has tags
-    if (!onboardingProgress.hasUsedTags && extractTags(editingTaskText.trim()).length > 0) {
-      setOnboardingProgress(prev => ({ ...prev, hasUsedTags: true }));
-    }
-
-    setEditingTaskId(null);
-    setEditingTaskText('');
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setSelectedSuggestionIndex(0);
-  };
-
-  const cancelEditingTask = () => {
-    setEditingTaskId(null);
-    setEditingTaskText('');
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setSelectedSuggestionIndex(0);
   };
 
   // Notes & Subtasks CRUD functions
@@ -2685,257 +2656,6 @@ const DayPlanner = () => {
       setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     } else {
       setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
-    }
-  };
-
-  const handleEditKeyDown = (e, isInbox = false) => {
-    // Handle autocomplete keyboard navigation
-    // Tags: TAB or SPACE accepts tag completion
-    // Non-tags: SPACE accepts the suggestion and inserts a space
-    // ENTER always saves; ESC always cancels
-    if (showSuggestions && suggestions.length > 0) {
-      const selected = suggestions[selectedSuggestionIndex];
-
-      if (e.key === 'Tab' || e.key === ' ') {
-        e.preventDefault();
-        if (selected.type === 'tag') {
-          applySuggestionForEdit(selected, e.target, isInbox);
-        } else {
-          const inputEl = e.target;
-          // Autocomplete the shortcut text and append a space
-          const { text: completed, cursorPos } = completeShortcutText(editingTaskText, selected);
-          const newText = completed + ' ';
-          // Apply the selected suggestion attribute
-          if (selected.type === 'date' || selected.type === 'time') {
-            if (isInbox) {
-              setUnscheduledTasks(prev => prev.map(t => {
-                if (t.id !== editingTaskId) return t;
-                if (selected.type === 'date') return { ...t, scheduledDate: selected.value };
-                return { ...t, scheduledTime: selected.value };
-              }));
-            } else if (selected.type === 'time') {
-              const editingTask = tasks.find(t => t.id === editingTaskId);
-              if (editingTask && !editingTask.isAllDay) {
-                const { adjustedStartTime } = getAdjustedTimeForImportedConflicts(
-                  editingTaskId, selected.value, editingTask.duration, editingTask.date
-                );
-                setTasks(prev => prev.map(t =>
-                  t.id === editingTaskId ? { ...t, startTime: adjustedStartTime } : t
-                ));
-              } else {
-                setTasks(prev => prev.map(t =>
-                  t.id === editingTaskId ? { ...t, startTime: selected.value } : t
-                ));
-              }
-            } else {
-              setTasks(prev => prev.map(t =>
-                t.id === editingTaskId ? { ...t, date: selected.value } : t
-              ));
-            }
-          } else if (selected.type === 'deadline' && isInbox) {
-            setUnscheduledTasks(prev => prev.map(t =>
-              t.id === editingTaskId ? { ...t, deadline: selected.value } : t
-            ));
-          } else if (selected.type === 'priority' && isInbox) {
-            setUnscheduledTasks(prev => prev.map(t =>
-              t.id === editingTaskId ? { ...t, priority: selected.value } : t
-            ));
-          } else if (selected.type === 'duration') {
-            if (isInbox) {
-              setUnscheduledTasks(prev => prev.map(t =>
-                t.id === editingTaskId ? { ...t, duration: selected.value } : t
-              ));
-            } else {
-              setTasks(prev => prev.map(t =>
-                t.id === editingTaskId ? { ...t, duration: selected.value } : t
-              ));
-            }
-          }
-          setEditingTaskText(newText);
-          setShowSuggestions(false);
-          setSuggestions([]);
-          setSelectedSuggestionIndex(0);
-          setTimeout(() => {
-            if (inputEl) {
-              const pos = cursorPos + 1;
-              inputEl.selectionStart = pos;
-              inputEl.selectionEnd = pos;
-            }
-          }, 0);
-        }
-        return;
-      }
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedSuggestionIndex(prev => (prev + 1) % suggestions.length);
-        return;
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedSuggestionIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-        return;
-      }
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      saveTaskTitle(isInbox);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      cancelEditingTask();
-    }
-  };
-
-  // Apply a suggestion for editing a task
-  const applySuggestionForEdit = (suggestion, inputElement, isInbox) => {
-    if (suggestion.type === 'tag') {
-      // Complete the tag
-      const cursorPos = inputElement?.selectionStart || editingTaskText.length;
-      const { text: newText, newCursorPos } = applyTagCompletion(editingTaskText, cursorPos, suggestion.value);
-      const textWithSpace = newText.slice(0, newCursorPos) + ' ' + newText.slice(newCursorPos);
-      setEditingTaskText(textWithSpace);
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-      setTimeout(() => {
-        if (inputElement) {
-          inputElement.selectionStart = newCursorPos + 1;
-          inputElement.selectionEnd = newCursorPos + 1;
-        }
-      }, 0);
-    } else {
-      // Autocomplete the shortcut text and apply the selected suggestion
-      const { text: completed, cursorPos } = completeShortcutText(editingTaskText, suggestion);
-      setEditingTaskText(completed);
-      if (suggestion.type === 'date' || suggestion.type === 'time') {
-        if (isInbox) {
-          setUnscheduledTasks(prev => prev.map(t => {
-            if (t.id !== editingTaskId) return t;
-            if (suggestion.type === 'date') return { ...t, scheduledDate: suggestion.value };
-            return { ...t, scheduledTime: suggestion.value };
-          }));
-        } else if (suggestion.type === 'time') {
-          const editingTask = tasks.find(t => t.id === editingTaskId);
-          if (editingTask && !editingTask.isAllDay) {
-            const { adjustedStartTime } = getAdjustedTimeForImportedConflicts(
-              editingTaskId, suggestion.value, editingTask.duration, editingTask.date
-            );
-            setTasks(prev => prev.map(t =>
-              t.id === editingTaskId ? { ...t, startTime: adjustedStartTime } : t
-            ));
-          } else {
-            setTasks(prev => prev.map(t =>
-              t.id === editingTaskId ? { ...t, startTime: suggestion.value } : t
-            ));
-          }
-        } else {
-          setTasks(prev => prev.map(t =>
-            t.id === editingTaskId ? { ...t, date: suggestion.value } : t
-          ));
-        }
-      } else if (suggestion.type === 'deadline' && isInbox) {
-        setUnscheduledTasks(prev => prev.map(t =>
-          t.id === editingTaskId ? { ...t, deadline: suggestion.value } : t
-        ));
-      } else if (suggestion.type === 'priority' && isInbox) {
-        setUnscheduledTasks(prev => prev.map(t =>
-          t.id === editingTaskId ? { ...t, priority: suggestion.value } : t
-        ));
-      } else if (suggestion.type === 'duration') {
-        if (isInbox) {
-          setUnscheduledTasks(prev => prev.map(t =>
-            t.id === editingTaskId ? { ...t, duration: suggestion.value } : t
-          ));
-        } else {
-          setTasks(prev => prev.map(t =>
-            t.id === editingTaskId ? { ...t, duration: suggestion.value } : t
-          ));
-        }
-      }
-      setShowSuggestions(false);
-      setSuggestions([]);
-      setSelectedSuggestionIndex(0);
-      setTimeout(() => {
-        if (inputElement) {
-          inputElement.focus();
-          inputElement.selectionStart = cursorPos;
-          inputElement.selectionEnd = cursorPos;
-        }
-      }, 0);
-    }
-  };
-
-  // Handle suggestions for editing task input
-  const handleEditInputChange = (e, isInbox = false) => {
-    const value = e.target.value;
-    setEditingTaskText(value);
-    editingInputRef.current = e.target;
-
-    const cursorPos = e.target.selectionStart;
-    const allSuggestions = buildSuggestions(value, cursorPos, isInbox);
-
-    // Auto-apply attribute suggestions in real-time as the user types
-    // Use first (best) match per type, not last
-    const appliedTypes = new Set();
-    for (const s of allSuggestions) {
-      if (s.type === 'tag') continue;
-      if (appliedTypes.has(s.type)) continue;
-      appliedTypes.add(s.type);
-      if (s.type === 'date' || s.type === 'time') {
-        if (isInbox) {
-          setUnscheduledTasks(prev => prev.map(t => {
-            if (t.id !== editingTaskId) return t;
-            if (s.type === 'date') return { ...t, scheduledDate: s.value };
-            return { ...t, scheduledTime: s.value };
-          }));
-        } else if (s.type === 'time') {
-          const editingTask = tasks.find(t => t.id === editingTaskId);
-          if (editingTask && !editingTask.isAllDay) {
-            const { adjustedStartTime } = getAdjustedTimeForImportedConflicts(
-              editingTaskId, s.value, editingTask.duration, editingTask.date
-            );
-            setTasks(prev => prev.map(t =>
-              t.id === editingTaskId ? { ...t, startTime: adjustedStartTime } : t
-            ));
-          } else {
-            setTasks(prev => prev.map(t =>
-              t.id === editingTaskId ? { ...t, startTime: s.value } : t
-            ));
-          }
-        } else {
-          setTasks(prev => prev.map(t =>
-            t.id === editingTaskId ? { ...t, date: s.value } : t
-          ));
-        }
-      } else if (s.type === 'deadline' && isInbox) {
-        setUnscheduledTasks(prev => prev.map(t =>
-          t.id === editingTaskId ? { ...t, deadline: s.value } : t
-        ));
-      } else if (s.type === 'priority' && isInbox) {
-        setUnscheduledTasks(prev => prev.map(t =>
-          t.id === editingTaskId ? { ...t, priority: s.value } : t
-        ));
-      } else if (s.type === 'duration') {
-        if (isInbox) {
-          setUnscheduledTasks(prev => prev.map(t =>
-            t.id === editingTaskId ? { ...t, duration: s.value } : t
-          ));
-        } else {
-          setTasks(prev => prev.map(t =>
-            t.id === editingTaskId ? { ...t, duration: s.value } : t
-          ));
-        }
-      }
-    }
-
-    if (allSuggestions.length > 0) {
-      setSuggestions(allSuggestions);
-      setSelectedSuggestionIndex(0);
-      setShowSuggestions(true);
-      setSuggestionContext('editing');
-    } else {
-      setShowSuggestions(false);
-      setSuggestions([]);
     }
   };
 
