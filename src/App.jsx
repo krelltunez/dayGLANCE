@@ -49,6 +49,7 @@ import useGTDFrames from './hooks/useGTDFrames.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
+import useComputedViews from './hooks/useComputedViews.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -699,6 +700,24 @@ const DayPlanner = () => {
     todayIncompleteTasks,
     allTimeIncompleteTasks,
   } = useStats({ tasks, unscheduledTasks, recurringTasks });
+
+  const {
+    todayTasks,
+    allTags,
+    incompleteTodayTasks,
+    filterByTags,
+    filteredUnscheduledTasks,
+    filteredTodayTasks,
+  } = useComputedViews({
+    tasks,
+    unscheduledTasks,
+    recurringTasks,
+    selectedDate,
+    selectedTags,
+    inboxPriorityFilter,
+    hideCompletedInbox,
+  });
+  voiceAllTagsRef.current = allTags;
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -7931,31 +7950,6 @@ const DayPlanner = () => {
     );
   };
 
-  const todayTasks = tasks.filter(t => t.date === dateToString(selectedDate));
-
-  // Extract all unique tags from calendar tasks that are affected by tag filtering
-  // (excludes imported events since they bypass filtering, excludes completed tasks)
-  const allTags = useMemo(() => {
-    const tagSet = new Set();
-    tasks.filter(t => !t.imported).forEach(task => {
-      extractTags(task.title).forEach(tag => tagSet.add(tag));
-    });
-    unscheduledTasks.filter(t => !t.imported).forEach(task => {
-      extractTags(task.title).forEach(tag => tagSet.add(tag));
-    });
-    recurringTasks.forEach(template => {
-      extractTags(template.title).forEach(tag => tagSet.add(tag));
-    });
-    return Array.from(tagSet).sort();
-  }, [tasks, unscheduledTasks, recurringTasks]);
-
-  // Incomplete scheduled tasks from today (used by rescheduling feature)
-  const incompleteTodayTasks = useMemo(() => {
-    const todayStr = dateToString(new Date());
-    return tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample);
-  }, [tasks]);
-  voiceAllTagsRef.current = allTags;
-
   // Voice input — parse and add callbacks (must be after allTags is defined)
   // Build a text summary of existing tasks for AI context
   const buildTaskContextForAI = useCallback(() => {
@@ -8511,32 +8505,6 @@ const DayPlanner = () => {
     }
     prevAllTagsRef.current = new Set(allTags);
   }, [allTags]);
-
-  // Filter tasks by selected tags (OR logic - show tasks matching ANY selected tag)
-  // Untagged tasks are always shown — the filter only scopes tagged tasks
-  const filterByTags = (taskList) => {
-    return taskList.filter(task => {
-      const taskTags = extractTags(task.title);
-      // Imported events and untagged tasks always shown
-      if (task.imported || taskTags.length === 0) return true;
-      // If no tags are selected, hide tagged tasks
-      if (selectedTags.length === 0) return false;
-      // Show tagged tasks only if they match a selected tag
-      return selectedTags.some(tag => taskTags.includes(tag));
-    });
-  };
-
-  // Inbox tasks are not filtered by tags, only by priority
-  // Deadline tasks stay in inbox (with calendar icon + deadline shown) AND appear
-  // on the timeline all-day area on their deadline date for easy scheduling
-  const todayStr = getTodayStr();
-  const nonOverdueInboxTasks = unscheduledTasks;
-  const filteredUnscheduledTasks = nonOverdueInboxTasks
-    .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
-    .filter(task => !(task.completed && task.deadline)) // Completed deadline tasks are scheduled, not inbox
-    .filter(task => !hideCompletedInbox || !task.completed)
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-  const filteredTodayTasks = filterByTags(todayTasks);
 
   // Expand recurring task templates into virtual task instances for visible dates
   const expandedRecurringTasks = useMemo(() => {
