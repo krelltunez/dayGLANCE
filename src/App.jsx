@@ -56,6 +56,7 @@ import useConflictDetection from './hooks/useConflictDetection.js';
 import useNewTaskInput from './hooks/useNewTaskInput.js';
 import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 import useTaskActions from './hooks/useTaskActions.js';
+import useRecycleBin from './hooks/useRecycleBin.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -273,8 +274,6 @@ const DayPlanner = () => {
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showMonthView, setShowMonthView] = useState(false);
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
-  const [showEmptyBinConfirm, setShowEmptyBinConfirm] = useState(false);
-  const [showMobileRecycleBin, setShowMobileRecycleBin] = useState(false);
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
   const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
   const reviewScrollRef = useRef(null);
@@ -581,6 +580,19 @@ const DayPlanner = () => {
   const { undoToast, setUndoToast, pushUndo, performUndo, performRedo } = useUndo({
     tasks, unscheduledTasks, recycleBin, recurringTasks,
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
+    playUISound,
+  });
+
+  const {
+    showEmptyBinConfirm, setShowEmptyBinConfirm,
+    showMobileRecycleBin, setShowMobileRecycleBin,
+    undeleteTask,
+    emptyRecycleBin,
+    confirmEmptyBin,
+  } = useRecycleBin({
+    recycleBin, setRecycleBin,
+    pushUndo,
+    setTasks, setUnscheduledTasks,
     playUISound,
   });
 
@@ -2724,40 +2736,6 @@ const DayPlanner = () => {
       document.removeEventListener('touchend', onTouchEnd);
     };
   }, [isMobile]);
-
-  const undeleteTask = (id) => {
-    pushUndo();
-    const task = recycleBin.find(t => t.id === id);
-    if (task) {
-      const { _deletedFrom, ...cleanTask } = task; // Remove metadata
-
-      if (_deletedFrom === 'inbox') {
-        setUnscheduledTasks(prev => [...prev, cleanTask]);
-      } else {
-        setTasks(prev => [...prev, cleanTask]);
-      }
-
-      setRecycleBin(prev => prev.filter(t => t.id !== id));
-      playUISound('restore');
-    }
-  };
-
-  const emptyRecycleBin = () => {
-    setShowEmptyBinConfirm(true);
-  };
-
-  const confirmEmptyBin = () => {
-    pushUndo();
-    // Record tombstones for permanently deleted tasks (prevents resurrection during merge sync)
-    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
-    const now = new Date().toISOString();
-    recycleBin.forEach(t => { tombstones[String(t.id)] = now; });
-    localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
-    setRecycleBin([]);
-    setShowEmptyBinConfirm(false);
-    setShowMobileRecycleBin(false);
-    playUISound('crumple');
-  };
 
   const changeViewedMonth = (delta) => {
     setViewedMonth(prev => {
