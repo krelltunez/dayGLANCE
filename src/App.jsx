@@ -58,6 +58,7 @@ import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 import useTaskActions from './hooks/useTaskActions.js';
 import useRecycleBin from './hooks/useRecycleBin.js';
 import useReminderEngine from './hooks/useReminderEngine.js';
+import useReminders from './hooks/useReminders.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -466,34 +467,13 @@ const DayPlanner = () => {
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
-  const [showRemindersSettings, setShowRemindersSettings] = useState(false);
-  const [reminderSettings, setReminderSettings] = useState(() => {
-    const defaults = {
-      enabled: false,
-      inAppToasts: true,
-      browserNotifications: false,
-      morningReminderTime: '08:00',
-      categories: {
-        calendarEvents:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
-        calendarTasks:   { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
-        scheduledTasks:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
-        allDayTasks:     { morningReminder: true },
-        recurringTasks:  { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
-      },
-      preset: 'standard',
-      weeklyReview: { enabled: true, day: 0, time: '19:00' }
-    };
-    try {
-      const saved = localStorage.getItem('day-planner-reminder-settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.weeklyReview) parsed.weeklyReview = defaults.weeklyReview;
-        return parsed;
-      }
-    } catch {}
-    return defaults;
-  });
-  const [showMorningTimePicker, setShowMorningTimePicker] = useState(false);
+  const {
+    showRemindersSettings, setShowRemindersSettings,
+    reminderSettings, setReminderSettings,
+    showMorningTimePicker, setShowMorningTimePicker,
+    applyReminderPreset,
+    updateCategoryReminder,
+  } = useReminders();
   const { soundEnabled, setSoundEnabled, playUISound, playFocusSound } = useAudio();
   const {
     habits, setHabits,
@@ -924,11 +904,6 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(use24HourClock));
   }, [use24HourClock]);
 
-
-  // Persist reminderSettings to localStorage
-  useEffect(() => {
-    localStorage.setItem('day-planner-reminder-settings', JSON.stringify(reminderSettings));
-  }, [reminderSettings]);
 
   // Persist inboxPriorityFilter to localStorage
   useEffect(() => {
@@ -3181,40 +3156,6 @@ const DayPlanner = () => {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter, nativeCalendarKey]);
-
-  // Reminder preset logic
-  const applyReminderPreset = (name) => {
-    const presets = {
-      standard:   { before15: true, before10: false, before5: false, atStart: true, atEnd: false },
-      aggressive: { before15: true, before10: false, before5: true,  atStart: true, atEnd: true },
-      minimal:    { before15: false, before10: false, before5: false, atStart: true, atEnd: false },
-    };
-    const vals = presets[name];
-    if (!vals) return;
-    setReminderSettings(prev => ({
-      ...prev,
-      preset: name,
-      categories: {
-        ...prev.categories,
-        calendarEvents:  { ...vals },
-        calendarTasks:   { ...vals },
-        scheduledTasks:  { ...vals },
-        recurringTasks:  { ...vals },
-        allDayTasks:     prev.categories.allDayTasks,
-      },
-    }));
-  };
-
-  const updateCategoryReminder = (category, field, value) => {
-    setReminderSettings(prev => ({
-      ...prev,
-      preset: 'custom',
-      categories: {
-        ...prev.categories,
-        [category]: { ...prev.categories[category], [field]: value },
-      },
-    }));
-  };
 
   const enterFocusMode = () => {
     setShowFocusMode(true);
