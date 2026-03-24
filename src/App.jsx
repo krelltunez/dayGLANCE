@@ -44,6 +44,7 @@ import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useCloudSync from './hooks/useCloudSync.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
+import useBackup from './hooks/useBackup.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -297,9 +298,11 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-calendar-url-auth');
     return saved ? JSON.parse(saved) : { username: '', password: '' };
   });
-  const [pendingBackupFile, setPendingBackupFile] = useState(null);
-  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
-  const [showBackupMenu, setShowBackupMenu] = useState(false);
+  const {
+    pendingBackupFile, setPendingBackupFile,
+    showRestoreConfirm, setShowRestoreConfirm,
+    showBackupMenu, setShowBackupMenu,
+  } = useBackup();
   const { dailyContent, setDailyContent, contentRotation, setContentRotation, fetchAllDailyContent } = useDailyContent();
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
   const [dragPreviewDate, setDragPreviewDate] = useState(null);
