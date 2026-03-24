@@ -274,7 +274,10 @@ async function _aiTranscribe(audioBlob, config) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `Transcription API error: ${res.status}`);
+        const hint = provider === 'custom' && res.status >= 500
+          ? ' (your custom endpoint may not support audio transcription — try OpenAI or Gemini directly)'
+          : '';
+        throw new Error(err.error?.message || `Transcription API error: ${res.status}${hint}`);
       }
       const data = await res.json();
       return data.text;
