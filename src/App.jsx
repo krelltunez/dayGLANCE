@@ -40,6 +40,7 @@ import useDailyContent from './hooks/useDailyContent.js';
 import useHabits from './hooks/useHabits.js';
 import useRoutines from './hooks/useRoutines.js';
 import useFocusMode from './hooks/useFocusMode.js';
+import useTrmnlSync from './hooks/useTrmnlSync.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -430,27 +431,6 @@ const DayPlanner = () => {
     return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks\n';
   });
 
-  // TRMNL e-ink dashboard state
-  const [trmnlConfig, setTrmnlConfig] = useState(() => {
-    try {
-      const saved = localStorage.getItem('day-planner-trmnl-config');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
-  const [trmnlSyncStatus, setTrmnlSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
-  const [trmnlLastSynced, setTrmnlLastSynced] = useState(() =>
-    localStorage.getItem('day-planner-trmnl-last-synced') || null
-  );
-  const trmnlSyncTimerRef = useRef(null);
-  // Seed from persisted last-synced so the 2-min throttle survives page reloads
-  const trmnlLastPushRef = useRef(
-    (() => { const s = localStorage.getItem('day-planner-trmnl-last-synced'); return s ? new Date(s).getTime() : 0; })()
-  ); // timestamp of last push attempt
-  const trmnlBackoffUntilRef = useRef(0); // timestamp: skip auto-sync until this time (429 backoff)
-  const trmnlBackoffCountRef = useRef(0); // consecutive 429s — drives exponential backoff
-  const trmnlSyncInProgressRef = useRef(false); // prevents concurrent pushes
-  const performTrmnlSyncRef = useRef(null);
-  const [trmnlMarkupCopied, setTrmnlMarkupCopied] = useState('');
 
   // Obsidian Integration state
   const [obsidianConfig, setObsidianConfig] = useState(() => {
@@ -601,6 +581,18 @@ const DayPlanner = () => {
     handleFocusTimerEndRef,
     focusModeAvailableRef,
   } = useFocusMode();
+  const {
+    trmnlConfig, setTrmnlConfig,
+    trmnlSyncStatus, setTrmnlSyncStatus,
+    trmnlLastSynced, setTrmnlLastSynced,
+    trmnlMarkupCopied, setTrmnlMarkupCopied,
+    trmnlSyncTimerRef,
+    trmnlLastPushRef,
+    trmnlBackoffUntilRef,
+    trmnlBackoffCountRef,
+    trmnlSyncInProgressRef,
+    performTrmnlSyncRef,
+  } = useTrmnlSync();
   const { undoToast, setUndoToast, pushUndo, performUndo, performRedo } = useUndo({
     tasks, unscheduledTasks, recycleBin, recurringTasks,
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
@@ -1262,15 +1254,6 @@ const DayPlanner = () => {
       localStorage.removeItem('day-planner-cloud-sync-config');
     }
   }, [cloudSyncConfig]);
-
-  // Persist TRMNL config
-  useEffect(() => {
-    if (trmnlConfig) {
-      localStorage.setItem('day-planner-trmnl-config', JSON.stringify(trmnlConfig));
-    } else {
-      localStorage.removeItem('day-planner-trmnl-config');
-    }
-  }, [trmnlConfig]);
 
   // TRMNL auto-sync: push data when tasks/habits change
   // Debounce 10s to batch rapid edits, then throttle to at most once per 2 min.
