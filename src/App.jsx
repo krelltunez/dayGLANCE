@@ -55,6 +55,7 @@ import useDeadlinePriority from './hooks/useDeadlinePriority.js';
 import useConflictDetection from './hooks/useConflictDetection.js';
 import useNewTaskInput from './hooks/useNewTaskInput.js';
 import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
+import useTaskActions from './hooks/useTaskActions.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -1932,192 +1933,6 @@ const DayPlanner = () => {
 
     return [...overdueScheduled, ...todayRecurring, ...overdueDeadlines];
   };
-
-  // Set deadline on inbox task
-  const setDeadline = (taskId, deadline) => {
-    pushUndo();
-    setUnscheduledTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, deadline } : t
-    ));
-    setShowDeadlinePicker(null);
-    // Track for onboarding
-    if (!onboardingProgress.hasAddedDeadline) {
-      setOnboardingProgress(prev => ({ ...prev, hasAddedDeadline: true }));
-    }
-  };
-
-  // Postpone a deadline task by pushing its deadline to the next day
-  const postponeDeadlineTask = (taskId) => {
-    const task = unscheduledTasks.find(t => t.id === taskId);
-    if (!task || !task.deadline) return;
-    const nextDay = new Date(task.deadline + 'T12:00:00');
-    nextDay.setDate(nextDay.getDate() + 1);
-    const nextDateStr = nextDay.toISOString().split('T')[0];
-    pushUndo();
-    setUnscheduledTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, deadline: nextDateStr } : t
-    ));
-    setUndoToast({ message: 'Deadline postponed to ' + formatDeadlineDate(nextDateStr), actionable: true });
-    playUISound('slide');
-  };
-
-  // Clear deadline from inbox task
-  const clearDeadline = (taskId) => {
-    pushUndo();
-    setUnscheduledTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, deadline: null } : t
-    ));
-    setShowDeadlinePicker(null);
-  };
-
-  const addTask = (toInbox = false) => {
-    if (newTask.title.trim()) {
-      pushUndo();
-      const taskId = crypto.randomUUID();
-      const task = {
-        id: taskId,
-        title: cleanTitle(newTask.title),
-        duration: newTask.duration,
-        color: newTask.color || colors[0].class,
-        completed: false,
-        isAllDay: newTask.isAllDay || false,
-        notes: '',
-        subtasks: []
-      };
-
-      if (toInbox) {
-        const inboxTask = { ...task, priority: newTask.priority ?? 0 };
-        if (newTask.deadline) {
-          inboxTask.deadline = newTask.deadline;
-        }
-        setUnscheduledTasks(prev => [...prev, inboxTask]);
-      } else if (newTask.recurrence) {
-        // Create recurring task template
-        const taskDate = newTask.date || dateToString(selectedDate);
-        const template = {
-          id: taskId,
-          title: cleanTitle(newTask.title),
-          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-          duration: newTask.duration,
-          color: newTask.color || colors[0].class,
-          isAllDay: newTask.isAllDay || false,
-          notes: '',
-          subtasks: [],
-          recurrence: { ...newTask.recurrence, startDate: taskDate },
-          completedDates: [],
-          exceptions: {}
-        };
-        setRecurringTasks(prev => [...prev, template]);
-        if (!onboardingProgress.hasCreatedRecurring) {
-          setOnboardingProgress(prev => ({ ...prev, hasCreatedRecurring: true }));
-        }
-      } else if (swipeSchedulingInboxTaskId.current) {
-        // Scheduling from inbox swipe: move existing task (preserve ID, notes, subtasks)
-        // so cloud sync cross-list reconciliation sees the same task ID in both lists
-        const inboxId = swipeSchedulingInboxTaskId.current;
-        const inboxTask = unscheduledTasks.find(t => t.id === inboxId);
-        swipeSchedulingInboxTaskId.current = null;
-        if (inboxTask) {
-          const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
-          const taskDate = newTask.date || dateToString(selectedDate);
-          const { conflicted, adjustedStartTime, conflictingEvent } = newTask.isAllDay
-            ? { conflicted: false, adjustedStartTime: requestedStartTime, conflictingEvent: null }
-            : getAdjustedTimeForImportedConflicts(inboxTask.id, requestedStartTime, newTask.duration, taskDate);
-          const { priority, deadline, ...preserved } = inboxTask;
-          setTasks(prev => [...prev, {
-            ...preserved,
-            title: cleanTitle(newTask.title),
-            duration: newTask.duration,
-            color: newTask.color || colors[0].class,
-            isAllDay: newTask.isAllDay || false,
-            startTime: adjustedStartTime,
-            date: taskDate
-          }]);
-          setUnscheduledTasks(prev => prev.filter(t => t.id !== inboxId));
-          if (conflicted && conflictingEvent) {
-            setSyncNotification({
-              type: 'info',
-              title: 'Task Rescheduled',
-              message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
-            });
-          }
-          if (!onboardingProgress.hasDraggedToTimeline) {
-            setOnboardingProgress(prev => ({ ...prev, hasDraggedToTimeline: true }));
-          }
-        }
-      } else {
-        const requestedStartTime = newTask.isAllDay ? '00:00' : newTask.startTime;
-        const taskDate = newTask.date || dateToString(selectedDate);
-
-        // Check for conflicts with imported calendar events (not for all-day tasks)
-        const { conflicted, adjustedStartTime, conflictingEvent } = newTask.isAllDay
-          ? { conflicted: false, adjustedStartTime: requestedStartTime, conflictingEvent: null }
-          : getAdjustedTimeForImportedConflicts(taskId, requestedStartTime, newTask.duration, taskDate);
-
-        setTasks(prev => [...prev, {
-          ...task,
-          startTime: adjustedStartTime,
-          date: taskDate
-        }]);
-
-        // Show notification if task was rescheduled to avoid calendar conflict
-        if (conflicted && conflictingEvent) {
-          setSyncNotification({
-            type: 'info',
-            title: 'Task Rescheduled',
-            message: `Task moved to ${adjustedStartTime} to avoid conflict with "${conflictingEvent.title}"`
-          });
-        }
-      }
-
-      setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null });
-      setShowAddTask(false);
-
-      // Track for onboarding
-      if (toInbox && !onboardingProgress.hasAddedInboxTask) {
-        setOnboardingProgress(prev => ({ ...prev, hasAddedInboxTask: true }));
-      }
-      if (!toInbox && !onboardingProgress.hasAddedScheduledTask) {
-        setOnboardingProgress(prev => ({ ...prev, hasAddedScheduledTask: true }));
-      }
-      // Track if task has tags
-      if (!onboardingProgress.hasUsedTags && extractTags(newTask.title).length > 0) {
-        setOnboardingProgress(prev => ({ ...prev, hasUsedTags: true }));
-      }
-      playUISound('pop');
-    }
-  };
-
-  const changeTaskColor = (taskId, newColor, fromInbox = false) => {
-    pushUndo();
-    // Handle recurring task instances - update the template
-    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      const parsed = parseRecurringId(taskId);
-      if (parsed) {
-        setRecurringTasks(prev => prev.map(t =>
-          t.id === parsed.templateId ? { ...t, color: newColor } : t
-        ));
-      }
-      setShowColorPicker(null);
-      return;
-    }
-
-    if (fromInbox) {
-      setUnscheduledTasks(prev => prev.map(task =>
-        task.id === taskId ? { ...task, color: newColor } : task
-      ));
-    } else {
-      setTasks(prev => prev.map(task =>
-        task.id === taskId ? { ...task, color: newColor } : task
-      ));
-    }
-    setShowColorPicker(null);
-    // Track for onboarding
-    if (!onboardingProgress.hasUsedActionButtons) {
-      setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
-    }
-  };
-
   const parseRecurringId = (id) => {
     if (typeof id !== 'string' || !id.startsWith('recurring-')) return null;
     const parts = id.split('-');
@@ -2182,175 +1997,6 @@ const DayPlanner = () => {
     if (catSettings.atStart) points.push({ key: `start-${task.id}`, triggerMin: startMin, type: 'start' });
     if (catSettings.atEnd) points.push({ key: `end-${task.id}`, triggerMin: endMin, type: 'end' });
     return points.filter(p => p.triggerMin >= 0);
-  };
-
-  const toggleComplete = (id, fromInbox = false) => {
-    pushUndo();
-    playUISound('tick');
-    if (navigator.vibrate) navigator.vibrate(30);
-    // Handle recurring task instances
-    if (typeof id === 'string' && id.startsWith('recurring-')) {
-      const { templateId, dateStr } = parseRecurringId(id);
-      setRecurringTasks(prev => prev.map(t => {
-        if (t.id !== templateId) return t;
-        const completed = (t.completedDates || []).includes(dateStr);
-        return {
-          ...t,
-          completedDates: completed
-            ? (t.completedDates || []).filter(d => d !== dateStr)
-            : [...(t.completedDates || []), dateStr]
-        };
-      }));
-      if (!onboardingProgress.hasCompletedTask) {
-        setOnboardingProgress(prev => ({ ...prev, hasCompletedTask: true }));
-      }
-      const wasCompleted = recurringTasks.find(t => t.id === templateId)?.completedDates?.includes(dateStr);
-      if (!wasCompleted) {
-        setUndoToast({ message: 'Task completed', actionable: true });
-      }
-      return;
-    }
-
-    // Track for onboarding - check if we're completing (not uncompleting) a task
-    const taskToToggle = fromInbox
-      ? unscheduledTasks.find(t => t.id === id)
-      : tasks.find(t => t.id === id);
-    if (!onboardingProgress.hasCompletedTask && taskToToggle && !taskToToggle.completed) {
-      setOnboardingProgress(prev => ({ ...prev, hasCompletedTask: true }));
-    }
-
-    if (fromInbox) {
-      // Use functional update to avoid stale closure overwriting concurrent state changes (e.g. moveToRecycleBin)
-      setUnscheduledTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? dateToString(new Date()) : null } : task
-      ));
-    } else {
-      // Find the task to check if it's a task calendar item
-      const task = tasks.find(t => t.id === id);
-      if (task?.isTaskCalendar && task?.icalUid) {
-        // Persist completion state for task calendar items using composite key (UID + date)
-        // so that recurring calendar task instances are tracked independently
-        const completionKey = task.icalUid + '::' + task.date;
-        const newCompleted = !task.completed;
-        setCompletedTaskUids(prev => {
-          const newSet = new Set(prev);
-          if (task.completed) {
-            newSet.delete(completionKey);
-          } else {
-            newSet.add(completionKey);
-          }
-          return newSet;
-        });
-        // Sync completion back to CalDAV server (fire-and-forget)
-        syncTaskCompletionToCalDAV(task.icalUid, newCompleted, {
-          isRecurring: task.isRecurringSeries,
-          date: task.date,
-          startTime: task.startTime,
-          isAllDay: task.isAllDay
-        });
-      }
-      setTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      ));
-    }
-    if (taskToToggle && !taskToToggle.completed) {
-      setUndoToast({ message: 'Task completed', actionable: true });
-    }
-  };
-
-  const postponeTask = (id) => {
-    // Don't allow postponing recurring instances
-    if (typeof id === 'string' && id.startsWith('recurring-')) return;
-    const task = tasks.find(t => t.id === id);
-    if (!task || !task.startTime || !task.date) return; // Only postpone scheduled tasks
-
-    // Calculate next day's date based on task's current date
-    const nextDay = new Date(task.date + 'T12:00:00');
-    nextDay.setDate(nextDay.getDate() + 1);
-    const nextDateStr = nextDay.toISOString().split('T')[0];
-
-    // Check for conflicts with imported calendar events on the target date
-    const { conflicted, conflictingEvent } = getAdjustedTimeForImportedConflicts(
-      id, task.startTime, task.duration, nextDateStr
-    );
-
-    if (conflicted) {
-      playUISound('error');
-      setSyncNotification({
-        type: 'error',
-        title: "Can't Postpone",
-        message: `Time slot conflicts with "${conflictingEvent?.title || 'a calendar event'}" on ${nextDateStr}`
-      });
-      return;
-    }
-
-    // Update the task with the new date (same time)
-    pushUndo();
-    setTasks(prev => prev.map(t =>
-      t.id === id ? { ...t, date: nextDateStr } : t
-    ));
-    setUndoToast({ message: 'Task postponed to tomorrow', actionable: true });
-
-    playUISound('slide');
-
-    // Track for onboarding
-    if (!onboardingProgress.hasUsedActionButtons) {
-      setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
-    }
-  };
-
-  const moveToInbox = (id) => {
-    pushUndo();
-    // Don't allow moving recurring instances to inbox
-    if (typeof id === 'string' && id.startsWith('recurring-')) return;
-    const task = tasks.find(t => t.id === id);
-    if (!task || task.imported) return;
-
-    // Remove scheduling info and move to inbox
-    // Explicitly stamp lastModified so this version wins over any stale
-    // scheduled copy that may still exist on a remote device during sync.
-    const unscheduledTask = {
-      ...task,
-      startTime: null,
-      date: null,
-      isAllDay: false,
-      priority: task.priority || 0,
-      lastModified: new Date().toISOString(),
-    };
-
-    setTasks(prev => prev.filter(t => t.id !== id));
-    setUnscheduledTasks(prev => [...prev, unscheduledTask]);
-    playUISound('slide');
-    setUndoToast({ message: 'Moved to inbox', actionable: true });
-
-    // Track for onboarding
-    if (!onboardingProgress.hasUsedActionButtons) {
-      setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
-    }
-  };
-
-  // Notes & Subtasks CRUD functions
-  const updateTaskNotes = (taskId, notes, isInbox) => {
-    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      const parsed = parseRecurringId(taskId);
-      if (parsed) {
-        setRecurringTasks(prev => prev.map(t =>
-          t.id === parsed.templateId ? { ...t, notes } : t
-        ));
-      }
-    } else if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === taskId ? { ...t, notes } : t
-      ));
-    } else {
-      setTasks(prev => prev.map(t =>
-        t.id === taskId ? { ...t, notes } : t
-      ));
-    }
-    // Track for onboarding when notes are added (not cleared)
-    if (!onboardingProgress.hasAddedNotes && notes && notes.trim()) {
-      setOnboardingProgress(prev => ({ ...prev, hasAddedNotes: true }));
-    }
   };
 
   const updateDailyNote = (dateStr, text) => {
@@ -2549,113 +2195,6 @@ const DayPlanner = () => {
       setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
     } finally {
       obsidianSyncInProgressRef.current = false;
-    }
-  };
-
-  // Helper to update a recurring task template by ID
-  const updateRecurringTemplate = (taskId, updater) => {
-    const parsed = parseRecurringId(taskId);
-    if (parsed) {
-      setRecurringTasks(prev => prev.map(t => t.id === parsed.templateId ? updater(t) : t));
-    }
-  };
-
-  const updateRecurrencePattern = (templateId, dateStr, newRecurrence) => {
-    setRecurringTasks(prev => prev.map(t => {
-      if (t.id !== templateId) return t;
-      // Use the 1st of the earlier month so changing monthly day doesn't skip the start month
-      const origStart = t.recurrence.startDate;
-      const earlierDate = origStart <= dateStr ? origStart : dateStr;
-      const newStart = earlierDate.substring(0, 8) + '01';
-      return { ...t, recurrence: { ...newRecurrence, startDate: newStart } };
-    }));
-  };
-
-  const updateRecurrenceEndCondition = (templateId, { endDate, maxOccurrences }) => {
-    setRecurringTasks(prev => prev.map(t => {
-      if (t.id !== templateId) return t;
-      const updated = { ...t.recurrence };
-      delete updated.endDate;
-      delete updated.maxOccurrences;
-      if (endDate) updated.endDate = endDate;
-      if (maxOccurrences) updated.maxOccurrences = maxOccurrences;
-      return { ...t, recurrence: updated };
-    }));
-  };
-
-  const addSubtask = (taskId, title, isInbox, extraFields = {}) => {
-    if (!title.trim()) return;
-    pushUndo();
-    const newSubtask = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      completed: false,
-      ...extraFields,
-    };
-    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      updateRecurringTemplate(taskId, t => ({ ...t, subtasks: [...(t.subtasks || []), newSubtask] }));
-    } else if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
-      ));
-    } else {
-      setTasks(prev => prev.map(t =>
-        t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSubtask] } : t
-      ));
-    }
-    // Track for onboarding
-    if (!onboardingProgress.hasAddedNotes) {
-      setOnboardingProgress(prev => ({ ...prev, hasAddedNotes: true }));
-    }
-    return newSubtask;
-  };
-
-  const toggleSubtask = (taskId, subtaskId, isInbox) => {
-    pushUndo();
-    const subtaskUpdater = t => ({
-      ...t,
-      subtasks: (t.subtasks || []).map(st =>
-        st.id === subtaskId ? { ...st, completed: !st.completed } : st
-      )
-    });
-    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      updateRecurringTemplate(taskId, subtaskUpdater);
-    } else if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
-    } else {
-      setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
-    }
-  };
-
-  const deleteSubtask = (taskId, subtaskId, isInbox) => {
-    pushUndo();
-    const subtaskUpdater = t => ({
-      ...t,
-      subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId)
-    });
-    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      updateRecurringTemplate(taskId, subtaskUpdater);
-    } else if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
-    } else {
-      setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
-    }
-  };
-
-  const updateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
-    pushUndo();
-    const subtaskUpdater = t => ({
-      ...t,
-      subtasks: (t.subtasks || []).map(st =>
-        st.id === subtaskId ? { ...st, title: newTitle } : st
-      )
-    });
-    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
-      updateRecurringTemplate(taskId, subtaskUpdater);
-    } else if (isInbox) {
-      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
-    } else {
-      setTasks(prev => prev.map(t => t.id === taskId ? subtaskUpdater(t) : t));
     }
   };
 
@@ -3186,87 +2725,6 @@ const DayPlanner = () => {
     };
   }, [isMobile]);
 
-  const moveToRecycleBin = (id, fromInbox = false) => {
-    // Handle recurring task instances - show confirmation dialog
-    if (typeof id === 'string' && id.startsWith('recurring-')) {
-      const parsed = parseRecurringId(id);
-      if (parsed) {
-        setRecurringDeleteConfirm({ taskId: parsed.templateId, dateStr: parsed.dateStr });
-      }
-      return;
-    }
-
-    pushUndo();
-    const task = fromInbox
-      ? unscheduledTasks.find(t => t.id === id)
-      : tasks.find(t => t.id === id);
-
-    if (task) {
-      // Close notes panel if this task was expanded
-      if (expandedNotesTaskId === id) {
-        setExpandedNotesTaskId(null);
-      }
-      // Store original location and deletion time with the task
-      const taskWithMeta = {
-        ...task,
-        _deletedFrom: fromInbox ? 'inbox' : 'calendar',
-        deletedAt: new Date().toISOString()
-      };
-      // Use functional updates to avoid stale closure overwriting concurrent state changes
-      setRecycleBin(prev => [...prev, taskWithMeta]);
-      if (fromInbox) {
-        setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
-      } else {
-        setTasks(prev => prev.filter(t => t.id !== id));
-      }
-      playUISound('swoosh');
-      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-      setUndoToast({ message: 'Task deleted', actionable: true });
-
-      // Track for onboarding
-      if (!onboardingProgress.hasUsedActionButtons) {
-        setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
-      }
-    }
-  };
-
-  // Record a tombstone so cloud sync doesn't resurrect a deleted task/template
-  const recordDeletedTaskTombstone = (taskId) => {
-    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
-    tombstones[String(taskId)] = new Date().toISOString();
-    localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
-  };
-
-  // Delete recurring task: this occurrence, all future, or entire series
-  const deleteRecurringInstance = (mode) => {
-    if (!recurringDeleteConfirm) return;
-    pushUndo();
-    const { taskId, dateStr } = recurringDeleteConfirm;
-
-    if (mode === 'this') {
-      // Add exception for this date
-      setRecurringTasks(prev => prev.map(t => {
-        if (t.id !== taskId) return t;
-        return { ...t, exceptions: { ...t.exceptions, [dateStr]: { deleted: true } } };
-      }));
-    } else if (mode === 'future') {
-      // Set end date to day before this occurrence
-      const dayBefore = new Date(dateStr + 'T12:00:00');
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      const endDate = dateToString(dayBefore);
-      setRecurringTasks(prev => prev.map(t => {
-        if (t.id !== taskId) return t;
-        return { ...t, recurrence: { ...t.recurrence, endDate } };
-      }));
-    } else if (mode === 'series') {
-      // Remove the entire template
-      recordDeletedTaskTombstone(taskId);
-      setRecurringTasks(prev => prev.filter(t => t.id !== taskId));
-    }
-
-    setRecurringDeleteConfirm(null);
-  };
-
   const undeleteTask = (id) => {
     pushUndo();
     const task = recycleBin.find(t => t.id === id);
@@ -3388,35 +2846,6 @@ const DayPlanner = () => {
       || dateIndicatorData.recurringDates.has(dateStr)
       || dateIndicatorData.deadlineDates.has(dateStr);
     return { hasNote, hasImported, hasAppTask };
-  };
-
-  const openNewTaskForm = () => {
-    setNewTask({
-      title: '',
-      startTime: hoverPreviewTime || getNextQuarterHour(),
-      duration: 30,
-      date: hoverPreviewDate ? dateToString(hoverPreviewDate) : dateToString(selectedDate),
-      isAllDay: false,
-      recurrence: null
-    });
-    setHoverPreviewTime(null);
-    setHoverPreviewDate(null);
-    setShowRecurrencePicker(false);
-    setShowAddTask(true);
-  };
-
-  const openNewInboxTask = () => {
-    setNewTask({
-      title: '',
-      startTime: getNextQuarterHour(),
-      duration: 30,
-      date: dateToString(selectedDate),
-      isAllDay: false,
-      openInInbox: true,
-      deadline: null,
-      priority: 0
-    });
-    setShowAddTask(true);
   };
 
   const openMobileEditTask = (task, isInbox) => {
@@ -3974,53 +3403,6 @@ const DayPlanner = () => {
     nativeExitFocusMode();
     setFocusShowStats(false);
     setShowFocusMode(false);
-  };
-
-  const focusCompleteTask = (taskId) => {
-    toggleComplete(taskId);
-    setFocusCompletedTasks(prev => {
-      const next = new Set(prev);
-      next.add(taskId);
-      return next;
-    });
-    playFocusSound('complete');
-    // Auto-exit if all block tasks are completed
-    const allDone = focusBlockTasks.every(t => t.completed || t.id === taskId || focusCompletedTasks.has(t.id));
-    if (allDone) {
-      setTimeout(() => exitFocusMode(true), 500);
-    }
-  };
-
-  // Wrappers that update both real tasks and the focus snapshot
-  const focusUpdateTaskNotes = (taskId, notes, isInbox) => {
-    updateTaskNotes(taskId, notes, isInbox);
-    setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, notes } : t));
-  };
-  const focusAddSubtask = (taskId, title, isInbox) => {
-    const newSt = addSubtask(taskId, title, isInbox);
-    if (!newSt) return;
-    setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), newSt] } : t));
-  };
-  const focusToggleSubtask = (taskId, subtaskId, isInbox) => {
-    toggleSubtask(taskId, subtaskId, isInbox);
-    setFocusBlockTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, subtasks: (t.subtasks || []).map(st => st.id === subtaskId ? { ...st, completed: !st.completed } : st) };
-    }));
-  };
-  const focusDeleteSubtask = (taskId, subtaskId, isInbox) => {
-    deleteSubtask(taskId, subtaskId, isInbox);
-    setFocusBlockTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, subtasks: (t.subtasks || []).filter(st => st.id !== subtaskId) };
-    }));
-  };
-  const focusUpdateSubtaskTitle = (taskId, subtaskId, newTitle, isInbox) => {
-    updateSubtaskTitle(taskId, subtaskId, newTitle, isInbox);
-    setFocusBlockTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      return { ...t, subtasks: (t.subtasks || []).map(st => st.id === subtaskId ? { ...st, title: newTitle } : st) };
-    }));
   };
 
   const handleFocusTimerEnd = () => {
@@ -8356,25 +7738,6 @@ const DayPlanner = () => {
     generateFrameNudge();
   }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge]);
 
-  // Schedule a nudge-suggested task at the next 15-minute increment
-  const scheduleTaskAtNextSlot = useCallback((taskId, isInbox) => {
-    const now = new Date();
-    const totalMinutes = now.getHours() * 60 + now.getMinutes();
-    const nextSlotMinutes = Math.ceil((totalMinutes + 1) / 15) * 15;
-    const nextSlotTime = minutesToTime(nextSlotMinutes);
-    const todayStr = dateToString(now);
-    if (isInbox) {
-      const task = unscheduledTasks.find(t => t.id === taskId);
-      if (!task) return;
-      setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
-      setTasks(prev => [...prev, { ...task, startTime: nextSlotTime, date: todayStr, isAllDay: false }]);
-    } else {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, startTime: nextSlotTime, date: todayStr } : t));
-    }
-    setFrameNudgeDismissedKey(activeFrameNudgeKey);
-    playUISound('tick');
-  }, [unscheduledTasks, activeFrameNudgeKey]);
-
   // Compute available time slots within a frame instance, subtracting existing tasks/events.
   // For today, elapsed time is excluded: each slot's start is clipped to the current time.
   const computeAvailableSlots = useCallback((frameInstance, date) => {
@@ -8452,6 +7815,69 @@ const DayPlanner = () => {
 
     return slots;
   }, [getTasksForDate]);
+
+  const {
+    setDeadline,
+    postponeDeadlineTask,
+    clearDeadline,
+    addTask,
+    openNewTaskForm,
+    openNewInboxTask,
+    changeTaskColor,
+    updateTaskNotes,
+    updateRecurringTemplate,
+    updateRecurrencePattern,
+    updateRecurrenceEndCondition,
+    toggleComplete,
+    postponeTask,
+    moveToInbox,
+    addSubtask,
+    toggleSubtask,
+    deleteSubtask,
+    updateSubtaskTitle,
+    moveToRecycleBin,
+    deleteRecurringInstance,
+    recordDeletedTaskTombstone,
+    scheduleTaskAtNextSlot,
+    manuallyScheduleTask,
+    focusCompleteTask,
+    focusUpdateTaskNotes,
+    focusAddSubtask,
+    focusToggleSubtask,
+    focusDeleteSubtask,
+    focusUpdateSubtaskTitle,
+  } = useTaskActions({
+    tasks, setTasks,
+    unscheduledTasks, setUnscheduledTasks,
+    recurringTasks, setRecurringTasks,
+    recycleBin, setRecycleBin,
+    completedTaskUids, setCompletedTaskUids,
+    selectedDate,
+    onboardingProgress, setOnboardingProgress,
+    pushUndo,
+    playUISound,
+    parseRecurringId,
+    getAdjustedTimeForImportedConflicts,
+    newTask, setNewTask,
+    setShowAddTask,
+    setShowRecurrencePicker,
+    expandedNotesTaskId, setExpandedNotesTaskId,
+    setSyncNotification,
+    setUndoToast,
+    setShowColorPicker,
+    setShowDeadlinePicker,
+    recurringDeleteConfirm, setRecurringDeleteConfirm,
+    hoverPreviewTime, hoverPreviewDate, setHoverPreviewTime, setHoverPreviewDate,
+    swipeSchedulingInboxTaskId,
+    syncTaskCompletionToCalDAV,
+    computeAvailableSlots,
+    activeFrameNudgeKey, setFrameNudgeDismissedKey,
+    frameScheduleModal, setFrameScheduleModal,
+    focusBlockTasks, setFocusBlockTasks,
+    focusCompletedTasks, setFocusCompletedTasks,
+    exitFocusMode,
+    playFocusSound,
+  });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
@@ -8765,48 +8191,6 @@ const DayPlanner = () => {
       },
     });
     setFrameContextMenu(null);
-  };
-
-  // Manually schedule an inbox task into a frame at the first available slot
-  const manuallyScheduleTask = (taskId) => {
-    if (!frameScheduleModal) return;
-    const { frameId, dateStr, frame } = frameScheduleModal;
-    const task = unscheduledTasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    // Build a frame instance for computeAvailableSlots
-    const frameInstance = {
-      frameId,
-      date: dateStr,
-      start: frame.start,
-      end: frame.end,
-      bufferMinutes: frame.bufferMinutes ?? 5,
-    };
-    const slots = computeAvailableSlots(frameInstance, new Date(dateStr + 'T12:00:00'));
-    const taskDuration = task.duration || 30;
-
-    // Find first slot that fits
-    const slot = slots.find(s => s.minutes >= taskDuration);
-    const startTime = slot ? slot.start : frame.start;
-
-    pushUndo();
-    const { priority, deadline, ...preserved } = task;
-    setTasks(prev => [...prev, {
-      ...preserved,
-      date: dateStr,
-      startTime,
-      duration: taskDuration,
-      color: task.color || 'bg-blue-500',
-      isAllDay: false,
-    }]);
-    setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
-    setFrameScheduleModal(null);
-    playUISound('pop');
-    setSyncNotification({
-      type: 'success',
-      title: 'Task Scheduled',
-      message: `"${task.title}" placed at ${startTime} in ${frame.label}`,
-    });
   };
 
   // Frame resize via drag on top/bottom edge
