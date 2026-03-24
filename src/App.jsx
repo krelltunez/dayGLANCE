@@ -25514,7 +25514,11 @@ const DayPlanner = () => {
                   )}
 
                   {voiceParseError && voiceMicError !== 'error' && (
-                    <p className="text-xs text-amber-500 mt-2">AI parsing error: {voiceParseError}. Added as plain task.</p>
+                    <p className="text-xs text-amber-500 mt-2">
+                      {voiceManualMode
+                        ? voiceParseError
+                        : `AI parsing error: ${voiceParseError}. Added as plain task.`}
+                    </p>
                   )}
                 </>
               ) : (
