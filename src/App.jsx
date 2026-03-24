@@ -47,6 +47,7 @@ import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
+import useNavigation from './hooks/useNavigation.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -667,6 +668,17 @@ const DayPlanner = () => {
   const [spotlightQuery, setSpotlightQuery] = useState('');
   const [spotlightSelectedIndex, setSpotlightSelectedIndex] = useState(0);
   const spotlightInputRef = useRef(null);
+
+  const { changeDate, goToToday, goToDate, handleSpotlightSelect } = useNavigation({
+    visibleDays,
+    setSelectedDate,
+    setShowMonthView,
+    setShowSpotlight,
+    isMobile,
+    setMobileActiveTab,
+    setTabletActiveTab,
+    calendarRef,
+  });
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -4073,34 +4085,6 @@ const DayPlanner = () => {
     playUISound('crumple');
   };
 
-  const changeDate = (direction) => {
-    // Move by the number of visible days (1, 2, or 3) in the given direction
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + (direction * visibleDays));
-    newDate.setHours(12, 0, 0, 0); // Maintain noon to avoid timezone issues
-    setSelectedDate(newDate);
-  };
-
-  const goToToday = () => {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-    setSelectedDate(today);
-  };
-
-  const goToDate = (date) => {
-    let newDate;
-    if (typeof date === 'string') {
-      // Parse date strings as local time to avoid UTC midnight → previous day shift
-      const [y, m, d] = date.split('-').map(Number);
-      newDate = new Date(y, m - 1, d, 12, 0, 0, 0);
-    } else {
-      newDate = new Date(date);
-      newDate.setHours(12, 0, 0, 0);
-    }
-    setSelectedDate(newDate);
-    setShowMonthView(false);
-  };
-
   const changeViewedMonth = (delta) => {
     setViewedMonth(prev => {
       const newMonth = new Date(prev);
@@ -4108,49 +4092,6 @@ const DayPlanner = () => {
       newMonth.setMonth(newMonth.getMonth() + delta);
       return newMonth;
     });
-  };
-
-  const handleSpotlightSelect = (result) => {
-    setShowSpotlight(false);
-    const { task, source } = result;
-
-    const scrollAndHighlight = (selector, delay = 300) => {
-      setTimeout(() => {
-        const el = document.querySelector(selector);
-        if (el && calendarRef.current) {
-          const container = calendarRef.current;
-          const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-          const scrollTarget = Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2);
-          container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
-          el.classList.add('ring-2', 'ring-blue-400');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-        }
-      }, delay);
-    };
-
-    if (source === 'scheduled') {
-      if (isMobile) {
-        setMobileActiveTab('timeline');
-      }
-      goToDate(task.date);
-      scrollAndHighlight(`[data-task-id="${task.id}"]`);
-    } else if (source === 'inbox') {
-      if (isMobile) {
-        setMobileActiveTab('inbox');
-      } else {
-        setTabletActiveTab('inbox');
-      }
-      scrollAndHighlight(`[data-task-id="${task.id}"]`);
-    } else if (source === 'recurring') {
-      const date = task.startDate || dateToString(new Date());
-      if (isMobile) {
-        setMobileActiveTab('timeline');
-      }
-      goToDate(date);
-    } else if (source === 'deleted') {
-      // Recycle bin is accessed via FAB — just highlight if visible
-      scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
-    }
   };
 
   const getMonthDays = () => {
