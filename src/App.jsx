@@ -51,6 +51,7 @@ import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
 import useComputedViews from './hooks/useComputedViews.js';
 import useTaskDerived from './hooks/useTaskDerived.js';
+import useDeadlinePriority from './hooks/useDeadlinePriority.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -255,7 +256,6 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : false;
   });
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
-  const [pendingPriorities, setPendingPriorities] = useState({});
   const [syncUrl, setSyncUrl] = useState('');
   const [showCalendarUrlHint, setShowCalendarUrlHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -359,7 +359,6 @@ const DayPlanner = () => {
   const editingInputRef = useRef(null);
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
-  const priorityTimeouts = useRef({});
   const autoScrollInterval = useRef(null); // For drag auto-scroll
   const frameResizingRef = useRef(false); // Suppress click-to-add-task after frame resize drag
   const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
@@ -720,6 +719,14 @@ const DayPlanner = () => {
     recurringTasks,
     visibleDays,
     mobileActiveTab,
+  });
+  const { pendingPriorities, cyclePriority, getDeadlineTasksForDate } = useDeadlinePriority({
+    unscheduledTasks,
+    setUnscheduledTasks,
+    pushUndo,
+    playUISound,
+    onboardingProgress,
+    setOnboardingProgress,
   });
   voiceAllTagsRef.current = allTags;
 
@@ -1961,14 +1968,6 @@ const DayPlanner = () => {
     return [...overdueScheduled, ...todayRecurring, ...overdueDeadlines];
   };
 
-  // Get inbox tasks with deadlines for a specific date (not overdue)
-  const getDeadlineTasksForDate = (dateStr) => {
-    const todayStr = getTodayStr();
-    return unscheduledTasks.filter(t =>
-      t.deadline === dateStr && (t.deadline >= todayStr || t.completed)
-    );
-  };
-
   // Set deadline on inbox task
   const setDeadline = (taskId, deadline) => {
     pushUndo();
@@ -2004,40 +2003,6 @@ const DayPlanner = () => {
       t.id === taskId ? { ...t, deadline: null } : t
     ));
     setShowDeadlinePicker(null);
-  };
-
-  const cyclePriority = (taskId) => {
-    pushUndo();
-    const task = unscheduledTasks.find(t => t.id === taskId);
-    const currentPriority = pendingPriorities[taskId] ?? task?.priority ?? 0;
-    const newPriority = (currentPriority + 1) % 4;
-
-    // Update visual immediately
-    setPendingPriorities(prev => ({ ...prev, [taskId]: newPriority }));
-    playUISound('click');
-
-    // Track for onboarding
-    if (!onboardingProgress.hasSetPriority) {
-      setOnboardingProgress(prev => ({ ...prev, hasSetPriority: true }));
-    }
-
-    // Cancel any pending timeout for this task
-    if (priorityTimeouts.current[taskId]) {
-      clearTimeout(priorityTimeouts.current[taskId]);
-    }
-
-    // Update actual priority (triggers reorder) after delay
-    // Longer delay allows for multiple clicks to reach desired priority
-    priorityTimeouts.current[taskId] = setTimeout(() => {
-      setUnscheduledTasks(prev => prev.map(t =>
-        t.id === taskId ? { ...t, priority: newPriority } : t
-      ));
-      setPendingPriorities(prev => {
-        const { [taskId]: _, ...rest } = prev;
-        return rest;
-      });
-      delete priorityTimeouts.current[taskId];
-    }, 1200);
   };
 
   const addTask = (toInbox = false) => {
