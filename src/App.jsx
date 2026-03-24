@@ -43,6 +43,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useCloudSync from './hooks/useCloudSync.js';
+import useCalendarSync from './hooks/useCalendarSync.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -271,10 +272,17 @@ const DayPlanner = () => {
   const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
-  const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
-  const [calSyncLastSynced, setCalSyncLastSynced] = useState(() =>
-    localStorage.getItem('day-planner-cal-sync-last-synced') || null
-  );
+  const {
+    calSyncStatus, setCalSyncStatus,
+    calSyncLastSynced, setCalSyncLastSynced,
+    taskCalendarUrl, setTaskCalendarUrl,
+    taskCalendarAuth, setTaskCalendarAuth,
+    syncRetentionDays, setSyncRetentionDays,
+    completedTaskUids, setCompletedTaskUids,
+    pendingImportFile, setPendingImportFile,
+    showImportModal, setShowImportModal,
+    importColor, setImportColor,
+  } = useCalendarSync();
   // Android device calendars — populated on first load when running in the native WebView
   const [availableCalendars, setAvailableCalendars] = useState([]);
   // IDs of calendars to include; empty array = show all
@@ -283,25 +291,12 @@ const DayPlanner = () => {
   });
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskText, setEditingTaskText] = useState('');
-  const [taskCalendarUrl, setTaskCalendarUrl] = useState('');
   // On Android, calendar events come from the native bridge — only task calendar URL matters for sync
   const calSyncConfigured = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
-  const [taskCalendarAuth, setTaskCalendarAuth] = useState(() => {
-    const saved = localStorage.getItem('day-planner-task-calendar-auth');
-    return saved ? JSON.parse(saved) : { username: '', appPassword: '', caldavBaseUrl: '' };
-  });
   const [calendarUrlAuth, setCalendarUrlAuth] = useState(() => {
     const saved = localStorage.getItem('day-planner-calendar-url-auth');
     return saved ? JSON.parse(saved) : { username: '', password: '' };
   });
-  const [syncRetentionDays, setSyncRetentionDays] = useState(() => {
-    const saved = localStorage.getItem('day-planner-sync-retention-days');
-    return saved ? JSON.parse(saved) : 30;
-  });
-  const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
-  const [pendingImportFile, setPendingImportFile] = useState(null);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importColor, setImportColor] = useState('bg-gray-600');
   const [pendingBackupFile, setPendingBackupFile] = useState(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showBackupMenu, setShowBackupMenu] = useState(false);
@@ -1019,11 +1014,6 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-daily-note-template', dailyNoteTemplate);
   }, [dailyNoteTemplate]);
-
-  // Persist task calendar auth to localStorage
-  useEffect(() => {
-    localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(taskCalendarAuth));
-  }, [taskCalendarAuth]);
 
   // Persist calendar URL auth to localStorage
   useEffect(() => {
