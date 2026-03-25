@@ -808,25 +808,257 @@ Verify it reappears. Empty the bin. Verify it's cleared.
 
 ---
 
-### Step 5.14 — `useDragDrop`
+### Step 5.14 — `useDragDrop` (broken into sub-steps)
 
-**Manages:** All drag/drop/resize/swipe handlers. This is the most complex hook.
+> ⚠️ **Context:** Step 5.14 was originally a single commit but is too large to do safely in
+> one pass. It is broken into 13 sub-steps below. Each sub-step modifies the same
+> `src/hooks/useDragDrop.js` file (adding more to it) and removes the corresponding code
+> from `App.jsx`. Every sub-step must produce a passing `npm run build`.
+>
+> **Hook call placement:** Create the `useDragDrop(...)` call in `App.jsx` immediately after
+> `useTaskActions` (around line 7577). All sub-steps add to that same call site.
+>
+> **No routine circular dependency:** The previous branch had a circular dependency between
+> `useDragDrop` and `useRoutines`. In the current code `setTodayRoutines` is simply passed
+> as a parameter — no circular import exists.
 
-> ⚠️ **Read this carefully before extracting:**
-> - In the previous branch, `useDragDrop` and `useRoutines` had a circular dependency that
->   required manual untangling. Search for any `routineDefinitions` or routine-related
->   references inside drag handlers.
-> - `useTaskFormHelpers` must already be extracted (Step 5.8) since drag/drop uses its helpers.
-> - All `autoScrollInterval`, `stickyHeaderRef`, `mobileDrag*` refs belong here.
+---
 
-**Commit:** `refactor: extract useDragDrop hook`
+### Step 5.14.1 — useDragDrop: DOM position helpers
 
-**Test (thorough):**
-- Drag a task to a new time on the desktop timeline → verify it moves
-- Drag a task to a different date → verify it moves
-- Drag an inbox task to the timeline → verify it becomes scheduled
-- Resize a task by dragging its bottom edge → verify duration changes
-- On mobile: long-press a task to initiate drag → verify it follows the finger
+**Adds to `useDragDrop.js`:** `getHourHeight`, `minutesToPosition`, `positionToMinutes`,
+`durationToHeight`, `calculateTaskPosition`.
+
+**Parameters:** `calendarRef`, `timeGridRef`.
+
+**Removes from `App.jsx`:** The 5 function definitions above.
+Add `import useDragDrop from './hooks/useDragDrop.js'` and add the hook call (after
+`useTaskActions`). Destructure the 5 helpers from it.
+
+**Commit:** `refactor: useDragDrop step 1 — DOM position helpers`
+
+**Test:** `npm run build` passes. Open the app. Tasks appear at the correct vertical positions
+on the timeline.
+
+---
+
+### Step 5.14.2 — useDragDrop: drag/hover state + core refs
+
+**Adds to `useDragDrop.js`:** All drag/hover `useState` declarations:
+`draggedTask`, `dragSource`, `dragPreviewTime`, `dragPreviewDate`, `dragOverAllDay`,
+`dragOverInbox`, `dragOverRecycleBin`, `hoverPreviewTime`, `hoverPreviewDate`, `isResizing`.
+And refs: `autoScrollInterval`, `frameResizingRef`, `stickyHeaderRef`.
+
+**Parameters:** none new.
+
+**Removes from `App.jsx`:** The 10 `useState` declarations and 3 `useRef` declarations above.
+Destructure all of them (state + setters + refs) from `useDragDrop`.
+
+**Commit:** `refactor: useDragDrop step 2 — drag/hover state and core refs`
+
+**Test:** `npm run build` passes. No visible regressions. The hover preview line still
+appears when mousing over the calendar.
+
+---
+
+### Step 5.14.3 — useDragDrop: cursor helper + calendar hover/click handlers
+
+**Adds to `useDragDrop.js`:** `getTimeFromCursorPosition`, `openNewTaskAtTime`,
+`handleCalendarMouseMove`, `handleCalendarMouseLeave`.
+
+**Parameters:** `setNewTask`, `setShowAddTask`, `selectedDate`.
+
+**Removes from `App.jsx`:** The 4 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 3 — cursor helper and calendar hover/click`
+
+**Test:** Click an empty time slot on the calendar → the new-task modal opens pre-filled
+with that time. Mouse over the timeline → the blue preview line follows the cursor.
+
+---
+
+### Step 5.14.4 — useDragDrop: desktop drag start/end + auto-scroll
+
+**Adds to `useDragDrop.js`:** `handleDragStart`, `handleDragEnd`, `updateDragAutoScroll`.
+
+**Parameters:** `setExpandedNotesTaskId`.
+
+**Removes from `App.jsx`:** The 3 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 4 — desktop drag start/end and auto-scroll`
+
+**Test:** Pick up a task and drag it. Verify it lifts (opacity/scale change). Drop it back
+where it was. Verify auto-scroll triggers when dragging near the top or bottom edge.
+
+---
+
+### Step 5.14.5 — useDragDrop: desktop drag-over handlers
+
+**Adds to `useDragDrop.js`:** `handleDragOver`, `handleDragOverInbox`,
+`handleDragOverRecycleBin`.
+
+**Parameters:** `draggedTask` (already in hook — no new external params).
+
+**Removes from `App.jsx`:** The 3 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 5 — desktop drag-over handlers`
+
+**Test:** Drag a task over the timeline → the blue time preview line moves with it.
+Drag over the inbox zone → inbox highlights. Drag over the recycle bin → bin highlights.
+
+---
+
+### Step 5.14.6 — useDragDrop: desktop drop on calendar + date header
+
+**Adds to `useDragDrop.js`:** `handleDropOnCalendar`, `handleDropOnDateHeader`.
+
+**Parameters:** `tasks`, `setTasks`, `setUnscheduledTasks`, `setRecurringTasks`,
+`setRecycleBin`, `setTodayRoutines`, `pushUndo`, `parseRecurringId`,
+`getAdjustedTimeForImportedConflicts`, `wouldExceedMaxColumns`, `playUISound`,
+`setSyncNotification`, `onboardingProgress`, `setOnboardingProgress`.
+
+**Removes from `App.jsx`:** The 2 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 6 — desktop drop on calendar and date header`
+
+**Test:** Drag a task to a new time → verify it moves. Drag a task to a different date
+column → verify it moves to that date. Drag a task to the all-day header → verify it
+becomes an all-day task. Drag an inbox task to the timeline → verify it schedules.
+
+---
+
+### Step 5.14.7 — useDragDrop: desktop drop on inbox + recycle bin
+
+**Adds to `useDragDrop.js`:** `handleDropOnInbox`, `handleDropOnRecycleBin`.
+
+**Parameters:** `moveToRecycleBin`, `clearDeadline` (from `useTaskActions`).
+
+**Removes from `App.jsx`:** The 2 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 7 — desktop drop on inbox and recycle bin`
+
+**Test:** Drag a scheduled task to the inbox → verify it unschedules. Drag a task to the
+recycle bin → verify it is deleted. Drag a deadline task to the inbox → verify the
+deadline is cleared.
+
+---
+
+### Step 5.14.8 — useDragDrop: task resize handlers
+
+**Adds to `useDragDrop.js`:** `handleResizeStart`, `handleTouchResizeStart`.
+
+**Parameters:** all already provided by previous steps (`pushUndo`, `setTasks`,
+`setRecurringTasks`, `parseRecurringId`, `playUISound`).
+
+**Removes from `App.jsx`:** The 2 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 8 — task resize handlers`
+
+**Test:** Drag the bottom edge of a task block → verify its duration changes. Test on
+both mouse and touch.
+
+---
+
+### Step 5.14.9 — useDragDrop: routine + frame resize handlers
+
+**Adds to `useDragDrop.js`:** `handleRoutineResizeStart`, `handleTouchRoutineResizeStart`,
+`handleFrameResizeStart`.
+
+**Parameters:** `setTodayRoutines` (already added in step 6), `gtdFrames`, `setGtdFrames`.
+
+**Removes from `App.jsx`:** The 3 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 9 — routine and frame resize handlers`
+
+**Test:** Resize a routine pill → verify its duration updates. Resize a GTD frame block
+by dragging its top or bottom edge → verify start/end time changes. Click on the
+calendar after resizing a frame → verify a new task opens (frameResizingRef suppression
+still works).
+
+---
+
+### Step 5.14.10 — useDragDrop: mobile drag state + refs
+
+**Adds to `useDragDrop.js`:** Mobile `useState` declarations:
+`mobileDragPreviewTime`, `mobileDragPreviewDate`, `mobileDragTaskIdState`.
+Mobile/swipe `useRef` declarations: `swipeTouchStartX`, `swipeTouchStartY`,
+`swipeCurrentOffset`, `swipedTaskId`, `swipeDirection`, `swipeLocked`, `swipeIsVertical`,
+`swipeTaskElement`, `swipeSchedulingInboxTaskId`, `mobileDragActive`, `mobileDragTaskId`,
+`mobileDragTimer`, `mobileDragOriginalTask`, `mobileDragTouchStartPos`,
+`mobileDragAutoScrollInterval`, `mobileDragLastTouch`, `mobileDragScrollDir`,
+`mobileDragPreventScrollRef`, `mobileDragStartScrollTop`, `mobileDateHeaderRef`,
+`mobileAllDaySectionRef`, `mobileDragSourceType`, `mobileDragPreviewTimeRef`,
+`mobileDragPreviewDateRef`.
+
+**Parameters:** none new.
+
+**Removes from `App.jsx`:** The 3 `useState` and 22 `useRef` declarations above.
+Destructure all from the hook. Pass `swipeSchedulingInboxTaskId` to `useTaskActions`
+from the hook's return value (it was already passed there; now it just comes from the hook).
+
+**Commit:** `refactor: useDragDrop step 10 — mobile drag state and refs`
+
+**Test:** `npm run build` passes. On a mobile/tablet viewport, verify the app still renders
+and the existing swipe/drag refs don't throw errors.
+
+---
+
+### Step 5.14.11 — useDragDrop: mobile touch start + move
+
+**Adds to `useDragDrop.js`:** `handleMobileTaskTouchStart`, `handleMobileTaskTouchMove`.
+
+**Parameters:** none new (uses `calendarRef` already in the hook).
+
+**Removes from `App.jsx`:** The 2 function definitions above. Destructure them from the hook.
+
+**Commit:** `refactor: useDragDrop step 11 — mobile touch start and move`
+
+**Test (mobile/tablet viewport):** Touch a task on the timeline and slide horizontally →
+verify the swipe animation begins. Touch and hold on a task's drag handle for 500 ms →
+verify it activates (haptic feedback + scale-up). Touch and move → verify the task
+follows the finger.
+
+---
+
+### Step 5.14.12 — useDragDrop: mobile touch end (swipe actions)
+
+**Adds to `useDragDrop.js`:** `handleMobileTaskTouchEnd`.
+
+**Parameters:** `expandedRecurringTasks`, `unscheduledTasks`, `moveToRecycleBin`,
+`moveToInbox`, `clearDeadline`, `openMobileEditTask`, `openMobileEditNativeEvent`,
+`setMobileEditingTask`.
+
+**Removes from `App.jsx`:** The function definition above. Destructure from the hook.
+
+**Commit:** `refactor: useDragDrop step 12 — mobile touch end / swipe actions`
+
+**Test (mobile/tablet viewport):** Swipe a timeline task right past the threshold → verify
+it moves to the inbox. Swipe left past the threshold → verify the edit modal opens.
+Swipe a deadline task right → verify the deadline is cleared. Swipe an inbox task right →
+verify the schedule modal opens.
+
+---
+
+### Step 5.14.13 — useDragDrop: mobile long-press drag (complete)
+
+**Adds to `useDragDrop.js`:** `updateMobileDragPreview`, `handleMobileLongPressMove`,
+`handleMobileLongPressEnd`.
+
+**Parameters:** `getAdjustedTimeForImportedConflicts` (already added in step 6),
+`selectedDate` (already added in step 3).
+
+**Removes from `App.jsx`:** The 3 function definitions above. Destructure from the hook.
+
+**Commit:** `refactor: useDragDrop step 13 — mobile long-press drag complete`
+
+**Test (mobile/tablet viewport):**
+- Long-press a scheduled task's drag handle → drag it to a new time → release → verify
+  it moves.
+- Long-press and drag to a different date column (multi-column view) → verify it moves
+  to that date.
+- Drag near the top/bottom edge → verify auto-scroll kicks in.
+- Long-press an all-day task and drag it down to the timed timeline → verify it lands
+  at the correct time.
 
 ---
 
