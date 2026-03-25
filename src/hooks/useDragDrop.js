@@ -13,7 +13,7 @@ const minutesToTime = (minutes) => {
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
 
-export default function useDragDrop({ calendarRef, timeGridRef, setNewTask, setShowAddTask, selectedDate }) {
+export default function useDragDrop({ calendarRef, timeGridRef, setNewTask, setShowAddTask, selectedDate, setExpandedNotesTaskId }) {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const [dragPreviewTime, setDragPreviewTime] = useState(null);
@@ -146,6 +146,65 @@ export default function useDragDrop({ calendarRef, timeGridRef, setNewTask, setS
     setHoverPreviewDate(null);
   };
 
+  const handleDragStart = (task, source, e) => {
+    setDraggedTask(task);
+    setDragSource(source);
+    setDragPreviewTime(null);
+    setExpandedNotesTaskId(null); // Close notes panel when dragging
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+    setDragSource(null);
+    setDragPreviewTime(null);
+    setDragPreviewDate(null);
+    setDragOverAllDay(null);
+    setDragOverInbox(false);
+    setDragOverRecycleBin(false);
+    // Clear auto-scroll
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+  };
+
+  const updateDragAutoScroll = (e) => {
+    if (!calendarRef.current) return;
+    const calendarRect = calendarRef.current.getBoundingClientRect();
+    // Account for sticky headers (date header + all-day section) when computing scroll-up zone
+    const stickyHeight = stickyHeaderRef.current ? stickyHeaderRef.current.getBoundingClientRect().bottom - calendarRect.top : 0;
+    const scrollZoneSize = 60;
+    const scrollSpeed = 8;
+
+    const cursorY = e.clientY;
+    const effectiveTop = calendarRect.top + stickyHeight;
+    const distanceFromTop = cursorY - effectiveTop;
+    const distanceFromBottom = calendarRect.bottom - cursorY;
+
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+
+    if (distanceFromTop < scrollZoneSize && distanceFromTop > 0 && calendarRef.current.scrollTop > 0) {
+      autoScrollInterval.current = setInterval(() => {
+        if (calendarRef.current) {
+          calendarRef.current.scrollTop -= scrollSpeed;
+        }
+      }, 16);
+    } else if (distanceFromBottom < scrollZoneSize && distanceFromBottom > 0) {
+      autoScrollInterval.current = setInterval(() => {
+        if (calendarRef.current) {
+          const maxScroll = calendarRef.current.scrollHeight - calendarRef.current.clientHeight;
+          if (calendarRef.current.scrollTop < maxScroll) {
+            calendarRef.current.scrollTop += scrollSpeed;
+          }
+        }
+      }, 16);
+    }
+  };
+
   return {
     // state
     draggedTask, setDraggedTask,
@@ -173,5 +232,9 @@ export default function useDragDrop({ calendarRef, timeGridRef, setNewTask, setS
     openNewTaskAtTime,
     handleCalendarMouseMove,
     handleCalendarMouseLeave,
+    // desktop drag start/end + auto-scroll
+    handleDragStart,
+    handleDragEnd,
+    updateDragAutoScroll,
   };
 }

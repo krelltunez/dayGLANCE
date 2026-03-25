@@ -755,7 +755,11 @@ const DayPlanner = () => {
     openNewTaskAtTime,
     handleCalendarMouseMove,
     handleCalendarMouseLeave,
-  } = useDragDrop({ calendarRef, timeGridRef, setNewTask, setShowAddTask, selectedDate });
+    // desktop drag start/end + auto-scroll
+    handleDragStart,
+    handleDragEnd,
+    updateDragAutoScroll,
+  } = useDragDrop({ calendarRef, timeGridRef, setNewTask, setShowAddTask, selectedDate, setExpandedNotesTaskId });
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -3379,29 +3383,6 @@ const DayPlanner = () => {
     document.addEventListener('touchend', handleTouchEnd);
   };
 
-  const handleDragStart = (task, source, e) => {
-    setDraggedTask(task);
-    setDragSource(source);
-    setDragPreviewTime(null);
-    setExpandedNotesTaskId(null); // Close notes panel when dragging
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragEnd = () => {
-    setDraggedTask(null);
-    setDragSource(null);
-    setDragPreviewTime(null);
-    setDragPreviewDate(null);
-    setDragOverAllDay(null);
-    setDragOverInbox(false);
-    setDragOverRecycleBin(false);
-    // Clear auto-scroll
-    if (autoScrollInterval.current) {
-      clearInterval(autoScrollInterval.current);
-      autoScrollInterval.current = null;
-    }
-  };
-
   // --- Mobile swipe + long-press drag handlers ---
   const handleMobileTaskTouchStart = (e, task, taskType) => {
     // Skip swipe for imported items that can't be moved; allow drag for native calendar events
@@ -3932,42 +3913,6 @@ const DayPlanner = () => {
     setMobileDragPreviewTime(null);
     setMobileDragPreviewDate(null);
     setMobileDragTaskIdState(null);
-  };
-
-  const updateDragAutoScroll = (e) => {
-    if (!calendarRef.current) return;
-    const calendarRect = calendarRef.current.getBoundingClientRect();
-    // Account for sticky headers (date header + all-day section) when computing scroll-up zone
-    const stickyHeight = stickyHeaderRef.current ? stickyHeaderRef.current.getBoundingClientRect().bottom - calendarRect.top : 0;
-    const scrollZoneSize = 60;
-    const scrollSpeed = 8;
-
-    const cursorY = e.clientY;
-    const effectiveTop = calendarRect.top + stickyHeight;
-    const distanceFromTop = cursorY - effectiveTop;
-    const distanceFromBottom = calendarRect.bottom - cursorY;
-
-    if (autoScrollInterval.current) {
-      clearInterval(autoScrollInterval.current);
-      autoScrollInterval.current = null;
-    }
-
-    if (distanceFromTop < scrollZoneSize && distanceFromTop > 0 && calendarRef.current.scrollTop > 0) {
-      autoScrollInterval.current = setInterval(() => {
-        if (calendarRef.current) {
-          calendarRef.current.scrollTop -= scrollSpeed;
-        }
-      }, 16);
-    } else if (distanceFromBottom < scrollZoneSize && distanceFromBottom > 0) {
-      autoScrollInterval.current = setInterval(() => {
-        if (calendarRef.current) {
-          const maxScroll = calendarRef.current.scrollHeight - calendarRef.current.clientHeight;
-          if (calendarRef.current.scrollTop < maxScroll) {
-            calendarRef.current.scrollTop += scrollSpeed;
-          }
-        }
-      }, 16);
-    }
   };
 
   const handleDragOver = (e, targetDate = null) => {
