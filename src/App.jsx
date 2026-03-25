@@ -67,6 +67,7 @@ import useAppInit from './hooks/useAppInit.js';
 import useSaveOnChange from './hooks/useSaveOnChange.js';
 import useTimelineScroll from './hooks/useTimelineScroll.js';
 import useModalClose from './hooks/useModalClose.js';
+import useMobileInteractions from './hooks/useMobileInteractions.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -274,8 +275,6 @@ const DayPlanner = () => {
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [expandedTaskMenu, setExpandedTaskMenu] = useState(null);
   const [expandedNotesTaskId, setExpandedNotesTaskId] = useState(null);
-  const longPressTriggeredRef = useRef(false); // Track if long press just triggered to prevent click
-  const longPressTimerRef = useRef(null);
   const hasCheckedInitialWelcome = useRef(false); // Track if we've done the initial welcome check
   const skipOnboardingPersist = useRef(false); // Skip persisting onboarding dismissal (for testing)
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -1960,6 +1959,10 @@ const DayPlanner = () => {
     }
   }, [aiConfig]);
 
+  const { longPressTriggeredRef, longPressTimerRef } = useMobileInteractions({
+    isMobile, performUndo, performRedo,
+  });
+
   useModalClose({
     taskContextMenu, setTaskContextMenu,
     timelineContextMenu, setTimelineContextMenu,
@@ -2186,53 +2189,6 @@ const DayPlanner = () => {
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, gtdFrames]);
-
-  // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
-  useEffect(() => {
-    if (!isMobile) return;
-    let holdTimer = null;
-    let startPositions = [];
-    let fired = false;
-
-    const cancel = () => {
-      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    };
-
-    const onTouchStart = (e) => {
-      const count = e.touches.length;
-      if (count < 2) { cancel(); return; }
-      startPositions = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
-      fired = false;
-      cancel();
-      holdTimer = setTimeout(() => {
-        fired = true;
-        if (count === 2) performUndo();
-        else if (count >= 3) performRedo();
-      }, 300);
-    };
-
-    const onTouchMove = (e) => {
-      if (!holdTimer) return;
-      const moved = Array.from(e.touches).some((t, i) => {
-        const start = startPositions[i];
-        if (!start) return false;
-        return Math.abs(t.clientX - start.x) > 20 || Math.abs(t.clientY - start.y) > 20;
-      });
-      if (moved) cancel();
-    };
-
-    const onTouchEnd = () => { cancel(); };
-
-    document.addEventListener('touchstart', onTouchStart, { passive: true });
-    document.addEventListener('touchmove', onTouchMove, { passive: true });
-    document.addEventListener('touchend', onTouchEnd, { passive: true });
-    return () => {
-      cancel();
-      document.removeEventListener('touchstart', onTouchStart);
-      document.removeEventListener('touchmove', onTouchMove);
-      document.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [isMobile]);
 
   const changeViewedMonth = (delta) => {
     setViewedMonth(prev => {
