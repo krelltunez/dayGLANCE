@@ -69,6 +69,7 @@ import useTimelineScroll from './hooks/useTimelineScroll.js';
 import useModalClose from './hooks/useModalClose.js';
 import useMobileInteractions from './hooks/useMobileInteractions.js';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts.js';
+import { DayPlannerContext } from './context/DayPlannerContext.jsx';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -6252,7 +6253,490 @@ const DayPlanner = () => {
   const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-600';
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
+  // Provider value — rebuilt each render; all consumers are children of this
+  // Provider so they receive fresh values on every state update automatically.
+  // Expose every component-scope binding so Phase 8 layout files can consume
+  // any variable via useDayPlannerCtx() without prop-drilling.
+  const ctx = {
+    // ── Device & layout ──────────────────────────────────────────────────────
+    isPhone, isMobile, isTablet, isLandscape,
+    visibleDays, visibleDates,
+
+    // ── DOM / timer / function refs ───────────────────────────────────────────
+    tabBarRef, suppressTabBarRef,
+    reviewScrollRef, calendarRef, timeGridRef, currentTimeRef,
+    tagFilterBtnRef, spotlightInputRef, newTaskInputRef,
+    voiceTextareaRef, editingInputRef,
+    stickyHeaderRef, mobileDateHeaderRef, mobileAllDaySectionRef,
+    longPressTriggeredRef, longPressTimerRef,
+    autoScrollInterval, frameResizingRef,
+    swipeTouchStartX, swipeTouchStartY, swipeCurrentOffset, swipedTaskId,
+    swipeDirection, swipeLocked, swipeIsVertical, swipeTaskElement,
+    swipeSchedulingInboxTaskId,
+    mobileDragActive, mobileDragTaskId, mobileDragTimer, mobileDragOriginalTask,
+    mobileDragTouchStartPos, mobileDragAutoScrollInterval, mobileDragLastTouch,
+    mobileDragScrollDir, mobileDragStartScrollTop, mobileDragSourceType,
+    mobileDragPreventScrollRef, mobileDragPreviewTimeRef, mobileDragPreviewDateRef,
+    moveToRecycleBinRef, clearDeadlineRef, expandedRecurringTasksRef,
+    moveToInboxRef, openMobileEditTaskRef, openMobileEditNativeEventRef,
+    enterFocusModeRef,
+    hasCheckedInitialWelcome, skipOnboardingPersist,
+    autoBackupInProgressRef, syncAllRef, prevAllTagsRef, prevFrameNudgeKeyRef,
+    cloudSyncDebounceRef, suppressCloudUploadRef, suppressTimestampRef,
+    suppressClearPendingRef, cloudSyncInProgressRef, cloudSyncInitialDoneRef,
+    cloudSyncDownloadRef, cloudSyncErrorCountRef, cloudSyncBackoffUntilRef,
+    obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
+    obsidianTasksRef, obsidianInboxRef,
+    trmnlSyncTimerRef, trmnlLastPushRef, trmnlBackoffUntilRef, trmnlBackoffCountRef,
+    trmnlSyncInProgressRef, performTrmnlSyncRef,
+    voiceRecorderRef, voiceAudioChunksRef, voiceAutoStartRef,
+    voiceAllTagsRef, voiceBuildTaskContextRef, voiceResolveTaskMatchRef,
+    lastWeeklyReviewFiredRef, weeklyReviewDismissedRef,
+    focusTimerRef, handleFocusTimerEndRef, focusModeAvailableRef,
+    syncHealthConnectHabitsRef, habitLongPressTimer,
+
+    // ── Core data ─────────────────────────────────────────────────────────────
+    selectedDate, setSelectedDate,
+    tasks, setTasks,
+    unscheduledTasks, setUnscheduledTasks,
+    recurringTasks, setRecurringTasks,
+    recycleBin, setRecycleBin,
+    completedTaskUids, setCompletedTaskUids,
+    dataLoaded, setDataLoaded,
+    darkMode, setDarkMode,
+
+    // ── Time ──────────────────────────────────────────────────────────────────
+    currentTime, setCurrentTime,
+    hours, firstHour,
+
+    // ── Layout / navigation ───────────────────────────────────────────────────
+    tabletActiveTab, setTabletActiveTab,
+    mobileActiveTab, setMobileActiveTab,
+    mobileWelcomeStep, setMobileWelcomeStep,
+    desktopWelcomeStep, setDesktopWelcomeStep,
+    showMonthView, setShowMonthView,
+    viewedMonth, setViewedMonth,
+    mobileReviewPage, setMobileReviewPage,
+    showMobileDailySummary, setShowMobileDailySummary,
+    mobileSettingsView, setMobileSettingsView,
+
+    // ── Settings / preferences ────────────────────────────────────────────────
+    use24HourClock, setUse24HourClock,
+    minimizedSections, setMinimizedSections,
+    showSettings, setShowSettings,
+    collapsedSettings, setCollapsedSettings,
+    soundEnabled, setSoundEnabled,
+    updateInfo, setUpdateInfo,
+    updateDismissedVersion, setUpdateDismissedVersion,
+    inboxPriorityFilter, setInboxPriorityFilter,
+    hideCompletedInbox, setHideCompletedInbox,
+    priorityPromptDismissed, setPriorityPromptDismissed,
+    sectionInfoDismissed, setSectionInfoDismissed,
+    expandedSectionInfo, setExpandedSectionInfo,
+
+    // ── Tags ──────────────────────────────────────────────────────────────────
+    selectedTags, setSelectedTags,
+    showUntagged, setShowUntagged,
+    showMobileTagFilter, setShowMobileTagFilter,
+    allTags,
+
+    // ── Task modals & editing ─────────────────────────────────────────────────
+    showAddTask, setShowAddTask,
+    newTask, setNewTask,
+    showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker,
+    taskContextMenu, setTaskContextMenu,
+    timelineContextMenu, setTimelineContextMenu,
+    editingTaskId, setEditingTaskId,
+    editingTaskText, setEditingTaskText,
+    expandedTaskMenu, setExpandedTaskMenu,
+    expandedNotesTaskId, setExpandedNotesTaskId,
+    showTimePicker, setShowTimePicker,
+    showColorPicker, setShowColorPicker,
+    showDatePicker, setShowDatePicker,
+    showDeadlinePicker, setShowDeadlinePicker,
+    deadlinePickerTaskId, setDeadlinePickerTaskId,
+    showRecurrencePicker, setShowRecurrencePicker,
+    recurringDeleteConfirm, setRecurringDeleteConfirm,
+    editingRecurrenceTaskId, setEditingRecurrenceTaskId,
+    showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker,
+    showIncompleteTasks, setShowIncompleteTasks,
+    showShortcutHelp, setShowShortcutHelp,
+    showHelpModal, setShowHelpModal,
+
+    // ── AI task suggestions ───────────────────────────────────────────────────
+    taskAISuggestion, setTaskAISuggestion,
+    taskAISuggestionLoading, setTaskAISuggestionLoading,
+    aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask,
+
+    // ── Autocomplete suggestions ──────────────────────────────────────────────
+    suggestions, setSuggestions,
+    selectedSuggestionIndex, setSelectedSuggestionIndex,
+    showSuggestions, setShowSuggestions,
+    suggestionContext, setSuggestionContext,
+
+    // ── Calendar sync ─────────────────────────────────────────────────────────
+    syncUrl, setSyncUrl,
+    taskCalendarUrl, setTaskCalendarUrl,
+    taskCalendarAuth, setTaskCalendarAuth,
+    syncRetentionDays, setSyncRetentionDays,
+    calSyncStatus, setCalSyncStatus,
+    calSyncLastSynced, setCalSyncLastSynced,
+    calSyncConfigured,
+    showCalendarUrlHint, setShowCalendarUrlHint,
+    availableCalendars, setAvailableCalendars,
+    calendarFilter, setCalendarFilter,
+    calendarUrlAuth, setCalendarUrlAuth,
+    isSyncing, setIsSyncing,
+    syncNotification, setSyncNotification,
+    pendingImportFile, setPendingImportFile,
+    showImportModal, setShowImportModal,
+    importColor, setImportColor,
+
+    // ── Backup / restore ──────────────────────────────────────────────────────
+    pendingBackupFile, setPendingBackupFile,
+    showRestoreConfirm, setShowRestoreConfirm,
+    showBackupMenu, setShowBackupMenu,
+    showEmptyBinConfirm, setShowEmptyBinConfirm,
+    showMobileRecycleBin, setShowMobileRecycleBin,
+    autoBackupConfig, setAutoBackupConfig,
+    autoBackupStatus, setAutoBackupStatus,
+    showAutoBackupManager, setShowAutoBackupManager,
+    autoBackupManagerTab, setAutoBackupManagerTab,
+    autoBackupHistory, setAutoBackupHistory,
+    autoBackupRestoreConfirm, setAutoBackupRestoreConfirm,
+    showStorageBreakdown, setShowStorageBreakdown,
+
+    // ── Cloud sync ────────────────────────────────────────────────────────────
+    cloudSyncConfig, setCloudSyncConfig,
+    cloudSyncStatus, setCloudSyncStatus,
+    cloudSyncError, setCloudSyncError,
+    cloudSyncLastSynced, setCloudSyncLastSynced,
+    cloudSyncConflict, setCloudSyncConflict,
+
+    // ── Obsidian ──────────────────────────────────────────────────────────────
+    obsidianConfig, setObsidianConfig,
+    obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianLastSynced, setObsidianLastSynced,
+
+    // ── TRMNL ─────────────────────────────────────────────────────────────────
+    trmnlConfig, setTrmnlConfig,
+    trmnlSyncStatus, setTrmnlSyncStatus,
+    trmnlLastSynced, setTrmnlLastSynced,
+    trmnlMarkupCopied, setTrmnlMarkupCopied,
+
+    // ── Routines ──────────────────────────────────────────────────────────────
+    routineDefinitions, setRoutineDefinitions,
+    todayRoutines, setTodayRoutines,
+    routinesDate, setRoutinesDate,
+    removedTodayRoutineIds, setRemovedTodayRoutineIds,
+    showRoutinesDashboard, setShowRoutinesDashboard,
+    dashboardSelectedChips, setDashboardSelectedChips,
+    routineAddingToBucket, setRoutineAddingToBucket,
+    routineNewChipName, setRoutineNewChipName,
+    routineTimePickerChipId, setRoutineTimePickerChipId,
+    routineDeleteConfirm, setRoutineDeleteConfirm,
+    routineFocusedChipId, setRoutineFocusedChipId,
+    routineDurationEditId, setRoutineDurationEditId,
+    routinesEnabled, setRoutinesEnabled,
+
+    // ── Habits ────────────────────────────────────────────────────────────────
+    habits, setHabits,
+    habitLogs, setHabitLogs,
+    habitsEnabled, setHabitsEnabled,
+    showHabitModal, setShowHabitModal,
+    editingHabit, setEditingHabit,
+    draggedHabitIdx, setDraggedHabitIdx,
+    habitOverflowOpen, setHabitOverflowOpen,
+    habitLongPressId, setHabitLongPressId,
+    habitEditingCountId, setHabitEditingCountId,
+    habitDayPopup, setHabitDayPopup,
+    activeHabits, habitStreaks,
+
+    // ── Focus mode ────────────────────────────────────────────────────────────
+    showFocusMode, setShowFocusMode,
+    focusPhase, setFocusPhase,
+    focusTimerSeconds, setFocusTimerSeconds,
+    focusCycleCount, setFocusCycleCount,
+    focusSessionStart, setFocusSessionStart,
+    focusWorkMinutes, setFocusWorkMinutes,
+    focusBreakMinutes, setFocusBreakMinutes,
+    focusLongBreakMinutes, setFocusLongBreakMinutes,
+    focusCompletedTasks, setFocusCompletedTasks,
+    focusShowStats, setFocusShowStats,
+    focusShowSettings, setFocusShowSettings,
+    focusTimerRunning, setFocusTimerRunning,
+    focusTaskMinutes, setFocusTaskMinutes,
+    focusBlockTasks, setFocusBlockTasks,
+    focusLog, setFocusLog,
+    focusLogModalDate, setFocusLogModalDate,
+    wakeLockSentinel, focusModeAvailable,
+
+    // ── AI / Voice ────────────────────────────────────────────────────────────
+    aiConfig, setAiConfig,
+    aiConnectionStatus, setAiConnectionStatus,
+    aiConnectionMessage, setAiConnectionMessage,
+    aiOllamaHelp, setAiOllamaHelp,
+    showVoiceInput, setShowVoiceInput,
+    voiceIsRecording, setVoiceIsRecording,
+    voiceIsTranscribing, setVoiceIsTranscribing,
+    voiceTranscript, setVoiceTranscript,
+    voiceParsedTasks, setVoiceParsedTasks,
+    voiceTaskTimePickerIdx, setVoiceTaskTimePickerIdx,
+    voiceParsedEdits, setVoiceParsedEdits,
+    voiceIsParsing, setVoiceIsParsing,
+    voiceParseError, setVoiceParseError,
+    voiceEditingParsed, setVoiceEditingParsed,
+    voiceManualMode, setVoiceManualMode,
+    voiceMicError, setVoiceMicError,
+    voiceCanRecord,
+
+    // ── Weekly review / AI summaries ──────────────────────────────────────────
+    showWeeklyReview, setShowWeeklyReview,
+    showWeeklyReviewTimePicker, setShowWeeklyReviewTimePicker,
+    showWeeklyReviewReminder, setShowWeeklyReviewReminder,
+    showMorningTimePicker, setShowMorningTimePicker,
+    morningGlanceText, setMorningGlanceText,
+    morningGlanceLoading, setMorningGlanceLoading,
+    morningGlanceDismissed, setMorningGlanceDismissed,
+    morningGlanceError, setMorningGlanceError,
+    eveningGlanceText, setEveningGlanceText,
+    eveningGlanceLoading, setEveningGlanceLoading,
+    eveningGlanceDismissed, setEveningGlanceDismissed,
+    eveningGlanceError, setEveningGlanceError,
+    weeklyAISummary, setWeeklyAISummary,
+    weeklyAILoading, setWeeklyAILoading,
+    weeklyAIError, setWeeklyAIError,
+
+    // ── GTD Frames ────────────────────────────────────────────────────────────
+    gtdFrames, setGtdFrames,
+    showFramesModal, setShowFramesModal,
+    framesModalTab, setFramesModalTab,
+    editingFrame, setEditingFrame,
+    smartScheduleResults, setSmartScheduleResults,
+    smartScheduleLoading, setSmartScheduleLoading,
+    smartScheduleError, setSmartScheduleError,
+    smartScheduleAccepted, setSmartScheduleAccepted,
+    showRescheduleModal, setShowRescheduleModal,
+    rescheduleResults, setRescheduleResults,
+    rescheduleLoading, setRescheduleLoading,
+    rescheduleError, setRescheduleError,
+    rescheduleAccepted, setRescheduleAccepted,
+    frameContextMenu, setFrameContextMenu,
+    quickAddFrameModal, setQuickAddFrameModal,
+    frameAdjustModal, setFrameAdjustModal,
+    frameAdjustTimeField, setFrameAdjustTimeField,
+    frameScheduleModal, setFrameScheduleModal,
+    frameNudgeSuggestion, setFrameNudgeSuggestion,
+    frameNudgeLoading, setFrameNudgeLoading,
+    frameNudgeError, setFrameNudgeError,
+    frameNudgeDismissedKey, setFrameNudgeDismissedKey,
+
+    // ── Reminders ─────────────────────────────────────────────────────────────
+    reminderSettings, setReminderSettings,
+    showRemindersSettings, setShowRemindersSettings,
+    activeReminders, setActiveReminders,
+
+    // ── Spotlight ─────────────────────────────────────────────────────────────
+    showSpotlight, setShowSpotlight,
+    spotlightQuery, setSpotlightQuery,
+    spotlightSelectedIndex, setSpotlightSelectedIndex,
+    spotlightResults,
+
+    // ── Daily notes ───────────────────────────────────────────────────────────
+    dailyNotes, setDailyNotes,
+    dailyNoteTemplate, setDailyNoteTemplate,
+    dailyNotesModalDate, setDailyNotesModalDate,
+
+    // ── Weather ───────────────────────────────────────────────────────────────
+    weather, setWeather,
+    weatherZip, setWeatherZip,
+    weatherTempUnit, setWeatherTempUnit,
+
+    // ── Daily content (quotes / tips) ─────────────────────────────────────────
+    dailyContent, setDailyContent,
+    contentRotation, setContentRotation,
+
+    // ── Onboarding / welcome ──────────────────────────────────────────────────
+    showWelcome, setShowWelcome,
+    gettingStartedDismissed, setGettingStartedDismissed,
+    onboardingComplete, setOnboardingComplete,
+    onboardingProgress, setOnboardingProgress,
+    showOnboarding,
+    showGettingStarted,
+    gettingStartedItems,
+    allGettingStartedComplete,
+    gettingStartedCompleteCount,
+
+    // ── Undo / redo ───────────────────────────────────────────────────────────
+    undoToast, setUndoToast,
+
+    // ── Mobile editing ────────────────────────────────────────────────────────
+    mobileEditingTask, setMobileEditingTask,
+    mobileEditIsInbox, setMobileEditIsInbox,
+    mobileEditingNativeEvent, setMobileEditingNativeEvent,
+    nativeCalendarKey, setNativeCalendarKey,
+
+    // ── Drag / drop state ─────────────────────────────────────────────────────
+    draggedTask, setDraggedTask,
+    dragSource, setDragSource,
+    dragPreviewTime, setDragPreviewTime,
+    dragPreviewDate, setDragPreviewDate,
+    dragOverAllDay, setDragOverAllDay,
+    dragOverInbox, setDragOverInbox,
+    dragOverRecycleBin, setDragOverRecycleBin,
+    hoverPreviewTime, setHoverPreviewTime,
+    hoverPreviewDate, setHoverPreviewDate,
+    isResizing, setIsResizing,
+    mobileDragTaskIdState, setMobileDragTaskIdState,
+    mobileDragPreviewTime, setMobileDragPreviewTime,
+    mobileDragPreviewDate, setMobileDragPreviewDate,
+    timelineScrolledAway, setTimelineScrolledAway,
+
+    // ── Computed / derived values ─────────────────────────────────────────────
+    isToday, currentTimeMinutes, currentHour, currentTimeTop, showCurrentTimeLine,
+    bgClass, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    colors, durationOptions,
+    todayTasks, incompleteTodayTasks,
+    filteredUnscheduledTasks, filteredTodayTasks,
+    taskWidths,
+    conflicts,
+    pendingPriorities,
+    tasksByDate,
+    expandedRecurringTasks,
+    todayAgenda,
+    agendaNowMarker,
+    glanceAhead,
+    activeFrameForNudge,
+    activeFrameNudgeKey,
+    dateIndicatorData,
+    hasZeroRealTasks,
+
+    // ── Stats ─────────────────────────────────────────────────────────────────
+    allTimeScheduledCount, allTimeCompletedCount,
+    totalCompletedMinutes, totalScheduledMinutes,
+    actualTodayNonImportedTasks, actualTodayCompletedTasks,
+    actualTodayCompletedMinutes, actualTodayPlannedMinutes, actualTodayFocusMinutes,
+    allTimeFocusMinutes,
+    inboxCompletedTodayCount, inboxCompletedTodayMinutes,
+    allTimeInboxCompletedCount, allTimeInboxCompletedMinutes,
+    todayIncompleteTasks, allTimeIncompleteTasks,
+
+    // ── Functions – audio / UI ────────────────────────────────────────────────
+    playUISound, playFocusSound,
+    formatTime,
+    toggleSection, toggleSettingsSection,
+
+    // ── Functions – navigation ────────────────────────────────────────────────
+    changeDate, goToToday, goToDate, changeViewedMonth,
+    scrollToCurrentHour,
+
+    // ── Functions – task CRUD ─────────────────────────────────────────────────
+    addTask, toggleComplete,
+    deleteRecurringInstance, updateRecurrencePattern,
+    updateRecurrenceEndCondition, updateRecurringTemplate,
+    moveToRecycleBin, moveToInbox, undeleteTask,
+    clearDeadline, postponeTask, postponeDeadlineTask,
+    cyclePriority, changeTaskColor,
+    toggleSubtask, addSubtask, deleteSubtask, updateSubtaskTitle, updateTaskNotes,
+    startEditingTask, saveTaskTitle, cancelEditingTask,
+    applySuggestionForEdit, handleEditKeyDown, handleEditInputChange,
+    handleNewTaskInputChange, handleNewTaskInputKeyDown, applySuggestionForNewTask,
+    buildSuggestions,
+    manuallyScheduleTask, scheduleTaskAtNextSlot,
+    openNewTaskAtTime, openNewTaskForm, openNewInboxTask,
+    recordDeletedTaskTombstone, parseRecurringId,
+    expandMultiDayEvent,
+
+    // ── Functions – routines ──────────────────────────────────────────────────
+    openRoutinesDashboard, addRoutineChip, deleteRoutineChip,
+    toggleRoutineChipSelection, handleRoutinesDone,
+
+    // ── Functions – habits ────────────────────────────────────────────────────
+    getTodayHabitCount, incrementHabit, setHabitCount,
+    addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
+    addStepsHabit, addSleepHabit,
+
+    // ── Functions – focus mode ────────────────────────────────────────────────
+    enterFocusMode, exitFocusMode, startFocusTimer, dismissFocusStats,
+    handleFocusTimerEnd,
+    focusCompleteTask, focusToggleSubtask, focusAddSubtask,
+    focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,
+    computeFocusBlockTasks,
+
+    // ── Functions – GTD / AI ──────────────────────────────────────────────────
+    saveFrame, deleteFrame, skipFrameForDay,
+    openFrameAdjust, openFrameSchedule, saveFrameAdjust,
+    getFrameInstancesForDate,
+    runSmartSchedule, applySmartSchedule,
+    runReschedule, applyReschedule,
+    computeAvailableSlots,
+    generateFrameNudge, generateMorningSummary, generateEveningReflection,
+    generateWeeklyAISummary, generateAISubtasks,
+    dismissMorningGlance, dismissEveningGlance,
+    voiceParseWithAI, voiceStartRecording, voiceStopRecording, voiceApplyAllChanges,
+    voiceHasTranscription,
+    buildTaskContextForAI, resolveTaskMatch,
+
+    // ── Functions – reminders ─────────────────────────────────────────────────
+    applyReminderPreset, updateCategoryReminder,
+    snoozeReminder, dismissReminder, dismissAllReminders,
+
+    // ── Functions – calendar sync ─────────────────────────────────────────────
+    syncWithCalendar, syncTaskCalendar, syncTaskCompletionToCalDAV,
+    nativeEventToTask, clearNativeEventOverride, parseDatetime, parseICS, filterByDateWindow,
+
+    // ── Functions – data persistence ──────────────────────────────────────────
+    loadData, saveData, applyRemoteData,
+    cloudSyncDownload, cloudSyncUpload, cloudSyncTest, syncAll,
+    performObsidianSync, loadWikiNote, saveWikiNote,
+    performTrmnlSync,
+    performLocalBackup, performRemoteBackup,
+    buildAutoBackupPayload, loadAutoBackupHistory,
+    deleteLocalAutoBackup, deleteRemoteAutoBackup,
+    restoreFromAutoBackup, restoreFromRemoteBackup,
+    exportBackup, restoreBackup,
+    handleFileUpload, handleBackupFileSelect, processImportFile,
+    buildSyncPayload,
+    fetchAllDailyContent, fetchWeather,
+
+    // ── Functions – timeline / layout helpers ──────────────────────────────────
+    getHourHeight, minutesToPosition, positionToMinutes, durationToHeight,
+    calculateTaskPosition, getTimeFromCursorPosition,
+    getAdjustedTimeForImportedConflicts,
+    getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns,
+    filterByTags,
+    getTasksForDate, getDateIndicators, hasTasksOnDate,
+    getDayName, getMonthDays, getNextQuarterHour,
+    getTodayStr, getOverdueTasks,
+    getTaskCalendarStyle,
+    timeToMinutes, minutesToTime,
+    selectAllTags, clearTagFilter, toggleTag,
+    handleSpotlightSelect,
+    updateDailyNote,
+    setTaskRef,
+
+    // ── Functions – drag / drop ───────────────────────────────────────────────
+    handleCalendarMouseMove, handleCalendarMouseLeave,
+    handleDragStart, handleDragEnd, updateDragAutoScroll,
+    handleDragOver, handleDragOverInbox, handleDragOverRecycleBin,
+    handleDropOnCalendar, handleDropOnDateHeader,
+    handleDropOnInbox, handleDropOnRecycleBin,
+    handleResizeStart, handleTouchResizeStart,
+    handleRoutineResizeStart, handleTouchRoutineResizeStart,
+    handleFrameResizeStart,
+    handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
+
+    // ── Functions – mobile editing ────────────────────────────────────────────
+    openMobileEditTask, openMobileEditNativeEvent,
+    saveMobileEditTask, saveMobileEditNativeEvent,
+
+    // ── Functions – undo / recycle bin ────────────────────────────────────────
+    pushUndo, performUndo, performRedo,
+    confirmEmptyBin, emptyRecycleBin,
+  };
+
   return (
+    <DayPlannerContext.Provider value={ctx}>
     <div className={`app-shell ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}
       onContextMenu={(e) => {
         // Allow native context menu on inputs/textareas/contenteditable
@@ -21874,6 +22358,7 @@ const DayPlanner = () => {
         </div>
       )}
     </div>
+    </DayPlannerContext.Provider>
   );
 };
 
