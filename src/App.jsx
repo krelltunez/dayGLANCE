@@ -1887,11 +1887,15 @@ const DayPlanner = () => {
     return { templateId, dateStr };
   };
 
-  // Refs for moveToRecycleBin and clearDeadline: useTaskActions (which provides these) depends on
-  // hoverPreviewTime/hoverPreviewDate from useDragDrop, creating a circular dependency.
-  // Refs break the cycle — values are wired up after useTaskActions is called below (~line 7096).
+  // Refs for functions/values defined after the useDragDrop call (TDZ-safe pattern).
+  // moveToRecycleBin/clearDeadline: circular dep with useTaskActions (wired after useTaskActions).
+  // Others: defined later in the component body (wired immediately after their definitions).
   const moveToRecycleBinRef = useRef(null);
   const clearDeadlineRef = useRef(null);
+  const expandedRecurringTasksRef = useRef(null);
+  const moveToInboxRef = useRef(null);
+  const openMobileEditTaskRef = useRef(null);
+  const openMobileEditNativeEventRef = useRef(null);
 
   // useDragDrop is placed here — after all its dependencies are defined and before any
   // useEffect that references its state (hoverPreviewTime at ~line 2671) to avoid TDZ errors.
@@ -1976,6 +1980,8 @@ const DayPlanner = () => {
     // mobile touch start + move
     handleMobileTaskTouchStart,
     handleMobileTaskTouchMove,
+    // mobile touch end (swipe actions)
+    handleMobileTaskTouchEnd,
   } = useDragDrop({
     calendarRef, timeGridRef,
     setNewTask, setShowAddTask, selectedDate, setExpandedNotesTaskId,
@@ -1984,6 +1990,8 @@ const DayPlanner = () => {
     playUISound, setSyncNotification, onboardingProgress, setOnboardingProgress,
     moveToRecycleBinRef, clearDeadlineRef,
     gtdFrames, setGtdFrames,
+    unscheduledTasks, setMobileEditingTask,
+    expandedRecurringTasksRef, moveToInboxRef, openMobileEditTaskRef, openMobileEditNativeEventRef,
   });
 
   const {
@@ -2870,6 +2878,7 @@ const DayPlanner = () => {
     }
     setShowAddTask(true);
   };
+  openMobileEditTaskRef.current = openMobileEditTask;
 
   const openMobileEditNativeEvent = (task) => {
     const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
@@ -2885,6 +2894,7 @@ const DayPlanner = () => {
       notes: override.notes !== undefined ? override.notes : (task.notes || ''),
     });
   };
+  openMobileEditNativeEventRef.current = openMobileEditNativeEvent;
 
   const saveMobileEditNativeEvent = async () => {
     if (!mobileEditingNativeEvent) return;
@@ -3356,321 +3366,6 @@ const DayPlanner = () => {
     setFocusTimerRunning(true);
   };
   handleFocusTimerEndRef.current = handleFocusTimerEnd;
-
-  const handleMobileTaskTouchEnd = (e, taskId, taskType) => {
-    // Clear long-press timer
-    if (mobileDragTimer.current) {
-      clearTimeout(mobileDragTimer.current);
-      mobileDragTimer.current = null;
-    }
-
-    // If drag was active, handle drag end
-    if (mobileDragActive.current) {
-      handleMobileLongPressEnd(e);
-      return;
-    }
-
-    const offset = swipeCurrentOffset.current;
-    const el = swipeTaskElement.current;
-
-    // Helper to hide swipe strips
-    const hideSwipeStrips = (element) => {
-      const parent = element?.parentElement;
-      if (parent) {
-        parent.querySelectorAll('[data-swipe-strip]').forEach(strip => {
-          strip.style.display = 'none';
-        });
-      }
-    };
-
-    // If touchstart was blocked (e.g. imported events), stale refs can cause false swipe actions — bail out
-    if (swipedTaskId.current == null || swipedTaskId.current !== taskId) {
-      if (el) { el.style.transform = ''; el.style.transition = ''; hideSwipeStrips(el); }
-      swipeCurrentOffset.current = 0;
-      swipedTaskId.current = null;
-      return;
-    }
-
-    if (!el || swipeIsVertical.current || !swipeLocked.current) {
-      // Reset
-      if (el) {
-        el.style.transform = '';
-        el.style.transition = '';
-        hideSwipeStrips(el);
-      }
-      swipeCurrentOffset.current = 0;
-      swipedTaskId.current = null;
-      return;
-    }
-
-    const elWidth = el.offsetWidth;
-    const threshold = elWidth * 0.4;
-    const isRecurring = typeof taskId === 'string' && taskId.startsWith('recurring-');
-    const isRightSwipeBlocked = false;
-
-    if (Math.abs(offset) > threshold && !isRightSwipeBlocked) {
-      // Trigger action
-      if (navigator.vibrate) navigator.vibrate(40);
-      const direction = offset > 0 ? 'right' : 'left';
-      // Animate off-screen
-      el.style.transform = `translateX(${direction === 'right' ? elWidth : -elWidth}px)`;
-      el.style.transition = 'transform 200ms ease-out';
-      setTimeout(() => {
-        if (direction === 'right') {
-          if (taskType === 'timeline') {
-            const swipedTask = tasks.find(t => t.id === taskId);
-            if (swipedTask?._native) {
-              // Native calendar events can't be moved to inbox; no-op
-            } else if (isRecurring) {
-              // Recurring: trigger delete popup
-              moveToRecycleBin(taskId);
-            } else {
-              moveToInbox(taskId);
-            }
-          } else if (taskType === 'allday') {
-            if (isRecurring) {
-              // Recurring: trigger delete popup
-              moveToRecycleBin(taskId);
-            } else {
-              moveToInbox(taskId);
-            }
-          } else if (taskType === 'deadline') {
-            // Clear deadline — moves back to regular inbox
-            clearDeadline(taskId);
-          } else if (taskType === 'inbox') {
-            // Schedule: open edit modal as scheduled task
-            const task = unscheduledTasks.find(t => t.id === taskId);
-            if (task) {
-              // Track which inbox task we're scheduling (removed on submit, restored on cancel)
-              swipeSchedulingInboxTaskId.current = taskId;
-              setMobileEditingTask(null);
-              setNewTask({
-                title: task.title,
-                startTime: getNextQuarterHour(),
-                duration: task.duration || 30,
-                date: dateToString(selectedDate),
-                isAllDay: false,
-                color: task.color || colors[0].class,
-                recurrence: null,
-              });
-              setShowAddTask(true);
-            }
-          }
-        } else {
-          // Left swipe = edit
-          const isInbox = taskType === 'inbox' || taskType === 'deadline';
-          const task = isInbox
-            ? unscheduledTasks.find(t => t.id === taskId)
-            : tasks.find(t => t.id === taskId) || (
-                typeof taskId === 'string' && taskId.startsWith('recurring-')
-                  ? expandedRecurringTasks.find(t => t.id === taskId)
-                  : null
-              );
-          if (task && task._native && task.nativeEventId) {
-            openMobileEditNativeEvent(task);
-          } else if (task && !task.imported) {
-            openMobileEditTask(task, isInbox);
-          }
-        }
-        // Reset element
-        if (el) {
-          el.style.transform = '';
-          el.style.transition = '';
-          hideSwipeStrips(el);
-        }
-      }, 200);
-    } else {
-      // Snap back
-      el.style.transform = 'translateX(0)';
-      el.style.transition = 'transform 200ms ease-out';
-      setTimeout(() => {
-        if (el) {
-          el.style.transform = '';
-          el.style.transition = '';
-          hideSwipeStrips(el);
-        }
-      }, 200);
-    }
-
-    swipeCurrentOffset.current = 0;
-    swipedTaskId.current = null;
-  };
-
-  const handleMobileLongPressEnd = () => {
-    if (mobileDragAutoScrollInterval.current) {
-      clearInterval(mobileDragAutoScrollInterval.current);
-      mobileDragAutoScrollInterval.current = null;
-    }
-    mobileDragScrollDir.current = null;
-    // Re-enable scroll on timeline after drag
-    if (calendarRef.current) calendarRef.current.style.overflowY = 'scroll';
-    // Remove native touchmove prevention listener
-    if (mobileDragPreventScrollRef.current) {
-      document.removeEventListener('touchmove', mobileDragPreventScrollRef.current);
-      mobileDragPreventScrollRef.current = null;
-    }
-    // Restore text selection after drag
-    document.body.style.webkitUserSelect = '';
-    document.body.style.userSelect = '';
-
-    // Use refs instead of state to avoid stale-closure bugs when touchend fires
-    // before React has committed the latest setMobileDragPreviewTime render.
-    const _previewTime = mobileDragPreviewTimeRef.current;
-    const _previewDate = mobileDragPreviewDateRef.current;
-    if (mobileDragActive.current && _previewTime && mobileDragOriginalTask.current) {
-      const task = mobileDragOriginalTask.current;
-      const droppingToAllDay = _previewTime === 'all-day';
-      const newTime = droppingToAllDay ? '00:00' : _previewTime;
-      const fromAllDay = mobileDragSourceType.current === 'allday';
-      const dropDateStr = _previewDate || dateToString(selectedDate);
-
-      // Check for conflicts with imported calendar events and routines (same as desktop)
-      let finalTime = newTime;
-      let conflicted = false;
-      let conflictingEvent = null;
-      if (!droppingToAllDay && !task.isRoutineDrag) {
-        const result = getAdjustedTimeForImportedConflicts(
-          task.id,
-          newTime,
-          task.duration || 30,
-          dropDateStr
-        );
-        finalTime = result.adjustedStartTime;
-        conflicted = result.conflicted;
-        conflictingEvent = result.conflictingEvent;
-      }
-
-      // If dragging from all-day back to all-day, no change needed
-      if (fromAllDay && droppingToAllDay) {
-        // no-op
-      } else if (task.isDeadlineDrag) {
-        // Deadline task: move from unscheduled to scheduled
-        pushUndo();
-        setUnscheduledTasks(prev => prev.filter(t => t.id !== task.id));
-        setTasks(prev => [...prev, {
-          id: task.id,
-          title: task.title,
-          startTime: droppingToAllDay ? '00:00' : finalTime,
-          duration: task.duration || 30,
-          date: dropDateStr,
-          isAllDay: droppingToAllDay,
-          color: task.color || colors[0].class,
-          notes: task.notes || '',
-          subtasks: task.subtasks || [],
-          completed: task.completed || false,
-        }]);
-      } else if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
-        // Recurring task instances via exceptions
-        const parsed = parseRecurringId(task.id);
-        if (parsed) {
-          pushUndo();
-          setRecurringTasks(prev => prev.map(t => {
-            if (t.id === parsed.templateId) {
-              return {
-                ...t,
-                exceptions: {
-                  ...t.exceptions,
-                  [parsed.dateStr]: {
-                    ...(t.exceptions?.[parsed.dateStr] || {}),
-                    startTime: finalTime,
-                    isAllDay: droppingToAllDay,
-                    duration: task.duration,
-                  }
-                }
-              };
-            }
-            return t;
-          }));
-        }
-      } else if (task.isRoutineDrag) {
-        // Routine chip: update time/all-day on todayRoutines
-        if (droppingToAllDay) {
-          setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: null, isAllDay: true, lastModified: new Date().toISOString() } : r));
-        } else {
-          setTodayRoutines(prev => prev.map(r => r.id === task.id ? { ...r, startTime: newTime, isAllDay: false, lastModified: new Date().toISOString() } : r));
-        }
-      } else {
-        // Regular task: update time, isAllDay status, and date (for cross-column drag)
-        pushUndo();
-        const prevTask = task;
-        const fromAllDayToTimed = fromAllDay && !droppingToAllDay && !!task.nativeEventId;
-
-        // Native all-day calendar event time overrides.
-        // Stored in localStorage under 'day-planner-native-time-overrides' as a map of
-        // nativeEventId → { startTime, duration, date }.  The native calendar re-fetch
-        // re-applies any stored override so the scheduled time survives date navigation
-        // regardless of whether the device calendar is writable.
-        if (task.nativeEventId) {
-          const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
-          const key = String(task.nativeEventId);
-          if (droppingToAllDay && overrides[key]) {
-            delete overrides[key];
-            localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
-          } else if (fromAllDayToTimed) {
-            overrides[key] = { startTime: finalTime, duration: task.duration || 60, date: dropDateStr };
-            localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
-          }
-        }
-
-        setTasks(prev => prev.map(t => t.id === task.id ? {
-          ...t,
-          startTime: finalTime,
-          isAllDay: droppingToAllDay,
-          date: dropDateStr,
-        } : t));
-        // Sync native Android calendar events back to the device calendar
-        if (task.nativeEventId && !droppingToAllDay && finalTime) {
-          const endMin = timeToMinutes(finalTime) + (task.duration || 60);
-          const newStart = `${dropDateStr}T${finalTime}:00`;
-          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
-          nativeUpdateEvent({
-            id: task.nativeEventId, title: task.title,
-            start: newStart, end: newEnd, allDay: false,
-            notes: task.notes || '', location: task.location || '',
-          }).then(result => {
-            if (!result?.success) {
-              // For all-day → timed: the override already persists the placement, so
-              // no revert.  For timed → timed: revert to keep in sync with the calendar.
-              if (!fromAllDayToTimed) {
-                setTasks(prev => prev.map(t => t.id === prevTask.id ? prevTask : t));
-              }
-            } else if (task.nativeEventId) {
-              // Update any existing override so a subsequent re-fetch reflects the new
-              // time rather than snapping back to the stale override value.
-              const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
-              const key = String(task.nativeEventId);
-              if (overrides[key]) {
-                overrides[key] = { startTime: finalTime, duration: task.duration || 60, date: dropDateStr };
-                localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
-              }
-            }
-          });
-        }
-      }
-      // Show notification if task was rescheduled to avoid calendar conflict
-      if (conflicted && conflictingEvent) {
-        playUISound('error');
-        setSyncNotification({
-          type: 'info',
-          title: 'Task Rescheduled',
-          message: `Task moved to ${finalTime} to avoid conflict with "${conflictingEvent.title}"`
-        });
-      }
-      if (!(fromAllDay && droppingToAllDay)) {
-        playUISound(droppingToAllDay ? 'drop' : 'slide');
-      }
-    }
-
-    mobileDragActive.current = false;
-    mobileDragTaskId.current = null;
-    mobileDragOriginalTask.current = null;
-    mobileDragSourceType.current = null;
-    mobileDragPreviewTimeRef.current = null;
-    mobileDragPreviewDateRef.current = null;
-    setMobileDragPreviewTime(null);
-    setMobileDragPreviewDate(null);
-    setMobileDragTaskIdState(null);
-  };
 
   const parseICS = (icsContent) => {
     // Unfold iCal line continuations (RFC 5545: lines starting with space/tab are continuations)
@@ -6004,6 +5699,7 @@ const DayPlanner = () => {
     }
     return instances;
   }, [recurringTasks, visibleDates]);
+  expandedRecurringTasksRef.current = expandedRecurringTasks;
 
   const {
     activeReminders, setActiveReminders,
@@ -6619,9 +6315,10 @@ const DayPlanner = () => {
     playFocusSound,
   });
 
-  // Wire up circular-dependency refs for useDragDrop (see refs declared before the hook call).
+  // Wire up TDZ-safe refs for useDragDrop (see refs declared before the hook call).
   moveToRecycleBinRef.current = moveToRecycleBin;
   clearDeadlineRef.current = clearDeadline;
+  moveToInboxRef.current = moveToInbox;
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
