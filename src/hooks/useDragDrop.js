@@ -20,6 +20,7 @@ export default function useDragDrop({
   tasks, setTasks, setUnscheduledTasks, setRecurringTasks, setRecycleBin, setTodayRoutines,
   pushUndo, parseRecurringId, getAdjustedTimeForImportedConflicts, wouldExceedMaxColumns,
   playUISound, setSyncNotification, onboardingProgress, setOnboardingProgress,
+  moveToRecycleBinRef, clearDeadlineRef,
 }) {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragSource, setDragSource] = useState(null);
@@ -518,6 +519,118 @@ export default function useDragDrop({
     setDragOverAllDay(null);
   };
 
+  const handleDropOnInbox = (e) => {
+    e.preventDefault();
+    if (!draggedTask) return;
+    if (dragSource === 'routine') { setDraggedTask(null); setDragSource(null); setDragOverInbox(false); return; }
+
+    // Only allow calendar, recycle bin, overdue scheduled tasks, and inbox tasks with deadlines to be moved to inbox
+    if (dragSource !== 'calendar' && dragSource !== 'recycleBin' && dragSource !== 'overdue' && !(dragSource === 'inbox' && draggedTask.deadline)) return;
+
+    pushUndo();
+    if (dragSource === 'calendar') {
+      if (draggedTask.isRecurring) {
+        const parsed = parseRecurringId(draggedTask.id);
+        if (parsed) {
+          const { templateId, dateStr: origDateStr } = parsed;
+          // Detach: mark deleted on original date, create regular inbox task
+          setRecurringTasks(prev => prev.map(t => {
+            if (t.id !== templateId) return t;
+            return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
+          }));
+          const { id, isRecurring, recurringTemplateId, startTime, date, ...taskData } = draggedTask;
+          setUnscheduledTasks(prev => [...prev, { ...taskData, id: crypto.randomUUID(), priority: taskData.priority || 0 }]);
+        }
+      } else {
+        setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
+        const { startTime, date, ...taskWithoutSchedule } = draggedTask;
+        setUnscheduledTasks(prev => [...prev, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+      }
+    } else if (dragSource === 'recycleBin') {
+      setRecycleBin(prev => prev.filter(t => t.id !== draggedTask.id));
+      const { _deletedFrom, startTime, date, ...taskWithoutSchedule } = draggedTask;
+      setUnscheduledTasks(prev => [...prev, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+    } else if (dragSource === 'overdue' && draggedTask._overdueType === 'scheduled') {
+      // Move overdue scheduled task back to inbox
+      setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
+      const { startTime, date, _overdueType, ...taskWithoutSchedule } = draggedTask;
+      setUnscheduledTasks(prev => [...prev, { ...taskWithoutSchedule, priority: taskWithoutSchedule.priority || 0 }]);
+    } else if (dragSource === 'overdue' && draggedTask._overdueType === 'deadline') {
+      // Clear deadline from overdue inbox task to move it back to regular inbox view
+      clearDeadlineRef.current(draggedTask.id);
+    } else if (dragSource === 'inbox' && draggedTask.deadline) {
+      // Clear deadline from inbox task (moving from all-day section back to inbox)
+      clearDeadlineRef.current(draggedTask.id);
+    }
+
+    playUISound('slide');
+    setDraggedTask(null);
+    setDragSource(null);
+    setDragPreviewTime(null);
+    setDragOverInbox(false);
+  };
+
+  const handleDropOnRecycleBin = (e) => {
+    e.preventDefault();
+    if (!draggedTask) return;
+    if (dragSource === 'routine') { setDraggedTask(null); setDragSource(null); setDragOverRecycleBin(false); return; }
+
+    // Recurring tasks: delegate to existing moveToRecycleBin (shows 3-option delete dialog)
+    if (draggedTask.isRecurring) {
+      moveToRecycleBinRef.current(draggedTask.id);
+      setDraggedTask(null);
+      setDragSource(null);
+      setDragPreviewTime(null);
+      setDragOverRecycleBin(false);
+      return;
+    }
+
+    pushUndo();
+    // Determine source and clean up task metadata
+    let deletedFrom = 'calendar';
+    let cleanTask = { ...draggedTask };
+
+    if (dragSource === 'inbox') {
+      deletedFrom = 'inbox';
+    } else if (dragSource === 'overdue') {
+      if (draggedTask._overdueType === 'scheduled') {
+        deletedFrom = 'calendar';
+      } else {
+        deletedFrom = 'inbox';
+      }
+      // Remove overdue metadata
+      const { _overdueType, ...rest } = cleanTask;
+      cleanTask = rest;
+    }
+
+    // Add to recycle bin with metadata about where it came from
+    const taskWithMeta = {
+      ...cleanTask,
+      _deletedFrom: deletedFrom,
+      deletedAt: new Date().toISOString()
+    };
+    setRecycleBin(prev => [...prev, taskWithMeta]);
+
+    // Remove from original location
+    if (dragSource === 'inbox') {
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
+    } else if (dragSource === 'calendar') {
+      setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
+    } else if (dragSource === 'overdue') {
+      if (draggedTask._overdueType === 'scheduled') {
+        setTasks(prev => prev.filter(t => t.id !== draggedTask.id));
+      } else {
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== draggedTask.id));
+      }
+    }
+
+    playUISound('swoosh');
+    setDraggedTask(null);
+    setDragSource(null);
+    setDragPreviewTime(null);
+    setDragOverRecycleBin(false);
+  };
+
   return {
     // state
     draggedTask, setDraggedTask,
@@ -556,5 +669,8 @@ export default function useDragDrop({
     // desktop drop on calendar + date header
     handleDropOnCalendar,
     handleDropOnDateHeader,
+    // desktop drop on inbox + recycle bin
+    handleDropOnInbox,
+    handleDropOnRecycleBin,
   };
 }
