@@ -304,7 +304,7 @@ const DesktopLayout = () => {
     filteredUnscheduledTasks, filteredTodayTasks,
     taskWidths,
     conflicts,
-    pendingPriorities,
+    pendingPriorities, getDeadlineTasksForDate,
     tasksByDate,
     expandedRecurringTasks,
     todayAgenda,

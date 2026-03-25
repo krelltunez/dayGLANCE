@@ -6327,7 +6327,7 @@ const DayPlanner = () => {
     filteredUnscheduledTasks, filteredTodayTasks,
     taskWidths,
     conflicts,
-    pendingPriorities,
+    pendingPriorities, getDeadlineTasksForDate,
     tasksByDate,
     expandedRecurringTasks,
     todayAgenda,
