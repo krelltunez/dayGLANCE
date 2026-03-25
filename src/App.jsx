@@ -62,6 +62,7 @@ import useReminders from './hooks/useReminders.js';
 import useMobileEdit from './hooks/useMobileEdit.js';
 import useDragDrop from './hooks/useDragDrop.js';
 import useDataPersistence from './hooks/useDataPersistence.js';
+import useLocalStoragePersist from './hooks/useLocalStoragePersist.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -753,6 +754,20 @@ const DayPlanner = () => {
     return `${displayHour}:${minutes.toString().padStart(2, '0')}\u00A0${ampm}`;
   };
 
+  useLocalStoragePersist({
+    minimizedSections,
+    use24HourClock,
+    inboxPriorityFilter,
+    hideCompletedInbox,
+    priorityPromptDismissed,
+    sectionInfoDismissed, skipOnboardingPersist,
+    dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
+    dailyNoteTemplate,
+    calendarUrlAuth,
+    autoBackupConfig,
+    calendarFilter,
+  });
+
   const { loadData, saveData } = useDataPersistence({
     // setters for loadData
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
@@ -870,39 +885,6 @@ const DayPlanner = () => {
     };
   }, []);
 
-  // Persist minimizedSections to localStorage
-  useEffect(() => {
-    localStorage.setItem('minimizedSections', JSON.stringify(minimizedSections));
-  }, [minimizedSections]);
-
-  // Persist use24HourClock to localStorage
-  useEffect(() => {
-    localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(use24HourClock));
-  }, [use24HourClock]);
-
-
-  // Persist inboxPriorityFilter to localStorage
-  useEffect(() => {
-    localStorage.setItem('inboxPriorityFilter', JSON.stringify(inboxPriorityFilter));
-  }, [inboxPriorityFilter]);
-
-  // Persist hideCompletedInbox to localStorage
-  useEffect(() => {
-    localStorage.setItem('hideCompletedInbox', hideCompletedInbox.toString());
-  }, [hideCompletedInbox]);
-
-  // Persist priorityPromptDismissed to localStorage
-  useEffect(() => {
-    localStorage.setItem('priorityPromptDismissed', priorityPromptDismissed.toString());
-  }, [priorityPromptDismissed]);
-
-  // Persist onboarding state to localStorage (handled in effect after hasZeroRealTasks is computed)
-
-  useEffect(() => {
-    if (!skipOnboardingPersist.current) {
-      localStorage.setItem('sectionInfoDismissed', JSON.stringify(sectionInfoDismissed));
-    }
-  }, [sectionInfoDismissed]);
 
   // Android back button: navigate from settings sub-screen back to main settings
   useEffect(() => {
@@ -947,23 +929,6 @@ const DayPlanner = () => {
   }, [mobileActiveTab, mobileSettingsView, isMobile]);
 
 
-  // Persist dailyNotes to localStorage and trigger cloud sync upload
-  useEffect(() => {
-    localStorage.setItem('day-planner-daily-notes', JSON.stringify(dailyNotes));
-    if (!suppressCloudUploadRef.current && (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current)) {
-      localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
-    }
-  }, [dailyNotes]);
-
-  // Persist daily note template
-  useEffect(() => {
-    localStorage.setItem('day-planner-daily-note-template', dailyNoteTemplate);
-  }, [dailyNoteTemplate]);
-
-  // Persist calendar URL auth to localStorage
-  useEffect(() => {
-    localStorage.setItem('day-planner-calendar-url-auth', JSON.stringify(calendarUrlAuth));
-  }, [calendarUrlAuth]);
 
   // Track for onboarding when sync is set up
   useEffect(() => {
@@ -1366,10 +1331,6 @@ const DayPlanner = () => {
     obsidianPrevTaskStateRef.current = next;
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
 
-  // Persist auto-backup config
-  useEffect(() => {
-    localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(autoBackupConfig));
-  }, [autoBackupConfig]);
 
   // Auto-backup timer
   useEffect(() => {
@@ -2845,10 +2806,6 @@ const DayPlanner = () => {
     if (cals.length > 0) setAvailableCalendars(cals);
   }, []);
 
-  // Persist calendar filter whenever it changes
-  useEffect(() => {
-    localStorage.setItem('day-planner-calendar-filter', JSON.stringify(calendarFilter));
-  }, [calendarFilter]);
 
   useEffect(() => {
     if (!isNativeAndroid()) return;
