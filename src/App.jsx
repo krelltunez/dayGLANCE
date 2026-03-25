@@ -66,6 +66,7 @@ import useLocalStoragePersist from './hooks/useLocalStoragePersist.js';
 import useAppInit from './hooks/useAppInit.js';
 import useSaveOnChange from './hooks/useSaveOnChange.js';
 import useTimelineScroll from './hooks/useTimelineScroll.js';
+import useModalClose from './hooks/useModalClose.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -1959,120 +1960,33 @@ const DayPlanner = () => {
     }
   }, [aiConfig]);
 
+  useModalClose({
+    taskContextMenu, setTaskContextMenu,
+    timelineContextMenu, setTimelineContextMenu,
+    quickAddFrameModal, setQuickAddFrameModal,
+    frameContextMenu, setFrameContextMenu,
+    frameAdjustModal, setFrameAdjustModal,
+    frameScheduleModal, setFrameScheduleModal,
+    showFramesModal, setShowFramesModal, setEditingFrame,
+    showSpotlight, setShowSpotlight,
+    showHelpModal, setShowHelpModal,
+    showShortcutHelp, setShowShortcutHelp,
+    editingRecurrenceTaskId, setEditingRecurrenceTaskId,
+    showMonthView, setShowMonthView,
+    showAutoBackupManager, setShowAutoBackupManager, setAutoBackupRestoreConfirm,
+    showBackupMenu, setShowBackupMenu,
+    showVoiceInput, setShowVoiceInput,
+    showSettings, setShowSettings,
+    showRemindersSettings, setShowRemindersSettings,
+    showWeeklyReview, setShowWeeklyReview,
+    showMobileDailySummary, setShowMobileDailySummary,
+    showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
+    showRecurrencePicker, setShowRecurrencePicker,
+  });
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
-      // Escape to close modals/dialogs (works even when focus is on body)
-      if (e.key === 'Escape') {
-        if (taskContextMenu) {
-          e.preventDefault();
-          setTaskContextMenu(null);
-          return;
-        }
-        if (timelineContextMenu) {
-          e.preventDefault();
-          setTimelineContextMenu(null);
-          return;
-        }
-        if (quickAddFrameModal) {
-          e.preventDefault();
-          setQuickAddFrameModal(null);
-          return;
-        }
-        if (frameContextMenu) {
-          e.preventDefault();
-          setFrameContextMenu(null);
-          return;
-        }
-        if (frameAdjustModal) {
-          e.preventDefault();
-          setFrameAdjustModal(null);
-          return;
-        }
-        if (frameScheduleModal) {
-          e.preventDefault();
-          setFrameScheduleModal(null);
-          return;
-        }
-        if (showFramesModal) {
-          e.preventDefault();
-          setShowFramesModal(false);
-          setEditingFrame(null);
-          return;
-        }
-        if (showSpotlight) {
-          e.preventDefault();
-          setShowSpotlight(false);
-          return;
-        }
-        if (showHelpModal) {
-          e.preventDefault();
-          setShowHelpModal(false);
-          return;
-        }
-        if (showShortcutHelp) {
-          e.preventDefault();
-          setShowShortcutHelp(false);
-          return;
-        }
-        if (editingRecurrenceTaskId) {
-          e.preventDefault();
-          setEditingRecurrenceTaskId(null);
-          return;
-        }
-        if (showMonthView) {
-          e.preventDefault();
-          setShowMonthView(false);
-          return;
-        }
-        if (showAutoBackupManager) {
-          e.preventDefault();
-          setShowAutoBackupManager(false);
-          setAutoBackupRestoreConfirm(null);
-          return;
-        }
-        if (showBackupMenu) {
-          e.preventDefault();
-          setShowBackupMenu(false);
-          return;
-        }
-        if (showVoiceInput) {
-          e.preventDefault();
-          setShowVoiceInput(false);
-          return;
-        }
-        if (showSettings) {
-          e.preventDefault();
-          setShowSettings(false);
-          return;
-        }
-        if (showRemindersSettings) {
-          e.preventDefault();
-          setShowRemindersSettings(false);
-          return;
-        }
-        if (showWeeklyReview) {
-          e.preventDefault();
-          setShowWeeklyReview(false);
-          return;
-        }
-        if (showMobileDailySummary) {
-          e.preventDefault();
-          setShowMobileDailySummary(false);
-          return;
-        }
-        if (showAddTask) {
-          e.preventDefault();
-          if (showRecurrencePicker) {
-            setShowRecurrencePicker(false);
-          } else {
-            setShowAddTask(false);
-            setShowNewTaskDeadlinePicker(false);
-          }
-          return;
-        }
-      }
-
       // Undo/Redo — works even when focus is in an input/textarea
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (e.key === 'z' && !e.shiftKey) {
@@ -2271,7 +2185,7 @@ const DayPlanner = () => {
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showRecurrencePicker, editingRecurrenceTaskId, showShortcutHelp, showHelpModal, showFocusMode, showRoutinesDashboard, showMonthView, showBackupMenu, showAutoBackupManager, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showVoiceInput, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, gtdFrames, showRescheduleModal]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, gtdFrames]);
 
   // Mobile multi-finger long-press gestures: 2-finger hold = undo, 3-finger hold = redo
   useEffect(() => {
