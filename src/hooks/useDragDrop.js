@@ -631,6 +631,145 @@ export default function useDragDrop({
     setDragOverRecycleBin(false);
   };
 
+  const handleResizeStart = (task, e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    pushUndo();
+    setIsResizing(true);
+
+    const startY = e.clientY;
+    const startDuration = task.duration;
+    let finalDuration = startDuration;
+
+    const isRecurringTask = task.isRecurring;
+    const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
+
+    // Prevent the browser from initiating a native drag on the parent draggable element
+    const preventDrag = (de) => de.preventDefault();
+    document.addEventListener('dragstart', preventDrag);
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const newDuration = Math.max(15, startDuration + deltaMinutes);
+      finalDuration = newDuration;
+
+      if (isRecurringTask && recurringInfo) {
+        const { templateId, dateStr } = recurringInfo;
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id !== templateId) return t;
+          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } } };
+        }));
+      } else {
+        setTasks(prevTasks => prevTasks.map(t =>
+          t.id === task.id ? { ...t, duration: newDuration } : t
+        ));
+      }
+    };
+
+    const handleMouseUp = () => {
+      playUISound('tick');
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('dragstart', preventDrag);
+      setIsResizing(false);
+      // Sync resize back to the device calendar for native events
+      if (task.nativeEventId && !isRecurringTask && task.startTime) {
+        const endMin = timeToMinutes(task.startTime) + finalDuration;
+        const newStart = `${task.date}T${task.startTime}:00`;
+        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+        nativeUpdateEvent({
+          id: task.nativeEventId, title: task.title,
+          start: newStart, end: newEnd, allDay: false,
+          notes: task.notes || '', location: task.location || '',
+        }).then(result => {
+          if (!result?.success) {
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+          } else {
+            // Keep the localStorage time-override in sync so a subsequent calendar
+            // re-fetch doesn't restore the stale pre-resize duration from the override.
+            const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+            const key = String(task.nativeEventId);
+            if (overrides[key]) {
+              overrides[key] = { ...overrides[key], duration: finalDuration };
+              localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+            }
+          }
+        });
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleTouchResizeStart = (task, e) => {
+    e.stopPropagation();
+    pushUndo();
+    setIsResizing(true);
+
+    const startY = e.touches[0].clientY;
+    const startDuration = task.duration;
+    let finalDuration = startDuration;
+
+    const isRecurringTask = task.isRecurring;
+    const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
+
+    const handleTouchMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      const deltaY = moveEvent.touches[0].clientY - startY;
+      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const newDuration = Math.max(15, startDuration + deltaMinutes);
+      finalDuration = newDuration;
+
+      if (isRecurringTask && recurringInfo) {
+        const { templateId, dateStr } = recurringInfo;
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id !== templateId) return t;
+          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } } };
+        }));
+      } else {
+        setTasks(prevTasks => prevTasks.map(t =>
+          t.id === task.id ? { ...t, duration: newDuration } : t
+        ));
+      }
+    };
+
+    const handleTouchEnd = () => {
+      playUISound('tick');
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      setIsResizing(false);
+      // Sync resize back to the device calendar for native events
+      if (task.nativeEventId && !isRecurringTask && task.startTime) {
+        const endMin = timeToMinutes(task.startTime) + finalDuration;
+        const newStart = `${task.date}T${task.startTime}:00`;
+        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+        nativeUpdateEvent({
+          id: task.nativeEventId, title: task.title,
+          start: newStart, end: newEnd, allDay: false,
+          notes: task.notes || '', location: task.location || '',
+        }).then(result => {
+          if (!result?.success) {
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+          } else {
+            // Keep the localStorage time-override in sync so a subsequent calendar
+            // re-fetch doesn't restore the stale pre-resize duration from the override.
+            const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+            const key = String(task.nativeEventId);
+            if (overrides[key]) {
+              overrides[key] = { ...overrides[key], duration: finalDuration };
+              localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
+            }
+          }
+        });
+      }
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
   return {
     // state
     draggedTask, setDraggedTask,
@@ -672,5 +811,8 @@ export default function useDragDrop({
     // desktop drop on inbox + recycle bin
     handleDropOnInbox,
     handleDropOnRecycleBin,
+    // task resize handlers
+    handleResizeStart,
+    handleTouchResizeStart,
   };
 }
