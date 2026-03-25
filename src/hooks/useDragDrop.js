@@ -1,3 +1,5 @@
+import { useState, useRef } from 'react';
+
 // Pure utility used by calculateTaskPosition
 const timeToMinutes = (time) => {
   const [hours, minutes] = time.split(':').map(Number);
@@ -5,6 +7,21 @@ const timeToMinutes = (time) => {
 };
 
 export default function useDragDrop({ calendarRef, timeGridRef }) {
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [dragSource, setDragSource] = useState(null);
+  const [dragPreviewTime, setDragPreviewTime] = useState(null);
+  const [dragPreviewDate, setDragPreviewDate] = useState(null);
+  const [dragOverAllDay, setDragOverAllDay] = useState(null);
+  const [dragOverInbox, setDragOverInbox] = useState(false);
+  const [dragOverRecycleBin, setDragOverRecycleBin] = useState(false);
+  const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
+  const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const autoScrollInterval = useRef(null); // For drag auto-scroll
+  const frameResizingRef = useRef(false); // Suppress click-to-add-task after frame resize drag
+  const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
+
   // Measure actual hour row height from DOM (handles sub-pixel borders on high-DPI screens)
   const getHourHeight = () => {
     if (timeGridRef.current && timeGridRef.current.children.length > 2) {
@@ -75,6 +92,22 @@ export default function useDragDrop({ calendarRef, timeGridRef }) {
   };
 
   return {
+    // state
+    draggedTask, setDraggedTask,
+    dragSource, setDragSource,
+    dragPreviewTime, setDragPreviewTime,
+    dragPreviewDate, setDragPreviewDate,
+    dragOverAllDay, setDragOverAllDay,
+    dragOverInbox, setDragOverInbox,
+    dragOverRecycleBin, setDragOverRecycleBin,
+    hoverPreviewTime, setHoverPreviewTime,
+    hoverPreviewDate, setHoverPreviewDate,
+    isResizing, setIsResizing,
+    // refs
+    autoScrollInterval,
+    frameResizingRef,
+    stickyHeaderRef,
+    // position helpers
     getHourHeight,
     minutesToPosition,
     positionToMinutes,

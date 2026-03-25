@@ -243,8 +243,7 @@ const DayPlanner = () => {
   const [frameNudgeError, setFrameNudgeError] = useState('');
   const [frameNudgeDismissedKey, setFrameNudgeDismissedKey] = useState(''); // key = todayStr-frameId
   const [aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask] = useState(null); // taskId while loading
-  const [draggedTask, setDraggedTask] = useState(null);
-  const [dragSource, setDragSource] = useState(null);
+
   const [minimizedSections, setMinimizedSections] = useState(() => {
     const saved = localStorage.getItem('minimizedSections');
     return saved ? JSON.parse(saved) : {
@@ -312,14 +311,7 @@ const DayPlanner = () => {
     showBackupMenu, setShowBackupMenu,
   } = useBackup();
   const { dailyContent, setDailyContent, contentRotation, setContentRotation, fetchAllDailyContent } = useDailyContent();
-  const [dragPreviewTime, setDragPreviewTime] = useState(null);
-  const [dragPreviewDate, setDragPreviewDate] = useState(null);
-  const [dragOverAllDay, setDragOverAllDay] = useState(null);
-  const [dragOverInbox, setDragOverInbox] = useState(false);
-  const [dragOverRecycleBin, setDragOverRecycleBin] = useState(false);
-  const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
-  const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
-  const [isResizing, setIsResizing] = useState(false);
+
   const [inboxPriorityFilter, setInboxPriorityFilter] = useState(() => {
     const saved = localStorage.getItem('inboxPriorityFilter');
     return saved ? JSON.parse(saved) : 0;
@@ -357,9 +349,33 @@ const DayPlanner = () => {
   const suppressScrollAwayRef = useRef(false); // suppress scroll-away detection during programmatic scrolls
   const timeGridRef = useRef(null);
   const currentTimeRef = useRef(null);
-  const autoScrollInterval = useRef(null); // For drag auto-scroll
-  const frameResizingRef = useRef(false); // Suppress click-to-add-task after frame resize drag
-  const stickyHeaderRef = useRef(null); // For measuring sticky header height during drag
+
+  // useDragDrop is called here — before any useEffect that references its state —
+  // to avoid TDZ errors in dependency arrays (e.g. hoverPreviewTime at line ~2632).
+  const {
+    // state
+    draggedTask, setDraggedTask,
+    dragSource, setDragSource,
+    dragPreviewTime, setDragPreviewTime,
+    dragPreviewDate, setDragPreviewDate,
+    dragOverAllDay, setDragOverAllDay,
+    dragOverInbox, setDragOverInbox,
+    dragOverRecycleBin, setDragOverRecycleBin,
+    hoverPreviewTime, setHoverPreviewTime,
+    hoverPreviewDate, setHoverPreviewDate,
+    isResizing, setIsResizing,
+    // refs
+    autoScrollInterval,
+    frameResizingRef,
+    stickyHeaderRef,
+    // position helpers
+    getHourHeight,
+    minutesToPosition,
+    positionToMinutes,
+    durationToHeight,
+    calculateTaskPosition,
+  } = useDragDrop({ calendarRef, timeGridRef });
+
   // Mobile swipe gesture refs
   const swipeTouchStartX = useRef(0);
   const swipeTouchStartY = useRef(0);
@@ -7507,14 +7523,6 @@ const DayPlanner = () => {
     exitFocusMode,
     playFocusSound,
   });
-
-  const {
-    getHourHeight,
-    minutesToPosition,
-    positionToMinutes,
-    durationToHeight,
-    calculateTaskPosition,
-  } = useDragDrop({ calendarRef, timeGridRef });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
