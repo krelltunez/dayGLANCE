@@ -64,6 +64,7 @@ import useDragDrop from './hooks/useDragDrop.js';
 import useDataPersistence from './hooks/useDataPersistence.js';
 import useLocalStoragePersist from './hooks/useLocalStoragePersist.js';
 import useAppInit from './hooks/useAppInit.js';
+import useSaveOnChange from './hooks/useSaveOnChange.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -785,6 +786,15 @@ const DayPlanner = () => {
     setUndoToast,
   });
 
+  useSaveOnChange({
+    saveData, checkConflicts,
+    dataLoaded,
+    suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
+    tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
+    completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate,
+    removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+  });
+
   // Close month view when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1071,23 +1081,6 @@ const DayPlanner = () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [isMobile, selectedDate, scrollToCurrentHour]);
-
-  useEffect(() => {
-    if (!dataLoaded) return; // Don't overwrite localStorage before initial load
-    saveData();
-    checkConflicts();
-    // After the first save pass following applyRemoteData, clear the suppress flags
-    // so subsequent user actions (e.g. completing a task) get properly stamped and uploaded.
-    if (suppressClearPendingRef.current) {
-      suppressClearPendingRef.current = false;
-      // Use microtask so the upload-debounce effect (which runs next in this batch)
-      // still sees suppress=true for THIS pass, but clears before the next user action.
-      queueMicrotask(() => {
-        suppressCloudUploadRef.current = false;
-        suppressTimestampRef.current = false;
-      });
-    }
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames]);
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
