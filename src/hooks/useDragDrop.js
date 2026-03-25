@@ -205,6 +205,62 @@ export default function useDragDrop({ calendarRef, timeGridRef, setNewTask, setS
     }
   };
 
+  const handleDragOver = (e, targetDate = null) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    // Clear other drop indicators when back in timeline
+    setDragOverAllDay(null);
+    setDragOverInbox(false);
+    setDragOverRecycleBin(false);
+
+    // Show preview time while dragging
+    if (draggedTask && calendarRef.current) {
+      const time = getTimeFromCursorPosition(e, {
+        maxMinutes: 24 * 60,
+        taskDuration: draggedTask.duration
+      });
+      setDragPreviewTime(time);
+
+      // Track which date column we're dragging over
+      if (targetDate) {
+        setDragPreviewDate(targetDate);
+      }
+
+      updateDragAutoScroll(e);
+    }
+  };
+
+  const handleDragOverInbox = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    // Clear timeline preview when over inbox
+    setDragPreviewTime(null);
+    setDragOverAllDay(null);
+    setDragOverRecycleBin(false);
+    setDragOverInbox(true);
+    // Clear auto-scroll when over inbox
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+  };
+
+  const handleDragOverRecycleBin = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    // Clear timeline preview when over recycle bin
+    setDragPreviewTime(null);
+    setDragOverAllDay(null);
+    setDragOverInbox(false);
+    setDragOverRecycleBin(true);
+    // Clear auto-scroll when over recycle bin
+    if (autoScrollInterval.current) {
+      clearInterval(autoScrollInterval.current);
+      autoScrollInterval.current = null;
+    }
+  };
+
   return {
     // state
     draggedTask, setDraggedTask,
@@ -236,5 +292,9 @@ export default function useDragDrop({ calendarRef, timeGridRef, setNewTask, setS
     handleDragStart,
     handleDragEnd,
     updateDragAutoScroll,
+    // desktop drag-over handlers
+    handleDragOver,
+    handleDragOverInbox,
+    handleDragOverRecycleBin,
   };
 }
