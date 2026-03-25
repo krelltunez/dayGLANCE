@@ -60,6 +60,7 @@ import useRecycleBin from './hooks/useRecycleBin.js';
 import useReminderEngine from './hooks/useReminderEngine.js';
 import useReminders from './hooks/useReminders.js';
 import useMobileEdit from './hooks/useMobileEdit.js';
+import useDragDrop from './hooks/useDragDrop.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -3410,75 +3411,6 @@ const DayPlanner = () => {
   const handleCalendarMouseLeave = () => {
     setHoverPreviewTime(null);
     setHoverPreviewDate(null);
-  };
-
-  // Measure actual hour row height from DOM (handles sub-pixel borders on high-DPI screens)
-  const getHourHeight = () => {
-    if (timeGridRef.current && timeGridRef.current.children.length > 2) {
-      // Use second row (index 1) to avoid first row's border-t variation
-      return timeGridRef.current.children[1].offsetHeight;
-    }
-    return 161; // fallback: 160px content + 1px border
-  };
-
-  // Convert minutes from midnight to pixel position using actual DOM row positions
-  // This eliminates cumulative drift from sub-pixel border rounding on high-DPI screens
-  const minutesToPosition = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (timeGridRef.current) {
-      const children = timeGridRef.current.children;
-      // Only use hour row children (first 24), not overlay divs that follow
-      const numRows = Math.min(24, children.length);
-      if (hours < numRows) {
-        const rowTop = children[hours].offsetTop;
-        if (mins === 0) return rowTop;
-        const rowHeight = hours + 1 < numRows
-          ? children[hours + 1].offsetTop - rowTop
-          : children[hours].offsetHeight;
-        return rowTop + mins * rowHeight / 60;
-      }
-    }
-    // Fallback when DOM not available
-    const hourHeight = 161;
-    return hours * hourHeight + mins * 160 / 60;
-  };
-
-  // Convert pixel position (relative to time grid top) to minutes from midnight
-  const positionToMinutes = (y) => {
-    if (timeGridRef.current) {
-      const children = timeGridRef.current.children;
-      // Only use hour row children (first 24), not overlay divs that follow
-      const numRows = Math.min(24, children.length);
-      for (let i = 0; i < numRows; i++) {
-        const rowTop = children[i].offsetTop;
-        const nextTop = i + 1 < numRows
-          ? children[i + 1].offsetTop
-          : rowTop + children[i].offsetHeight;
-        if (y < nextTop || i === numRows - 1) {
-          const rowHeight = nextTop - rowTop;
-          const pixelsIntoRow = Math.max(0, Math.min(y - rowTop, rowHeight));
-          return i * 60 + (pixelsIntoRow / rowHeight) * 60;
-        }
-      }
-    }
-    // Fallback
-    return (y / 161) * 60;
-  };
-
-  // Convert duration in minutes to pixel height
-  const durationToHeight = (durationMinutes) => {
-    const contentHeight = getHourHeight() - 1;
-    return durationMinutes * contentHeight / 60;
-  };
-
-  const calculateTaskPosition = (task) => {
-    const startMinutes = timeToMinutes(task.startTime);
-    const endMinutes = startMinutes + task.duration;
-    const top = Math.round(minutesToPosition(startMinutes));
-    const endPos = Math.round(minutesToPosition(endMinutes));
-    const height = endPos - top - 1; // -1 for consistent tiny gap between tasks
-    return { top, height };
   };
 
   const handleDragStart = (task, source, e) => {
@@ -7575,6 +7507,14 @@ const DayPlanner = () => {
     exitFocusMode,
     playFocusSound,
   });
+
+  const {
+    getHourHeight,
+    minutesToPosition,
+    positionToMinutes,
+    durationToHeight,
+    calculateTaskPosition,
+  } = useDragDrop({ calendarRef, timeGridRef });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
