@@ -758,7 +758,7 @@ const DayPlanner = () => {
     calendarFilter,
   });
 
-  const { loadData, saveData } = useDataPersistence({
+  const { loadData, saveData, stampTaskTimestamps } = useDataPersistence({
     // setters for loadData
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
     setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
