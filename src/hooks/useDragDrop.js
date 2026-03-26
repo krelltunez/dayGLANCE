@@ -1020,6 +1020,8 @@ export default function useDragDrop({
     mobileDragLastTouch.current = { clientX: touch.clientX, clientY: touch.clientY };
     updateMobileDragPreview();
 
+    if (mobileDragOverTrashRef.current) return; // suppress auto-scroll while over trash
+
     // Auto-scroll near edges
     const allDayZoneBottom = mobileAllDaySectionRef.current?.getBoundingClientRect().bottom || mobileDateHeaderRef.current?.getBoundingClientRect().bottom || 0;
     const inAllDayZone = touch.clientY < allDayZoneBottom;
