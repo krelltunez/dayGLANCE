@@ -939,6 +939,25 @@ export default function useDragDrop({
   const updateMobileDragPreview = () => {
     if (!calendarRef.current || !mobileDragOriginalTask.current) return;
     const touch = mobileDragLastTouch.current;
+
+    // If finger is over the trash FAB zone, freeze the time preview and mark for deletion.
+    // This prevents the "moves to time underneath FAB" bug and gives clear delete intent.
+    if (trashFabRef.current) {
+      const fabRect = trashFabRef.current.getBoundingClientRect();
+      const HIT_PADDING = 20;
+      const overTrash =
+        touch.clientX >= fabRect.left - HIT_PADDING &&
+        touch.clientX <= fabRect.right + HIT_PADDING &&
+        touch.clientY >= fabRect.top - HIT_PADDING &&
+        touch.clientY <= fabRect.bottom + HIT_PADDING;
+      if (overTrash !== mobileDragOverTrashRef.current) {
+        mobileDragOverTrashRef.current = overTrash;
+        setMobileDragOverTrash(overTrash);
+        if (overTrash && navigator.vibrate) navigator.vibrate(30);
+      }
+      if (overTrash) return; // freeze preview time — don't update while over trash
+    }
+
     const calendarRect = calendarRef.current.getBoundingClientRect();
     const scrollTop = calendarRef.current.scrollTop;
     // Detect which date column the finger is over
@@ -1082,21 +1101,7 @@ export default function useDragDrop({
         setMobileDragPreviewDate(_initDate);
         // Add native non-passive touchmove listener to prevent browser scroll
         // (React 18 registers touchmove as passive, so e.preventDefault() in onTouchMove is a no-op)
-        // Also handle trash FAB detection here — guaranteed to fire regardless of which element the touch started on.
-        const preventScroll = (e) => {
-          e.preventDefault();
-          if (mobileDragActive.current && trashFabRef.current && e.touches[0]) {
-            const touch = e.touches[0];
-            const fabRect = trashFabRef.current.getBoundingClientRect();
-            const overTrash = touch.clientX >= fabRect.left && touch.clientX <= fabRect.right &&
-                              touch.clientY >= fabRect.top && touch.clientY <= fabRect.bottom;
-            if (overTrash !== mobileDragOverTrashRef.current) {
-              mobileDragOverTrashRef.current = overTrash;
-              setMobileDragOverTrash(overTrash);
-              if (overTrash && navigator.vibrate) navigator.vibrate(30);
-            }
-          }
-        };
+        const preventScroll = (e) => e.preventDefault();
         document.addEventListener('touchmove', preventScroll, { passive: false });
         mobileDragPreventScrollRef.current = preventScroll;
         // Suppress iOS text selection / magnifier during drag
@@ -1189,10 +1194,7 @@ export default function useDragDrop({
     const _previewTime = mobileDragPreviewTimeRef.current;
     const _previewDate = mobileDragPreviewDateRef.current;
 
-    // Drop on trash FAB: check position at release time (authoritative) as well as
-    // the ref set by touchmove detection. Using changedTouches[0] from the touchend
-    // event guarantees we get the correct finger position regardless of whether the
-    // touchmove detection had a chance to fire over the FAB.
+    // Fallback: check position at release time in case touchmove detection missed it.
     const releasedTouch = e?.changedTouches?.[0];
     if (mobileDragActive.current && releasedTouch && trashFabRef.current) {
       const fabRect = trashFabRef.current.getBoundingClientRect();
