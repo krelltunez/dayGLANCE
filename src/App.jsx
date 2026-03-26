@@ -3835,8 +3835,13 @@ const DayPlanner = () => {
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
-    if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
-    if (data.routinesDate !== undefined) localStorage.setItem('day-planner-routines-date', data.routinesDate);
+    // Only apply todayRoutines/routinesDate if the remote data is from today.
+    // If it's from a previous day, skip it — local state (already cleared by loadData) is correct.
+    const todayStr = dateToString(new Date());
+    if (data.routinesDate === todayStr) {
+      if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
+      localStorage.setItem('day-planner-routines-date', data.routinesDate);
+    }
     // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
     if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
