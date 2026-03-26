@@ -1326,6 +1326,207 @@ With stable layouts and a working context, modals are safe to extract one at a t
 
 ---
 
+## Phase 9b — Break Up DesktopLayout and MobileLayout
+
+Only proceed after Phase 9 is merged and the app is stable. Both layout files
+are still very large (DesktopLayout ~4,600 lines; MobileLayout ~3,500 lines).
+This phase extracts coherent visual sub-sections into their own components,
+each calling `useDayPlannerCtx()` directly.
+
+**General pattern for every step:**
+1. Identify the block's start/end lines in the layout file
+2. List every non-React identifier the block uses (icons, utils, context values)
+3. Create `src/components/Foo.jsx` calling `useDayPlannerCtx()` for all context values
+4. Add direct imports for any utilities (not everything flows through context)
+5. Replace the extracted block in the layout file with `<Foo />`
+6. `npm run build` — fix any missing imports before committing
+7. One commit per component. Build + visual test after each.
+
+> ⚠️ **IIFE cleanup:** Both files contain many IIFE blocks (`(() => { ... })()`).
+> When extracting a section that contains IIFEs, convert them to named variables
+> or inline expressions inside the new component rather than carrying over the IIFE pattern.
+
+---
+
+### Step 9b.1 — Extract `GlanceSidebar.jsx` from DesktopLayout
+
+The "Glance" tab content is duplicated between the tablet side panel (lines ~647–1590)
+and the desktop side panel (lines ~1845–2781). Extract the shared logical sections
+into a single `GlanceSidebar` component that both panels render.
+
+**Sections to include:**
+- Search bar + tag filter popover
+- Morning dayGLANCE / Evening Reflection / FrameNudgeCard
+- Habit rings row
+- Getting Started checklist
+- Reschedule / Overdue tasks section (includes AI reschedule IIFE)
+- Today's agenda grouped by frames (with now-marker logic)
+- GLANCEahead (tomorrow preview)
+- Routines row
+
+**Props to consider:** `variant` (`"tablet"` | `"desktop"`) if any sizing/spacing
+differs between the two panels; otherwise use context breakpoint values directly.
+
+**Imports needed (beyond context):** icons currently pulled from DesktopLayout's
+import block; `formatTime`, `getTasksForDate`, `filterByTags` (from context or utils);
+`FrameNudgeCard` component.
+
+**Commit:** `refactor: extract GlanceSidebar from DesktopLayout`
+
+**Build:** `npm run build` ✓
+**Test:** Glance tab renders correctly at both desktop and tablet widths.
+Agenda sections, habit rings, and overdue tasks all appear. AI reschedule button works.
+
+---
+
+### Step 9b.2 — Extract `InboxSidebar.jsx` from DesktopLayout
+
+The Inbox tab content is also duplicated between tablet (lines ~1591–1810) and
+desktop (lines ~2782–3057) side panels.
+
+**Sections to include:**
+- Inbox header with priority filter controls
+- Task list with swipe actions
+- Empty-state messaging
+
+**Commit:** `refactor: extract InboxSidebar from DesktopLayout`
+
+**Build:** `npm run build` ✓
+**Test:** Inbox tab renders. Priority filter toggles work. Swipe-to-complete and
+swipe-to-delete work on touch devices.
+
+---
+
+### Step 9b.3 — Extract `CalendarHeader.jsx` from DesktopLayout
+
+The sticky combined header above the time grid (lines ~3065–3521 in DesktopLayout)
+contains three distinct sub-areas:
+
+- Current-task banner (the "now playing" strip)
+- Date headers row (day labels + navigation arrows)
+- All-day tasks section (including protruding drag tabs, swipe action strips,
+  and notes panels)
+
+Extract all three into `CalendarHeader`. This component is desktop/tablet only;
+do not share it with MobileLayout.
+
+**Commit:** `refactor: extract CalendarHeader from DesktopLayout`
+
+**Build:** `npm run build` ✓
+**Test:** Date navigation works. All-day tasks appear, can be dragged. Notes panel
+opens from all-day row.
+
+---
+
+### Step 9b.4 — Extract `TimeGrid.jsx` from DesktopLayout
+
+The time grid (lines ~3522–4602 in DesktopLayout) is the largest remaining block.
+It includes:
+- Hour lines and half-hour dashes
+- GTD Frame background zones
+- Task blocks with conflict column layout, drag handles, resize handles
+- Notes sub-panels (`<NotesSubtasksPanel />`)
+- Drag preview ghost lines
+
+Extract into `TimeGrid.jsx`. This component is shared between desktop and tablet,
+so it must not contain any layout-specific sizing — that should come from CSS or
+context breakpoint values.
+
+**Commit:** `refactor: extract TimeGrid from DesktopLayout`
+
+**Build:** `npm run build` ✓
+**Test:** Tasks render in columns when overlapping. Drag-to-move works (including
+multi-day). Resize handle works. Notes panel opens from timeline task.
+
+---
+
+### Step 9b.5 — Extract `MobileTimeGrid.jsx` from MobileLayout
+
+The mobile time grid (lines ~1019–1639 in MobileLayout) mirrors the desktop grid
+but with touch-specific handlers:
+- Half-hour dashed lines
+- GTD Frame background zones
+- Dashed outlines for available slots
+- Current time line
+- Mobile drag time preview
+- Task blocks with swipe action strips, protruding drag tab, touch resize handle
+- Notes panel for imported events
+- Routine pills
+
+Extract into `MobileTimeGrid.jsx`. Do **not** attempt to merge with `TimeGrid.jsx` —
+the touch event handling diverges too much.
+
+**Commit:** `refactor: extract MobileTimeGrid from MobileLayout`
+
+**Build:** `npm run build` ✓
+**Test (mobile viewport, 390px):** Tasks render. Touch-drag to move works.
+Touch-resize handle works. Swipe actions work.
+
+---
+
+### Step 9b.6 — Extract `MobileAllDaySection.jsx` from MobileLayout
+
+The sticky all-day section inside the mobile timeline header (lines ~702–1016)
+contains:
+- Protruding drag tabs
+- Swipe action strips
+- Routine pills
+
+This sits inside the sticky header group, so extract it as a component that
+`MobileLayout` renders inside that group.
+
+**Commit:** `refactor: extract MobileAllDaySection from MobileLayout`
+
+**Build:** `npm run build` ✓
+**Test:** All-day tasks appear. Can be tapped and swiped. Routine pills show.
+
+---
+
+### Step 9b.7 — Extract `MobileBottomSheets.jsx` from MobileLayout
+
+The three bottom sheets (lines ~3139–3498) have no interaction with each other
+and can be grouped into a single file:
+- Recycle bin bottom sheet
+- Tag filter bottom sheet
+- Daily summary bottom sheet (progress ring, stat rows, habit streaks)
+
+Each sheet is independently guarded by its own visibility condition, so they
+work naturally together in one file with a `<>...</>` Fragment wrapper.
+
+**Commit:** `refactor: extract MobileBottomSheets from MobileLayout`
+
+**Build:** `npm run build` ✓
+**Test:** Open recycle bin, tag filter, and daily summary from mobile. All three
+sheets render correct data and dismiss correctly.
+
+---
+
+### Step 9b.8 — Extract `MobileGlanceSection.jsx` from MobileLayout
+
+The glance content rendered below the timeline in the Timeline tab
+(lines ~1763–2953 in MobileLayout) includes:
+- Morning dayGLANCE / Evening Reflection / FrameNudgeCard
+- Habit rings row
+- Getting Started checklist
+- Reschedule / Overdue section
+- GLANCEahead
+- Routines row
+- Notes panels for dayglance tasks and inbox tasks
+- AI scheduling tab switcher
+
+**Commit:** `refactor: extract MobileGlanceSection from MobileLayout`
+
+**Build:** `npm run build` ✓
+**Test:** Glance sections appear below the timeline on mobile. AI reschedule works.
+Notes panels open.
+
+---
+
+**→ END OF PHASE 9b: Run the full Smoke Test Checklist on both desktop and mobile
+viewports after all steps are merged.**
+
+---
+
 ## Phase 10 — Context Splitting (Optional)
 
 Only attempt this after Phase 9 is completely stable and you've used the app for a few
