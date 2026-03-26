@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertCircle, BarChart3, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Clock, Loader, RefreshCw, Sparkles, Target, Trophy, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
-import { dateToString } from '../utils/taskUtils.js';
+import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
 
 const WeeklyReviewModal = () => {
