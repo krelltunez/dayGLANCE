@@ -25,9 +25,9 @@ const MobileNewTaskModal = () => {
     handleNewTaskInputChange,
   } = useDayPlannerCtx();
 
-  if (!showAddTask || !isMobile) return null;
-
   return (
+    <>
+      {showAddTask && isMobile && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }}>
           <div className="bg-black/30 absolute inset-0" />
           <div
@@ -515,6 +515,8 @@ const MobileNewTaskModal = () => {
             </form>
           </div>
         </div>
+      )}
+    </>
   );
 };
 
