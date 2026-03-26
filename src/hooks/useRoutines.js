@@ -14,7 +14,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
   const [routineDeleteConfirm, setRoutineDeleteConfirm] = useState(null); // { bucket, chipId, chipName }
   const [routineFocusedChipId, setRoutineFocusedChipId] = useState(null); // touch: first tap shows buttons, second executes
   const [routineDurationEditId, setRoutineDurationEditId] = useState(null); // id of routine chip being duration-edited on timeline
-  const [routinesEnabled, setRoutinesEnabled] = useState(true);
+  const [routinesEnabled, setRoutinesEnabled] = useState(false);
 
   // Auto-clear today's routines on day rollover
   useEffect(() => {
