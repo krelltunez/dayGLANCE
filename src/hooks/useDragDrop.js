@@ -941,15 +941,21 @@ export default function useDragDrop({
     const touch = mobileDragLastTouch.current;
 
     // If finger is over the trash FAB zone, freeze the time preview and mark for deletion.
-    // This prevents the "moves to time underneath FAB" bug and gives clear delete intent.
-    if (trashFabRef.current) {
-      const fabRect = trashFabRef.current.getBoundingClientRect();
-      const HIT_PADDING = 20;
+    // Compute bounds from known CSS values so this works regardless of ref timing.
+    // FAB: left-4 (1rem), w-16 h-16 (4rem each), bottom-[4.5rem] — plus padding for safe-area.
+    {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const HIT_PADDING = 24; // extra slack for safe-area-inset and fat fingers
+      const fabLeft   = 1 * rem;
+      const fabRight  = 5 * rem;       // left + width
+      const fabHeight = 4 * rem;
+      const fabBottomGap = 4.5 * rem;  // distance from bottom of viewport to bottom of FAB
+      const vh = window.visualViewport?.height ?? window.innerHeight;
       const overTrash =
-        touch.clientX >= fabRect.left - HIT_PADDING &&
-        touch.clientX <= fabRect.right + HIT_PADDING &&
-        touch.clientY >= fabRect.top - HIT_PADDING &&
-        touch.clientY <= fabRect.bottom + HIT_PADDING;
+        touch.clientX >= fabLeft - HIT_PADDING &&
+        touch.clientX <= fabRight + HIT_PADDING &&
+        touch.clientY >= vh - fabBottomGap - fabHeight - HIT_PADDING &&
+        touch.clientY <= vh - fabBottomGap + HIT_PADDING;
       if (overTrash !== mobileDragOverTrashRef.current) {
         mobileDragOverTrashRef.current = overTrash;
         setMobileDragOverTrash(overTrash);
@@ -1194,16 +1200,17 @@ export default function useDragDrop({
     const _previewTime = mobileDragPreviewTimeRef.current;
     const _previewDate = mobileDragPreviewDateRef.current;
 
-    // Fallback: check position at release time in case touchmove detection missed it.
+    // Fallback: check release position using CSS-computed bounds (same as touchmove check).
     const releasedTouch = e?.changedTouches?.[0];
-    if (mobileDragActive.current && releasedTouch && trashFabRef.current) {
-      const fabRect = trashFabRef.current.getBoundingClientRect();
-      const HIT_PADDING = 20; // expand hit target to make it easier to hit on mobile
+    if (mobileDragActive.current && releasedTouch) {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const HIT_PADDING = 24;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
       const overTrashAtRelease =
-        releasedTouch.clientX >= fabRect.left - HIT_PADDING &&
-        releasedTouch.clientX <= fabRect.right + HIT_PADDING &&
-        releasedTouch.clientY >= fabRect.top - HIT_PADDING &&
-        releasedTouch.clientY <= fabRect.bottom + HIT_PADDING;
+        releasedTouch.clientX >= 1 * rem - HIT_PADDING &&
+        releasedTouch.clientX <= 5 * rem + HIT_PADDING &&
+        releasedTouch.clientY >= vh - 4.5 * rem - 4 * rem - HIT_PADDING &&
+        releasedTouch.clientY <= vh - 4.5 * rem + HIT_PADDING;
       if (overTrashAtRelease) mobileDragOverTrashRef.current = true;
     }
 
