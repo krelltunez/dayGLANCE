@@ -289,7 +289,7 @@ export const TRMNL_MARKUP_FULL = `<div class="layout layout--col">
       </div>
       {% endif %}
 
-      <div class="title_bar" style="margin-top:auto"><span class="title_bar__title">dayGLANCE</span></div>
+      <div class="title_bar" style="margin-top:auto"><span class="title_bar__title"><strong>day<em>GLANCE</em></strong></span></div>
     </div>
   </div>
 </div>`;
@@ -312,7 +312,7 @@ export const TRMNL_MARKUP_HALF_HORIZONTAL = `<div class="layout layout--col">
     {% endfor %}
     {% if schedule.size == 0 %}<span class="description">No tasks scheduled</span>{% endif %}
   </div>
-  <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
+  <div class="title_bar"><span class="title_bar__title"><strong>day<em>GLANCE</em></strong></span></div>
 </div>`;
 
 export const TRMNL_MARKUP_HALF_VERTICAL = `<div class="layout layout--col">
@@ -327,12 +327,12 @@ export const TRMNL_MARKUP_HALF_VERTICAL = `<div class="layout layout--col">
     <span class="description">{{ next_task.time }} {{ next_task.title }}</span>
   </div>
   {% endif %}
-  <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
+  <div class="title_bar"><span class="title_bar__title"><strong>day<em>GLANCE</em></strong></span></div>
 </div>`;
 
 export const TRMNL_MARKUP_QUADRANT = `<div class="layout layout--col layout--center">
   <span class="value">{{ pct }}%</span>
   <span class="label">{{ completed }}/{{ total }}</span>
   {% if next_task %}<span class="description">{{ next_task.time }} {{ next_task.title }}</span>{% endif %}
-  <div class="title_bar"><span class="title_bar__title">dayGLANCE</span></div>
+  <div class="title_bar"><span class="title_bar__title"><strong>day<em>GLANCE</em></strong></span></div>
 </div>`;
