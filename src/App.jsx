@@ -1430,12 +1430,48 @@ const DayPlanner = () => {
       t.date === todayStr && !t.completed && !t.isExample && isOverdueToday(t)
     ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
+    // Past uncompleted recurring all-day instances (look back up to 7 days)
+    const overdueRecurringAllDay = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = dateToString(d);
+      for (const template of recurringTasks) {
+        if (template.isExample) continue;
+        const isTemplateAllDay = template.isAllDay ?? false;
+        if (!isTemplateAllDay) continue;
+        const occs = getOccurrencesInRange(template, dateStr, dateStr);
+        if (occs.length === 0) continue;
+        if ((template.completedDates || []).includes(dateStr)) continue;
+        const exception = template.exceptions?.[dateStr];
+        if (exception?.completed) continue;
+        const instanceId = `recurring-${template.id}-${dateStr}`;
+        // Skip if already covered by overdueScheduled (shouldn't happen for recurring, but be safe)
+        if (overdueScheduled.some(t => t.id === instanceId)) continue;
+        overdueRecurringAllDay.push({
+          id: instanceId,
+          title: exception?.title ?? template.title,
+          startTime: null,
+          duration: exception?.duration ?? template.duration,
+          color: exception?.color ?? template.color,
+          completed: false,
+          isAllDay: true,
+          notes: template.notes || '',
+          subtasks: template.subtasks || [],
+          date: dateStr,
+          isRecurring: true,
+          recurringTemplateId: template.id,
+          _overdueType: 'scheduled',
+        });
+      }
+    }
+
     // Inbox tasks with past deadlines
     const overdueDeadlines = unscheduledTasks.filter(t =>
       t.deadline && t.deadline < todayStr && !t.completed && !t.isExample
     ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
-    return [...overdueScheduled, ...todayRecurring, ...overdueDeadlines];
+    return [...overdueScheduled, ...todayRecurring, ...overdueRecurringAllDay, ...overdueDeadlines];
   };
   const parseRecurringId = (id) => {
     if (typeof id !== 'string' || !id.startsWith('recurring-')) return null;
@@ -4567,8 +4603,8 @@ const DayPlanner = () => {
       const occurrences = getOccurrencesInRange(template, rangeStart, rangeEnd);
       for (const dateStr of occurrences) {
         const completed = (template.completedDates || []).includes(dateStr);
-        // Don't show past uncompleted recurring instances
-        if (dateStr < today && !completed) continue;
+        // Don't show past uncompleted recurring instances (except all-day — those surface as overdue)
+        if (dateStr < today && !completed && !(exception?.isAllDay ?? template.isAllDay)) continue;
         const exception = template.exceptions?.[dateStr];
         instances.push({
           id: `recurring-${template.id}-${dateStr}`,
