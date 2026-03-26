@@ -4,7 +4,7 @@ import { dateToString } from '../utils/taskUtils.js';
 const useHabits = ({ playUISound }) => {
   const [habits, setHabits] = useState([]);
   const [habitLogs, setHabitLogs] = useState({});
-  const [habitsEnabled, setHabitsEnabled] = useState(true);
+  const [habitsEnabled, setHabitsEnabled] = useState(false);
   const [showHabitModal, setShowHabitModal] = useState(false);
   const [editingHabit, setEditingHabit] = useState(null); // null = adding new, object = editing
   const [draggedHabitIdx, setDraggedHabitIdx] = useState(null);
