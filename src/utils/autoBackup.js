@@ -87,6 +87,7 @@ export const autoBackupProviders = {
       { key: 'appPassword', label: 'App Password', type: 'password', placeholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx' }
     ],
     _getBackupDirUrl(config) {
+      if (!config.nextcloudUrl) throw new Error('Nextcloud URL is not configured');
       return `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/backups/`;
     },
     _getAuthHeaders(config) {
