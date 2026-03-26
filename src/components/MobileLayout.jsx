@@ -880,11 +880,11 @@ const MobileLayout = () => {
                                       Edit<Settings size={14} className="ml-1" />
                                     </div>
                                     {/* Swipe container: drag tab + task card slide together on swipe */}
-                                    <div data-swipe-container className="flex items-start">
+                                    <div data-swipe-container className={`flex items-start ${task.completed ? 'opacity-50' : 'opacity-90'}`}>
                                     {/* Protruding drag tab */}
                                     <div
                                       data-drag-handle
-                                      className={`relative flex-shrink-0 ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70 ${task.completed ? 'opacity-50' : 'opacity-90'}`}
+                                      className={`relative flex-shrink-0 ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
                                       style={{ marginLeft: '-12px', marginRight: '-8px', marginTop: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                                       onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                                       onTouchMove={(e) => handleMobileTaskTouchMove(e)}
@@ -899,7 +899,7 @@ const MobileLayout = () => {
                                   <div
                                     data-task-id={task.id}
                                     data-ctx-menu
-                                    className={`relative ${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${task.completed ? 'opacity-50' : 'opacity-90'} ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                                    className={`relative ${task.color} rounded-lg p-2.5 text-white text-sm select-none border-2 border-dashed border-white/60 ${mobileDragTaskIdState === task.id ? 'scale-105 shadow-2xl z-40' : ''}`}
                                     style={{ touchAction: 'pan-y' }}
                                     onContextMenu={(e) => {
                                       e.preventDefault();
