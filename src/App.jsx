@@ -39,6 +39,9 @@ import RestoreConfirmModal from './components/RestoreConfirmModal.jsx';
 import AutoBackupManagerModal from './components/AutoBackupManagerModal.jsx';
 import ImportCalendarModal from './components/ImportCalendarModal.jsx';
 import StorageBreakdownModal from './components/StorageBreakdownModal.jsx';
+import EmptyBinConfirmModal from './components/EmptyBinConfirmModal.jsx';
+import RecurringDeleteModal from './components/RecurringDeleteModal.jsx';
+import EditRecurrenceModal from './components/EditRecurrenceModal.jsx';
 import useVisibleDays from './hooks/useVisibleDays.js';
 import useDeviceType from './hooks/useDeviceType.js';
 import useIsLandscape from './hooks/useIsLandscape.js';
@@ -6707,243 +6710,17 @@ const DayPlanner = () => {
         );
       })()}
 
-      {showEmptyBinConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}>
-          <div
-            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
-                <Trash2 size={20} className="text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Empty Recycle Bin</h3>
-            </div>
-            <p className={`${textSecondary} mb-6`}>
-              Are you sure you want to permanently delete all {recycleBin.length} task{recycleBin.length !== 1 ? 's' : ''} in the recycle bin? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}
-                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmEmptyBin}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete All
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Empty Bin / Recurrence Modals */}
+      <EmptyBinConfirmModal />
+
 
       {/* Storage Breakdown Modal */}
       <StorageBreakdownModal />
 
 
-      {recurringDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRecurringDeleteConfirm(null)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setRecurringDeleteConfirm(null); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
-          <div
-            className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
-                <RefreshCw size={20} className="text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Recurring Task</h3>
-            </div>
-            <p className={`${textSecondary} mb-2`}>
-              How would you like to delete this recurring task?
-            </p>
-            <p className={`text-xs ${textSecondary} mb-4`}>
-              Note: Recurring tasks are permanently deleted and cannot be restored from the recycle bin.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => deleteRecurringInstance('this')}
-                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary}`}
-              >
-                <div className="font-medium">This occurrence</div>
-                <div className={`text-xs ${textSecondary}`}>Only skip {recurringDeleteConfirm.dateStr}</div>
-              </button>
-              <button
-                onClick={() => deleteRecurringInstance('future')}
-                className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary}`}
-              >
-                <div className="font-medium">This and all future</div>
-                <div className={`text-xs ${textSecondary}`}>Stop recurring from {recurringDeleteConfirm.dateStr} onward</div>
-              </button>
-              <button
-                onClick={() => deleteRecurringInstance('series')}
-                className="w-full text-left px-4 py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700"
-              >
-                <div className="font-medium">Delete entire series</div>
-                <div className="text-xs opacity-75">Remove all occurrences</div>
-              </button>
-              <button
-                onClick={() => setRecurringDeleteConfirm(null)}
-                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg} mt-1`}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RecurringDeleteModal />
 
-      {editingRecurrenceTaskId && (() => {
-        const parsed = parseRecurringId(editingRecurrenceTaskId);
-        if (!parsed) return null;
-        const { templateId, dateStr } = parsed;
-        const template = recurringTasks.find(t => t.id === templateId);
-        if (!template) return null;
-        const presets = getRecurrencePresets(dateStr);
-        const currentRecurrence = template.recurrence;
-
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingRecurrenceTaskId(null)}>
-            <div
-              className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
-                  <RefreshCw size={20} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <h3 className={`text-lg font-semibold ${textPrimary}`}>Edit Recurrence</h3>
-              </div>
-              <p className={`${textSecondary} mb-3 text-sm`}>
-                {template.title}
-              </p>
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => {
-                    // Convert recurring task to a regular scheduled task for this date
-                    const isCompleted = template.completedDates?.includes(dateStr);
-                    const regularTask = {
-                      id: crypto.randomUUID(),
-                      title: template.title,
-                      startTime: template.startTime,
-                      duration: template.duration,
-                      color: template.color,
-                      completed: isCompleted,
-                      isAllDay: template.isAllDay || false,
-                      notes: template.notes || '',
-                      subtasks: template.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
-                      date: dateStr
-                    };
-                    setTasks(prev => [...prev, regularTask]);
-                    recordDeletedTaskTombstone(templateId);
-                    setRecurringTasks(prev => prev.filter(t => t.id !== templateId));
-                    setEditingRecurrenceTaskId(null);
-                  }}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${textPrimary}`}
-                >
-                  None (convert to regular task)
-                </button>
-                <div className={`border-t ${borderClass} my-1`}></div>
-                {presets.filter(p => p.value !== null).map((preset, i) => {
-                  const { startDate: _s, endDate: _e, maxOccurrences: _m, ...recCore } = currentRecurrence;
-                  const isActive = JSON.stringify(recCore) === JSON.stringify(preset.value);
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        const endFields = {};
-                        if (currentRecurrence.endDate) endFields.endDate = currentRecurrence.endDate;
-                        if (currentRecurrence.maxOccurrences) endFields.maxOccurrences = currentRecurrence.maxOccurrences;
-                        updateRecurrencePattern(templateId, dateStr, { ...preset.value, ...endFields });
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
-                        isActive ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        {isActive && <Check size={14} className="flex-shrink-0" />}
-                        {preset.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className={`mt-3 pt-3 border-t ${borderClass}`}>
-                <p className={`text-xs font-medium ${textSecondary} mb-2`}>Ends</p>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => updateRecurrenceEndCondition(templateId, {})}
-                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
-                      !currentRecurrence.endDate && !currentRecurrence.maxOccurrences ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {!currentRecurrence.endDate && !currentRecurrence.maxOccurrences && <Check size={14} className="flex-shrink-0" />}
-                      Never
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setShowRecurrenceEndDatePicker({ source: 'edit', templateId })}
-                    className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
-                      currentRecurrence.endDate ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {currentRecurrence.endDate && <Check size={14} className="flex-shrink-0" />}
-                      On date
-                      {currentRecurrence.endDate && <span className="ml-auto text-xs opacity-75">
-                        {new Date(currentRecurrence.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </span>}
-                    </span>
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        if (!currentRecurrence.maxOccurrences) {
-                          updateRecurrenceEndCondition(templateId, { maxOccurrences: 10 });
-                        }
-                      }}
-                      className={`flex-1 text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
-                        currentRecurrence.maxOccurrences ? (darkMode ? 'bg-gray-700 text-blue-400' : 'bg-blue-50 text-blue-700') : textPrimary
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        {currentRecurrence.maxOccurrences && <Check size={14} className="flex-shrink-0" />}
-                        After
-                      </span>
-                    </button>
-                    {currentRecurrence.maxOccurrences && (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max="999"
-                          value={currentRecurrence.maxOccurrences}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value);
-                            if (val > 0) updateRecurrenceEndCondition(templateId, { maxOccurrences: val });
-                          }}
-                          className={`w-16 px-2 py-1 text-sm border ${borderClass} rounded ${darkMode ? 'bg-gray-700 text-white dark-spinner' : 'bg-white'}`}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <span className={`text-sm ${textSecondary}`}>times</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setEditingRecurrenceTaskId(null)}
-                className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg} mt-3`}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      <EditRecurrenceModal />
 
       {/* Import Calendar Modal */}
       <ImportCalendarModal />
