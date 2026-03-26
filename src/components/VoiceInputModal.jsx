@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrainCircuit, Check, Loader, Mic, MicOff, Pencil, Plus } from 'lucide-react';
+import { BrainCircuit, Check, Loader, Mic, MicOff, Pencil, Plus, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { supportsTranscription } from '../ai.js';
