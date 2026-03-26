@@ -141,6 +141,42 @@ export const getLinkUrl = (task) => {
   return task.notes?.trim() || null;
 };
 
+// Given shared text (from Android share sheet or web share target), extract a human-readable
+// title and move any URL to notes so the link action button appears on the task.
+//
+// Handles two forms:
+//   "Page Title https://example.com/path"  →  title="Page Title", notes="https://..."
+//   "https://example.com/path"             →  title="example.com", notes="https://..."
+//
+// Returns { title, notes } — notes may be empty string if no URL was found.
+export const extractShareTitle = (text) => {
+  if (!text) return { title: text || '', notes: '' };
+  const trimmed = text.trim();
+
+  // Single URL regex (non-global, for full-string match)
+  const urlRe = /https?:\/\/[^\s<>"{}|\\^`[\]]+/;
+
+  // Case 1: entire string is a URL — derive title from hostname
+  if (isOnlyUrl(trimmed)) {
+    let hostname = trimmed;
+    try { hostname = new URL(trimmed).hostname.replace(/^www\./, ''); } catch (_) {}
+    return { title: hostname, notes: trimmed };
+  }
+
+  // Case 2: string ends with a URL preceded by non-URL text
+  const trailingUrl = /^([\s\S]+?)\s+(https?:\/\/[^\s<>"{}|\\^`[\]]+)$/.exec(trimmed);
+  if (trailingUrl) {
+    const beforeUrl = trailingUrl[1].trim();
+    const url = trailingUrl[2];
+    // Only split if the part before the URL isn't itself a URL
+    if (beforeUrl && !urlRe.test(beforeUrl)) {
+      return { title: beforeUrl, notes: url };
+    }
+  }
+
+  return { title: trimmed, notes: '' };
+};
+
 // Check if task has only subtasks (no notes)
 export const hasOnlySubtasks = (task) => {
   return (!task.notes || !task.notes.trim()) && task.subtasks && task.subtasks.length > 0;
