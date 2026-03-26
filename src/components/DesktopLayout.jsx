@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Activity, AlertCircle, AlertTriangle, Bell, BookOpen, BrainCircuit,
+  AlertCircle, AlertTriangle, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
   Eye, FileText, Filter, GripVertical, Hash, HelpCircle, Inbox, Key,
@@ -3131,7 +3131,7 @@ const DesktopLayout = () => {
                           className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-50'}`}
                           title="Focus sessions"
                         >
-                          <Activity size={14} />
+                          <Target size={14} />
                         </button>
                       </div>
                       {habitsEnabled && !isDateToday && dateStr < dateToString(new Date()) && habitLogs[dateStr] && activeHabits.length > 0 && (
