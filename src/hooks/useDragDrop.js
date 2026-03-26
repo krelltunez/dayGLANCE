@@ -1167,7 +1167,7 @@ export default function useDragDrop({
   };
 
   // --- Mobile long-press drag end ---
-  const handleMobileLongPressEnd = () => {
+  const handleMobileLongPressEnd = (e) => {
     if (mobileDragAutoScrollInterval.current) {
       clearInterval(mobileDragAutoScrollInterval.current);
       mobileDragAutoScrollInterval.current = null;
@@ -1188,6 +1188,22 @@ export default function useDragDrop({
     // before React has committed the latest setMobileDragPreviewTime render.
     const _previewTime = mobileDragPreviewTimeRef.current;
     const _previewDate = mobileDragPreviewDateRef.current;
+
+    // Drop on trash FAB: check position at release time (authoritative) as well as
+    // the ref set by touchmove detection. Using changedTouches[0] from the touchend
+    // event guarantees we get the correct finger position regardless of whether the
+    // touchmove detection had a chance to fire over the FAB.
+    const releasedTouch = e?.changedTouches?.[0];
+    if (mobileDragActive.current && releasedTouch && trashFabRef.current) {
+      const fabRect = trashFabRef.current.getBoundingClientRect();
+      const HIT_PADDING = 20; // expand hit target to make it easier to hit on mobile
+      const overTrashAtRelease =
+        releasedTouch.clientX >= fabRect.left - HIT_PADDING &&
+        releasedTouch.clientX <= fabRect.right + HIT_PADDING &&
+        releasedTouch.clientY >= fabRect.top - HIT_PADDING &&
+        releasedTouch.clientY <= fabRect.bottom + HIT_PADDING;
+      if (overTrashAtRelease) mobileDragOverTrashRef.current = true;
+    }
 
     // Drop on trash FAB: delete the task
     if (mobileDragActive.current && mobileDragOverTrashRef.current && mobileDragOriginalTask.current) {
