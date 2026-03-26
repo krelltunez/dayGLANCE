@@ -96,31 +96,29 @@ export default function useDataPersistence({
       if (dailyNotesData) {
         try { setDailyNotes(JSON.parse(dailyNotesData)); } catch {}
       }
-      if (!shouldShowExamples) {
-        if (recurringTasksData) {
-          setRecurringTasks(JSON.parse(recurringTasksData));
-        }
+      if (recurringTasksData) {
+        setRecurringTasks(JSON.parse(recurringTasksData));
+      }
 
-        // Load routines
-        const routineDefsData = localStorage.getItem('day-planner-routine-definitions');
-        const todayRoutinesData = localStorage.getItem('day-planner-today-routines');
-        const routinesDateData = localStorage.getItem('day-planner-routines-date');
-        if (routineDefsData) {
-          setRoutineDefinitions(JSON.parse(routineDefsData));
-        }
-        const todayStr = dateToString(new Date());
-        if (routinesDateData && routinesDateData === todayStr && todayRoutinesData) {
-          setTodayRoutines(JSON.parse(todayRoutinesData));
-          setRoutinesDate(todayStr);
-          const removedData = localStorage.getItem('day-planner-removed-today-routine-ids');
-          if (removedData) setRemovedTodayRoutineIds(JSON.parse(removedData));
-        } else {
-          // Auto-clear if different day
-          setTodayRoutines([]);
-          setRoutinesDate(todayStr);
-          setRemovedTodayRoutineIds({});
-          localStorage.removeItem('day-planner-removed-today-routine-ids');
-        }
+      // Load routines
+      const routineDefsData = localStorage.getItem('day-planner-routine-definitions');
+      const todayRoutinesData = localStorage.getItem('day-planner-today-routines');
+      const routinesDateData = localStorage.getItem('day-planner-routines-date');
+      if (routineDefsData) {
+        setRoutineDefinitions(JSON.parse(routineDefsData));
+      }
+      const todayStr = dateToString(new Date());
+      if (routinesDateData && routinesDateData === todayStr && todayRoutinesData) {
+        setTodayRoutines(JSON.parse(todayRoutinesData));
+        setRoutinesDate(todayStr);
+        const removedData = localStorage.getItem('day-planner-removed-today-routine-ids');
+        if (removedData) setRemovedTodayRoutineIds(JSON.parse(removedData));
+      } else {
+        // Auto-clear if different day
+        setTodayRoutines([]);
+        setRoutinesDate(todayStr);
+        setRemovedTodayRoutineIds({});
+        localStorage.removeItem('day-planner-removed-today-routine-ids');
       }
 
       // Load habit tracking data
@@ -195,5 +193,5 @@ export default function useDataPersistence({
     }
   };
 
-  return { loadData, saveData };
+  return { loadData, saveData, stampTaskTimestamps };
 }

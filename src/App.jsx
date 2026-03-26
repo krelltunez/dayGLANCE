@@ -758,7 +758,7 @@ const DayPlanner = () => {
     calendarFilter,
   });
 
-  const { loadData, saveData } = useDataPersistence({
+  const { loadData, saveData, stampTaskTimestamps } = useDataPersistence({
     // setters for loadData
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
     setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
@@ -3259,8 +3259,14 @@ const DayPlanner = () => {
         if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
         if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
         if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
-        if (data.habitsEnabled !== undefined) localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
-        if (data.routinesEnabled !== undefined) localStorage.setItem('day-planner-routines-enabled', JSON.stringify(data.routinesEnabled));
+        // If backup has habits data, always enable habits regardless of the backed-up toggle value
+        // (the toggle may have been incorrectly saved as false by an earlier bug)
+        const habitsEnabledVal = (data.habits && data.habits.filter(h => !h.archived).length > 0) ? true : (data.habitsEnabled ?? false);
+        localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabledVal));
+        // Same for routines
+        const hasRoutineDefs = data.routineDefinitions && Object.values(data.routineDefinitions).some(arr => arr.length > 0);
+        const routinesEnabledVal = hasRoutineDefs ? true : (data.routinesEnabled ?? false);
+        localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabledVal));
         if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
         if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
 
