@@ -14,7 +14,21 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
   const [routineDeleteConfirm, setRoutineDeleteConfirm] = useState(null); // { bucket, chipId, chipName }
   const [routineFocusedChipId, setRoutineFocusedChipId] = useState(null); // touch: first tap shows buttons, second executes
   const [routineDurationEditId, setRoutineDurationEditId] = useState(null); // id of routine chip being duration-edited on timeline
-  const [routinesEnabled, setRoutinesEnabled] = useState(false);
+  const [routinesEnabled, setRoutinesEnabled] = useState(() => {
+    // If the user has an explicit stored preference, use it.
+    const stored = localStorage.getItem('day-planner-routines-enabled');
+    if (stored !== null) return JSON.parse(stored);
+    // No stored preference: default OFF for new installs, but ON if the user
+    // already has routine data (upgrade migration — don't silently disable their routines).
+    try {
+      const existing = JSON.parse(localStorage.getItem('day-planner-routine-definitions') || 'null');
+      if (existing) {
+        const hasAny = Object.values(existing).some(arr => arr.length > 0);
+        if (hasAny) return true;
+      }
+    } catch (_) {}
+    return false;
+  });
 
   // Auto-clear today's routines on day rollover
   useEffect(() => {
