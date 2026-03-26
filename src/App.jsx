@@ -10,7 +10,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { cloudSyncProviders } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
-import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags } from './utils/textFormatting.jsx';
+import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
@@ -4621,8 +4621,10 @@ const DayPlanner = () => {
       } else if (pending.action === 'add_inbox_task') {
         openNewInboxTask();
       } else if (pending.action === 'share' && pending.text) {
+        const { title: shareTitle, notes: shareNotes } = extractShareTitle(pending.text);
         setNewTask({
-          title: pending.text,
+          title: shareTitle,
+          notes: shareNotes || undefined,
           startTime: getNextQuarterHour(),
           duration: 30,
           date: dateToString(selectedDate),
