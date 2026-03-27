@@ -1068,7 +1068,7 @@ const DesktopLayout = () => {
                                           className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                           title="Mark complete"
                                         >
-                                          <Check size={14} />
+                                          <CheckCircle size={14} />
                                         </button>
                                       ) : (
                                         <button
@@ -2271,6 +2271,15 @@ const DesktopLayout = () => {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
+                                  {task.isRecurring ? (
+                                    <button
+                                      onClick={() => toggleComplete(task.id, false)}
+                                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
+                                      title="Mark complete"
+                                    >
+                                      <CheckCircle size={14} />
+                                    </button>
+                                  ) : (
                                   <button
                                     onClick={() => {
                                       if (task._overdueType === 'scheduled') {
@@ -2291,6 +2300,7 @@ const DesktopLayout = () => {
                                   >
                                     <Inbox size={14} />
                                   </button>
+                                  )}
                                   <button
                                     onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
                                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} hover:scale-95 transition-transform`}
