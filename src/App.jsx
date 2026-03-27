@@ -4603,9 +4603,9 @@ const DayPlanner = () => {
       const occurrences = getOccurrencesInRange(template, rangeStart, rangeEnd);
       for (const dateStr of occurrences) {
         const completed = (template.completedDates || []).includes(dateStr);
+        const exception = template.exceptions?.[dateStr];
         // Don't show past uncompleted recurring instances (except all-day — those surface as overdue)
         if (dateStr < today && !completed && !(exception?.isAllDay ?? template.isAllDay)) continue;
-        const exception = template.exceptions?.[dateStr];
         instances.push({
           id: `recurring-${template.id}-${dateStr}`,
           title: exception?.title ?? template.title,
