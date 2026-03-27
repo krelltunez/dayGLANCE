@@ -1062,26 +1062,36 @@ const DesktopLayout = () => {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-1 flex-shrink-0">
-                                      <button
-                                        onClick={() => {
-                                          if (task._overdueType === 'scheduled') {
-                                            pushUndo();
-                                            setTasks(prev => prev.filter(t => t.id !== task.id));
-                                            const { startTime, date, duration, _overdueType, ...rest } = task;
-                                            setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
-                                            playUISound('slide');
-                                            setUndoToast({ message: 'Moved to inbox', actionable: true });
-                                          } else {
-                                            clearDeadline(task.id);
-                                            playUISound('slide');
-                                            setUndoToast({ message: 'Deadline cleared', actionable: true });
-                                          }
-                                        }}
-                                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
-                                        title="Move to inbox"
-                                      >
-                                        <Inbox size={14} />
-                                      </button>
+                                      {task.isRecurring ? (
+                                        <button
+                                          onClick={() => toggleComplete(task.id, false)}
+                                          className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                                          title="Mark complete"
+                                        >
+                                          <Check size={14} />
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => {
+                                            if (task._overdueType === 'scheduled') {
+                                              pushUndo();
+                                              setTasks(prev => prev.filter(t => t.id !== task.id));
+                                              const { startTime, date, duration, _overdueType, ...rest } = task;
+                                              setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                                              playUISound('slide');
+                                              setUndoToast({ message: 'Moved to inbox', actionable: true });
+                                            } else {
+                                              clearDeadline(task.id);
+                                              playUISound('slide');
+                                              setUndoToast({ message: 'Deadline cleared', actionable: true });
+                                            }
+                                          }}
+                                          className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                                          title="Move to inbox"
+                                        >
+                                          <Inbox size={14} />
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
                                         className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
