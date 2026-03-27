@@ -1351,7 +1351,7 @@ const DesktopLayout = () => {
                                   )}
                                 </div>
                               </div>
-                              {relativeLabel === 'Overdue' && !task.completed && (
+                              {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
                                 <div className="flex items-center gap-1 flex-shrink-0 mr-5">
                                   {!task.isRecurring && (
                                     <button
