@@ -106,6 +106,11 @@ export default async function handler(req, res) {
       headers['Depth'] = req.headers['depth'];
     }
 
+    // Forward conditional GET headers for ETag-based caching
+    if (req.headers['if-none-match']) {
+      headers['If-None-Match'] = req.headers['if-none-match'];
+    }
+
     const fetchOptions = {
       method: req.method,
       headers,
@@ -122,6 +127,8 @@ export default async function handler(req, res) {
     const body = await response.text();
 
     res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
+    const etag = response.headers.get('etag');
+    if (etag) res.setHeader('ETag', etag);
     res.status(response.status).send(body);
   } catch (err) {
     res.status(502).json({ error: 'Failed to proxy WebDAV request' });

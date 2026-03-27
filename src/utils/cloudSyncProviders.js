@@ -66,11 +66,17 @@ export const cloudSyncProviders = {
     async download(config) {
       const fileUrl = this.getFileUrl(config);
       const authHeaders = this.getAuthHeaders(config);
+      const extraHeaders = {};
+      const storedEtag = sessionStorage.getItem('dayglance-sync-etag');
+      if (storedEtag) extraHeaders['If-None-Match'] = storedEtag;
 
-      const res = await webdavFetch('GET', fileUrl, authHeaders);
+      const res = await webdavFetch('GET', fileUrl, authHeaders, undefined, extraHeaders);
 
+      if (res.status === 304) return 'not-modified';
       if (res.status === 404) return null; // No remote file yet
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+      const etag = res.headers?.get?.('etag');
+      if (etag) sessionStorage.setItem('dayglance-sync-etag', etag);
       return res.json();
     },
     async test(config) {
@@ -117,9 +123,17 @@ export const cloudSyncProviders = {
     async download(config) {
       const fileUrl = this.getFileUrl(config);
       const authHeaders = this.getAuthHeaders(config);
-      const res = await webdavFetch('GET', fileUrl, authHeaders);
+      const extraHeaders = {};
+      const storedEtag = sessionStorage.getItem('dayglance-sync-etag');
+      if (storedEtag) extraHeaders['If-None-Match'] = storedEtag;
+
+      const res = await webdavFetch('GET', fileUrl, authHeaders, undefined, extraHeaders);
+
+      if (res.status === 304) return 'not-modified';
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+      const etag = res.headers?.get?.('etag');
+      if (etag) sessionStorage.setItem('dayglance-sync-etag', etag);
       return res.json();
     },
     async test(config) {
