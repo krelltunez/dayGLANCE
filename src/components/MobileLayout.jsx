@@ -3054,16 +3054,6 @@ const MobileLayout = () => {
           {/* FAB - Floating Action Button (timeline only) */}
           {mobileActiveTab === 'timeline' && (
             <>
-              {/* GTD Frames FAB */}
-              {gtdFrames.length > 0 && (
-                <button
-                  onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('frames'); }}
-                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-                  style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
-                >
-                  <LayoutGrid size={22} />
-                </button>
-              )}
               <button
                 onClick={() => openNewTaskForm()}
                 className="fixed right-4 z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:bg-blue-800 flex items-center justify-center transition-colors"
