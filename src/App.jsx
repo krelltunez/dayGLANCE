@@ -4907,7 +4907,7 @@ const DayPlanner = () => {
       }).filter(Boolean);
     });
     const allTasks = [...regularTasks, ...recurringInstances];
-    const userTasks = allTasks.filter(t => !t.imported);
+    const userTasks = allTasks.filter(t => !t.imported || t.isTaskCalendar);
     const calendarEvents = allTasks.filter(t => t.imported && !t.isTaskCalendar);
     const deadlines = unscheduledTasks.filter(t => t.deadline === tomorrowStr && !t.completed && !t.isExample);
     const scheduledItems = allTasks.filter(t => t.startTime && !t.isAllDay);
