@@ -3965,17 +3965,6 @@ const DayPlanner = () => {
     setCloudSyncError(null);
     try {
       const remote = await provider.download(cloudSyncConfig);
-      if (remote === 'not-modified') {
-        // Remote file unchanged since last sync — skip merge and upload
-        cloudSyncErrorCountRef.current = 0;
-        cloudSyncBackoffUntilRef.current = 0;
-        const now = new Date().toISOString();
-        setCloudSyncLastSynced(now);
-        localStorage.setItem('day-planner-cloud-sync-last-synced', now);
-        setCloudSyncStatus('success');
-        setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
-        return;
-      }
       if (!remote) {
         // No remote file yet — do initial upload
         cloudSyncInProgressRef.current = false;
