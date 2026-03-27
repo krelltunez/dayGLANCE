@@ -2100,7 +2100,7 @@ const MobileLayout = () => {
                                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
                                     title="Mark complete"
                                   >
-                                    <Check size={14} />
+                                    <CheckCircle size={14} />
                                   </button>
                                 ) : (
                                   <button
