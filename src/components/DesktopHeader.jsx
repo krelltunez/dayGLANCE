@@ -20,7 +20,7 @@ const DesktopHeader = () => {
     isSyncing,
     setShowBackupMenu,
     cloudSyncConfig, cloudSyncStatus, cloudSyncLastSynced,
-    obsidianConfig, obsidianSyncStatus, obsidianLastSynced,
+    obsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced,
     setShowRemindersSettings,
     activeReminders,
     weather, weatherTempUnit,
@@ -220,7 +220,7 @@ const DesktopHeader = () => {
               onClick={() => performObsidianSync()}
               disabled={obsidianSyncStatus === 'syncing'}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} ${obsidianSyncStatus === 'syncing' ? 'opacity-70 cursor-not-allowed' : ''}`}
-              title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
+              title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : obsidianSyncStatus === 'error' && obsidianSyncError ? `Obsidian sync error: ${obsidianSyncError}` : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
             >
               <BookOpen size={18} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${

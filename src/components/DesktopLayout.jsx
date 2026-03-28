@@ -155,6 +155,7 @@ const DesktopLayout = () => {
     cloudSyncConflict, setCloudSyncConflict,
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,
@@ -501,7 +502,7 @@ const DesktopLayout = () => {
                 onClick={() => performObsidianSync()}
                 disabled={obsidianSyncStatus === 'syncing'}
                 className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${obsidianSyncStatus === 'syncing' ? 'opacity-70 cursor-not-allowed' : ''}`}
-                title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
+                title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : obsidianSyncStatus === 'error' && obsidianSyncError ? `Obsidian sync error: ${obsidianSyncError}` : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
                 aria-label="Obsidian sync"
               >
                 <BookOpen size={18} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />

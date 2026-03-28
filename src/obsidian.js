@@ -810,7 +810,7 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
  */
 export function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
-  if (!bridge) return { dailyNotes: {}, scheduledTasks: [], inboxTasks: [] };
+  if (!bridge) throw new Error('Obsidian bridge unavailable');
 
   // Compute cutoff date string
   let cutoffStr = '0000-00-00';
@@ -852,16 +852,16 @@ export function syncObsidianVaultNative(folder, retentionDays, existingTasks, ex
   if (bridge.getAllDailyNotes) {
     try {
       noteEntries = JSON.parse(bridge.getAllDailyNotes(folder, cutoffStr));
-    } catch {
-      return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+    } catch (err) {
+      throw new Error(`Failed to read daily notes from vault: ${err.message}`);
     }
   } else if (bridge.listNotes && bridge.getDailyNote) {
     // Fallback: legacy path used when running against an older app build
     let notePaths;
     try {
       notePaths = JSON.parse(bridge.listNotes(folder));
-    } catch {
-      return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+    } catch (err) {
+      throw new Error(`Failed to list vault notes: ${err.message}`);
     }
     noteEntries = [];
     for (const notePath of notePaths) {
@@ -875,7 +875,7 @@ export function syncObsidianVaultNative(folder, retentionDays, existingTasks, ex
       } catch { /* skip unreadable notes */ }
     }
   } else {
-    return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+    throw new Error('Obsidian bridge is missing required methods (getAllDailyNotes or listNotes)');
   }
 
   for (const { date: dateStr, text } of noteEntries) {

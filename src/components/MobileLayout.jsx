@@ -163,6 +163,7 @@ const MobileLayout = () => {
     cloudSyncConflict, setCloudSyncConflict,
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,

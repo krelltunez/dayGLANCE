@@ -8,6 +8,7 @@ const useObsidian = () => {
     } catch { return null; }
   });
   const [obsidianSyncStatus, setObsidianSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
+  const [obsidianSyncError, setObsidianSyncError] = useState(null);
   const [obsidianLastSynced, setObsidianLastSynced] = useState(() =>
     localStorage.getItem('day-planner-obsidian-last-synced') || null
   );
@@ -31,6 +32,7 @@ const useObsidian = () => {
   return {
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError, setObsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
     obsidianVaultHandleRef,
     obsidianSyncInProgressRef,

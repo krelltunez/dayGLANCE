@@ -380,6 +380,7 @@ const DayPlanner = () => {
   const {
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError, setObsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
     obsidianVaultHandleRef,
     obsidianSyncInProgressRef,
@@ -1808,10 +1809,12 @@ const DayPlanner = () => {
       const now = new Date().toISOString();
       setObsidianLastSynced(now);
       localStorage.setItem('day-planner-obsidian-last-synced', now);
+      setObsidianSyncError(null);
       setObsidianSyncStatus('success');
       setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
     } catch (err) {
       console.error('Obsidian sync error:', err);
+      setObsidianSyncError(err.message);
       setObsidianSyncStatus('error');
       setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
     } finally {
@@ -6110,6 +6113,7 @@ const DayPlanner = () => {
     // ── Obsidian ──────────────────────────────────────────────────────────────
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError, setObsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
 
     // ── TRMNL ─────────────────────────────────────────────────────────────────
