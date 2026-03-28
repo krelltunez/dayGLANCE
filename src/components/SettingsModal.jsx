@@ -5,7 +5,6 @@ import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { getStorageUsage } from '../utils/storage.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from '../trmnl.js';
 import { isNativeAndroid, nativeGetCalendars } from '../native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
 
@@ -41,7 +40,6 @@ const SettingsModal = () => {
     setTasks, setUnscheduledTasks,
     dailyNoteTemplate, setDailyNoteTemplate,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
-    trmnlMarkupCopied, setTrmnlMarkupCopied,
   } = useDayPlannerCtx();
 
   const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
@@ -877,7 +875,7 @@ const SettingsModal = () => {
                       </button>
                       {!collapsedSettings.trmnl && (<>
                       <p className={`${textSecondary} text-xs`}>
-                        Push your daily schedule to a <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> e-ink display via webhook.
+                        Push your daily schedule to a <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> e-ink display via webhook. Install the <strong>DayGLANCE</strong> recipe from the TRMNL Recipe Library to get started.
                       </p>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>Webhook URL</label>
@@ -889,7 +887,7 @@ const SettingsModal = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
-                          Create a Private Plugin in TRMNL, then copy the Webhook URL
+                          Found in your DayGLANCE recipe settings on TRMNL
                         </p>
                       </div>
                       <div>
@@ -943,38 +941,6 @@ const SettingsModal = () => {
                         </p>
                       )}
 
-                      {/* Markup templates - copy to TRMNL editor */}
-                      {trmnlConfig?.enabled && (
-                        <div className="space-y-2 mt-2">
-                          <p className={`text-xs font-medium ${textSecondary}`}>Markup Templates</p>
-                          <p className={`text-xs ${textSecondary}`}>
-                            Copy a template below and paste it into your TRMNL plugin's Markup Editor.
-                          </p>
-                          {[
-                            ['full', 'Full', TRMNL_MARKUP_FULL],
-                            ['half_h', 'Half Horizontal', TRMNL_MARKUP_HALF_HORIZONTAL],
-                            ['half_v', 'Half Vertical', TRMNL_MARKUP_HALF_VERTICAL],
-                            ['quad', 'Quadrant', TRMNL_MARKUP_QUADRANT],
-                          ].map(([key, label, markup]) => (
-                            <button
-                              key={key}
-                              onClick={() => {
-                                navigator.clipboard.writeText(markup).then(() => {
-                                  setTrmnlMarkupCopied(key);
-                                  setTimeout(() => setTrmnlMarkupCopied(''), 2000);
-                                });
-                              }}
-                              className={`mr-1 mb-1 px-2.5 py-1 text-xs rounded transition-colors ${
-                                trmnlMarkupCopied === key
-                                  ? 'bg-green-600 text-white'
-                                  : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                              }`}
-                            >
-                              {trmnlMarkupCopied === key ? `${label} ✓` : label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                       </>)}
                     </div>
 

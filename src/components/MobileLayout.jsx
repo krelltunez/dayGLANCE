@@ -168,7 +168,6 @@ const MobileLayout = () => {
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,
     trmnlLastSynced, setTrmnlLastSynced,
-    trmnlMarkupCopied, setTrmnlMarkupCopied,
     routineDefinitions, setRoutineDefinitions,
     todayRoutines, setTodayRoutines,
     routinesDate, setRoutinesDate,

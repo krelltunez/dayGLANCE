@@ -11,7 +11,6 @@ const useTrmnlSync = () => {
   const [trmnlLastSynced, setTrmnlLastSynced] = useState(() =>
     localStorage.getItem('day-planner-trmnl-last-synced') || null
   );
-  const [trmnlMarkupCopied, setTrmnlMarkupCopied] = useState('');
   // Seed from persisted last-synced so the 2-min throttle survives page reloads
   const trmnlSyncTimerRef = useRef(null);
   const trmnlLastPushRef = useRef(
@@ -35,7 +34,6 @@ const useTrmnlSync = () => {
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,
     trmnlLastSynced, setTrmnlLastSynced,
-    trmnlMarkupCopied, setTrmnlMarkupCopied,
     trmnlSyncTimerRef,
     trmnlLastPushRef,
     trmnlBackoffUntilRef,

@@ -499,7 +499,6 @@ const DayPlanner = () => {
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,
     trmnlLastSynced, setTrmnlLastSynced,
-    trmnlMarkupCopied, setTrmnlMarkupCopied,
     trmnlSyncTimerRef,
     trmnlLastPushRef,
     trmnlBackoffUntilRef,
@@ -6120,7 +6119,6 @@ const DayPlanner = () => {
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,
     trmnlLastSynced, setTrmnlLastSynced,
-    trmnlMarkupCopied, setTrmnlMarkupCopied,
 
     // ── Routines ──────────────────────────────────────────────────────────────
     routineDefinitions, setRoutineDefinitions,
