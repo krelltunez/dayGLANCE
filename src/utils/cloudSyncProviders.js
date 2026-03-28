@@ -60,6 +60,7 @@ export const cloudSyncProviders = {
         await webdavFetch('MKCOL', dirUrl, authHeaders);
         res = await doUpload();
       }
+      if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
       return true;
     },
@@ -70,6 +71,7 @@ export const cloudSyncProviders = {
       const res = await webdavFetch('GET', fileUrl, authHeaders);
 
       if (res.status === 404) return null; // No remote file yet
+      if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
       return res.json();
     },
@@ -81,6 +83,7 @@ export const cloudSyncProviders = {
 
       if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and app password.' };
+      if (res.status === 403) return { success: false, error: 'Access forbidden (403). If using a self-hosted server, it may be blocking requests from Vercel\'s IP addresses.' };
       return { success: false, error: `Unexpected response: ${res.status}${res.statusText ? ' ' + res.statusText : ''}` };
     },
     configFields: [
@@ -111,6 +114,7 @@ export const cloudSyncProviders = {
         await webdavFetch('MKCOL', dirUrl, authHeaders);
         res = await doUpload();
       }
+      if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
       return true;
     },
@@ -119,6 +123,7 @@ export const cloudSyncProviders = {
       const authHeaders = this.getAuthHeaders(config);
       const res = await webdavFetch('GET', fileUrl, authHeaders);
       if (res.status === 404) return null;
+      if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
       return res.json();
     },
@@ -128,6 +133,7 @@ export const cloudSyncProviders = {
       const res = await webdavFetch('PROPFIND', dirUrl, authHeaders, undefined, { 'Depth': '0' });
       if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials. Check your username and password.' };
+      if (res.status === 403) return { success: false, error: 'Access forbidden (403). If using a self-hosted server, it may be blocking requests from Vercel\'s IP addresses.' };
       return { success: false, error: `Unexpected response: ${res.status}${res.statusText ? ' ' + res.statusText : ''}` };
     },
     configFields: [

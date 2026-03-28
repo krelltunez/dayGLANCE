@@ -3836,7 +3836,10 @@ const DayPlanner = () => {
       cloudSyncErrorCountRef.current += 1;
       const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), 15 * 60) * 1000;
       cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
-      setCloudSyncError(err.message);
+      const errMsg = err.message === 'FORBIDDEN'
+        ? 'Sync blocked (403) — your server may be blocking Vercel\'s IP addresses.'
+        : err.message;
+      setCloudSyncError(errMsg);
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
     } finally {
@@ -3996,13 +3999,6 @@ const DayPlanner = () => {
       const localData = buildSyncPayload().data;
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
-      // TEMP DIAG — remove after sync investigation
-      console.log('[CloudSync] merge:', {
-        localChanged, remoteChanged,
-        localTasks: localData.tasks?.length, remoteTasks: remote.data?.tasks?.length, mergedTasks: mergedData.tasks?.length,
-        localUnsched: localData.unscheduledTasks?.length, remoteUnsched: remote.data?.unscheduledTasks?.length, mergedUnsched: mergedData.unscheduledTasks?.length,
-      });
-
       if (localChanged) {
         applyRemoteData(mergedData);
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
@@ -4039,7 +4035,10 @@ const DayPlanner = () => {
       // Exponential backoff: 30s, 60s, 2m, 4m … capped at 15 min
       const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), 15 * 60) * 1000;
       cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
-      setCloudSyncError(err.message);
+      const errMsg = err.message === 'FORBIDDEN'
+        ? 'Sync blocked (403) — your server may be blocking Vercel\'s IP addresses.'
+        : err.message;
+      setCloudSyncError(errMsg);
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
     } finally {
