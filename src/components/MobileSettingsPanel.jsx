@@ -40,7 +40,7 @@ const MobileSettingsPanel = () => {
     cloudSyncConfig, setCloudSyncConfig,
     cloudSyncStatus, cloudSyncLastSynced,
     obsidianConfig, setObsidianConfig,
-    obsidianSyncStatus, obsidianLastSynced, setObsidianLastSynced,
+    obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     routinesEnabled, setRoutinesEnabled,
     habitsEnabled, setHabitsEnabled,
     aiConfig, setAiConfig,
@@ -1069,7 +1069,7 @@ const MobileSettingsPanel = () => {
             </button>
           </div>
           {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">Sync complete</p>}
-          {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed — check console for details</p>}
+          {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed{obsidianSyncError ? `: ${obsidianSyncError}` : ''}</p>}
           {obsidianLastSynced && (
             <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
           )}
