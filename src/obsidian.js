@@ -764,6 +764,42 @@ export async function syncObsidianVault(
 // ---------------------------------------------------------------------------
 
 /**
+ * Append a task line to a daily note via the native bridge (Android).
+ * Uses the same heading-insertion logic as appendTaskToDailyNote.
+ */
+export function appendTaskToDailyNoteNative(dateStr, taskTitle, heading, template) {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
+
+  const existing = bridge.getDailyNote(dateStr);
+  let content = (existing !== null && existing !== undefined) ? existing : (template || '');
+
+  const taskLine = `- [ ] ${taskTitle}`;
+  const lines = content.split('\n');
+
+  if (heading && heading.trim()) {
+    const headingStr = heading.trim();
+    const headingLineIdx = lines.findIndex(l => l === headingStr);
+
+    if (headingLineIdx !== -1) {
+      lines.splice(headingLineIdx + 1, 0, taskLine);
+    } else {
+      if (lines[lines.length - 1] !== '') lines.push('');
+      lines.push(headingStr, taskLine, '');
+    }
+  } else {
+    if (lines[lines.length - 1] !== '') lines.push('');
+    lines.push(taskLine);
+  }
+
+  try {
+    bridge.writeDailyNote(dateStr, lines.join('\n'));
+  } catch (err) {
+    console.error('[Obsidian native] Failed to write task to daily note:', err);
+  }
+}
+
+/**
  * Read a daily note via the native bridge. Returns { text, lastModified } or null.
  * [date] is ISO format yyyy-MM-dd.
  */
