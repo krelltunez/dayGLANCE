@@ -183,6 +183,55 @@ export async function readDailyNoteFresh(vaultHandle, dailyNotesPath, dateStr) {
 }
 
 /**
+ * Build a sort key for a task line so tasks can be ordered chronologically.
+ * Key format: "YYYY-MM-DD THH:MM" — tasks with no date use noteDate (the
+ * date of the file), tasks with no time sort after timed tasks of the same date.
+ */
+function taskLineSortKey(line, noteDate) {
+  const m = line.match(/^\s*- \[[ xX]\]\s+(.*)$/);
+  if (!m) return '\uffff';
+  const body = m[1].trim();
+  const dateMatch = body.match(/^(\d{4}-\d{2}-\d{2})\s+(.*)$/);
+  const date = dateMatch ? dateMatch[1] : (noteDate || '0000-00-00');
+  const afterDate = dateMatch ? dateMatch[2] : body;
+  const timeMatch = afterDate.match(/^(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    return `${date}T${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+  }
+  return `${date}T\uffff`; // all-day / no-time → sort after timed tasks
+}
+
+/**
+ * Sort all top-level task lines within a heading section chronologically,
+ * leaving non-task lines (prose, blank lines) after the sorted tasks.
+ * Returns a new lines array; the original is not mutated.
+ */
+function sortTaskLinesInSection(lines, headingStr, noteDate) {
+  const headingIdx = lines.findIndex(l => l === headingStr);
+  if (headingIdx === -1) return lines;
+  const headingLevel = (headingStr.match(/^#+/) || [''])[0].length;
+  let sectionEnd = lines.length;
+  for (let i = headingIdx + 1; i < lines.length; i++) {
+    const hm = lines[i].match(/^(#+)\s/);
+    if (hm && hm[1].length <= headingLevel) { sectionEnd = i; break; }
+  }
+  const interior = lines.slice(headingIdx + 1, sectionEnd);
+  const taskLines = interior.filter(l => /^\s*- \[/.test(l));
+  const otherLines = interior.filter(l => !/^\s*- \[/.test(l));
+  taskLines.sort((a, b) => {
+    const ka = taskLineSortKey(a, noteDate);
+    const kb = taskLineSortKey(b, noteDate);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+  // Non-task lines (prose, blank lines) go after sorted tasks.
+  // Drop trailing blanks to avoid accumulating empty lines on each write.
+  const nonBlank = otherLines.filter(l => l.trim() !== '');
+  const newSection = [...taskLines, ...nonBlank];
+  if (sectionEnd < lines.length && newSection.length > 0) newSection.push('');
+  return [...lines.slice(0, headingIdx + 1), ...newSection, ...lines.slice(sectionEnd)];
+}
+
+/**
  * Build the formatted markdown task line for a dayGLANCE task, mirroring the
  * format that parseTasksFromMarkdown recognises:
  *   - [ ] Title                         (inbox / all-day today)
@@ -234,9 +283,12 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
     lines.push(taskLine);
   }
 
+  const sorted = heading && heading.trim()
+    ? sortTaskLinesInSection(lines, heading.trim(), dateStr)
+    : lines;
   const fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(lines.join('\n'));
+  await writable.write(sorted.join('\n'));
   await writable.close();
 }
 
@@ -365,7 +417,7 @@ function stripLinePrefixes(text) {
  * title-hash at import time, so a single task object in the app corresponds to
  * every occurrence of that title in the file.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null) {
   assertSafeDateStr(dateStr);
   if (targetDate) assertSafeDateStr(targetDate);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
@@ -402,8 +454,11 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
   }
 
   if (updated) {
+    const finalLines = taskHeading
+      ? sortTaskLinesInSection(lines, taskHeading.trim(), dateStr)
+      : lines;
     const writable = await fileHandle.createWritable();
-    await writable.write(lines.join('\n'));
+    await writable.write(finalLines.join('\n'));
     await writable.close();
   }
 }
@@ -813,8 +868,11 @@ export function appendTaskToDailyNoteNative(dateStr, task, heading, template) {
     lines.push(taskLine);
   }
 
+  const sorted = heading && heading.trim()
+    ? sortTaskLinesInSection(lines, heading.trim(), dateStr)
+    : lines;
   try {
-    bridge.writeDailyNote(dateStr, lines.join('\n'));
+    bridge.writeDailyNote(dateStr, sorted.join('\n'));
   } catch (err) {
     console.error('[Obsidian native] Failed to write task to daily note:', err);
   }
@@ -857,7 +915,7 @@ export function writeDailyNoteNative(date, content) {
  * Reads the note with getDailyNote, applies the same regex-replace logic as
  * writeTaskStateToFile, then writes the result back with writeDailyNote.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
 
@@ -885,7 +943,10 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
     }
 
     if (updated) {
-      bridge.writeDailyNote(date, lines.join('\n'));
+      const finalLines = taskHeading
+        ? sortTaskLinesInSection(lines, taskHeading.trim(), date)
+        : lines;
+      bridge.writeDailyNote(date, finalLines.join('\n'));
     }
   } catch (err) {
     console.error('Obsidian native writeback error:', err);

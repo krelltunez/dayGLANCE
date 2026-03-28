@@ -1176,6 +1176,7 @@ const DayPlanner = () => {
       // time prefix so the line stays as "YYYY-MM-DD Task" (not "YYYY-MM-DD 00:00-00:30 Task").
       const writeStartTime = task.isAllDay ? null : (task.startTime || null);
       const writeDuration = task.isAllDay ? null : (task.duration || null);
+      const taskHeading = obsidianConfig?.taskHeading || '## Tasks';
       if (isNative) {
         writeTaskStateNative(
           sourceDate,
@@ -1185,6 +1186,7 @@ const DayPlanner = () => {
           newRawTitle,
           writeDuration,
           targetDate,
+          taskHeading,
         );
       } else {
         writeTaskStateToFile(
@@ -1197,6 +1199,7 @@ const DayPlanner = () => {
           newRawTitle,
           writeDuration,
           targetDate,
+          taskHeading,
         ).catch(err => console.error('Obsidian: failed to write task state back', err));
       }
 
