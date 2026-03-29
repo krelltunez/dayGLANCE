@@ -8,7 +8,9 @@ import React, {
 } from 'react';
 import {
   AlertTriangle,
+  Archive,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Edit2,
@@ -16,6 +18,7 @@ import {
   FolderOpen,
   GitBranch,
   Layers,
+  RotateCcw,
   X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -971,6 +974,7 @@ const GoalDashboard = () => {
   const [goalForm, setGoalForm] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
+  const [showArchived, setShowArchived] = useState(false);
 
   // Refs for SVG line calculation (desktop only)
   const goalCardRefs = useRef({});
@@ -978,6 +982,9 @@ const GoalDashboard = () => {
 
   const activeGoals = goals.filter(g => g.status !== 'archived');
   const activeProjects = projects.filter(p => p.status !== 'archived');
+  const archivedGoals = goals.filter(g => g.status === 'archived');
+  const archivedProjects = projects.filter(p => p.status === 'archived');
+  const archivedCount = archivedGoals.length + archivedProjects.length;
 
   const handleSaveGoal = (fields) => {
     if (goalForm.editing) {
@@ -1115,6 +1122,64 @@ const GoalDashboard = () => {
                   goalCardRefs={goalCardRefs}
                   projectCardRefs={projectCardRefs}
                 />
+              </div>
+            )}
+
+            {/* Archived section */}
+            {archivedCount > 0 && (
+              <div className={`border-t ${borderClass} ${isMobile ? 'px-4' : 'px-6'} py-3`}>
+                <button
+                  onClick={() => setShowArchived(v => !v)}
+                  className={`flex items-center gap-2 text-sm ${textSecondary} ${hoverBg} px-2 py-1.5 rounded-lg transition-colors w-full`}
+                >
+                  <Archive size={14} />
+                  <span>Archived ({archivedCount})</span>
+                  <ChevronDown
+                    size={14}
+                    className={`ml-auto transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                {showArchived && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    {archivedGoals.map(g => (
+                      <div
+                        key={g.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${hoverBg} group`}
+                      >
+                        <Flag size={12} className="text-blue-400 flex-shrink-0" />
+                        <span className={`text-sm ${textSecondary} flex-1 min-w-0 truncate`}>{g.title}</span>
+                        <span className={`text-xs ${textSecondary} opacity-50 flex-shrink-0`}>Goal</span>
+                        <button
+                          onClick={() => updateGoal(g.id, { status: 'active' })}
+                          className={`flex-shrink-0 flex items-center gap-1 text-xs px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity ${
+                            darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
+                          }`}
+                        >
+                          <RotateCcw size={10} /> Restore
+                        </button>
+                      </div>
+                    ))}
+                    {archivedProjects.map(p => (
+                      <div
+                        key={p.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${hoverBg} group`}
+                      >
+                        <Layers size={12} className="text-emerald-400 flex-shrink-0" />
+                        <span className={`text-sm ${textSecondary} flex-1 min-w-0 truncate`}>{p.title}</span>
+                        <span className={`text-xs ${textSecondary} opacity-50 flex-shrink-0`}>Project</span>
+                        <button
+                          onClick={() => updateProject(p.id, { status: 'active' })}
+                          className={`flex-shrink-0 flex items-center gap-1 text-xs px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity ${
+                            darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
+                          }`}
+                        >
+                          <RotateCcw size={10} /> Restore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
