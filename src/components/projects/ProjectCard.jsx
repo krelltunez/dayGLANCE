@@ -1,4 +1,5 @@
 import React, { forwardRef, useState } from 'react';
+import ConfirmDialog from '../ConfirmDialog.jsx';
 import { AlertTriangle, CheckSquare, Plus, Trash2, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
@@ -28,16 +29,14 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
     borderClass, textPrimary, textSecondary, hoverBg,
   } = useDayPlannerCtx();
 
-  const handleDelete = () => {
-    if (!window.confirm(`Delete "${project.title}"? Tasks linked to this project will remain but won't be grouped.`)) return;
-    deleteProject(project.id);
-  };
+  const handleDelete = () => setShowConfirm(true);
 
   const parentGoal = project.goalId ? goals.find(g => g.id === project.goalId) : null;
   const goalHex = parentGoal ? toHex(parentGoal.color || 'bg-blue-500') : null;
 
   const [quickAddTitle, setQuickAddTitle] = useState('');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const allTasks = [...tasks, ...unscheduledTasks];
   const projectTasks = allTasks.filter(t => t.projectId === project.id && !t.archived);
@@ -73,6 +72,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
   };
 
   return (
+    <>
     <div
       ref={ref}
       className={`flex flex-col rounded-xl border overflow-hidden ${
@@ -203,6 +203,16 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
       )}
       </div>
     </div>
+
+    {showConfirm && (
+      <ConfirmDialog
+        title={`Delete "${project.title}"?`}
+        message="Tasks linked to this project will remain but won't be grouped."
+        onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
+        onCancel={() => setShowConfirm(false)}
+      />
+    )}
+    </>
   );
 });
 

@@ -21,6 +21,7 @@ import { TASK_COLORS, TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalCard from './GoalCard.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
+import ConfirmDialog from '../ConfirmDialog.jsx';
 
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -880,6 +881,7 @@ const GoalDashboard = () => {
 
   const [goalForm, setGoalForm] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
 
   // Refs for SVG line calculation (desktop only)
   const goalCardRefs = useRef({});
@@ -898,13 +900,18 @@ const GoalDashboard = () => {
   };
 
   const handleDeleteGoal = (goalId) => {
-    if (!window.confirm('Delete this goal? Its projects will become standalone.')) return;
-    // Detach child projects so they become standalone instead of orphaned
-    projects
-      .filter(p => p.goalId === goalId)
-      .forEach(p => updateProject(p.id, { goalId: undefined }));
-    deleteGoal(goalId);
     setGoalForm(null);
+    setConfirmDialog({
+      title: 'Delete Goal',
+      message: 'Its projects will become standalone. This cannot be undone.',
+      onConfirm: () => {
+        projects
+          .filter(p => p.goalId === goalId)
+          .forEach(p => updateProject(p.id, { goalId: undefined }));
+        deleteGoal(goalId);
+        setConfirmDialog(null);
+      },
+    });
   };
 
   const handleSaveProject = (fields) => {
@@ -1046,6 +1053,15 @@ const GoalDashboard = () => {
             onCancel={() => setProjectForm(null)}
           />
         </FormOverlay>
+      )}
+
+      {confirmDialog && (
+        <ConfirmDialog
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
       )}
     </>
   );
