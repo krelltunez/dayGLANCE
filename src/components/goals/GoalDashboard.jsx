@@ -141,7 +141,7 @@ const GoalForm = ({ initial, onSave, onCancel, onDelete }) => {
       {/* Color */}
       <div className="flex flex-col gap-1.5">
         <label className={`text-xs font-medium ${textSecondary}`}>Color</label>
-        <div className="grid grid-cols-10 gap-2 w-full">
+        <div className="grid grid-cols-9 gap-2 w-full">
           {TASK_COLORS.map(c => (
             <button
               key={c.class}
