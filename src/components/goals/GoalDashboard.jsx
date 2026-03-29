@@ -966,6 +966,7 @@ const GoalDashboard = () => {
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
     setShowFocusMode,
+    showAddTask,
     isMobile,
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
@@ -1029,6 +1030,7 @@ const GoalDashboard = () => {
     if (!showGoalsDashboard) return;
     const handler = (e) => {
       if (e.key === 'Escape') {
+        if (showAddTask) return; // let task modal handle it
         if (goalForm) { setGoalForm(null); return; }
         if (projectForm) { setProjectForm(null); return; }
         setShowGoalsDashboard(false);
@@ -1036,7 +1038,7 @@ const GoalDashboard = () => {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [showGoalsDashboard, goalForm, projectForm, setShowGoalsDashboard]);
+  }, [showGoalsDashboard, goalForm, projectForm, showAddTask, setShowGoalsDashboard]);
 
   if (!showGoalsDashboard) return null;
 
