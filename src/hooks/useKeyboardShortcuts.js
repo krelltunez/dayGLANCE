@@ -31,7 +31,7 @@ export default function useKeyboardShortcuts({
   selectedDate, hoverPreviewTime, hoverPreviewDate,
   setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
   // routines ('r')
-  routinesEnabled, setShowRoutinesDashboard,
+  routinesEnabled, setRoutinesEnabled, setShowRoutinesDashboard,
   // focus mode ('f') — passed as a ref to avoid TDZ
   focusModeAvailableRef, enterFocusModeRef,
   // dark mode ('d')
@@ -49,7 +49,7 @@ export default function useKeyboardShortcuts({
   // voice input ('v')
   aiConfig, setShowVoiceInput,
   // habits ('h')
-  habitsEnabled, setShowHabitModal,
+  habitsEnabled, setHabitsEnabled, setShowHabitModal,
   // goals & projects ('g')
   goalsProjectsEnabled, setGoalsProjectsEnabled, setShowGoalsDashboard,
   // reschedule ('e')
@@ -140,8 +140,9 @@ export default function useKeyboardShortcuts({
       }
 
       // 'r' for routines dashboard
-      if (e.key === 'r' && noModifiers && routinesEnabled) {
+      if (e.key === 'r' && noModifiers) {
         e.preventDefault();
+        if (!routinesEnabled) setRoutinesEnabled(true);
         setShowRoutinesDashboard(true);
       }
 
@@ -213,8 +214,9 @@ export default function useKeyboardShortcuts({
       }
 
       // 'h' for habits modal
-      if (e.key === 'h' && noModifiers && habitsEnabled) {
+      if (e.key === 'h' && noModifiers) {
         e.preventDefault();
+        if (!habitsEnabled) setHabitsEnabled(true);
         setShowHabitModal(true);
       }
 
