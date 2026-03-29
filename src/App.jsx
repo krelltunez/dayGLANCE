@@ -2359,15 +2359,32 @@ const DayPlanner = () => {
       setTasks(prev => prev.filter(t => t.id !== taskId));
       setRecurringTasks(prev => [...prev, template]);
     } else {
-      setTasks(prev => prev.map(t => t.id === taskId ? {
-        ...t,
-        title: cleanTitle(newTask.title),
-        startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-        duration: newTask.duration,
-        date: newTask.date || t.date,
-        isAllDay: newTask.isAllDay || false,
-        color: newTask.color || colors[0].class,
-      } : t));
+      const inScheduled = tasks.find(t => t.id === taskId);
+      if (inScheduled) {
+        setTasks(prev => prev.map(t => t.id === taskId ? {
+          ...t,
+          title: cleanTitle(newTask.title),
+          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+          duration: newTask.duration,
+          date: newTask.date || t.date,
+          isAllDay: newTask.isAllDay || false,
+          color: newTask.color || colors[0].class,
+        } : t));
+      } else {
+        // Task was unscheduled (e.g. a project task) — move it to the scheduled list
+        const existing = unscheduledTasks.find(t => t.id === taskId);
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
+        setTasks(prev => [...prev, {
+          ...(existing || {}),
+          id: taskId,
+          title: cleanTitle(newTask.title),
+          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+          duration: newTask.duration,
+          date: newTask.date || dateToString(selectedDate),
+          isAllDay: newTask.isAllDay || false,
+          color: newTask.color || colors[0].class,
+        }]);
+      }
     }
     setShowAddTask(false);
     setMobileEditingTask(null);
