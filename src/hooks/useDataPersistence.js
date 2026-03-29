@@ -6,12 +6,13 @@ export default function useDataPersistence({
   setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
   setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
   setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
-  setRoutinesEnabled, setDataLoaded,
+  setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
   // values for saveData
   tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
   darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
   routineDefinitions, routinesDate, removedTodayRoutineIds,
   habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+  goals, projects, goalsProjectsEnabled,
   cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
   setUndoToast,
 }) {
@@ -130,6 +131,14 @@ export default function useDataPersistence({
       if (habitsEnabledData !== null) setHabitsEnabled(JSON.parse(habitsEnabledData));
       const routinesEnabledData = localStorage.getItem('day-planner-routines-enabled');
       if (routinesEnabledData !== null) setRoutinesEnabled(JSON.parse(routinesEnabledData));
+
+      // Load goals and projects
+      const goalsData = localStorage.getItem('day-planner-goals');
+      if (goalsData) setGoals(JSON.parse(goalsData));
+      const projectsData = localStorage.getItem('day-planner-projects');
+      if (projectsData) setProjects(JSON.parse(projectsData));
+      const goalsProjectsEnabledData = localStorage.getItem('day-planner-goals-projects-enabled');
+      if (goalsProjectsEnabledData !== null) setGoalsProjectsEnabled(JSON.parse(goalsProjectsEnabledData));
     } catch (error) {
       console.log('No existing data found, starting fresh');
     }
@@ -186,6 +195,9 @@ export default function useDataPersistence({
     safeSet('day-planner-habits-enabled', JSON.stringify(habitsEnabled));
     safeSet('day-planner-routines-enabled', JSON.stringify(routinesEnabled));
     safeSet('day-planner-gtd-frames', JSON.stringify(gtdFrames));
+    safeSet('day-planner-goals', JSON.stringify(goals));
+    safeSet('day-planner-projects', JSON.stringify(projects));
+    safeSet('day-planner-goals-projects-enabled', JSON.stringify(goalsProjectsEnabled));
     // Only update local-modified after initial cloud sync has run,
     // otherwise the initial loadData() sets it to "now" and overwrites remote
     if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {

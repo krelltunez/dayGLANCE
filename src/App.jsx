@@ -56,6 +56,7 @@ import useOnboarding from './hooks/useOnboarding.js';
 import useDailyContent from './hooks/useDailyContent.js';
 import useHabits from './hooks/useHabits.js';
 import useRoutines from './hooks/useRoutines.js';
+import useGoalsProjects from './hooks/useGoalsProjects.js';
 import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
@@ -474,6 +475,14 @@ const DayPlanner = () => {
     handleRoutinesDone,
   } = useRoutines({ currentTime, onboardingProgress, setOnboardingProgress });
   const {
+    goals, setGoals,
+    projects, setProjects,
+    showGoalsDashboard, setShowGoalsDashboard,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    addGoal, updateGoal, deleteGoal,
+    addProject, updateProject, deleteProject,
+  } = useGoalsProjects();
+  const {
     showFocusMode, setShowFocusMode,
     focusPhase, setFocusPhase,
     focusTimerSeconds, setFocusTimerSeconds,
@@ -764,12 +773,13 @@ const DayPlanner = () => {
     setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
     setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
     setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
-    setRoutinesEnabled, setDataLoaded,
+    setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
     // values for saveData
     tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
     habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    goals, projects, goalsProjectsEnabled,
     cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
     setUndoToast,
   });
@@ -781,6 +791,7 @@ const DayPlanner = () => {
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
     completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate,
     removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    goals, projects, goalsProjectsEnabled,
   });
 
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour } = useTimelineScroll({
@@ -3102,7 +3113,10 @@ const DayPlanner = () => {
         habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
         routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
         aiConfig: JSON.parse(localStorage.getItem('day-planner-ai-config') || 'null'),
-        calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]')
+        calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
+        goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
+        projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
+        goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
       }
     };
 
@@ -3148,7 +3162,10 @@ const DayPlanner = () => {
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
       aiConfig: JSON.parse(localStorage.getItem('day-planner-ai-config') || 'null'),
       obsidianConfig: JSON.parse(localStorage.getItem('day-planner-obsidian-config') || 'null'),
-      calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]')
+      calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
+      goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
+      projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
+      goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
     }
   });
 
@@ -3318,6 +3335,9 @@ const DayPlanner = () => {
         if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
         if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
         if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
+        if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
+        if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+        if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
 
         // Reload app to reflect changes
         // On Android WebView, use href assignment for a full reload; fall back to reload()
@@ -3854,6 +3874,9 @@ const DayPlanner = () => {
         deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
         routinesEnabled,
         gtdFrames,
+        goals,
+        projects,
+        goalsProjectsEnabled,
       }
     };
   };
@@ -3995,6 +4018,18 @@ const DayPlanner = () => {
     if (data.gtdFrames) {
       localStorage.setItem('day-planner-gtd-frames', JSON.stringify(data.gtdFrames));
       setGtdFrames(data.gtdFrames);
+    }
+    if (data.goals) {
+      localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
+      setGoals(data.goals);
+    }
+    if (data.projects) {
+      localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+      setProjects(data.projects);
+    }
+    if (data.goalsProjectsEnabled !== undefined) {
+      localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+      setGoalsProjectsEnabled(data.goalsProjectsEnabled);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
@@ -6316,6 +6351,14 @@ const DayPlanner = () => {
     frameNudgeLoading, setFrameNudgeLoading,
     frameNudgeError, setFrameNudgeError,
     frameNudgeDismissedKey, setFrameNudgeDismissedKey,
+
+    // ── Goals & Projects ──────────────────────────────────────────────────────
+    goals, setGoals,
+    projects, setProjects,
+    showGoalsDashboard, setShowGoalsDashboard,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    addGoal, updateGoal, deleteGoal,
+    addProject, updateProject, deleteProject,
 
     // ── Reminders ─────────────────────────────────────────────────────────────
     reminderSettings, setReminderSettings,
