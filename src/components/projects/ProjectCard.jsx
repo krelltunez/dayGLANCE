@@ -2,7 +2,10 @@ import React, { forwardRef, useState } from 'react';
 import { AlertTriangle, CheckSquare, Plus, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
+import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
+
+const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
 /**
  * ProjectCard — a single project node in the Goals dashboard.
@@ -19,9 +22,13 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
   const {
     tasks,
     unscheduledTasks, setUnscheduledTasks,
+    goals,
     darkMode,
     borderClass, textPrimary, textSecondary, hoverBg,
   } = useDayPlannerCtx();
+
+  const parentGoal = project.goalId ? goals.find(g => g.id === project.goalId) : null;
+  const goalHex = parentGoal ? toHex(parentGoal.color || 'bg-blue-500') : null;
 
   const [quickAddTitle, setQuickAddTitle] = useState('');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -61,10 +68,16 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
   return (
     <div
       ref={ref}
-      className={`flex flex-col gap-2 p-3 rounded-xl border ${
+      className={`flex flex-col rounded-xl border overflow-hidden ${
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
       } min-w-[180px] max-w-[240px] w-full`}
     >
+      {/* Goal color bar */}
+      {goalHex && (
+        <div className="h-1.5 flex-shrink-0" style={{ background: goalHex + 'bb' }} />
+      )}
+      {/* Card body */}
+      <div className="flex flex-col gap-2 p-3">
       {/* Header: title + stalled badge */}
       <div className="flex items-start justify-between gap-2">
         <span className={`text-sm font-semibold ${textPrimary} leading-tight`}>
@@ -170,6 +183,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
           Add task
         </button>
       )}
+      </div>
     </div>
   );
 });

@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -32,6 +33,40 @@ const toLightBg = (bgClass, dark) => {
     ? `${hex}22` // ~13% opacity
     : `${hex}18`; // ~9% opacity
 };
+
+// ─── Goal sorting helpers ─────────────────────────────────────────────────────
+
+/**
+ * 0 = completed  (left side of carousel)
+ * 1 = overdue    (left side)
+ * 2 = active / upcoming / no date  (right side, default focus)
+ */
+function categorizeGoal(goal) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (goal.status === 'completed') return 0;
+  if (goal.targetDate && new Date(goal.targetDate + 'T00:00:00') < today) return 1;
+  return 2;
+}
+
+function sortGoalsForCarousel(goals) {
+  return [...goals].sort((a, b) => {
+    const ca = categorizeGoal(a);
+    const cb = categorizeGoal(b);
+    if (ca !== cb) return ca - cb;
+    if (!a.targetDate && !b.targetDate) return 0;
+    if (!a.targetDate) return 1;
+    if (!b.targetDate) return -1;
+    return (
+      new Date(a.targetDate + 'T00:00:00') - new Date(b.targetDate + 'T00:00:00')
+    );
+  });
+}
+
+function findDefaultActiveIdx(sortedGoals) {
+  const idx = sortedGoals.findIndex(g => categorizeGoal(g) === 2);
+  return idx === -1 ? 0 : idx;
+}
 
 // ─── Goal form (create / edit) ────────────────────────────────────────────────
 
@@ -251,13 +286,57 @@ const FormOverlay = ({ children, onClose }) => (
   </div>
 );
 
-// ─── Desktop flowchart layout ─────────────────────────────────────────────────
+// ─── Goal mini card (carousel side slots) ────────────────────────────────────
+
+const GoalMiniCard = ({ goal, onClick }) => {
+  const { darkMode, textPrimary, textSecondary } = useDayPlannerCtx();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const hex = toHex(goal.color || 'bg-blue-500');
+  const isCompleted = goal.status === 'completed';
+
+  let daysLabel = null;
+  let labelColor = textSecondary;
+  if (goal.targetDate) {
+    const diff = Math.ceil(
+      (new Date(goal.targetDate + 'T00:00:00') - today) / 86400000
+    );
+    daysLabel =
+      diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
+    if (diff <= 7) labelColor = 'text-amber-500';
+  }
+
+  return (
+    <div
+      onClick={onClick}
+      style={{ opacity: isCompleted ? 0.45 : 1, borderLeft: `3px solid ${hex}` }}
+      className={`w-52 cursor-pointer rounded-xl px-3 py-3 transition-all select-none ${
+        darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-stone-50 hover:bg-stone-100'
+      }`}
+    >
+      <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate`}>
+        {goal.title}
+      </p>
+      {daysLabel ? (
+        <p className={`text-xs mt-0.5 ${labelColor}`}>{daysLabel}</p>
+      ) : isCompleted ? (
+        <p className="text-xs mt-0.5 text-emerald-500">Completed</p>
+      ) : null}
+      <div className={`mt-2 w-full h-1 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: '0%', background: hex }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// ─── Desktop carousel layout ──────────────────────────────────────────────────
 
 const DesktopDashboard = ({
   activeGoals,
   activeProjects,
-  collapsedGoals,
-  onToggleCollapse,
   onEditGoal,
   onEditProject,
   onFocusClick,
@@ -272,37 +351,63 @@ const DesktopDashboard = ({
   const [svgLines, setSvgLines] = useState([]);
   const [svgSize, setSvgSize] = useState({ w: 0, h: 0 });
 
+  // Sort goals: completed/overdue → left, active/upcoming → right (default focus)
+  const sortedGoals = useMemo(() => sortGoalsForCarousel(activeGoals), [activeGoals]);
+  const [activeGoalIdx, setActiveGoalIdx] = useState(
+    () => findDefaultActiveIdx(sortedGoals)
+  );
+
+  // Clamp index whenever the goals list changes length
+  const safeIdx = sortedGoals.length > 0
+    ? Math.min(activeGoalIdx, sortedGoals.length - 1)
+    : 0;
+
+  const activeGoal = sortedGoals[safeIdx] || null;
+  const prevGoal = safeIdx > 0 ? sortedGoals[safeIdx - 1] : null;
+  const nextGoal = safeIdx < sortedGoals.length - 1 ? sortedGoals[safeIdx + 1] : null;
+
+  const goalProjects = useMemo(
+    () => (activeGoal ? activeProjects.filter(p => p.goalId === activeGoal.id) : []),
+    [activeGoal, activeProjects]
+  );
+
+  const standaloneProjects = useMemo(
+    () => activeProjects.filter(p => !p.goalId),
+    [activeProjects]
+  );
+
+  // ── SVG connector lines ──────────────────────────────────────────────────────
   const recalc = useCallback(() => {
     if (!containerRef.current) return;
     const base = containerRef.current.getBoundingClientRect();
     const lines = [];
 
-    for (const goal of activeGoals) {
-      if (collapsedGoals.has(goal.id)) continue;
-      const goalEl = goalCardRefs.current[goal.id];
-      if (!goalEl) continue;
-      const gr = goalEl.getBoundingClientRect();
-      const gx = gr.left - base.left + gr.width / 2;
-      const gy = gr.top - base.top + gr.height;
+    if (activeGoal) {
+      const goalEl = goalCardRefs.current[activeGoal.id];
+      if (goalEl) {
+        const gr = goalEl.getBoundingClientRect();
+        const gx = gr.left - base.left + gr.width / 2;
+        const gy = gr.top - base.top + gr.height;
+        const goalHex = toHex(activeGoal.color || 'bg-blue-500');
 
-      const children = activeProjects.filter(p => p.goalId === goal.id);
-      for (const proj of children) {
-        const projEl = projectCardRefs.current[proj.id];
-        if (!projEl) continue;
-        const pr = projEl.getBoundingClientRect();
-        const px = pr.left - base.left + pr.width / 2;
-        const py = pr.top - base.top;
-        const midY = gy + (py - gy) * 0.5;
-        lines.push({
-          d: `M ${gx} ${gy} C ${gx} ${midY} ${px} ${midY} ${px} ${py}`,
-          color: toHex(goal.color || 'bg-blue-500'),
-        });
+        for (const proj of goalProjects) {
+          const projEl = projectCardRefs.current[proj.id];
+          if (!projEl) continue;
+          const pr = projEl.getBoundingClientRect();
+          const px = pr.left - base.left + pr.width / 2;
+          const py = pr.top - base.top;
+          const midY = gy + (py - gy) * 0.5;
+          lines.push({
+            d: `M ${gx} ${gy} C ${gx} ${midY} ${px} ${midY} ${px} ${py}`,
+            color: goalHex,
+          });
+        }
       }
     }
 
     setSvgLines(lines);
     setSvgSize({ w: base.width, h: base.height });
-  }, [activeGoals, activeProjects, collapsedGoals, goalCardRefs, projectCardRefs]);
+  }, [activeGoal, goalProjects, goalCardRefs, projectCardRefs]);
 
   useLayoutEffect(() => {
     recalc();
@@ -314,8 +419,7 @@ const DesktopDashboard = ({
     return () => ro.disconnect();
   }, [recalc]);
 
-  const standaloneProjects = activeProjects.filter(p => !p.goalId);
-
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div ref={containerRef} className="relative min-h-[200px]">
       {/* SVG overlay — behind cards (z-0), non-interactive */}
@@ -344,41 +448,114 @@ const DesktopDashboard = ({
         ))}
       </svg>
 
-      {/* Goals row */}
-      <div className="relative z-10 flex flex-wrap gap-5 mb-14">
-        {activeGoals.map(goal => {
-          const children = activeProjects.filter(p => p.goalId === goal.id);
-          return (
-            <GoalCard
-              key={goal.id}
-              ref={el => { goalCardRefs.current[goal.id] = el; }}
-              goal={goal}
-              projects={children}
-              isCollapsed={collapsedGoals.has(goal.id)}
-              onToggleCollapse={() => onToggleCollapse(goal.id)}
-              onEdit={() => onEditGoal(goal)}
-            />
-          );
-        })}
-      </div>
+      {/* Goal carousel */}
+      {sortedGoals.length > 0 && (
+        <>
+          {/* Row: [←] [prev mini] [main GoalCard] [next mini] [→] */}
+          <div className="relative z-10 flex items-center gap-3 mb-10">
+            {/* Prev arrow */}
+            {sortedGoals.length > 1 && (
+              <button
+                onClick={() => setActiveGoalIdx(i => Math.max(0, i - 1))}
+                disabled={safeIdx === 0}
+                className={`flex-shrink-0 p-1.5 rounded-full ${hoverBg} disabled:opacity-20 transition-colors`}
+              >
+                <ChevronLeft size={20} className={textSecondary} />
+              </button>
+            )}
 
-      {/* Projects row (goal-linked) */}
-      {activeProjects.some(p => p.goalId) && (
-        <div className="relative z-10 flex flex-wrap gap-4 mb-8">
-          {activeGoals.flatMap(goal => {
-            if (collapsedGoals.has(goal.id)) return [];
-            return activeProjects
-              .filter(p => p.goalId === goal.id)
-              .map(proj => (
+            {/* Prev mini card slot */}
+            {sortedGoals.length > 1 && (
+              <div className="flex-shrink-0">
+                {prevGoal ? (
+                  <GoalMiniCard
+                    goal={prevGoal}
+                    onClick={() => setActiveGoalIdx(safeIdx - 1)}
+                  />
+                ) : (
+                  <div className="w-52" />
+                )}
+              </div>
+            )}
+
+            {/* Main goal card */}
+            <div className="relative z-10 flex-1 min-w-0">
+              <GoalCard
+                ref={el => { goalCardRefs.current[activeGoal.id] = el; }}
+                goal={activeGoal}
+                projects={goalProjects}
+                isCollapsed={false}
+                onToggleCollapse={() => {}}
+                onEdit={() => onEditGoal(activeGoal)}
+              />
+            </div>
+
+            {/* Next mini card slot */}
+            {sortedGoals.length > 1 && (
+              <div className="flex-shrink-0">
+                {nextGoal ? (
+                  <GoalMiniCard
+                    goal={nextGoal}
+                    onClick={() => setActiveGoalIdx(safeIdx + 1)}
+                  />
+                ) : (
+                  <div className="w-52" />
+                )}
+              </div>
+            )}
+
+            {/* Next arrow */}
+            {sortedGoals.length > 1 && (
+              <button
+                onClick={() => setActiveGoalIdx(i => Math.min(sortedGoals.length - 1, i + 1))}
+                disabled={safeIdx === sortedGoals.length - 1}
+                className={`flex-shrink-0 p-1.5 rounded-full ${hoverBg} disabled:opacity-20 transition-colors`}
+              >
+                <ChevronRight size={20} className={textSecondary} />
+              </button>
+            )}
+          </div>
+
+          {/* Dot indicators */}
+          {sortedGoals.length > 1 && (
+            <div className="relative z-10 flex items-center justify-center gap-1.5 mb-8">
+              {sortedGoals.map((g, i) => (
+                <button
+                  key={g.id}
+                  onClick={() => setActiveGoalIdx(i)}
+                  className={`rounded-full transition-all ${
+                    i === safeIdx
+                      ? 'w-4 h-2.5 bg-blue-500'
+                      : `w-2.5 h-2.5 ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Projects for the active goal */}
+          {goalProjects.length > 0 ? (
+            <div className="relative z-10 flex flex-wrap gap-4 mb-8">
+              {goalProjects.map(proj => (
                 <ProjectCard
                   key={proj.id}
                   ref={el => { projectCardRefs.current[proj.id] = el; }}
                   project={proj}
                   onFocusClick={onFocusClick}
                 />
-              ));
-          })}
-        </div>
+              ))}
+            </div>
+          ) : (
+            <div className="relative z-10 mb-8">
+              <button
+                onClick={() => onNewProject(activeGoal.id)}
+                className={`flex items-center gap-1.5 text-sm ${textSecondary} ${hoverBg} rounded-xl px-3 py-2 transition-colors`}
+              >
+                <Layers size={14} /> Add project to this goal
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Standalone projects */}
@@ -390,9 +567,9 @@ const DesktopDashboard = ({
             </h3>
             <button
               onClick={() => onNewProject(null)}
-              className={`flex items-center gap-1 text-xs ${textSecondary} ${hoverBg} rounded-lg px-2 py-1 transition-colors`}
+              className={`flex items-center gap-1.5 text-xs ${textSecondary} ${hoverBg} rounded-lg px-2 py-1 transition-colors`}
             >
-              <Plus size={12} /> New
+              <Layers size={12} /> Add Standalone Project
             </button>
           </div>
           <div className="flex flex-wrap gap-4">
@@ -665,9 +842,8 @@ const GoalDashboard = () => {
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
   } = useDayPlannerCtx();
 
-  const [collapsedGoals, setCollapsedGoals] = useState(new Set());
-  const [goalForm, setGoalForm] = useState(null); // null | { editing: Goal|null, defaultGoalId: string|null }
-  const [projectForm, setProjectForm] = useState(null); // null | { editing: Project|null, defaultGoalId: string|null }
+  const [goalForm, setGoalForm] = useState(null);
+  const [projectForm, setProjectForm] = useState(null);
 
   // Refs for SVG line calculation (desktop only)
   const goalCardRefs = useRef({});
@@ -675,14 +851,6 @@ const GoalDashboard = () => {
 
   const activeGoals = goals.filter(g => g.status !== 'archived');
   const activeProjects = projects.filter(p => p.status !== 'archived');
-
-  const handleToggleCollapse = (goalId) => {
-    setCollapsedGoals(prev => {
-      const next = new Set(prev);
-      next.has(goalId) ? next.delete(goalId) : next.add(goalId);
-      return next;
-    });
-  };
 
   const handleSaveGoal = (fields) => {
     if (goalForm.editing) {
@@ -703,7 +871,6 @@ const GoalDashboard = () => {
   };
 
   const handleFocusClick = useCallback(() => {
-    // PR 5 will add project-scoped pre-population; for now just open focus mode
     setShowGoalsDashboard(false);
     setShowFocusMode(true);
   }, [setShowGoalsDashboard, setShowFocusMode]);
@@ -746,7 +913,7 @@ const GoalDashboard = () => {
           className={`relative ${cardBg} w-full flex flex-col ${
             isMobile
               ? 'min-h-screen'
-              : 'rounded-2xl shadow-2xl max-w-5xl max-h-[85vh]'
+              : 'rounded-2xl shadow-2xl max-w-6xl max-h-[85vh]'
           }`}
           style={isMobile ? undefined : { overflow: 'hidden' }}
           onClick={e => e.stopPropagation()}
@@ -768,13 +935,13 @@ const GoalDashboard = () => {
                 onClick={() => setGoalForm({ editing: null })}
                 className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded-lg transition-colors"
               >
-                <Flag size={15} /> Goal
+                <Flag size={15} /> Add Goal
               </button>
               <button
                 onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
-                className={`flex items-center gap-1.5 text-sm ${textSecondary} ${hoverBg} font-medium px-2 py-1 rounded-lg transition-colors`}
+                className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600 font-medium px-2 py-1 rounded-lg transition-colors"
               >
-                <Layers size={15} /> Project
+                <Layers size={15} /> Add Project
               </button>
               <button
                 onClick={() => setShowGoalsDashboard(false)}
@@ -789,11 +956,7 @@ const GoalDashboard = () => {
           </div>
 
           {/* Body */}
-          <div
-            className={`flex-1 ${isMobile ? 'overflow-y-auto' : 'overflow-y-auto'} ${
-              isMobile ? '' : 'overflow-x-hidden'
-            }`}
-          >
+          <div className={`flex-1 overflow-y-auto ${isMobile ? '' : 'overflow-x-hidden'}`}>
             {isMobile ? (
               <div className="h-full" style={{ minHeight: 'calc(100vh - 64px)' }}>
                 <MobileDashboard
@@ -809,8 +972,6 @@ const GoalDashboard = () => {
                 <DesktopDashboard
                   activeGoals={activeGoals}
                   activeProjects={activeProjects}
-                  collapsedGoals={collapsedGoals}
-                  onToggleCollapse={handleToggleCollapse}
                   onEditGoal={goal => setGoalForm({ editing: goal })}
                   onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
                   onFocusClick={handleFocusClick}

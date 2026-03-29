@@ -49,9 +49,9 @@ const GoalCard = forwardRef(
     return (
       <div
         ref={ref}
-        className={`rounded-xl overflow-hidden border-2 flex-shrink-0 ${
+        className={`rounded-xl overflow-hidden border-2 w-full ${
           darkMode ? 'border-gray-600' : 'border-stone-200'
-        } min-w-[200px] max-w-[280px] w-full`}
+        }`}
         style={{ borderTopColor: 'transparent', borderLeftColor: 'transparent', borderRightColor: 'transparent' }}
       >
         {/* Colored header */}
