@@ -26,7 +26,7 @@ export default function useKeyboardShortcuts({
   // modal guard state
   showAddTask, showFocusMode, showRoutinesDashboard, showShortcutHelp, showSpotlight,
   showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput,
-  showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal,
+  showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard,
   // new task ('n' / 'i')
   selectedDate, hoverPreviewTime, hoverPreviewDate,
   setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
