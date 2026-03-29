@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Flag,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { TASK_COLORS, TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
+import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalCard from './GoalCard.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
 
@@ -303,7 +305,7 @@ const FormOverlay = ({ children, onClose }) => (
 // ─── Goal mini card (carousel side slots) ────────────────────────────────────
 
 const GoalMiniCard = ({ goal, onClick }) => {
-  const { darkMode, textPrimary, textSecondary } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks, projects } = useDayPlannerCtx();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const hex = toHex(goal.color || 'bg-blue-500');
@@ -311,6 +313,7 @@ const GoalMiniCard = ({ goal, onClick }) => {
 
   let daysLabel = null;
   let labelColor = textSecondary;
+  let isOverdue = false;
   if (goal.targetDate) {
     const diff = Math.ceil(
       (new Date(goal.targetDate + 'T00:00:00') - today) / 86400000
@@ -318,7 +321,13 @@ const GoalMiniCard = ({ goal, onClick }) => {
     daysLabel =
       diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
     if (diff <= 7) labelColor = 'text-amber-500';
+    if (diff < 0) isOverdue = true;
   }
+
+  const allTasks = [...tasks, ...unscheduledTasks];
+  const childProjects = projects.filter(p => p.goalId === goal.id && p.status !== 'archived');
+  const hasStalledProject = childProjects.some(p => isProjectStalled(p.id, allTasks, p));
+  const showCaution = isOverdue || hasStalledProject;
 
   return (
     <div
@@ -331,8 +340,11 @@ const GoalMiniCard = ({ goal, onClick }) => {
       <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate`}>
         {goal.title}
       </p>
-      {daysLabel ? (
-        <p className={`text-xs mt-0.5 ${labelColor}`}>{daysLabel}</p>
+      {(daysLabel || showCaution) ? (
+        <div className="flex items-center gap-1 mt-0.5">
+          {daysLabel && <span className={`text-xs ${labelColor}`}>{daysLabel}</span>}
+          {showCaution && <AlertTriangle size={11} className="text-amber-500 ml-auto flex-shrink-0" />}
+        </div>
       ) : isCompleted ? (
         <p className="text-xs mt-0.5 text-emerald-500">Completed</p>
       ) : null}

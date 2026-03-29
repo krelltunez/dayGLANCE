@@ -65,9 +65,6 @@ const GoalCard = forwardRef(
           <span className="flex-1 text-white font-semibold text-sm leading-tight truncate">
             {goal.title}
           </span>
-          {showCaution && (
-            <AlertTriangle size={13} className="flex-shrink-0 text-amber-300" aria-label="Needs attention" />
-          )}
           <button
             onClick={onEdit}
             className="flex-shrink-0 text-white/70 hover:text-white transition-colors p-0.5 rounded"
@@ -83,17 +80,20 @@ const GoalCard = forwardRef(
             darkMode ? 'bg-gray-800' : 'bg-white'
           }`}
         >
-          {/* Target date */}
-          {daysLabel && (
+          {/* Target date + caution */}
+          {(daysLabel || showCaution) && (
             <div className="flex items-center gap-1.5">
-              <Calendar size={12} className={daysUrgent ? 'text-amber-500' : textSecondary} />
-              <span
-                className={`text-xs font-medium ${
-                  daysUrgent ? 'text-amber-500' : textSecondary
-                }`}
-              >
-                {daysLabel}
-              </span>
+              {daysLabel && (
+                <>
+                  <Calendar size={12} className={daysUrgent ? 'text-amber-500' : textSecondary} />
+                  <span className={`text-xs font-medium ${daysUrgent ? 'text-amber-500' : textSecondary}`}>
+                    {daysLabel}
+                  </span>
+                </>
+              )}
+              {showCaution && (
+                <AlertTriangle size={12} className="text-amber-500 ml-auto flex-shrink-0" />
+              )}
             </div>
           )}
 
