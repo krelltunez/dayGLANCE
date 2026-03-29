@@ -44,7 +44,8 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
   const completedCount = projectTasks.filter(t => t.completed).length;
   const totalCount = projectTasks.length;
   const progress = calculateProjectProgress(project.id, allTasks);
-  const stalled = isProjectStalled(project.id, allTasks, project);
+  // Standalone projects (no parent goal) are never badged as stalled
+  const stalled = !!project.goalId && isProjectStalled(project.id, allTasks, project);
 
   // Unscheduled tasks belonging to this project (shown in the card body)
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id);

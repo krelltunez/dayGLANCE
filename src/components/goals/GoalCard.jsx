@@ -1,7 +1,8 @@
 import React, { forwardRef } from 'react';
-import { Calendar, Edit2 } from 'lucide-react';
+import { AlertTriangle, Calendar, Edit2 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
+import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalProgress from './GoalProgress.jsx';
 
 /**
@@ -35,16 +36,21 @@ const GoalCard = forwardRef(
     // Days remaining until target date
     let daysLabel = null;
     let daysUrgent = false;
+    let isOverdue = false;
     if (goal.targetDate) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const target = new Date(goal.targetDate + 'T00:00:00');
       const diff = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
       if (diff === 0) { daysLabel = 'Due today'; daysUrgent = true; }
-      else if (diff < 0) { daysLabel = `${Math.abs(diff)}d overdue`; daysUrgent = true; }
+      else if (diff < 0) { daysLabel = `${Math.abs(diff)}d overdue`; daysUrgent = true; isOverdue = true; }
       else if (diff <= 7) { daysLabel = `${diff}d left`; daysUrgent = true; }
       else { daysLabel = `${diff}d left`; }
     }
+
+    // Caution: goal is overdue or has at least one stalled child project
+    const hasStalledProject = projects.some(p => isProjectStalled(p.id, allTasks, p));
+    const showCaution = isOverdue || hasStalledProject;
 
     return (
       <div
@@ -59,6 +65,9 @@ const GoalCard = forwardRef(
           <span className="flex-1 text-white font-semibold text-sm leading-tight truncate">
             {goal.title}
           </span>
+          {showCaution && (
+            <AlertTriangle size={13} className="flex-shrink-0 text-amber-300" aria-label="Needs attention" />
+          )}
           <button
             onClick={onEdit}
             className="flex-shrink-0 text-white/70 hover:text-white transition-colors p-0.5 rounded"
