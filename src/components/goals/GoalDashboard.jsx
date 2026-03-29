@@ -706,6 +706,13 @@ const GoalDashboard = () => {
     setShowFocusMode(true);
   }, [setShowGoalsDashboard, setShowFocusMode]);
 
+  // DEV ONLY — temporary console helper for testing before PR 3 adds real entry points.
+  // Removed when the GLANCE panel button and mobile tab are wired in PR 3.
+  useEffect(() => {
+    window.__openGoalsDashboard = () => setShowGoalsDashboard(true);
+    return () => { delete window.__openGoalsDashboard; };
+  }, [setShowGoalsDashboard]);
+
   // Escape key closes dashboard
   useEffect(() => {
     if (!showGoalsDashboard) return;
