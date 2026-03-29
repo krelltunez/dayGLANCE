@@ -8,9 +8,11 @@ import React, {
 import {
   ChevronLeft,
   ChevronRight,
+  Flag,
   FolderOpen,
+  GitBranch,
+  Layers,
   Plus,
-  Target,
   X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -412,7 +414,7 @@ const DesktopDashboard = ({
           <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
             darkMode ? 'bg-gray-700' : 'bg-stone-100'
           }`}>
-            <Target size={28} className={textSecondary} />
+            <GitBranch size={28} className={textSecondary} />
           </div>
           <p className={`text-sm font-medium ${textPrimary}`}>No goals or projects yet</p>
           <p className={`text-xs ${textSecondary} text-center max-w-xs`}>
@@ -756,7 +758,7 @@ const GoalDashboard = () => {
             } ${cardBg}`}
           >
             <div className="flex items-center gap-3">
-              <Target size={20} className="text-blue-500" />
+              <GitBranch size={20} className="text-blue-500" />
               <h2 className={`text-base font-semibold ${textPrimary}`}>
                 Goals &amp; Projects
               </h2>
@@ -766,13 +768,13 @@ const GoalDashboard = () => {
                 onClick={() => setGoalForm({ editing: null })}
                 className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded-lg transition-colors"
               >
-                <Plus size={15} /> Goal
+                <Flag size={15} /> Goal
               </button>
               <button
                 onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
                 className={`flex items-center gap-1.5 text-sm ${textSecondary} ${hoverBg} font-medium px-2 py-1 rounded-lg transition-colors`}
               >
-                <Plus size={15} /> Project
+                <Layers size={15} /> Project
               </button>
               <button
                 onClick={() => setShowGoalsDashboard(false)}
