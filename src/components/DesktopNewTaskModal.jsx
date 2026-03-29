@@ -147,12 +147,17 @@ const DesktopNewTaskModal = () => {
                   <label className={`block text-sm ${textSecondary} mb-1`}>Project</label>
                   <select
                     value={newTask.projectId || ''}
-                    onChange={(e) => setNewTask({ ...newTask, projectId: e.target.value || null, keepUnscheduled: false })}
+                    onChange={(e) => {
+                      const pid = e.target.value || null;
+                      const proj = pid ? projects.find(p => p.id === pid) : null;
+                      const parentGoal = proj?.goalId ? goals.find(g => g.id === proj.goalId) : null;
+                      setNewTask({ ...newTask, projectId: pid, keepUnscheduled: false, ...(parentGoal?.color ? { color: parentGoal.color } : {}) });
+                    }}
                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                   >
                     <option value="">No project</option>
                     {(() => {
-                      const activeProjects = projects.filter(p => p.status !== 'archived');
+                      const activeProjects = projects.filter(p => p.status !== 'archived' && p.status !== 'completed');
                       const withGoal = activeProjects.filter(p => p.goalId);
                       const standalone = activeProjects.filter(p => !p.goalId);
                       const goalGroups = goals
@@ -215,9 +220,10 @@ const DesktopNewTaskModal = () => {
                       <label className={`block text-sm ${textSecondary} mb-1`}>Priority</label>
                       <button
                         type="button"
-                        onClick={() => setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
-                        className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1`}
-                        title={['No priority', 'Low priority', 'Medium priority', 'High priority'][newTask.priority || 0]}
+                        onClick={() => !newTask.projectId && setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
+                        disabled={!!newTask.projectId}
+                        className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1 ${newTask.projectId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={newTask.projectId ? 'Not available for project tasks' : ['No priority', 'Low priority', 'Medium priority', 'High priority'][newTask.priority || 0]}
                       >
                         {[1, 2, 3].map((level) => (
                           <div
@@ -232,8 +238,9 @@ const DesktopNewTaskModal = () => {
                       <div className="relative deadline-picker-container">
                         <button
                           type="button"
-                          onClick={() => setShowNewTaskDeadlinePicker(!showNewTaskDeadlinePicker)}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} flex items-center gap-2`}
+                          onClick={() => !newTask.projectId && setShowNewTaskDeadlinePicker(!showNewTaskDeadlinePicker)}
+                          disabled={!!newTask.projectId}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} flex items-center gap-2 ${newTask.projectId ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <Calendar size={14} className={textSecondary} />
                           {newTask.deadline
@@ -360,8 +367,9 @@ const DesktopNewTaskModal = () => {
                       <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
                       <button
                         type="button"
-                        onClick={() => setShowRecurrencePicker(!showRecurrencePicker)}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''}`}
+                        onClick={() => !newTask.keepUnscheduled && setShowRecurrencePicker(!showRecurrencePicker)}
+                        disabled={newTask.keepUnscheduled}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
                       </button>
