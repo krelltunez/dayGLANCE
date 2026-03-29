@@ -332,7 +332,7 @@ const GoalMiniCard = ({ goal, onClick }) => {
   return (
     <div
       onClick={onClick}
-      style={{ opacity: isCompleted ? 0.45 : 1, borderLeft: `3px solid ${hex}` }}
+      style={{ opacity: isCompleted ? 0.45 : 1, borderLeft: `3px solid ${hex}`, borderRight: `3px solid ${hex}` }}
       className={`w-52 cursor-pointer rounded-xl px-3 py-3 transition-all select-none ${
         darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-stone-50 hover:bg-stone-100'
       }`}
