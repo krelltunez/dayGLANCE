@@ -51,7 +51,7 @@ export default function useKeyboardShortcuts({
   // habits ('h')
   habitsEnabled, setShowHabitModal,
   // goals & projects ('g')
-  goalsProjectsEnabled, setShowGoalsDashboard,
+  goalsProjectsEnabled, setGoalsProjectsEnabled, setShowGoalsDashboard,
   // reschedule ('e')
   gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
   // smart schedule ('s')
@@ -205,9 +205,10 @@ export default function useKeyboardShortcuts({
         setShowVoiceInput(true);
       }
 
-      // 'g' for goals & projects dashboard
-      if (e.key === 'g' && noModifiers && goalsProjectsEnabled) {
+      // 'g' for goals & projects dashboard (also auto-enables the feature on first use)
+      if (e.key === 'g' && noModifiers) {
         e.preventDefault();
+        if (!goalsProjectsEnabled) setGoalsProjectsEnabled(true);
         setShowGoalsDashboard(true);
       }
 

@@ -2051,7 +2051,7 @@ const DayPlanner = () => {
     isMobile, setTabletActiveTab,
     aiConfig, setShowVoiceInput,
     habitsEnabled, setShowHabitModal,
-    goalsProjectsEnabled, showGoalsDashboard, setShowGoalsDashboard,
+    goalsProjectsEnabled, setGoalsProjectsEnabled, showGoalsDashboard, setShowGoalsDashboard,
     gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
     setMobileActiveTab, setFramesModalTab, setEditingFrame, setShowFramesModal,
     changeDate, setSelectedDate,
