@@ -1,6 +1,6 @@
 import React, { forwardRef, useState } from 'react';
 import ConfirmDialog from '../ConfirmDialog.jsx';
-import { AlertTriangle, CheckSquare, Plus, Trash2, X, Zap } from 'lucide-react';
+import { AlertTriangle, CheckSquare, Plus, Target, Trash2, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
 import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
@@ -132,7 +132,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick }, ref) => {
             : 'bg-amber-50 hover:bg-amber-100 text-amber-700'
         }`}
       >
-        <Zap size={12} />
+        <Target size={12} />
         Project Focus
       </button>
 
