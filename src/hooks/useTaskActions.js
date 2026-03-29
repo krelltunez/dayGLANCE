@@ -586,9 +586,10 @@ export default function useTaskActions({
     }
 
     pushUndo();
-    const task = fromInbox
-      ? unscheduledTasks.find(t => t.id === id)
-      : tasks.find(t => t.id === id);
+    const taskInScheduled = tasks.find(t => t.id === id);
+    const taskInInbox = unscheduledTasks.find(t => t.id === id);
+    const task = fromInbox ? taskInInbox : (taskInScheduled || taskInInbox);
+    const actuallyInInbox = !!taskInInbox && !taskInScheduled;
 
     if (task) {
       if (expandedNotesTaskId === id) {
@@ -596,11 +597,11 @@ export default function useTaskActions({
       }
       const taskWithMeta = {
         ...task,
-        _deletedFrom: fromInbox ? 'inbox' : 'calendar',
+        _deletedFrom: actuallyInInbox ? 'inbox' : 'calendar',
         deletedAt: new Date().toISOString()
       };
       setRecycleBin(prev => [...prev, taskWithMeta]);
-      if (fromInbox) {
+      if (actuallyInInbox) {
         setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
       } else {
         setTasks(prev => prev.filter(t => t.id !== id));
