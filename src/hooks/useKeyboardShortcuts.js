@@ -50,6 +50,8 @@ export default function useKeyboardShortcuts({
   aiConfig, setShowVoiceInput,
   // habits ('h')
   habitsEnabled, setShowHabitModal,
+  // goals & projects ('g')
+  goalsProjectsEnabled, setShowGoalsDashboard,
   // reschedule ('e')
   gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
   // smart schedule ('s')
@@ -104,7 +106,7 @@ export default function useKeyboardShortcuts({
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showGoalsDashboard) {
         return;
       }
 
@@ -203,6 +205,12 @@ export default function useKeyboardShortcuts({
         setShowVoiceInput(true);
       }
 
+      // 'g' for goals & projects dashboard
+      if (e.key === 'g' && noModifiers && goalsProjectsEnabled) {
+        e.preventDefault();
+        setShowGoalsDashboard(true);
+      }
+
       // 'h' for habits modal
       if (e.key === 'h' && noModifiers && habitsEnabled) {
         e.preventDefault();
@@ -257,5 +265,5 @@ export default function useKeyboardShortcuts({
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, gtdFrames]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames]);
 }
