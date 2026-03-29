@@ -1,7 +1,7 @@
 import React, { forwardRef, useState } from 'react';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
-  AlertTriangle, CheckCircle2, CheckSquare, ChevronDown,
+  AlertTriangle, Calendar, CheckCircle2, CheckSquare, ChevronDown,
   Edit2, GripVertical, Plus, Square, Target, Trash2, X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -38,7 +38,7 @@ const TitleWithTags = ({ title, className }) => {
  */
 const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => {
   const {
-    tasks,
+    tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
     goals,
     deleteProject,
@@ -47,18 +47,24 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
     borderClass, textPrimary, textSecondary, hoverBg,
   } = useDayPlannerCtx();
 
+  const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
+
   const toggleTaskComplete = (taskId) => {
+    const scheduled = tasks.find(t => t.id === taskId);
+    if (scheduled) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+      return;
+    }
+    // Unscheduled: toggle + reorder within project
     setUnscheduledTasks(prev => {
       const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
       const nowComplete = updated.find(t => t.id === taskId)?.completed;
       const others = updated.filter(t => !(t.projectId === project.id && t.id === taskId));
       const moved = updated.find(t => t.id === taskId);
       if (nowComplete) {
-        // Completing: move to end of project's tasks
         const lastProjectIdx = others.reduce((max, t, i) => t.projectId === project.id ? i : max, -1);
         others.splice(lastProjectIdx + 1, 0, moved);
       } else {
-        // Uncompleting: move to top of project's tasks
         const firstProjectIdx = others.findIndex(t => t.projectId === project.id);
         others.splice(firstProjectIdx === -1 ? 0 : firstProjectIdx, 0, moved);
       }
@@ -85,11 +91,19 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
   const progress = calculateProjectProgress(project.id, allTasks);
   const stalled = !!project.goalId && isProjectStalled(project.id, allTasks, project);
 
-  // Unscheduled tasks belonging to this project (shown in the card body)
+  // All project tasks: unscheduled (in array order) then scheduled (by date), completed last
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived);
+  const projectScheduled = tasks.filter(t => t.projectId === project.id && !t.archived)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const allProjectDisplayTasks = [
+    ...projectUnscheduled.filter(t => !t.completed),
+    ...projectScheduled.filter(t => !t.completed),
+    ...projectUnscheduled.filter(t => t.completed),
+    ...projectScheduled.filter(t => t.completed),
+  ];
   const VISIBLE_COUNT = 3;
-  const hasMore = projectUnscheduled.length > VISIBLE_COUNT;
-  const visibleTasks = tasksExpanded ? projectUnscheduled : projectUnscheduled.slice(0, VISIBLE_COUNT);
+  const hasMore = allProjectDisplayTasks.length > VISIBLE_COUNT;
+  const visibleTasks = tasksExpanded ? allProjectDisplayTasks : allProjectDisplayTasks.slice(0, VISIBLE_COUNT);
 
   // ── Drag-to-reorder ────────────────────────────────────────────────────────
   const handleDragStart = (e, idx) => {
@@ -110,8 +124,9 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
       setDragOverIdx(null);
       return;
     }
-    const fromId = projectUnscheduled[dragIdx].id;
-    const toId = projectUnscheduled[idx].id;
+    const incompleteUnscheduled = projectUnscheduled.filter(t => !t.completed);
+    const fromId = incompleteUnscheduled[dragIdx].id;
+    const toId = incompleteUnscheduled[idx].id;
     const next = [...unscheduledTasks];
     const fromFull = next.findIndex(t => t.id === fromId);
     const toFull = next.findIndex(t => t.id === toId);
@@ -231,51 +246,57 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
         )}
 
         {/* Unscheduled task list */}
-        {projectUnscheduled.length > 0 && (
+        {allProjectDisplayTasks.length > 0 && (
           <div className={`flex flex-col gap-0.5 pt-2 border-t ${borderClass}`}>
-            {visibleTasks.map((t, idx) => (
-              <div
-                key={t.id}
-                draggable
-                onDragStart={e => handleDragStart(e, idx)}
-                onDragOver={e => handleDragOver(e, idx)}
-                onDrop={e => handleDrop(e, idx)}
-                onDragEnd={handleDragEnd}
-                className={`flex items-center rounded-lg select-none transition-colors ${hoverBg} ${
-                  dragIdx === idx ? 'opacity-40' : ''
-                } ${
-                  dragOverIdx === idx && dragIdx !== idx
-                    ? darkMode ? 'border-t-2 border-blue-400' : 'border-t-2 border-blue-500'
-                    : ''
-                }`}
-                style={goalHex ? { borderLeft: `2px solid ${goalHex}99` } : {}}
-              >
-                {/* Toggle completion — wide hit area */}
-                <button
-                  onClick={() => toggleTaskComplete(t.id)}
-                  className="flex items-center justify-center flex-shrink-0 pl-1.5 pr-2 py-1.5"
-                  aria-label={t.completed ? 'Mark incomplete' : 'Mark complete'}
+            {visibleTasks.map((t) => {
+              const scheduled = isScheduled(t);
+              const incompleteUnscheduledIdx = !scheduled && !t.completed
+                ? projectUnscheduled.filter(u => !u.completed).findIndex(u => u.id === t.id)
+                : -1;
+              const draggable = incompleteUnscheduledIdx !== -1;
+              return (
+                <div
+                  key={t.id}
+                  draggable={draggable}
+                  onDragStart={draggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
+                  onDragOver={draggable ? e => handleDragOver(e, incompleteUnscheduledIdx) : undefined}
+                  onDrop={draggable ? e => handleDrop(e, incompleteUnscheduledIdx) : undefined}
+                  onDragEnd={draggable ? handleDragEnd : undefined}
+                  className={`flex items-center rounded-lg select-none transition-colors ${hoverBg} ${
+                    draggable && dragIdx === incompleteUnscheduledIdx ? 'opacity-40' : ''
+                  } ${
+                    draggable && dragOverIdx === incompleteUnscheduledIdx && dragIdx !== incompleteUnscheduledIdx
+                      ? darkMode ? 'border-t-2 border-blue-400' : 'border-t-2 border-blue-500'
+                      : ''
+                  }`}
+                  style={goalHex ? { borderLeft: `2px solid ${goalHex}99` } : {}}
                 >
-                  {t.completed
-                    ? <CheckSquare size={12} className="text-green-500" />
-                    : <Square size={12} className={`${textSecondary} opacity-60`} />
-                  }
-                </button>
-                {/* Edit task — rest of the row */}
-                <button
-                  onClick={() => openMobileEditTask?.(t, false)}
-                  className="flex items-center gap-1.5 flex-1 min-w-0 pr-1.5 py-1.5"
-                >
-                  <TitleWithTags
-                    title={t.title}
-                    className={`text-xs flex-1 min-w-0 truncate text-left ${
-                      t.completed ? `line-through opacity-40 ${textSecondary}` : textSecondary
-                    }`}
-                  />
-                  <GripVertical size={10} className={`${textSecondary} opacity-20 flex-shrink-0`} />
-                </button>
-              </div>
-            ))}
+                  <button
+                    onClick={() => toggleTaskComplete(t.id)}
+                    className="flex items-center justify-center flex-shrink-0 pl-1.5 pr-2 py-1.5"
+                    aria-label={t.completed ? 'Mark incomplete' : 'Mark complete'}
+                  >
+                    {t.completed
+                      ? <CheckSquare size={12} className="text-green-500" />
+                      : <Square size={12} className={`${textSecondary} opacity-60`} />
+                    }
+                  </button>
+                  <button
+                    onClick={() => openMobileEditTask?.(t, false)}
+                    className="flex items-center gap-1.5 flex-1 min-w-0 pr-1.5 py-1.5"
+                  >
+                    <TitleWithTags
+                      title={t.title}
+                      className={`text-xs flex-1 min-w-0 truncate text-left ${
+                        t.completed ? `line-through opacity-40 ${textSecondary}` : textSecondary
+                      }`}
+                    />
+                    {scheduled && <Calendar size={10} className={`${textSecondary} opacity-40 flex-shrink-0`} />}
+                    {draggable && <GripVertical size={10} className={`${textSecondary} opacity-20 flex-shrink-0`} />}
+                  </button>
+                </div>
+              );
+            })}
 
             {/* Expand / collapse toggle */}
             {hasMore && (
@@ -289,7 +310,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
                 />
                 {tasksExpanded
                   ? 'Show less'
-                  : `${projectUnscheduled.length - VISIBLE_COUNT} more`
+                  : `${allProjectDisplayTasks.length - VISIBLE_COUNT} more`
                 }
               </button>
             )}
