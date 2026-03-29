@@ -966,6 +966,7 @@ const GoalDashboard = () => {
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
     setShowFocusMode,
+    showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
     isMobile,
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
@@ -1024,18 +1025,28 @@ const GoalDashboard = () => {
     setShowFocusMode(true);
   }, [setShowGoalsDashboard, setShowFocusMode]);
 
-  // Escape key: sub-forms close first; dashboard close is handled by useModalClose in App.jsx
+  // Escape key — use capture phase so this fires before useModalClose and other handlers.
+  // GoalDashboard owns all Escape behavior while it's visible.
   useEffect(() => {
     if (!showGoalsDashboard) return;
     const handler = (e) => {
-      if (e.key === 'Escape') {
-        if (goalForm) { e.stopImmediatePropagation(); setGoalForm(null); return; }
-        if (projectForm) { e.stopImmediatePropagation(); setProjectForm(null); return; }
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation(); // prevent all other keydown listeners
+      e.preventDefault();
+      if (showAddTask) {
+        // Close task edit modal without closing dashboard
+        setShowAddTask(false);
+        setShowNewTaskDeadlinePicker(false);
+        return;
       }
+      if (goalForm) { setGoalForm(null); return; }
+      if (projectForm) { setProjectForm(null); return; }
+      setShowGoalsDashboard(false);
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [showGoalsDashboard, goalForm, projectForm]);
+    document.addEventListener('keydown', handler, true); // capture phase
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [showGoalsDashboard, goalForm, projectForm, showAddTask,
+      setShowAddTask, setShowNewTaskDeadlinePicker, setShowGoalsDashboard]);
 
   if (!showGoalsDashboard) return null;
 
