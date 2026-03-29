@@ -1,4 +1,4 @@
-import React, { forwardRef, useState } from 'react';
+import React, { forwardRef, useState, useRef } from 'react';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
   AlertTriangle, Calendar, CheckCircle2, CheckSquare, ChevronDown,
@@ -78,6 +78,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
   const [tasksExpanded, setTasksExpanded] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
+  const touchDragRef = useRef({ active: false, fromIdx: null, overIdx: null });
 
   const handleDelete = () => setShowConfirm(true);
 
@@ -142,6 +143,48 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
     setDragOverIdx(null);
   };
 
+  // ── Touch drag-to-reorder (mobile) ─────────────────────────────────────────
+  const handleGripTouchStart = (e, idx) => {
+    touchDragRef.current = { active: true, fromIdx: idx, overIdx: null };
+    setDragIdx(idx);
+  };
+
+  const handleGripTouchMove = (e) => {
+    if (!touchDragRef.current.active) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const taskEl = el?.closest('[data-drag-idx]');
+    if (taskEl) {
+      const overIdx = parseInt(taskEl.getAttribute('data-drag-idx'), 10);
+      if (!isNaN(overIdx)) {
+        touchDragRef.current.overIdx = overIdx;
+        setDragOverIdx(overIdx);
+      }
+    }
+  };
+
+  const handleGripTouchEnd = () => {
+    if (!touchDragRef.current.active) return;
+    const { fromIdx, overIdx } = touchDragRef.current;
+    touchDragRef.current = { active: false, fromIdx: null, overIdx: null };
+    if (fromIdx !== null && overIdx !== null && fromIdx !== overIdx) {
+      const incompleteUnscheduled = projectUnscheduled.filter(t => !t.completed);
+      const fromId = incompleteUnscheduled[fromIdx]?.id;
+      const toId = incompleteUnscheduled[overIdx]?.id;
+      if (fromId && toId) {
+        const next = [...unscheduledTasks];
+        const fromFull = next.findIndex(t => t.id === fromId);
+        const toFull = next.findIndex(t => t.id === toId);
+        const [moved] = next.splice(fromFull, 1);
+        next.splice(toFull, 0, moved);
+        setUnscheduledTasks(next);
+      }
+    }
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
   // ── Quick-add ──────────────────────────────────────────────────────────────
   const handleQuickAdd = (e) => {
     e.preventDefault();
@@ -171,7 +214,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
       ref={ref}
       className={`flex flex-col rounded-xl border overflow-hidden ${
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
-      } min-w-[180px] max-w-[240px] w-full`}
+      } w-full`}
     >
       {/* Goal color bar */}
       {goalHex && (
@@ -257,6 +300,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
               return (
                 <div
                   key={t.id}
+                  data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
                   draggable={draggable}
                   onDragStart={draggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
                   onDragOver={draggable ? e => handleDragOver(e, incompleteUnscheduledIdx) : undefined}
@@ -292,8 +336,18 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
                       }`}
                     />
                     {scheduled && <Calendar size={10} className={`${textSecondary} opacity-40 flex-shrink-0`} />}
-                    {draggable && <GripVertical size={10} className={`${textSecondary} opacity-20 flex-shrink-0`} />}
                   </button>
+                  {draggable && (
+                    <div
+                      className={`flex-shrink-0 p-1 cursor-grab touch-none ${textSecondary} opacity-30`}
+                      onTouchStart={e => handleGripTouchStart(e, incompleteUnscheduledIdx)}
+                      onTouchMove={handleGripTouchMove}
+                      onTouchEnd={handleGripTouchEnd}
+                      aria-label="Drag to reorder"
+                    >
+                      <GripVertical size={12} />
+                    </div>
+                  )}
                 </div>
               );
             })}

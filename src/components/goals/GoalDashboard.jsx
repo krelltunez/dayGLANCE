@@ -744,6 +744,9 @@ const MobileDashboard = ({
 }) => {
   const {
     darkMode, textPrimary, textSecondary, hoverBg,
+    tasks: scheduledTasks,
+    unscheduledTasks,
+    updateGoal,
   } = useDayPlannerCtx();
 
   const scrollRef = useRef(null);
@@ -839,54 +842,73 @@ const MobileDashboard = ({
                 style={{ scrollSnapAlign: 'start' }}
               >
                 {/* Goal header card */}
-                <div
-                  className="rounded-xl p-4 mb-4 mt-2"
-                  style={{ background: toLightBg(goalColor, darkMode), borderLeft: `4px solid ${goalHex}` }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-col gap-1 flex-1 min-w-0">
-                      <span
-                        className="text-base font-bold leading-tight"
-                        style={{ color: goalHex }}
-                      >
-                        {goal.title}
-                      </span>
-                      {goal.description && (
-                        <p className={`text-xs ${textSecondary} leading-snug`}>
-                          {goal.description}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => onEditGoal(goal)}
-                      className={`flex-shrink-0 text-xs ${textSecondary} ${hoverBg} px-2 py-1 rounded-lg`}
-                    >
-                      Edit
-                    </button>
-                  </div>
-                  {/* Days remaining */}
-                  {goal.targetDate && (() => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const diff = Math.ceil(
-                      (new Date(goal.targetDate + 'T00:00:00') - today) / 86400000
-                    );
-                    const label = diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
-                    const urgent = diff <= 7;
-                    return (
-                      <p className={`text-xs mt-2 font-medium ${urgent ? 'text-amber-500' : textSecondary}`}>
-                        {label}
-                      </p>
-                    );
-                  })()}
-                  {/* Progress bar */}
-                  <div className={`mt-3 w-full h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-white/60'} overflow-hidden`}>
+                {(() => {
+                  const goalProgress = calculateGoalProgress(goal.id, activeProjects, [...scheduledTasks, ...unscheduledTasks]);
+                  const nonArchivedProjects = activeProjects.filter(p => p.goalId === goal.id);
+                  const allProjectsDone = nonArchivedProjects.length > 0 && goalProgress >= 1;
+                  return (
                     <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `0%`, background: goalHex }}
-                    />
-                  </div>
-                </div>
+                      className="rounded-xl p-4 mb-4 mt-2"
+                      style={{ background: toLightBg(goalColor, darkMode), borderLeft: `4px solid ${goalHex}` }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                          <span
+                            className="text-base font-bold leading-tight"
+                            style={{ color: goalHex }}
+                          >
+                            {goal.title}
+                          </span>
+                          {goal.description && (
+                            <p className={`text-xs ${textSecondary} leading-snug`}>
+                              {goal.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {allProjectsDone && (
+                            <button
+                              onClick={() => updateGoal(goal.id, { status: 'completed' })}
+                              className="text-emerald-500 hover:text-emerald-400 transition-colors"
+                              aria-label="Mark goal complete"
+                            >
+                              <CircleCheckBig size={16} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onEditGoal(goal)}
+                            className={`p-1 rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
+                            aria-label="Edit goal"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      {/* Days remaining */}
+                      {goal.targetDate && (() => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const diff = Math.ceil(
+                          (new Date(goal.targetDate + 'T00:00:00') - today) / 86400000
+                        );
+                        const label = diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
+                        const urgent = diff <= 7;
+                        return (
+                          <p className={`text-xs mt-2 font-medium ${urgent ? 'text-amber-500' : textSecondary}`}>
+                            {label}
+                          </p>
+                        );
+                      })()}
+                      {/* Progress bar */}
+                      <div className={`mt-3 w-full h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-white/60'} overflow-hidden`}>
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.round(goalProgress * 100)}%`, background: goalHex }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Child project cards */}
                 {children.length === 0 ? (
@@ -910,12 +932,6 @@ const MobileDashboard = ({
                         onEditClick={() => onEditProject?.(proj)}
                       />
                     ))}
-                    <button
-                      onClick={() => onNewProject(goal.id)}
-                      className={`flex items-center gap-1.5 text-sm ${textSecondary} ${hoverBg} rounded-xl px-3 py-2.5 transition-colors`}
-                    >
-                      <Layers size={14} /> Add project to this goal
-                    </button>
                   </div>
                 )}
               </div>
@@ -956,12 +972,6 @@ const MobileDashboard = ({
                       onEditClick={() => onEditProject?.(proj)}
                     />
                   ))}
-                  <button
-                    onClick={() => onNewProject(null)}
-                    className={`flex items-center gap-1.5 text-sm ${textSecondary} ${hoverBg} rounded-xl px-3 py-2.5 transition-colors`}
-                  >
-                    <Layers size={14} /> Add Standalone Project
-                  </button>
                 </div>
               )}
             </div>
@@ -1087,39 +1097,62 @@ const GoalDashboard = () => {
         >
           {/* Header */}
           <div
-            className={`flex-shrink-0 flex items-center justify-between px-5 py-4 border-b ${borderClass} ${
+            className={`flex-shrink-0 border-b ${borderClass} ${
               isMobile ? 'sticky top-0 z-10' : ''
             } ${cardBg}`}
           >
-            <div className="flex items-center gap-3">
-              <GitBranch size={20} className="text-blue-500" />
-              <h2 className={`text-base font-semibold ${textPrimary}`}>
-                Goals &amp; Projects
-              </h2>
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <GitBranch size={20} className="text-blue-500" />
+                <h2 className={`text-base font-semibold ${textPrimary}`}>
+                  Goals &amp; Projects
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isMobile && (
+                  <>
+                    <button
+                      onClick={() => setGoalForm({ editing: null })}
+                      className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <Flag size={15} /> Add Goal
+                    </button>
+                    <button
+                      onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
+                      className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600 font-medium px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <Layers size={15} /> Add Project
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setShowGoalsDashboard(false)}
+                  className={`p-1.5 rounded-lg ${
+                    darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'
+                  } transition-colors`}
+                  aria-label="Close"
+                >
+                  <X size={16} className={textSecondary} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setGoalForm({ editing: null })}
-                className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded-lg transition-colors"
-              >
-                <Flag size={15} /> Add Goal
-              </button>
-              <button
-                onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
-                className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600 font-medium px-2 py-1 rounded-lg transition-colors"
-              >
-                <Layers size={15} /> Add Project
-              </button>
-              <button
-                onClick={() => setShowGoalsDashboard(false)}
-                className={`p-1.5 rounded-lg ${
-                  darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'
-                } transition-colors`}
-                aria-label="Close"
-              >
-                <X size={16} className={textSecondary} />
-              </button>
-            </div>
+            {/* Mobile action buttons — below header title, like Inbox */}
+            {isMobile && (
+              <div className={`flex items-center gap-2 px-4 pb-3`}>
+                <button
+                  onClick={() => setGoalForm({ editing: null })}
+                  className="flex items-center gap-1.5 text-sm text-blue-500 font-medium px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Flag size={14} /> Add Goal
+                </button>
+                <button
+                  onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
+                  className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Layers size={14} /> Add Project
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Body */}
@@ -1166,24 +1199,24 @@ const GoalDashboard = () => {
                 </button>
 
                 {showArchived && (
-                  <div className="mt-2 flex gap-4">
+                  <div className={`mt-2 ${isMobile ? 'flex flex-col gap-3' : 'flex gap-4'}`}>
                     {/* Goals column */}
-                    <div className="flex-1 min-w-0">
+                    <div className={isMobile ? 'w-full' : 'flex-1 min-w-0'}>
                       <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Goals</p>
                       {archivedGoals.length === 0 ? (
                         <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived goals</p>
                       ) : (
-                        <div className="grid grid-cols-2 gap-1">
+                        <div className={`${isMobile ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-1'}`}>
                           {archivedGoals.map(g => (
                             <div
                               key={g.id}
-                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} group min-w-0`}
+                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}
                             >
                               <Flag size={11} className="text-blue-400 flex-shrink-0" />
                               <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{g.title}</span>
                               <button
                                 onClick={() => updateGoal(g.id, { status: 'active' })}
-                                className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                                className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${
                                   darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
                                 }`}
                               >
@@ -1196,25 +1229,25 @@ const GoalDashboard = () => {
                     </div>
 
                     {/* Divider */}
-                    <div className={`w-px self-stretch ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`} />
+                    {!isMobile && <div className={`w-px self-stretch ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`} />}
 
                     {/* Projects column */}
-                    <div className="flex-1 min-w-0">
+                    <div className={isMobile ? 'w-full' : 'flex-1 min-w-0'}>
                       <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Projects</p>
                       {archivedProjects.length === 0 ? (
                         <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived projects</p>
                       ) : (
-                        <div className="grid grid-cols-2 gap-1">
+                        <div className={`${isMobile ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-1'}`}>
                           {archivedProjects.map(p => (
                             <div
                               key={p.id}
-                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} group min-w-0`}
+                              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}
                             >
                               <Layers size={11} className="text-emerald-400 flex-shrink-0" />
                               <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{p.title}</span>
                               <button
                                 onClick={() => updateProject(p.id, { status: 'active' })}
-                                className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                                className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${
                                   darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
                                 }`}
                               >
