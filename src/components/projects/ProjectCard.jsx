@@ -48,9 +48,17 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
   } = useDayPlannerCtx();
 
   const toggleTaskComplete = (taskId) => {
-    setUnscheduledTasks(prev =>
-      prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
-    );
+    setUnscheduledTasks(prev => {
+      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
+      const nowComplete = updated.find(t => t.id === taskId)?.completed;
+      if (!nowComplete) return updated; // uncompleting: leave in place
+      // Move newly-completed task to end of its project's tasks
+      const others = updated.filter(t => !(t.projectId === project.id && t.id === taskId));
+      const moved = updated.find(t => t.id === taskId);
+      const lastProjectIdx = others.reduce((max, t, i) => t.projectId === project.id ? i : max, -1);
+      others.splice(lastProjectIdx + 1, 0, moved);
+      return others;
+    });
   };
 
   const [quickAddTitle, setQuickAddTitle] = useState('');
