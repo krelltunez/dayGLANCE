@@ -2187,7 +2187,7 @@ const DayPlanner = () => {
         color: task.color || colors[0].class,
         recurrence,
         projectId: task.projectId || null,
-        keepUnscheduled: false,
+        keepUnscheduled: !!(task.projectId && !task.date),
       });
     }
     setShowAddTask(true);

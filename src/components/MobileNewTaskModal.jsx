@@ -230,8 +230,9 @@ const MobileNewTaskModal = () => {
                     <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
                     <button
                       type="button"
-                      onClick={() => setShowDatePicker(true)}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      onClick={() => !newTask.keepUnscheduled && setShowDatePicker(true)}
+                      disabled={newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
                     </button>
@@ -240,9 +241,9 @@ const MobileNewTaskModal = () => {
                     <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
                     <button
                       type="button"
-                      onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
-                      disabled={newTask.isAllDay}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                      onClick={() => !newTask.isAllDay && !newTask.keepUnscheduled && setShowTimePicker(true)}
+                      disabled={newTask.isAllDay || newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
                     </button>
@@ -252,8 +253,8 @@ const MobileNewTaskModal = () => {
                     <select
                       value={newTask.duration}
                       onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
-                      disabled={newTask.isAllDay}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                      disabled={newTask.isAllDay || newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {durationOptions.map(minutes => (
                         <option key={minutes} value={minutes}>{minutes} min</option>
@@ -262,14 +263,14 @@ const MobileNewTaskModal = () => {
                   </div>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
-                    <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
+                    <label className={`flex items-center h-10 ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e) => { e.preventDefault(); !newTask.keepUnscheduled && setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
                       <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                         {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
                       </div>
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                     </label>
                   </div>
-                  {/* Keep unscheduled — only shown when a project is selected */}
+                  {/* Unscheduled — only shown when a project is selected */}
                   {newTask.projectId && (
                     <div className="col-span-2">
                       <label
@@ -280,8 +281,8 @@ const MobileNewTaskModal = () => {
                           {newTask.keepUnscheduled && <Check size={14} className="text-white" strokeWidth={3} />}
                         </div>
                         <div>
-                          <span className={`text-sm ${textPrimary}`}>Keep unscheduled</span>
-                          <span className={`ml-1 text-xs ${textSecondary}`}>(add to project card)</span>
+                          <span className={`text-sm ${textPrimary}`}>Unscheduled</span>
+                          <span className={`ml-1 text-xs ${textSecondary}`}>(add to project card, no date/time)</span>
                         </div>
                       </label>
                     </div>
