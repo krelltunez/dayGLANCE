@@ -5496,6 +5496,9 @@ const DayPlanner = () => {
 
     // ── Overdue tasks (split: prior-day vs today-past-endtime) ────────────
     const allOverdueTasks = getOverdueTasks();
+    const getProjectName = t => (goalsProjectsEnabled && t.projectId)
+      ? (projects.find(p => p.id === t.projectId)?.title || null)
+      : null;
     // Prior-day tasks → dedicated OVERDUE section in widget (no time, no badge)
     const overdueItems = allOverdueTasks
       .filter(t => t._overdueType === 'scheduled' ? t.date < todayStr : true)
@@ -5504,6 +5507,7 @@ const DayPlanner = () => {
         title: t.title,
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
         overdueType: t._overdueType || 'scheduled',
+        projectName: getProjectName(t),
       }));
     // Today's tasks that have passed their end time → shown in SCHEDULED with time
     const overdueTodayItems = allOverdueTasks
@@ -5514,6 +5518,7 @@ const DayPlanner = () => {
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
         startTime: t.startTime || '',
         duration: t.duration || 0,
+        projectName: getProjectName(t),
       }));
 
     // ── Habits (up to 5) ──────────────────────────────────────────────────
@@ -5553,6 +5558,7 @@ const DayPlanner = () => {
         id: t.id,
         title: t.title,
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+        projectName: getProjectName(t),
       }));
 
     // ── Deadline tasks (due today) ─────────────────────────────────────────
@@ -5562,6 +5568,7 @@ const DayPlanner = () => {
         id: t.id,
         title: t.title,
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+        projectName: getProjectName(t),
       }));
 
     // ── Frame sections + unframed scheduled tasks ─────────────────────────
@@ -5592,6 +5599,9 @@ const DayPlanner = () => {
       startTime: t.startTime || '',
       duration: t.duration || 0,
       tags: (t.tags || []).slice(0, 3),
+      projectName: (goalsProjectsEnabled && t.projectId)
+        ? (projects.find(p => p.id === t.projectId)?.title || null)
+        : null,
     });
 
     const sections = [];
@@ -5716,6 +5726,8 @@ const DayPlanner = () => {
     unscheduledTasks,
     glanceAhead,
     currentTime,
+    projects,
+    goalsProjectsEnabled,
   ]);
 
   // GTD Frame CRUD operations

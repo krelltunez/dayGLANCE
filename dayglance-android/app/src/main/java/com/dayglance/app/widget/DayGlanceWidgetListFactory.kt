@@ -62,6 +62,7 @@ class DayGlanceWidgetListFactory(
             val badge: String,   // e.g. "ALL DAY", "DUE TODAY", "OVERDUE"
             val timeStr: String,
             val indent: Boolean = false,
+            val projectName: String = "",
         ) : AgendaItem(TYPE_TASK)
         class FrameHeader(
             val name: String,
@@ -151,6 +152,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#ef4444"),
                     badge = "",
                     timeStr = "",
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -166,6 +168,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#3b82f6"),
                     badge = "ALL DAY",
                     timeStr = "",
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -180,6 +183,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#f97316"),
                     badge = "DUE TODAY",
                     timeStr = "",
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -209,6 +213,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#ef4444"),
                     badge = "OVERDUE",
                     timeStr = buildTimeStr(t),
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -237,6 +242,7 @@ class DayGlanceWidgetListFactory(
                                     badge = if (isInProgress(t)) "IN PROGRESS" else "",
                                     timeStr = buildTimeStr(t),
                                     indent = true,
+                                    projectName = t.optString("projectName", ""),
                                 )
                             }
                         }
@@ -251,6 +257,7 @@ class DayGlanceWidgetListFactory(
                                 badge = if (isInProgress(t)) "IN PROGRESS" else "",
                                 timeStr = buildTimeStr(t),
                                 indent = false,
+                                projectName = t.optString("projectName", ""),
                             )
                         }
                     }
@@ -462,6 +469,14 @@ class DayGlanceWidgetListFactory(
             rv.setViewVisibility(R.id.tv_task_badge, View.GONE)
         }
 
+        // Project chip
+        if (item.projectName.isNotEmpty()) {
+            rv.setTextViewText(R.id.tv_task_project, item.projectName)
+            rv.setViewVisibility(R.id.tv_task_project, View.VISIBLE)
+        } else {
+            rv.setViewVisibility(R.id.tv_task_project, View.GONE)
+        }
+
         // Time / tag line
         if (item.timeStr.isNotEmpty()) {
             rv.setTextViewText(R.id.tv_task_time, item.timeStr)
@@ -472,6 +487,7 @@ class DayGlanceWidgetListFactory(
 
         rv.boostTextSizeForOneUi(R.id.tv_task_title, 13f)
         rv.boostTextSizeForOneUi(R.id.tv_task_badge, 11f)
+        rv.boostTextSizeForOneUi(R.id.tv_task_project, 10f)
         rv.boostTextSizeForOneUi(R.id.tv_task_time, 12f)
         rv.setOnClickFillInIntent(R.id.task_item_root, android.content.Intent())
         return rv

@@ -8,6 +8,7 @@
 
   Structure:
     [color bar 3dp] [title + label row]
+                    [project chip]       ← hidden when no projectId
                     [time/tag line]
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -69,6 +70,24 @@
                 android:visibility="gone" />
 
         </LinearLayout>
+
+        <!-- Project chip — hidden when task has no project -->
+        <TextView
+            android:id="@+id/tv_task_project"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/widget_committed_text"
+            android:textSize="10sp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:layout_marginTop="2dp"
+            android:background="@drawable/widget_committed_pill"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
 
         <!-- Time + tags line -->
         <TextView
