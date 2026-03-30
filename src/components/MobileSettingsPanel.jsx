@@ -3,8 +3,8 @@ import {
   Activity, BarChart3, Bell, BookOpen, BrainCircuit,
   CalendarDays, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, Clock, Cloud, ExternalLink,
-  FolderOpen, HelpCircle, Key, Loader, Mic, Moon,
-  RefreshCw, Save, Settings, Sparkles, Sun, Trash2,
+  FolderOpen, HelpCircle, Key, LayoutGrid, Loader, Mic, Moon, Plus,
+  RefreshCw, Save, Settings, Sparkles, Sun, Target, Trash2,
   Undo2, Upload, Volume2, VolumeX, Wifi, Zap,
 } from 'lucide-react';
 import { isNativeAndroid, nativeGetCalendars } from '../native.js';
@@ -13,6 +13,8 @@ import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
+import FrameEditor from './FrameEditor.jsx';
+import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const MobileSettingsPanel = () => {
@@ -43,6 +45,20 @@ const MobileSettingsPanel = () => {
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     routinesEnabled, setRoutinesEnabled,
     habitsEnabled, setHabitsEnabled,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    mobileActiveTab, setMobileActiveTab,
+    gtdFrames,
+    framesModalTab, setFramesModalTab,
+    editingFrame, setEditingFrame,
+    saveFrame, deleteFrame,
+    allTags,
+    unscheduledTasks,
+    smartScheduleResults, setSmartScheduleResults,
+    smartScheduleLoading,
+    smartScheduleError, setSmartScheduleError,
+    smartScheduleAccepted, setSmartScheduleAccepted,
+    runSmartSchedule, applySmartSchedule,
+    getTodayStr,
     aiConfig, setAiConfig,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
@@ -107,11 +123,25 @@ const MobileSettingsPanel = () => {
         <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
       </button>
       <button
+        onClick={() => { if (!goalsProjectsEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(!goalsProjectsEnabled); }}
+        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+      >
+        {goalsProjectsEnabled ? <Target size={24} className="text-blue-500" /> : <Target size={24} className={textSecondary} />}
+        <span className={`text-xs font-medium ${textPrimary}`}>Goals {goalsProjectsEnabled ? 'On' : 'Off'}</span>
+      </button>
+      <button
         onClick={() => setMobileSettingsView('ai')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         {aiConfig.enabled ? <BrainCircuit size={24} className="text-purple-400" /> : <BrainCircuit size={24} className={textSecondary} />}
         <span className={`text-xs font-medium ${textPrimary}`}>AI {aiConfig.enabled ? 'On' : 'Off'}</span>
+      </button>
+      <button
+        onClick={() => setMobileSettingsView('frames')}
+        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+      >
+        <LayoutGrid size={24} className={mobileSettingsView === 'frames' ? 'text-blue-500' : textSecondary} />
+        <span className={`text-xs font-medium ${textPrimary}`}>Frames</span>
       </button>
     </div>
 
@@ -1092,6 +1122,134 @@ const MobileSettingsPanel = () => {
           <FolderOpen size={14} />
           Select Vault Folder
         </button>
+      )}
+    </div>
+  )}
+
+  {/* Frames sub-view */}
+  {mobileSettingsView === 'frames' && (
+    <div className="px-4 py-4 space-y-4">
+      <button
+        onClick={() => setMobileSettingsView('main')}
+        className={`flex items-center gap-2 ${textSecondary} mb-2`}
+      >
+        <ChevronLeft size={18} />
+        <span className="text-sm font-medium">Settings</span>
+      </button>
+
+      {/* Tab switcher — only show when AI scheduling is enabled */}
+      {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
+        <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5`}>
+          <button
+            onClick={() => setFramesModalTab('frames')}
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'frames' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
+          >
+            My Frames
+          </button>
+          <button
+            onClick={() => setFramesModalTab('schedule')}
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'schedule' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
+          >
+            Smart Schedule
+          </button>
+        </div>
+      )}
+
+      {framesModalTab === 'frames' && (
+        <>
+          {editingFrame ? (
+            <FrameEditor
+              frame={editingFrame === 'new' ? null : editingFrame}
+              onSave={saveFrame}
+              onDelete={deleteFrame}
+              onCancel={() => setEditingFrame(null)}
+              allTags={allTags}
+              darkMode={darkMode}
+              textPrimary={textPrimary}
+              textSecondary={textSecondary}
+              borderClass={borderClass}
+              cardBg={cardBg}
+              hoverBg={hoverBg}
+              existingFrames={gtdFrames}
+              use24HourClock={use24HourClock}
+            />
+          ) : (
+            <>
+              {(() => {
+                const todayStr = getTodayStr();
+                const visibleFrames = gtdFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
+                return visibleFrames.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <LayoutGrid size={48} className={textSecondary} />
+                    <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
+                    <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
+                      Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.
+                    </p>
+                    <button
+                      onClick={() => setEditingFrame('new')}
+                      className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={16} />
+                      Create Frame
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {visibleFrames.map(frame => (
+                      <div
+                        key={frame.id}
+                        onClick={() => setEditingFrame(frame)}
+                        className={`p-3 rounded-lg border ${borderClass} ${cardBg} cursor-pointer ${hoverBg} transition-colors`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${frame.color}`} />
+                          <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
+                          {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>one-time</span>}
+                          {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
+                        </div>
+                        <div className={`text-xs ${textSecondary} mt-1`}>
+                          {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
+                            ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setEditingFrame('new')}
+                      className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
+                    >
+                      <Plus size={16} />
+                      Add Frame
+                    </button>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </>
+      )}
+
+      {aiConfig?.enabled && aiConfig.features?.smartScheduling && framesModalTab === 'schedule' && (
+        <SmartSchedulePanel
+          aiConfig={aiConfig}
+          inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
+          smartScheduleResults={smartScheduleResults}
+          smartScheduleLoading={smartScheduleLoading}
+          smartScheduleError={smartScheduleError}
+          smartScheduleAccepted={smartScheduleAccepted}
+          setSmartScheduleAccepted={setSmartScheduleAccepted}
+          onRun={runSmartSchedule}
+          onApply={applySmartSchedule}
+          onCancel={() => { setSmartScheduleResults(null); setSmartScheduleError(''); }}
+          darkMode={darkMode}
+          textPrimary={textPrimary}
+          textSecondary={textSecondary}
+          borderClass={borderClass}
+          cardBg={cardBg}
+          hoverBg={hoverBg}
+          gtdFrames={gtdFrames}
+          formatTime={formatTime}
+        />
       )}
     </div>
   )}

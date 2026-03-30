@@ -838,7 +838,7 @@ const MobileDashboard = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Dot indicators + page navigation — at top */}
       <div className="flex items-center justify-center gap-3 py-3 flex-shrink-0">
         <button
@@ -1052,7 +1052,7 @@ const MobileDashboard = ({
 
 // ─── GoalDashboard modal ──────────────────────────────────────────────────────
 
-const GoalDashboard = () => {
+const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger = 0 }) => {
   const {
     showGoalsDashboard, setShowGoalsDashboard,
     goals, projects,
@@ -1069,6 +1069,10 @@ const GoalDashboard = () => {
   const [projectForm, setProjectForm] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [showArchived, setShowArchived] = useState(false);
+
+  // Trigger props from header buttons (mobile embedded mode)
+  useEffect(() => { if (addGoalTrigger > 0) setGoalForm({ editing: null }); }, [addGoalTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (addProjectTrigger > 0) setProjectForm({ editing: null, defaultGoalId: null }); }, [addProjectTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refs for SVG line calculation (desktop only)
   const goalCardRefs = useRef({});
@@ -1121,7 +1125,7 @@ const GoalDashboard = () => {
   // Escape key — use capture phase so this fires before useModalClose and other handlers.
   // GoalDashboard owns all Escape behavior while it's visible.
   useEffect(() => {
-    if (!showGoalsDashboard) return;
+    if (!showGoalsDashboard && !embedded) return;
     const handler = (e) => {
       if (e.key !== 'Escape') return;
       e.stopImmediatePropagation(); // prevent all other keydown listeners
@@ -1134,41 +1138,118 @@ const GoalDashboard = () => {
       }
       if (goalForm) { setGoalForm(null); return; }
       if (projectForm) { setProjectForm(null); return; }
-      setShowGoalsDashboard(false);
+      if (!embedded) setShowGoalsDashboard(false);
     };
     document.addEventListener('keydown', handler, true); // capture phase
     return () => document.removeEventListener('keydown', handler, true);
-  }, [showGoalsDashboard, goalForm, projectForm, showAddTask,
+  }, [showGoalsDashboard, embedded, goalForm, projectForm, showAddTask,
       setShowAddTask, setShowNewTaskDeadlinePicker, setShowGoalsDashboard]);
 
-  if (!showGoalsDashboard) return null;
+  if (!showGoalsDashboard && !embedded) return null;
+
+  // ── Embedded mode: renders as inline tab content (mobile Goals tab) ──────
+  if (embedded) {
+    return (
+      <>
+        {/* Body */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <MobileDashboard
+            activeGoals={activeGoals}
+            activeProjects={activeProjects}
+            onEditGoal={goal => setGoalForm({ editing: goal })}
+            onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
+            onFocusClick={handleFocusClick}
+            onNewProject={defaultGoalId => setProjectForm({ editing: null, defaultGoalId })}
+          />
+          {archivedCount > 0 && (
+            <div className={`border-t ${borderClass} px-4 py-3 flex-shrink-0`}>
+              <button
+                onClick={() => setShowArchived(v => !v)}
+                className={`flex items-center gap-2 text-sm ${textSecondary} ${hoverBg} px-2 py-1.5 rounded-lg transition-colors w-full`}
+              >
+                <Archive size={14} />
+                <span>Archived ({archivedCount})</span>
+                <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`} />
+              </button>
+              {showArchived && (
+                <div className="flex gap-4 mt-2">
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Goals</p>
+                    {archivedGoals.length === 0 ? (
+                      <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived goals</p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {archivedGoals.map(g => (
+                          <div key={g.id} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}>
+                            <Flag size={11} className="text-blue-400 flex-shrink-0" />
+                            <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{g.title}</span>
+                            <button onClick={() => updateGoal(g.id, { status: 'active' })} className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'}`}>
+                              <RotateCcw size={9} /> Restore
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className={`w-px self-stretch ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Projects</p>
+                    {archivedProjects.length === 0 ? (
+                      <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived projects</p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {archivedProjects.map(p => (
+                          <div key={p.id} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}>
+                            <Layers size={11} className="text-emerald-400 flex-shrink-0" />
+                            <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{p.title}</span>
+                            <button onClick={() => updateProject(p.id, { status: 'active' })} className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'}`}>
+                              <RotateCcw size={9} /> Restore
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {goalForm && (
+          <FormOverlay onClose={() => setGoalForm(null)} mobile cardBg={cardBg}>
+            <GoalForm initial={goalForm.editing} onSave={handleSaveGoal} onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined} onCancel={() => setGoalForm(null)} mobile />
+          </FormOverlay>
+        )}
+        {projectForm && (
+          <FormOverlay onClose={() => setProjectForm(null)} mobile cardBg={cardBg}>
+            <ProjectForm initial={projectForm.editing} defaultGoalId={projectForm.defaultGoalId} onSave={handleSaveProject} onCancel={() => setProjectForm(null)} mobile />
+          </FormOverlay>
+        )}
+        {confirmDialog && (
+          <ConfirmDialog title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(null)} />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto"
-        style={isMobile ? { padding: 0 } : { padding: '24px 16px' }}
+        style={{ padding: '24px 16px' }}
         onClick={() => setShowGoalsDashboard(false)}
       >
         <div className="absolute inset-0 bg-black/50" />
 
         {/* Panel */}
         <div
-          className={`relative ${cardBg} w-full flex flex-col ${
-            isMobile
-              ? 'min-h-screen'
-              : 'rounded-2xl shadow-2xl max-w-6xl max-h-[85vh]'
-          }`}
-          style={isMobile ? undefined : { overflow: 'hidden' }}
+          className={`relative ${cardBg} w-full flex flex-col rounded-2xl shadow-2xl max-w-6xl max-h-[85vh]`}
+          style={{ overflow: 'hidden' }}
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div
-            className={`flex-shrink-0 border-b ${borderClass} ${
-              isMobile ? 'sticky top-0 z-10' : ''
-            } ${cardBg}`}
-          >
+          <div className={`flex-shrink-0 border-b ${borderClass} ${cardBg}`}>
             <div className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-3">
                 <GitBranch size={20} className="text-blue-500" />
@@ -1177,22 +1258,18 @@ const GoalDashboard = () => {
                 </h2>
               </div>
               <div className="flex items-center gap-2">
-                {!isMobile && (
-                  <>
-                    <button
-                      onClick={() => setGoalForm({ editing: null })}
-                      className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded-lg transition-colors"
-                    >
-                      <Flag size={15} /> Add Goal
-                    </button>
-                    <button
-                      onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
-                      className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600 font-medium px-2 py-1 rounded-lg transition-colors"
-                    >
-                      <Layers size={15} /> Add Project
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={() => setGoalForm({ editing: null })}
+                  className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-medium px-2 py-1 rounded-lg transition-colors"
+                >
+                  <Flag size={15} /> Add Goal
+                </button>
+                <button
+                  onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
+                  className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600 font-medium px-2 py-1 rounded-lg transition-colors"
+                >
+                  <Layers size={15} /> Add Project
+                </button>
                 <button
                   onClick={() => setShowGoalsDashboard(false)}
                   className={`p-1.5 rounded-lg ${
@@ -1204,41 +1281,12 @@ const GoalDashboard = () => {
                 </button>
               </div>
             </div>
-            {/* Mobile action buttons — below header title, like Inbox */}
-            {isMobile && (
-              <div className={`flex items-center gap-2 px-4 pb-3`}>
-                <button
-                  onClick={() => setGoalForm({ editing: null })}
-                  className="flex items-center gap-1.5 text-sm text-blue-500 font-medium px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Flag size={14} /> Add Goal
-                </button>
-                <button
-                  onClick={() => setProjectForm({ editing: null, defaultGoalId: null })}
-                  className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Layers size={14} /> Add Project
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Body */}
-          <div className={`flex-1 overflow-y-auto ${isMobile ? '' : 'overflow-x-hidden'}`}>
-            {isMobile ? (
-              <div className="h-full" style={{ minHeight: 'calc(100vh - 64px)' }}>
-                <MobileDashboard
-                  activeGoals={activeGoals}
-                  activeProjects={activeProjects}
-                  onEditGoal={goal => setGoalForm({ editing: goal })}
-                  onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
-                  onFocusClick={handleFocusClick}
-                  onNewProject={defaultGoalId => setProjectForm({ editing: null, defaultGoalId })}
-                />
-              </div>
-            ) : (
-              <div className="p-6">
-                <DesktopDashboard
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="p-6">
+              <DesktopDashboard
                   activeGoals={activeGoals}
                   activeProjects={activeProjects}
                   onEditGoal={goal => setGoalForm({ editing: goal })}
@@ -1248,12 +1296,11 @@ const GoalDashboard = () => {
                   goalCardRefs={goalCardRefs}
                   projectCardRefs={projectCardRefs}
                 />
-              </div>
-            )}
+            </div>
 
             {/* Archived section */}
             {archivedCount > 0 && (
-              <div className={`border-t ${borderClass} ${isMobile ? 'px-4' : 'px-6'} py-3`}>
+              <div className={`border-t ${borderClass} px-6 py-3`}>
                 <button
                   onClick={() => setShowArchived(v => !v)}
                   className={`flex items-center gap-2 text-sm ${textSecondary} ${hoverBg} px-2 py-1.5 rounded-lg transition-colors w-full`}
@@ -1274,7 +1321,7 @@ const GoalDashboard = () => {
                       {archivedGoals.length === 0 ? (
                         <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived goals</p>
                       ) : (
-                        <div className={`${isMobile ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-1'}`}>
+                        <div className="grid grid-cols-2 gap-1">
                           {archivedGoals.map(g => (
                             <div
                               key={g.id}
@@ -1305,7 +1352,7 @@ const GoalDashboard = () => {
                       {archivedProjects.length === 0 ? (
                         <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived projects</p>
                       ) : (
-                        <div className={`${isMobile ? 'flex flex-col gap-1' : 'grid grid-cols-2 gap-1'}`}>
+                        <div className="grid grid-cols-2 gap-1">
                           {archivedProjects.map(p => (
                             <div
                               key={p.id}
