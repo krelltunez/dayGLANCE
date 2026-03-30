@@ -808,6 +808,8 @@ const MobileDashboard = ({
   } = useDayPlannerCtx();
 
   const scrollRef = useRef(null);
+  const swipeRef = useRef(null); // { startX, startY, locked }
+  const pageRef = useRef(0);    // mirror of `page` for use inside event handlers
 
   // Same sort order as desktop: completed/overdue → left, active/upcoming → right
   const sortedGoals = useMemo(() => sortGoalsForCarousel(activeGoals), [activeGoals]);
@@ -820,6 +822,9 @@ const MobileDashboard = ({
     { type: 'standalone' },
   ];
   const totalPages = pages.length;
+  const totalPagesRef = useRef(totalPages);
+  useEffect(() => { totalPagesRef.current = totalPages; }, [totalPages]);
+  useEffect(() => { pageRef.current = page; }, [page]);
 
   // Scroll to the main goal on mount (instant, no animation)
   useLayoutEffect(() => {
@@ -836,6 +841,53 @@ const MobileDashboard = ({
       behavior: 'smooth',
     });
   };
+
+  // JS swipe handler attached with { passive: false } so we can call
+  // preventDefault() on horizontal gestures. This is necessary in Android
+  // WebView where CSS touch-action on vertically-scrollable children does
+  // not reliably propagate horizontal gestures to the scroll-snap container.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const onStart = (e) => {
+      const t = e.touches[0];
+      swipeRef.current = { startX: t.clientX, startY: t.clientY, locked: null };
+    };
+
+    const onMove = (e) => {
+      const s = swipeRef.current;
+      if (!s) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.startX;
+      const dy = t.clientY - s.startY;
+      if (s.locked === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        s.locked = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+      }
+      if (s.locked === 'h') {
+        e.preventDefault(); // block vertical / native WebView back-gesture
+      }
+    };
+
+    const onEnd = (e) => {
+      const s = swipeRef.current;
+      swipeRef.current = null;
+      if (!s || s.locked !== 'h') return;
+      const dx = e.changedTouches[0].clientX - s.startX;
+      if (Math.abs(dx) < 40) return; // too small — treat as tap
+      if (dx < 0) goToPage(Math.min(totalPagesRef.current - 1, pageRef.current + 1));
+      else         goToPage(Math.max(0, pageRef.current - 1));
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove',  onMove,  { passive: false });
+    el.addEventListener('touchend',   onEnd,   { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove',  onMove);
+      el.removeEventListener('touchend',   onEnd);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Empty state — no goals and no standalone projects
   if (sortedGoals.length === 0 && standaloneProjects.length === 0) {
@@ -912,7 +964,7 @@ const MobileDashboard = ({
               <div
                 key={goal.id}
                 className="flex-shrink-0 w-full h-full overflow-y-auto overflow-x-hidden px-4 pb-4"
-                style={{ scrollSnapAlign: 'start', touchAction: 'pan-y' }}
+                style={{ scrollSnapAlign: 'start' }}
               >
                 {/* Goal header card */}
                 {(() => {
@@ -1042,7 +1094,7 @@ const MobileDashboard = ({
             <div
               key="standalone"
               className="flex-shrink-0 w-full h-full overflow-y-auto overflow-x-hidden px-4 pb-4"
-              style={{ scrollSnapAlign: 'start', touchAction: 'pan-y' }}
+              style={{ scrollSnapAlign: 'start' }}
             >
               <div className="mt-2 mb-4">
                 <span className={`text-xs font-semibold uppercase tracking-wider ${textSecondary}`}>
