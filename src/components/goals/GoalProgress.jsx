@@ -10,26 +10,15 @@ const GoalProgress = ({ progress, color }) => {
   const pct = Math.round((progress || 0) * 100);
 
   return (
-    <div className="w-full">
+    <div
+      className={`w-full h-2 rounded-full overflow-hidden ${
+        darkMode ? 'bg-gray-700' : 'bg-stone-200'
+      }`}
+    >
       <div
-        className={`w-full h-2 rounded-full overflow-hidden ${
-          darkMode ? 'bg-gray-700' : 'bg-stone-200'
-        }`}
-      >
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${color || 'bg-blue-500'}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className="flex justify-end mt-0.5">
-        <span
-          className={`text-xs font-medium ${
-            pct === 100 ? 'text-green-500' : textSecondary
-          }`}
-        >
-          {pct}%
-        </span>
-      </div>
+        className={`h-full rounded-full transition-all duration-500 ${color || 'bg-blue-500'}`}
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 };

@@ -120,7 +120,7 @@ const GoalCard = forwardRef(
           {/* Progress */}
           <GoalProgress progress={progress} color={goalColor} />
 
-          {/* Project count or empty state */}
+          {/* Project count + percentage, or empty state */}
           {projects.length === 0 ? (
             <div className="flex flex-col items-center gap-1.5 py-2">
               <FolderOpen size={18} className={`${textSecondary} opacity-50`} />
@@ -136,9 +136,14 @@ const GoalCard = forwardRef(
               )}
             </div>
           ) : (
-            <span className={`text-xs ${textSecondary}`}>
-              {projects.length} project{projects.length !== 1 ? 's' : ''}
-            </span>
+            <div className="flex items-center justify-between">
+              <span className={`text-xs ${textSecondary}`}>
+                {projects.length} project{projects.length !== 1 ? 's' : ''}
+              </span>
+              <span className={`text-xs font-medium ${progress >= 1 ? 'text-green-500' : textSecondary}`}>
+                {Math.round(progress * 100)}%
+              </span>
+            </div>
           )}
         </div>
       </div>
