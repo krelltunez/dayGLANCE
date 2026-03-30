@@ -159,7 +159,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[90]" onClick={onClose}>
       <div className={`${cardBg} rounded-3xl shadow-2xl ${isTablet ? 'p-7' : 'p-5'}`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className={`${isTablet ? 'text-base' : 'text-sm'} font-semibold tracking-wide uppercase ${textSecondary}`}>Select Time</h3>
