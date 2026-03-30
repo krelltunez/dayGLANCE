@@ -43,6 +43,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
     goals,
     deleteProject,
     openMobileEditTask,
+    getTodayStr,
     darkMode, isMobile,
     borderClass, textPrimary, textSecondary, hoverBg,
   } = useDayPlannerCtx();
@@ -94,6 +95,10 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
   const stalled = !!project.goalId && isProjectStalled(project.id, allTasks, project);
 
   // All project tasks: unscheduled (in array order) then scheduled (by date), completed last
+  const hasTodayTasks = tasks.some(
+    t => t.projectId === project.id && t.date === getTodayStr() && !t.completed && !t.isAllDay
+  );
+
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived);
   const projectScheduled = tasks.filter(t => t.projectId === project.id && !t.archived)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -351,8 +356,8 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
         {/* Progress bar */}
         <ProjectProgress progress={progress} compact />
 
-        {/* Project Focus button — only when there are incomplete tasks */}
-        {projectTasks.some(t => !t.completed) && (
+        {/* Project Focus button — only when there are incomplete tasks scheduled for today */}
+        {hasTodayTasks && (
           <button
             onClick={() => onFocusClick?.(project)}
             className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-xs font-medium transition-colors ${
