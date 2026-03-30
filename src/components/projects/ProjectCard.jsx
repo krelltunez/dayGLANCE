@@ -194,7 +194,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick }, ref) => 
       id: crypto.randomUUID(),
       title,
       duration: 30,
-      color: 'bg-blue-500',
+      color: parentGoal?.color || 'bg-blue-500',
       completed: false,
       isAllDay: false,
       notes: '',
