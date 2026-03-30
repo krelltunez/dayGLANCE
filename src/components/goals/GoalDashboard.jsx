@@ -1010,7 +1010,7 @@ const MobileDashboard = ({
           return (
             <div
               key="standalone"
-              className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4"
+              className="flex-shrink-0 w-full h-full overflow-y-auto overflow-x-hidden px-4 pb-4"
               style={{ scrollSnapAlign: 'start' }}
             >
               <div className="mt-2 mb-4">
