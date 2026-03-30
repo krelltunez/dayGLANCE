@@ -452,7 +452,7 @@ const GoalMiniCard = ({ goal, onClick }) => {
       <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate`}>
         {goal.title}
       </p>
-      {(daysLabel || showCaution || allProjectsDone) ? (
+      {(!isCompleted && (daysLabel || showCaution || allProjectsDone)) ? (
         <div className="flex items-center gap-1 mt-0.5">
           {daysLabel && <span className={`text-xs ${labelColor}`}>{daysLabel}</span>}
           {showCaution && !allProjectsDone && (
@@ -474,7 +474,7 @@ const GoalMiniCard = ({ goal, onClick }) => {
       <div className={`mt-2 w-full h-1 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>
         <div
           className="h-full rounded-full transition-all"
-          style={{ width: '0%', background: hex }}
+          style={{ width: `${Math.round(goalProgress * 100)}%`, background: hex }}
         />
       </div>
     </div>

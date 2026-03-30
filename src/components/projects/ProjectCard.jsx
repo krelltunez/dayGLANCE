@@ -216,7 +216,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
           ref={ref}
           className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
             darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
-          } w-full`}
+          } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[240px] w-full'}`}
           style={goalHex ? { borderLeft: `3px solid ${goalHex}88` } : {}}
         >
           <span className={`text-sm font-medium ${textPrimary} flex-1 min-w-0 truncate`}>
