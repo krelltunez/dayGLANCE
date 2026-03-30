@@ -418,6 +418,7 @@ const MobileLayout = () => {
     saveMobileEditTask, saveMobileEditNativeEvent,
     pushUndo, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
+    projectFilter,
   } = useDayPlannerCtx();
 
   return (
@@ -1082,7 +1083,7 @@ const MobileLayout = () => {
                       {visibleDates.map((date, dayIndex) => {
                         const dateStr = dateToString(date);
                         const isDateToday = dateStr === dateToString(new Date());
-                        const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample);
+                        const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter));
                         const frameInstances = getFrameInstancesForDate(date);
 
                         return (

@@ -3842,7 +3842,7 @@ const DesktopLayout = () => {
                   {visibleDates.map((date, dayIndex) => {
                     const dateStr = dateToString(date);
                     const isDateToday = dateStr === dateToString(new Date());
-                    const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay);
+                    const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && (!projectFilter || t.projectId === projectFilter));
                     const frameInstances = getFrameInstancesForDate(date);
 
                     return (
