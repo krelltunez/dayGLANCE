@@ -332,6 +332,7 @@ Rules:
 - Mention any notable tag patterns if data is available
 - If habit data is provided, comment on consistency — celebrate streaks, gently note habits that were missed frequently
 - If frame utilization data is provided, highlight underutilized frames (below 30%) or overloaded ones (above 100%) as actionable observations
+- If goals and projects data is provided: mention per-project task completion for projects that had activity this week, call out goal progress % and days remaining to target when relevant, and gently flag any stalled projects (no completions in 7+ days)
 - End with a brief forward-looking note for next week
 - Do NOT use markdown, bullet points, headers, or formatting — plain text only
 - Do NOT use emojis
@@ -343,7 +344,8 @@ export function weeklySummaryUserPrompt(data) {
     recurringCompleted, recurringScheduled, bestDay, bestDayCount,
     incompleteCount, tagBreakdown, inboxCount,
     nextWeekTaskCount = 0, nextWeekTopTasks = [], nextWeekCalendarEvents = [],
-    habitStats = [], frameStats = [] } = data;
+    habitStats = [], frameStats = [],
+    goalStats = [], projectStats = [] } = data;
 
   const lines = [`Week: ${dateRange}.`];
   lines.push(`Tasks completed: ${tasksCompleted} of ${tasksScheduled} (${completionRate}% completion rate).`);
@@ -381,6 +383,31 @@ export function weeklySummaryUserPrompt(data) {
     lines.push(`Frame utilization: ${frameStats.map(f =>
       `${f.label}: ${f.utilizationPct}% (${f.scheduledMin} of ${f.totalCapacityMin} min scheduled)`
     ).join(', ')}.`);
+  }
+
+  if (goalStats.length > 0) {
+    lines.push(`Goals: ${goalStats.map(g => {
+      let s = `"${g.title}" — ${g.progressPct}% complete`;
+      if (g.daysToTarget !== null) {
+        if (g.daysToTarget < 0) s += ` (${Math.abs(g.daysToTarget)} days overdue)`;
+        else if (g.daysToTarget === 0) s += ' (target date: today)';
+        else s += ` (${g.daysToTarget} days to target)`;
+      }
+      return s;
+    }).join('; ')}.`);
+  }
+
+  if (projectStats.length > 0) {
+    const activeProjects = projectStats.filter(p => p.weekTotal > 0);
+    const stalledProjects = projectStats.filter(p => p.stalled);
+    if (activeProjects.length > 0) {
+      lines.push(`Project activity this week: ${activeProjects.map(p =>
+        `"${p.title}" — ${p.weekCompleted}/${p.weekTotal} tasks completed (${p.overallProgressPct}% overall)`
+      ).join('; ')}.`);
+    }
+    if (stalledProjects.length > 0) {
+      lines.push(`Stalled projects (no completions in 7+ days): ${stalledProjects.map(p => `"${p.title}"`).join(', ')}.`);
+    }
   }
 
   lines.push(`\nNext week: ${nextWeekTaskCount} task(s) already scheduled.`);
