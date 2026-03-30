@@ -443,18 +443,7 @@ class DayGlanceWidgetListFactory(
         val rv = RemoteViews(context.packageName, R.layout.widget_item_task)
         rv.setTextViewText(R.id.tv_task_title, item.title)
         val color = safeParseColor(item.colorHex, "#3b82f6")
-
-        // Toggle between the 28dp bar (no chip) and the 44dp bar (with project chip).
-        // RemoteViews cannot set layout params dynamically, so we use two static Views.
-        if (item.projectName.isNotEmpty()) {
-            rv.setViewVisibility(R.id.task_color_bar, View.GONE)
-            rv.setViewVisibility(R.id.task_color_bar_tall, View.VISIBLE)
-            rv.setInt(R.id.task_color_bar_tall, "setBackgroundColor", color)
-        } else {
-            rv.setViewVisibility(R.id.task_color_bar, View.VISIBLE)
-            rv.setViewVisibility(R.id.task_color_bar_tall, View.GONE)
-            rv.setInt(R.id.task_color_bar, "setBackgroundColor", color)
-        }
+        rv.setInt(R.id.task_color_bar, "setBackgroundColor", color)
 
         // Indent frame-nested tasks and give them the same gray background as the frame header
         val startPad = if (item.indent) dpToPx(14) else 0

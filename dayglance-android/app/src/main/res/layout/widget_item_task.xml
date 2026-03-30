@@ -7,48 +7,36 @@
             setViewPadding on the root view).
 
   Structure:
-    [color bar] [title + label row]
-                [project chip]       ← hidden when no projectId
-                [time/tag line]
-
-  Two color-bar Views are used because RemoteViews cannot set layout params
-  dynamically. The 28dp bar is for standard 2-line rows (no project chip);
-  the 44dp bar is for 3-line rows (with project chip). Exactly one is VISIBLE
-  at a time; GONE views take no space in LinearLayout.
+    [color bar 3dp] [title + label row]
+                    [project chip]       ← hidden when no projectId
+                    [time/tag line]
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/task_item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:gravity="center_vertical">
+    android:gravity="center_vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp"
+    android:paddingStart="0dp"
+    android:paddingEnd="0dp">
 
-    <!-- Short color bar — 2-line rows (no project chip), VISIBLE by default -->
-    <View
+    <!-- Color bar -->
+    <TextView
         android:id="@+id/task_color_bar"
         android:layout_width="3dp"
         android:layout_height="28dp"
-        android:layout_marginEnd="7dp"
-        android:background="#3b82f6" />
-
-    <!-- Tall color bar — 3-line rows (with project chip), GONE by default -->
-    <View
-        android:id="@+id/task_color_bar_tall"
-        android:layout_width="3dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="7dp"
         android:background="#3b82f6"
-        android:visibility="gone" />
+        android:layout_marginEnd="7dp"
+        android:text="" />
 
-    <!-- Text content — drives the row height -->
+    <!-- Text content -->
     <LinearLayout
-        android:id="@+id/task_text_content"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:orientation="vertical"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:orientation="vertical">
 
         <!-- Title row: task name + badge (ALL DAY / DUE TODAY / OVERDUE) -->
         <LinearLayout
