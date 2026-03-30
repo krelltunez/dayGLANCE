@@ -5497,8 +5497,8 @@ const DayPlanner = () => {
     // ── Overdue tasks (split: prior-day vs today-past-endtime) ────────────
     const allOverdueTasks = getOverdueTasks();
     const getProjectName = t => (goalsProjectsEnabled && t.projectId)
-      ? (projects.find(p => p.id === t.projectId)?.title || null)
-      : null;
+      ? (projects.find(p => p.id === t.projectId)?.title || '')
+      : '';
     // Prior-day tasks → dedicated OVERDUE section in widget (no time, no badge)
     const overdueItems = allOverdueTasks
       .filter(t => t._overdueType === 'scheduled' ? t.date < todayStr : true)
@@ -5600,8 +5600,8 @@ const DayPlanner = () => {
       duration: t.duration || 0,
       tags: (t.tags || []).slice(0, 3),
       projectName: (goalsProjectsEnabled && t.projectId)
-        ? (projects.find(p => p.id === t.projectId)?.title || null)
-        : null,
+        ? (projects.find(p => p.id === t.projectId)?.title || '')
+        : '',
     });
 
     const sections = [];
