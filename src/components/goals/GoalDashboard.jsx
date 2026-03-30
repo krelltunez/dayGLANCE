@@ -837,6 +837,21 @@ const MobileDashboard = ({
     });
   };
 
+  // Empty state — no goals and no standalone projects
+  if (sortedGoals.length === 0 && standaloneProjects.length === 0) {
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center gap-3 px-6">
+        <div className={`w-14 h-14 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-stone-100'}`}>
+          <GitBranch size={28} className={textSecondary} />
+        </div>
+        <p className={`text-sm font-medium ${textPrimary}`}>No goals or projects yet</p>
+        <p className={`text-xs ${textSecondary} text-center`}>
+          Create a goal to track long-term progress, or add a standalone project to organise tasks without a goal.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Dot indicators + page navigation — at top */}
@@ -901,13 +916,25 @@ const MobileDashboard = ({
               >
                 {/* Goal header card */}
                 {(() => {
-                  const goalProgress = calculateGoalProgress(goal.id, activeProjects, [...scheduledTasks, ...unscheduledTasks]);
+                  const allTasks = [...scheduledTasks, ...unscheduledTasks];
+                  const goalProgress = calculateGoalProgress(goal.id, activeProjects, allTasks);
                   const nonArchivedProjects = activeProjects.filter(p => p.goalId === goal.id);
+                  const isCompleted = goal.status === 'completed';
                   const allProjectsDone = nonArchivedProjects.length > 0 && goalProgress >= 1;
+                  const hasStalledProject = nonArchivedProjects.some(p => isProjectStalled(p.id, allTasks, p));
+                  let daysLabel = null, daysUrgent = false, isOverdue = false;
+                  if (goal.targetDate) {
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const diff = Math.ceil((new Date(goal.targetDate + 'T00:00:00') - today) / 86400000);
+                    daysLabel = diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
+                    daysUrgent = diff <= 7;
+                    isOverdue = diff < 0;
+                  }
+                  const showCaution = isOverdue || hasStalledProject;
                   return (
                     <div
                       className="rounded-xl p-4 mb-4 mt-2"
-                      style={{ background: toLightBg(goalColor, darkMode), borderLeft: `4px solid ${goalHex}` }}
+                      style={{ opacity: isCompleted ? 0.45 : 1, background: toLightBg(goalColor, darkMode), borderLeft: `4px solid ${goalHex}` }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -924,7 +951,7 @@ const MobileDashboard = ({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {allProjectsDone && (
+                          {!isCompleted && allProjectsDone && (
                             <button
                               onClick={() => updateGoal(goal.id, { status: 'completed' })}
                               className="text-emerald-500 hover:text-emerald-400 transition-colors"
@@ -942,25 +969,27 @@ const MobileDashboard = ({
                           </button>
                         </div>
                       </div>
-                      {/* Days remaining */}
-                      {goal.targetDate && (() => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const diff = Math.ceil(
-                          (new Date(goal.targetDate + 'T00:00:00') - today) / 86400000
-                        );
-                        const label = diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
-                        const urgent = diff <= 7;
-                        return (
-                          <p className={`text-xs mt-2 font-medium ${urgent ? 'text-amber-500' : textSecondary}`}>
-                            {label}
-                          </p>
-                        );
-                      })()}
+                      {/* Completed label OR date/caution row */}
+                      {isCompleted ? (
+                        <p className="text-xs mt-2 font-medium text-emerald-500">Completed</p>
+                      ) : (daysLabel || showCaution) ? (
+                        <div className="flex items-center gap-1.5 mt-2">
+                          {daysLabel && (
+                            <p className={`text-xs font-medium ${daysUrgent ? 'text-amber-500' : textSecondary}`}>
+                              {daysLabel}
+                            </p>
+                          )}
+                          {showCaution && !allProjectsDone && (
+                            <AlertTriangle size={12} className="text-amber-500 ml-auto flex-shrink-0" />
+                          )}
+                        </div>
+                      ) : null}
                       {/* Progress bar */}
-                      <div className="mt-3">
-                        <GoalProgress progress={goalProgress} color={goalColor} />
-                      </div>
+                      {!isCompleted && (
+                        <div className="mt-3">
+                          <GoalProgress progress={goalProgress} color={goalColor} />
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -1007,6 +1036,8 @@ const MobileDashboard = ({
           }
 
           // Standalone page
+          const activeStandalone = standaloneProjects.filter(p => p.status !== 'completed');
+          const doneStandalone = standaloneProjects.filter(p => p.status === 'completed');
           return (
             <div
               key="standalone"
@@ -1032,12 +1063,21 @@ const MobileDashboard = ({
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {standaloneProjects.map(proj => (
+                  {activeStandalone.map(proj => (
                     <ProjectCard
                       key={proj.id}
                       project={proj}
                       onFocusClick={onFocusClick}
                       onEditClick={() => onEditProject?.(proj)}
+                    />
+                  ))}
+                  {doneStandalone.map(proj => (
+                    <ProjectCard
+                      key={proj.id}
+                      project={proj}
+                      onFocusClick={onFocusClick}
+                      onEditClick={() => onEditProject?.(proj)}
+                      compact
                     />
                   ))}
                 </div>
