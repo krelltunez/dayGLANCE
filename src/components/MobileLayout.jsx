@@ -419,8 +419,10 @@ const MobileLayout = () => {
     saveMobileEditTask, saveMobileEditNativeEvent,
     pushUndo, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
-    projectFilter,
+    projectFilter, setProjectFilter,
     goals,
+    projects,
+    goalsProjectsEnabled,
   } = useDayPlannerCtx();
 
   const [addGoalTrigger, setAddGoalTrigger] = useState(0);
@@ -2428,7 +2430,7 @@ const MobileLayout = () => {
                               </button>
                             )}
                           </div>
-                          <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
+                          <div className={`text-sm ${textSecondary} flex items-center gap-1 flex-wrap`}>
                             {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                             {relativeLabel === 'In Progress' && focusModeAvailable && (
                               <button
@@ -2439,6 +2441,19 @@ const MobileLayout = () => {
                                 <Target size={16} className="animate-pulse" />
                               </button>
                             )}
+                            {goalsProjectsEnabled && task.projectId && (() => {
+                              const proj = projects.find(p => p.id === task.projectId);
+                              if (!proj) return null;
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                  className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium transition-colors ${darkMode ? 'bg-blue-900/50 text-blue-300 active:bg-blue-800/70' : 'bg-blue-100 text-blue-700 active:bg-blue-200'} ${projectFilter === task.projectId ? 'ring-1 ring-blue-400' : ''}`}
+                                  title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                >
+                                  {proj.title}
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                         {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
