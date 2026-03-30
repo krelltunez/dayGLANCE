@@ -8,6 +8,7 @@
 
   Structure:
     [color bar 3dp] [title + label row]
+                    [project chip]       ← hidden when no projectId
                     [time/tag line]
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -21,7 +22,7 @@
     android:paddingStart="0dp"
     android:paddingEnd="0dp">
 
-    <!-- Color bar -->
+    <!-- Short color bar — 2-line rows (no project chip), VISIBLE by default -->
     <TextView
         android:id="@+id/task_color_bar"
         android:layout_width="3dp"
@@ -29,6 +30,16 @@
         android:background="#3b82f6"
         android:layout_marginEnd="7dp"
         android:text="" />
+
+    <!-- Tall color bar — 3-line rows (with project chip), GONE by default -->
+    <TextView
+        android:id="@+id/task_color_bar_tall"
+        android:layout_width="3dp"
+        android:layout_height="44dp"
+        android:background="#3b82f6"
+        android:layout_marginEnd="7dp"
+        android:text=""
+        android:visibility="gone" />
 
     <!-- Text content -->
     <LinearLayout
@@ -69,6 +80,24 @@
                 android:visibility="gone" />
 
         </LinearLayout>
+
+        <!-- Project chip — hidden when task has no project -->
+        <TextView
+            android:id="@+id/tv_task_project"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/widget_committed_text"
+            android:textSize="10sp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:layout_marginTop="2dp"
+            android:background="@drawable/widget_committed_pill"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
 
         <!-- Time + tags line -->
         <TextView

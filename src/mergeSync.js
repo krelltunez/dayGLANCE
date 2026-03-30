@@ -572,6 +572,75 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     localChanged = true;
   }
 
+  // Merge goals by ID using updatedAt for conflict resolution (same strategy as frames)
+  const localGoals = localData.goals || [];
+  const remoteGoals = remoteData.goals || [];
+  const localGoalIds = new Set(localGoals.map(g => String(g.id)));
+  const remoteGoalMap = new Map(remoteGoals.map(g => [String(g.id), g]));
+  const mergedGoals = [];
+  for (const localGoal of localGoals) {
+    const id = String(localGoal.id);
+    const remoteGoal = remoteGoalMap.get(id);
+    if (remoteGoal && JSON.stringify(localGoal) !== JSON.stringify(remoteGoal)) {
+      const localTime = new Date(localGoal.updatedAt || 0);
+      const remoteTime = new Date(remoteGoal.updatedAt || 0);
+      if (remoteTime > localTime) {
+        mergedGoals.push(remoteGoal);
+        localChanged = true;
+      } else {
+        mergedGoals.push(localGoal);
+        if (remoteTime < localTime) remoteChanged = true;
+      }
+    } else {
+      mergedGoals.push(localGoal);
+      if (!remoteGoal) remoteChanged = true;
+    }
+  }
+  for (const remoteGoal of remoteGoals) {
+    if (!localGoalIds.has(String(remoteGoal.id))) {
+      mergedGoals.push(remoteGoal);
+      localChanged = true;
+    }
+  }
+
+  // Merge projects by ID using updatedAt for conflict resolution (same strategy as frames)
+  const localProjects = localData.projects || [];
+  const remoteProjects = remoteData.projects || [];
+  const localProjectIds = new Set(localProjects.map(p => String(p.id)));
+  const remoteProjectMap = new Map(remoteProjects.map(p => [String(p.id), p]));
+  const mergedProjects = [];
+  for (const localProject of localProjects) {
+    const id = String(localProject.id);
+    const remoteProject = remoteProjectMap.get(id);
+    if (remoteProject && JSON.stringify(localProject) !== JSON.stringify(remoteProject)) {
+      const localTime = new Date(localProject.updatedAt || 0);
+      const remoteTime = new Date(remoteProject.updatedAt || 0);
+      if (remoteTime > localTime) {
+        mergedProjects.push(remoteProject);
+        localChanged = true;
+      } else {
+        mergedProjects.push(localProject);
+        if (remoteTime < localTime) remoteChanged = true;
+      }
+    } else {
+      mergedProjects.push(localProject);
+      if (!remoteProject) remoteChanged = true;
+    }
+  }
+  for (const remoteProject of remoteProjects) {
+    if (!localProjectIds.has(String(remoteProject.id))) {
+      mergedProjects.push(remoteProject);
+      localChanged = true;
+    }
+  }
+
+  // Check if goalsProjectsEnabled setting differs
+  const localGoalsProjectsEnabled = localData.goalsProjectsEnabled !== undefined ? localData.goalsProjectsEnabled : false;
+  const remoteGoalsProjectsEnabled = remoteData.goalsProjectsEnabled !== undefined ? remoteData.goalsProjectsEnabled : false;
+  if (localGoalsProjectsEnabled !== remoteGoalsProjectsEnabled) {
+    localChanged = true;
+  }
+
   // Detect calendar URL changes so the sync cycle completes even when URLs
   // are the only difference between local and remote.
   const mergedSyncUrl = remoteData.syncUrl || localData.syncUrl || '';
@@ -616,6 +685,9 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
       routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,
       gtdFrames: mergedFrames,
+      goals: mergedGoals,
+      projects: mergedProjects,
+      goalsProjectsEnabled: remoteData.goalsProjectsEnabled !== undefined ? remoteData.goalsProjectsEnabled : localData.goalsProjectsEnabled,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },

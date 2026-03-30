@@ -3,6 +3,8 @@ import { AlertCircle, BarChart3, CalendarDays, CheckSquare, ChevronLeft, Chevron
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
+import { calculateProjectProgress, isProjectStalled } from '../utils/projectProgress.js';
+import { calculateGoalProgress } from '../utils/goalProgress.js';
 
 const WeeklyReviewModal = () => {
   const {
@@ -14,6 +16,7 @@ const WeeklyReviewModal = () => {
     generateWeeklyAISummary,
     reviewScrollRef,
     tasks, recurringTasks, unscheduledTasks,
+    goals, projects, goalsProjectsEnabled,
     habitsEnabled, habits, habitLogs,
     gtdFrames,
     selectedDate,
@@ -313,6 +316,47 @@ const WeeklyReviewModal = () => {
           };
         }).filter(Boolean).sort((a, b) => b.totalCapacityMin - a.totalCapacityMin);
 
+        // Goals & Projects stats for AI weekly summary
+        const allTasksCombined = [...tasks, ...unscheduledTasks];
+
+        const goalStats = (goalsProjectsEnabled && goals.length > 0)
+          ? goals
+              .filter(g => g.status !== 'archived')
+              .map(g => {
+                const progress = calculateGoalProgress(g.id, projects, allTasksCombined);
+                let daysToTarget = null;
+                if (g.targetDate) {
+                  const target = new Date(g.targetDate + 'T12:00:00');
+                  const todayMidnight = new Date();
+                  todayMidnight.setHours(0, 0, 0, 0);
+                  daysToTarget = Math.ceil((target - todayMidnight) / (1000 * 60 * 60 * 24));
+                }
+                return { id: g.id, title: g.title, progressPct: Math.round(progress * 100), daysToTarget };
+              })
+          : [];
+
+        const projectStats = (goalsProjectsEnabled && projects.length > 0)
+          ? projects
+              .filter(p => p.status !== 'archived')
+              .map(p => {
+                const projectTasks = allTasksCombined.filter(t => t.projectId === p.id && !t.archived);
+                const weekTasks = projectTasks.filter(t => pastWeekDates.includes(t.date));
+                const weekCompleted = weekTasks.filter(t => t.completed).length;
+                const weekTotal = weekTasks.length;
+                const overallProgress = calculateProjectProgress(p.id, allTasksCombined);
+                const stalled = isProjectStalled(p.id, allTasksCombined, p);
+                return {
+                  id: p.id,
+                  title: p.title,
+                  weekCompleted,
+                  weekTotal,
+                  overallProgressPct: Math.round(overallProgress * 100),
+                  stalled,
+                };
+              })
+              .filter(p => p.weekTotal > 0 || p.stalled)
+          : [];
+
         // Stats for AI weekly summary (used by click-to-reveal prompt)
         const nextWeekTopTasks = nextRegular
           .filter(t => !t.isExample)
@@ -345,6 +389,8 @@ const WeeklyReviewModal = () => {
           nextWeekCalendarEvents,
           habitStats: habitStats.map(h => ({ name: h.name, type: h.type, target: h.target, daysHit: h.daysHit })),
           frameStats: frameStats.map(f => ({ label: f.label, totalCapacityMin: f.totalCapacityMin, scheduledMin: f.scheduledMin, utilizationPct: f.utilizationPct })),
+          goalStats,
+          projectStats,
         };
 
         const StatCard = ({ value, label, icon }) => (

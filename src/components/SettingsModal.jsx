@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, RefreshCw, Server, Settings, Sparkles, Sun, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, RefreshCw, Server, Settings, Sparkles, Sun, Target, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
@@ -19,6 +19,7 @@ const SettingsModal = () => {
     soundEnabled, setSoundEnabled,
     habitsEnabled, setHabitsEnabled,
     routinesEnabled, setRoutinesEnabled,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
     setOnboardingProgress,
     isMobile, isTablet,
     weatherZip, setWeatherZip, fetchWeather, weatherTempUnit, setWeatherTempUnit,
@@ -205,6 +206,30 @@ const SettingsModal = () => {
                           </div>
                         </div>
                         <span className={`text-sm ${textPrimary}`}>Enable routines</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Goals & Projects Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Target size={16} className={textSecondary} />
+                        Goals &amp; Projects
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={goalsProjectsEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(e.target.checked); }}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${goalsProjectsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${goalsProjectsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable goals &amp; projects</span>
                       </label>
                     </div>
 

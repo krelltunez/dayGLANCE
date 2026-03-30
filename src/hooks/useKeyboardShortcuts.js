@@ -26,12 +26,12 @@ export default function useKeyboardShortcuts({
   // modal guard state
   showAddTask, showFocusMode, showRoutinesDashboard, showShortcutHelp, showSpotlight,
   showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput,
-  showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal,
+  showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard,
   // new task ('n' / 'i')
   selectedDate, hoverPreviewTime, hoverPreviewDate,
   setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
   // routines ('r')
-  routinesEnabled, setShowRoutinesDashboard,
+  routinesEnabled, setRoutinesEnabled, setShowRoutinesDashboard,
   // focus mode ('f') — passed as a ref to avoid TDZ
   focusModeAvailableRef, enterFocusModeRef,
   // dark mode ('d')
@@ -49,7 +49,9 @@ export default function useKeyboardShortcuts({
   // voice input ('v')
   aiConfig, setShowVoiceInput,
   // habits ('h')
-  habitsEnabled, setShowHabitModal,
+  habitsEnabled, setHabitsEnabled, setShowHabitModal,
+  // goals & projects ('g')
+  goalsProjectsEnabled, setGoalsProjectsEnabled, setShowGoalsDashboard,
   // reschedule ('e')
   gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
   // smart schedule ('s')
@@ -104,7 +106,7 @@ export default function useKeyboardShortcuts({
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showGoalsDashboard) {
         return;
       }
 
@@ -138,8 +140,9 @@ export default function useKeyboardShortcuts({
       }
 
       // 'r' for routines dashboard
-      if (e.key === 'r' && noModifiers && routinesEnabled) {
+      if (e.key === 'r' && noModifiers) {
         e.preventDefault();
+        if (!routinesEnabled) setRoutinesEnabled(true);
         setShowRoutinesDashboard(true);
       }
 
@@ -203,9 +206,17 @@ export default function useKeyboardShortcuts({
         setShowVoiceInput(true);
       }
 
-      // 'h' for habits modal
-      if (e.key === 'h' && noModifiers && habitsEnabled) {
+      // 'g' for goals & projects dashboard (also auto-enables the feature on first use)
+      if (e.key === 'g' && noModifiers) {
         e.preventDefault();
+        if (!goalsProjectsEnabled) setGoalsProjectsEnabled(true);
+        setShowGoalsDashboard(true);
+      }
+
+      // 'h' for habits modal
+      if (e.key === 'h' && noModifiers) {
+        e.preventDefault();
+        if (!habitsEnabled) setHabitsEnabled(true);
         setShowHabitModal(true);
       }
 
@@ -257,5 +268,5 @@ export default function useKeyboardShortcuts({
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, aiConfig, gtdFrames]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames]);
 }

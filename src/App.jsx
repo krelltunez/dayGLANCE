@@ -32,6 +32,7 @@ import SettingsModal from './components/SettingsModal.jsx';
 import RemindersSettingsModal from './components/RemindersSettingsModal.jsx';
 import VoiceInputModal from './components/VoiceInputModal.jsx';
 import WeeklyReviewModal from './components/WeeklyReviewModal.jsx';
+import GoalDashboard from './components/goals/GoalDashboard.jsx';
 import WeeklyReviewReminderCard from './components/WeeklyReviewReminderCard.jsx';
 import IncompleteTasksModal from './components/IncompleteTasksModal.jsx';
 import BackupMenuModal from './components/BackupMenuModal.jsx';
@@ -56,6 +57,7 @@ import useOnboarding from './hooks/useOnboarding.js';
 import useDailyContent from './hooks/useDailyContent.js';
 import useHabits from './hooks/useHabits.js';
 import useRoutines from './hooks/useRoutines.js';
+import useGoalsProjects from './hooks/useGoalsProjects.js';
 import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
@@ -474,6 +476,17 @@ const DayPlanner = () => {
     handleRoutinesDone,
   } = useRoutines({ currentTime, onboardingProgress, setOnboardingProgress });
   const {
+    goals, setGoals,
+    projects, setProjects,
+    showGoalsDashboard, setShowGoalsDashboard,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    addGoal, updateGoal, deleteGoal,
+    addProject, updateProject, deleteProject,
+  } = useGoalsProjects();
+  const [projectFilter, setProjectFilter] = useState(null);
+  // Clear project filter when the selected date changes
+  useEffect(() => { setProjectFilter(null); }, [selectedDate]);
+  const {
     showFocusMode, setShowFocusMode,
     focusPhase, setFocusPhase,
     focusTimerSeconds, setFocusTimerSeconds,
@@ -488,11 +501,13 @@ const DayPlanner = () => {
     focusTimerRunning, setFocusTimerRunning,
     focusTaskMinutes, setFocusTaskMinutes,
     focusBlockTasks, setFocusBlockTasks,
+    focusProjectId, setFocusProjectId,
     focusLog, setFocusLog,
     focusLogModalDate, setFocusLogModalDate,
     wakeLockSentinel,
     focusTimerRef,
     handleFocusTimerEndRef,
+    exitFocusModeRef,
     focusModeAvailableRef,
   } = useFocusMode();
   const {
@@ -647,6 +662,7 @@ const DayPlanner = () => {
     selectedTags,
     inboxPriorityFilter,
     hideCompletedInbox,
+    goalsProjectsEnabled,
   });
   const { taskWidths, setTaskRef, getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns } = useTaskDerived({
     tasks,
@@ -764,12 +780,13 @@ const DayPlanner = () => {
     setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
     setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
     setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
-    setRoutinesEnabled, setDataLoaded,
+    setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
     // values for saveData
     tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
     habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    goals, projects, goalsProjectsEnabled,
     cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
     setUndoToast,
   });
@@ -781,6 +798,7 @@ const DayPlanner = () => {
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
     completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate,
     removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    goals, projects, goalsProjectsEnabled,
   });
 
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour } = useTimelineScroll({
@@ -2029,7 +2047,7 @@ const DayPlanner = () => {
     showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal,
     selectedDate, hoverPreviewTime, hoverPreviewDate,
     setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
-    routinesEnabled, setShowRoutinesDashboard,
+    routinesEnabled, setRoutinesEnabled, setShowRoutinesDashboard,
     focusModeAvailableRef, enterFocusModeRef,
     setDarkMode,
     showMonthView, goToToday, setViewedMonth,
@@ -2038,7 +2056,8 @@ const DayPlanner = () => {
     setShowBackupMenu,
     isMobile, setTabletActiveTab,
     aiConfig, setShowVoiceInput,
-    habitsEnabled, setShowHabitModal,
+    habitsEnabled, setHabitsEnabled, setShowHabitModal,
+    goalsProjectsEnabled, setGoalsProjectsEnabled, showGoalsDashboard, setShowGoalsDashboard,
     gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
     setMobileActiveTab, setFramesModalTab, setEditingFrame, setShowFramesModal,
     changeDate, setSelectedDate,
@@ -2147,6 +2166,7 @@ const DayPlanner = () => {
         startTime: getNextQuarterHour(),
         date: dateToString(selectedDate),
         isAllDay: false,
+        projectId: task.projectId || null,
       });
     } else {
       // Load recurrence from recurring template if editing a recurring task
@@ -2168,6 +2188,8 @@ const DayPlanner = () => {
         isAllDay: task.isAllDay || false,
         color: task.color || colors[0].class,
         recurrence,
+        projectId: task.projectId || null,
+        keepUnscheduled: !!(task.projectId && !task.date),
       });
     }
     setShowAddTask(true);
@@ -2277,6 +2299,7 @@ const DayPlanner = () => {
         color: newTask.color || colors[0].class,
         deadline: newTask.deadline || null,
         priority: newTask.priority || 0,
+        projectId: newTask.projectId || undefined,
       } : t));
     } else if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
       const parsed = parseRecurringId(taskId);
@@ -2344,16 +2367,58 @@ const DayPlanner = () => {
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
       setRecurringTasks(prev => [...prev, template]);
+    } else if (newTask.keepUnscheduled && newTask.projectId) {
+      // Keep/make this an unscheduled project task
+      const inScheduled = tasks.find(t => t.id === taskId);
+      if (inScheduled) {
+        // Move from scheduled → unscheduled project task
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+        setUnscheduledTasks(prev => [...prev, {
+          ...inScheduled,
+          title: cleanTitle(newTask.title),
+          duration: newTask.duration,
+          color: newTask.color || colors[0].class,
+          projectId: newTask.projectId,
+        }]);
+      } else {
+        // Already unscheduled, just update
+        setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? {
+          ...t,
+          title: cleanTitle(newTask.title),
+          duration: newTask.duration,
+          color: newTask.color || colors[0].class,
+          projectId: newTask.projectId,
+        } : t));
+      }
     } else {
-      setTasks(prev => prev.map(t => t.id === taskId ? {
-        ...t,
-        title: cleanTitle(newTask.title),
-        startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-        duration: newTask.duration,
-        date: newTask.date || t.date,
-        isAllDay: newTask.isAllDay || false,
-        color: newTask.color || colors[0].class,
-      } : t));
+      const inScheduled = tasks.find(t => t.id === taskId);
+      if (inScheduled) {
+        setTasks(prev => prev.map(t => t.id === taskId ? {
+          ...t,
+          title: cleanTitle(newTask.title),
+          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+          duration: newTask.duration,
+          date: newTask.date || t.date,
+          isAllDay: newTask.isAllDay || false,
+          color: newTask.color || colors[0].class,
+          projectId: newTask.projectId || undefined,
+        } : t));
+      } else {
+        // Task was unscheduled (e.g. a project task) — move it to the scheduled list
+        const existing = unscheduledTasks.find(t => t.id === taskId);
+        setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
+        setTasks(prev => [...prev, {
+          ...(existing || {}),
+          id: taskId,
+          title: cleanTitle(newTask.title),
+          startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+          duration: newTask.duration,
+          date: newTask.date || dateToString(selectedDate),
+          isAllDay: newTask.isAllDay || false,
+          color: newTask.color || colors[0].class,
+          projectId: newTask.projectId || undefined,
+        }]);
+      }
     }
     setShowAddTask(false);
     setMobileEditingTask(null);
@@ -2545,6 +2610,33 @@ const DayPlanner = () => {
   };
   enterFocusModeRef.current = enterFocusMode;
 
+  const enterProjectFocusMode = (project, projectTasks) => {
+    setFocusProjectId(project.id);
+    setShowFocusMode(true);
+    setFocusShowSettings(true);
+    setFocusShowStats(false);
+    setFocusPhase('work');
+    setFocusTimerSeconds(0);
+    setFocusCycleCount(0);
+    setFocusSessionStart(null);
+    setFocusCompletedTasks(new Set());
+    setFocusTimerRunning(false);
+    setFocusTaskMinutes({});
+    setFocusBlockTasks(projectTasks);
+    setFocusWorkMinutes(25);
+    setFocusBreakMinutes(5);
+    setFocusLongBreakMinutes(15);
+    try { document.documentElement.requestFullscreen?.(); } catch (e) {}
+    (async () => {
+      try {
+        if (navigator.wakeLock) {
+          wakeLockSentinel.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    })();
+    nativeEnterFocusMode();
+  };
+
   const startFocusTimer = () => {
     setFocusShowSettings(false);
     setFocusSessionStart(new Date());
@@ -2588,20 +2680,27 @@ const DayPlanner = () => {
       const sessionMinutes = Math.round((new Date() - focusSessionStart) / 60000);
       if (sessionMinutes > 0) {
         const sessionDateStr = dateToString(new Date(focusSessionStart));
+        const sessionProjectId = focusProjectId;
         setFocusLog(prev => {
           const existing = prev[sessionDateStr] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 };
-          return {
-            ...prev,
-            [sessionDateStr]: {
-              totalMinutes: existing.totalMinutes + sessionMinutes,
-              sessions: existing.sessions + 1,
-              cyclesCompleted: existing.cyclesCompleted + focusCycleCount,
-              tasksCompleted: existing.tasksCompleted + focusCompletedTasks.size,
-            },
+          const updated = {
+            ...existing,
+            totalMinutes: existing.totalMinutes + sessionMinutes,
+            sessions: existing.sessions + 1,
+            cyclesCompleted: existing.cyclesCompleted + focusCycleCount,
+            tasksCompleted: existing.tasksCompleted + focusCompletedTasks.size,
           };
+          if (sessionProjectId) {
+            updated.projectSessions = [
+              ...(existing.projectSessions || []),
+              { projectId: sessionProjectId, minutes: sessionMinutes },
+            ];
+          }
+          return { ...prev, [sessionDateStr]: updated };
         });
       }
     }
+    setFocusProjectId(null);
     if (showStats) {
       setFocusShowStats(true);
     } else {
@@ -2613,6 +2712,7 @@ const DayPlanner = () => {
       setShowFocusMode(false);
     }
   };
+  exitFocusModeRef.current = exitFocusMode;
 
   const dismissFocusStats = () => {
     try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
@@ -3102,7 +3202,10 @@ const DayPlanner = () => {
         habitsEnabled: JSON.parse(localStorage.getItem('day-planner-habits-enabled') || 'true'),
         routinesEnabled: JSON.parse(localStorage.getItem('day-planner-routines-enabled') || 'true'),
         aiConfig: JSON.parse(localStorage.getItem('day-planner-ai-config') || 'null'),
-        calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]')
+        calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
+        goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
+        projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
+        goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
       }
     };
 
@@ -3148,7 +3251,10 @@ const DayPlanner = () => {
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
       aiConfig: JSON.parse(localStorage.getItem('day-planner-ai-config') || 'null'),
       obsidianConfig: JSON.parse(localStorage.getItem('day-planner-obsidian-config') || 'null'),
-      calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]')
+      calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
+      goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
+      projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
+      goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
     }
   });
 
@@ -3318,6 +3424,9 @@ const DayPlanner = () => {
         if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
         if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
         if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
+        if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
+        if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+        if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
 
         // Reload app to reflect changes
         // On Android WebView, use href assignment for a full reload; fall back to reload()
@@ -3854,6 +3963,9 @@ const DayPlanner = () => {
         deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
         routinesEnabled,
         gtdFrames,
+        goals,
+        projects,
+        goalsProjectsEnabled,
       }
     };
   };
@@ -3995,6 +4107,18 @@ const DayPlanner = () => {
     if (data.gtdFrames) {
       localStorage.setItem('day-planner-gtd-frames', JSON.stringify(data.gtdFrames));
       setGtdFrames(data.gtdFrames);
+    }
+    if (data.goals) {
+      localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
+      setGoals(data.goals);
+    }
+    if (data.projects) {
+      localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+      setProjects(data.projects);
+    }
+    if (data.goalsProjectsEnabled !== undefined) {
+      localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+      setGoalsProjectsEnabled(data.goalsProjectsEnabled);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
@@ -5316,7 +5440,7 @@ const DayPlanner = () => {
     frameScheduleModal, setFrameScheduleModal,
     focusBlockTasks, setFocusBlockTasks,
     focusCompletedTasks, setFocusCompletedTasks,
-    exitFocusMode,
+    exitFocusModeRef,
     playFocusSound,
     getObsidianTaskMeta: obsidianConfig?.enabled && obsidianVaultHandleRef.current
       ? (rawTitle) => {
@@ -5372,6 +5496,9 @@ const DayPlanner = () => {
 
     // ── Overdue tasks (split: prior-day vs today-past-endtime) ────────────
     const allOverdueTasks = getOverdueTasks();
+    const getProjectName = t => (goalsProjectsEnabled && t.projectId)
+      ? (projects.find(p => p.id === t.projectId)?.title || '')
+      : '';
     // Prior-day tasks → dedicated OVERDUE section in widget (no time, no badge)
     const overdueItems = allOverdueTasks
       .filter(t => t._overdueType === 'scheduled' ? t.date < todayStr : true)
@@ -5380,6 +5507,7 @@ const DayPlanner = () => {
         title: t.title,
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
         overdueType: t._overdueType || 'scheduled',
+        projectName: getProjectName(t),
       }));
     // Today's tasks that have passed their end time → shown in SCHEDULED with time
     const overdueTodayItems = allOverdueTasks
@@ -5390,6 +5518,7 @@ const DayPlanner = () => {
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
         startTime: t.startTime || '',
         duration: t.duration || 0,
+        projectName: getProjectName(t),
       }));
 
     // ── Habits (up to 5) ──────────────────────────────────────────────────
@@ -5429,6 +5558,7 @@ const DayPlanner = () => {
         id: t.id,
         title: t.title,
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+        projectName: getProjectName(t),
       }));
 
     // ── Deadline tasks (due today) ─────────────────────────────────────────
@@ -5438,6 +5568,7 @@ const DayPlanner = () => {
         id: t.id,
         title: t.title,
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+        projectName: getProjectName(t),
       }));
 
     // ── Frame sections + unframed scheduled tasks ─────────────────────────
@@ -5468,6 +5599,9 @@ const DayPlanner = () => {
       startTime: t.startTime || '',
       duration: t.duration || 0,
       tags: (t.tags || []).slice(0, 3),
+      projectName: (goalsProjectsEnabled && t.projectId)
+        ? (projects.find(p => p.id === t.projectId)?.title || '')
+        : '',
     });
 
     const sections = [];
@@ -5592,6 +5726,8 @@ const DayPlanner = () => {
     unscheduledTasks,
     glanceAhead,
     currentTime,
+    projects,
+    goalsProjectsEnabled,
   ]);
 
   // GTD Frame CRUD operations
@@ -6317,6 +6453,15 @@ const DayPlanner = () => {
     frameNudgeError, setFrameNudgeError,
     frameNudgeDismissedKey, setFrameNudgeDismissedKey,
 
+    // ── Goals & Projects ──────────────────────────────────────────────────────
+    goals, setGoals,
+    projects, setProjects,
+    showGoalsDashboard, setShowGoalsDashboard,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    addGoal, updateGoal, deleteGoal,
+    addProject, updateProject, deleteProject,
+    projectFilter, setProjectFilter,
+
     // ── Reminders ─────────────────────────────────────────────────────────────
     reminderSettings, setReminderSettings,
     showRemindersSettings, setShowRemindersSettings,
@@ -6443,7 +6588,8 @@ const DayPlanner = () => {
     addStepsHabit, addSleepHabit,
 
     // ── Functions – focus mode ────────────────────────────────────────────────
-    enterFocusMode, exitFocusMode, startFocusTimer, dismissFocusStats,
+    enterFocusMode, enterProjectFocusMode, exitFocusMode, startFocusTimer, dismissFocusStats,
+    focusProjectId,
     handleFocusTimerEnd,
     focusCompleteTask, focusToggleSubtask, focusAddSubtask,
     focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,
@@ -7007,6 +7153,7 @@ const DayPlanner = () => {
               <Sparkles size={22} />
             </button>
           )}
+
           </>)}
         </>
       )}
@@ -7828,6 +7975,9 @@ const DayPlanner = () => {
 
       {/* Frame Manually Schedule Modal */}
       {frameScheduleModal && <FrameScheduleModal />}
+
+      {/* Goals & Projects Dashboard */}
+      <GoalDashboard />
 
       {/* Weekly Review Modal */}
       <WeeklyReviewModal />

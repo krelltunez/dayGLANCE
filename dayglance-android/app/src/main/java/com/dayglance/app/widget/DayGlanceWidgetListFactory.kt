@@ -62,6 +62,7 @@ class DayGlanceWidgetListFactory(
             val badge: String,   // e.g. "ALL DAY", "DUE TODAY", "OVERDUE"
             val timeStr: String,
             val indent: Boolean = false,
+            val projectName: String = "",
         ) : AgendaItem(TYPE_TASK)
         class FrameHeader(
             val name: String,
@@ -151,6 +152,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#ef4444"),
                     badge = "",
                     timeStr = "",
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -166,6 +168,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#3b82f6"),
                     badge = "ALL DAY",
                     timeStr = "",
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -180,6 +183,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#f97316"),
                     badge = "DUE TODAY",
                     timeStr = "",
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -209,6 +213,7 @@ class DayGlanceWidgetListFactory(
                     colorHex = t.optString("colorHex", "#ef4444"),
                     badge = "OVERDUE",
                     timeStr = buildTimeStr(t),
+                    projectName = t.optString("projectName", ""),
                 )
             }
         }
@@ -237,6 +242,7 @@ class DayGlanceWidgetListFactory(
                                     badge = if (isInProgress(t)) "IN PROGRESS" else "",
                                     timeStr = buildTimeStr(t),
                                     indent = true,
+                                    projectName = t.optString("projectName", ""),
                                 )
                             }
                         }
@@ -251,6 +257,7 @@ class DayGlanceWidgetListFactory(
                                 badge = if (isInProgress(t)) "IN PROGRESS" else "",
                                 timeStr = buildTimeStr(t),
                                 indent = false,
+                                projectName = t.optString("projectName", ""),
                             )
                         }
                     }
@@ -436,7 +443,19 @@ class DayGlanceWidgetListFactory(
         val rv = RemoteViews(context.packageName, R.layout.widget_item_task)
         rv.setTextViewText(R.id.tv_task_title, item.title)
         val color = safeParseColor(item.colorHex, "#3b82f6")
-        rv.setInt(R.id.task_color_bar, "setBackgroundColor", color)
+
+        // Show the tall bar (44dp) for 3-line rows that include a project chip,
+        // and the short bar (28dp) for standard 2-line rows. Both are TextViews
+        // so RemoteViews can inflate them — base <View> is not in the supported subset.
+        if (item.projectName.isNotEmpty()) {
+            rv.setViewVisibility(R.id.task_color_bar, View.GONE)
+            rv.setViewVisibility(R.id.task_color_bar_tall, View.VISIBLE)
+            rv.setInt(R.id.task_color_bar_tall, "setBackgroundColor", color)
+        } else {
+            rv.setViewVisibility(R.id.task_color_bar, View.VISIBLE)
+            rv.setViewVisibility(R.id.task_color_bar_tall, View.GONE)
+            rv.setInt(R.id.task_color_bar, "setBackgroundColor", color)
+        }
 
         // Indent frame-nested tasks and give them the same gray background as the frame header
         val startPad = if (item.indent) dpToPx(14) else 0
@@ -462,7 +481,15 @@ class DayGlanceWidgetListFactory(
             rv.setViewVisibility(R.id.tv_task_badge, View.GONE)
         }
 
-        // Time / tag line
+        // Project chip — shown as a styled pill when task belongs to a project
+        if (item.projectName.isNotEmpty()) {
+            rv.setTextViewText(R.id.tv_task_project, item.projectName)
+            rv.setViewVisibility(R.id.tv_task_project, View.VISIBLE)
+        } else {
+            rv.setViewVisibility(R.id.tv_task_project, View.GONE)
+        }
+
+        // Time line
         if (item.timeStr.isNotEmpty()) {
             rv.setTextViewText(R.id.tv_task_time, item.timeStr)
             rv.setViewVisibility(R.id.tv_task_time, View.VISIBLE)
@@ -472,6 +499,7 @@ class DayGlanceWidgetListFactory(
 
         rv.boostTextSizeForOneUi(R.id.tv_task_title, 13f)
         rv.boostTextSizeForOneUi(R.id.tv_task_badge, 11f)
+        rv.boostTextSizeForOneUi(R.id.tv_task_project, 10f)
         rv.boostTextSizeForOneUi(R.id.tv_task_time, 12f)
         rv.setOnClickFillInIntent(R.id.task_item_root, android.content.Intent())
         return rv

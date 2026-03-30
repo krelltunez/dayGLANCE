@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Activity, AlertCircle, AlertTriangle, BarChart3, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
-  Eye, FileText, Filter, Flame, FolderOpen, GripVertical, Hash, HelpCircle,
-  Inbox, Key, LayoutGrid, Link, Loader, Menu, Mic, Minus, Moon, MoreHorizontal,
+  Eye, FileText, Filter, Flag, Flame, FolderOpen, GitBranch, GripVertical, Hash, HelpCircle,
+  Inbox, Key, Layers, LayoutGrid, Link, Loader, Menu, Mic, Minus, Moon, MoreHorizontal,
   NotebookPen, Plus, RefreshCw, Save, Search, Settings, SkipForward, Sparkles,
   Sun, Target, Trash2, TrendingUp, Trophy, Undo2, Upload, Volume2, VolumeX,
   Wifi, X, Zap,
@@ -28,6 +28,7 @@ import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import MobileTabBar from './MobileTabBar.jsx';
 import MobileSettingsPanel from './MobileSettingsPanel.jsx';
 import MobileRoutinesTab from './MobileRoutinesTab.jsx';
+import GoalDashboard from './goals/GoalDashboard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const MobileLayout = () => {
@@ -418,7 +419,14 @@ const MobileLayout = () => {
     saveMobileEditTask, saveMobileEditNativeEvent,
     pushUndo, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
+    projectFilter, setProjectFilter,
+    goals,
+    projects,
+    goalsProjectsEnabled,
   } = useDayPlannerCtx();
+
+  const [addGoalTrigger, setAddGoalTrigger] = useState(0);
+  const [addProjectTrigger, setAddProjectTrigger] = useState(0);
 
   return (
         <>
@@ -540,7 +548,7 @@ const MobileLayout = () => {
                     </button>
                     {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                       <button
-                        onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
+                        onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
                         className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                         title="AI Smart Schedule"
                       >
@@ -589,12 +597,28 @@ const MobileLayout = () => {
                 </div>
               </div>
             )}
-            {mobileActiveTab === 'frames' && (
+            {mobileActiveTab === 'goals' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center justify-between px-4 py-3">
+                <div className="px-4 pt-3 pb-1">
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
-                    <LayoutGrid size={20} /> Frames
+                    <GitBranch size={20} className="text-blue-500" /> Goals &amp; Projects
                   </h2>
+                </div>
+                <div className="flex items-center gap-1 px-4 py-2">
+                  <button
+                    onClick={() => setAddGoalTrigger(v => v + 1)}
+                    className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                  >
+                    <Flag size={14} strokeWidth={2.5} />
+                    <span className="text-xs font-medium">Add Goal</span>
+                  </button>
+                  <button
+                    onClick={() => setAddProjectTrigger(v => v + 1)}
+                    className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg active:bg-emerald-700 transition-colors"
+                  >
+                    <Layers size={14} strokeWidth={2.5} />
+                    <span className="text-xs font-medium">Add Project</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -1079,7 +1103,7 @@ const MobileLayout = () => {
                       {visibleDates.map((date, dayIndex) => {
                         const dateStr = dateToString(date);
                         const isDateToday = dateStr === dateToString(new Date());
-                        const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample);
+                        const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter));
                         const frameInstances = getFrameInstancesForDate(date);
 
                         return (
@@ -1468,11 +1492,24 @@ const MobileLayout = () => {
                                           <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
                                         ))}
                                       </div>
-                                      {height >= 55 && (
-                                        <div className="text-xs text-white/70 mt-0.5">
-                                          {formatTime(task.startTime)} · {task.duration}m
-                                        </div>
-                                      )}
+                                      {goalsProjectsEnabled && task.projectId ? (() => {
+                                        const proj = projects.find(p => p.id === task.projectId);
+                                        if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div> : null;
+                                        return (
+                                          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                              className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
+                                              title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                            >
+                                              {proj.title}
+                                            </button>
+                                            {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {task.duration}m</span>}
+                                          </div>
+                                        );
+                                      })() : height >= 55 ? (
+                                        <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div>
+                                      ) : null}
                                     </div>
                                   ) : (
                                     /* WIDE: checkbox + title + action buttons + time row */
@@ -1497,11 +1534,24 @@ const MobileLayout = () => {
                                           <MobileActionButtons />
                                         </div>
                                       </div>
-                                      {height >= 55 && (
-                                        <div className="text-xs text-white/70 mt-0.5">
-                                          {formatTime(task.startTime)} · {task.duration}m
-                                        </div>
-                                      )}
+                                      {goalsProjectsEnabled && task.projectId ? (() => {
+                                        const proj = projects.find(p => p.id === task.projectId);
+                                        if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div> : null;
+                                        return (
+                                          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                              className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
+                                              title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                            >
+                                              {proj.title}
+                                            </button>
+                                            {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {task.duration}m</span>}
+                                          </div>
+                                        );
+                                      })() : height >= 55 ? (
+                                        <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div>
+                                      ) : null}
                                     </div>
                                   )}
                                   </div>{/* end content */}
@@ -1809,7 +1859,7 @@ const MobileLayout = () => {
                       )}
                       {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                         <button
-                          onClick={() => { setMobileActiveTab('frames'); setFramesModalTab('schedule'); }}
+                          onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('frames'); setFramesModalTab('schedule'); }}
                           className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
                         >
                           <BrainCircuit size={12} />
@@ -2406,7 +2456,7 @@ const MobileLayout = () => {
                               </button>
                             )}
                           </div>
-                          <div className={`text-sm ${textSecondary} flex items-center gap-1 whitespace-nowrap`}>
+                          <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                             {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
                             {relativeLabel === 'In Progress' && focusModeAvailable && (
                               <button
@@ -2418,6 +2468,19 @@ const MobileLayout = () => {
                               </button>
                             )}
                           </div>
+                          {goalsProjectsEnabled && task.projectId && (() => {
+                            const proj = projects.find(p => p.id === task.projectId);
+                            if (!proj) return null;
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium transition-colors ${darkMode ? 'bg-blue-900/50 text-blue-300 active:bg-blue-800/70' : 'bg-blue-100 text-blue-700 active:bg-blue-200'} ${projectFilter === task.projectId ? 'ring-1 ring-blue-400' : ''}`}
+                                title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                              >
+                                {proj.title}
+                              </button>
+                            );
+                          })()}
                         </div>
                         {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
                           <div className="flex items-center gap-1 flex-shrink-0 mr-5">
@@ -2928,125 +2991,12 @@ const MobileLayout = () => {
 
             {mobileActiveTab === 'routines' && <MobileRoutinesTab />}
 
-            {mobileActiveTab === 'frames' && (
-              <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
-                {/* Tab switcher — only show when AI scheduling is enabled */}
-                {aiConfig?.enabled && aiConfig.features?.smartScheduling && (
-                <div className={`flex rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-stone-200'} p-0.5 mb-4`}>
-                  <button
-                    onClick={() => setFramesModalTab('frames')}
-                    className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'frames' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
-                  >
-                    My Frames
-                  </button>
-                  <button
-                    onClick={() => setFramesModalTab('schedule')}
-                    className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'schedule' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
-                  >
-                    Smart Schedule
-                  </button>
-                </div>
-                )}
-
-                {framesModalTab === 'frames' && (
-                  <>
-                    {editingFrame ? (
-                      <FrameEditor
-                        frame={editingFrame === 'new' ? null : editingFrame}
-                        onSave={saveFrame}
-                        onDelete={deleteFrame}
-                        onCancel={() => setEditingFrame(null)}
-                        allTags={allTags}
-                        darkMode={darkMode}
-                        textPrimary={textPrimary}
-                        textSecondary={textSecondary}
-                        borderClass={borderClass}
-                        cardBg={cardBg}
-                        hoverBg={hoverBg}
-                        existingFrames={gtdFrames}
-                        use24HourClock={use24HourClock}
-                        isTablet={isTablet}
-                      />
-                    ) : (
-                      <>
-                        {(() => {
-                          const todayStr = getTodayStr();
-                          const visibleFrames = gtdFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
-                          return visibleFrames.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-12 gap-3">
-                            <LayoutGrid size={48} className={textSecondary} />
-                            <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
-                            <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
-                              Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.
-                            </p>
-                            <button
-                              onClick={() => setEditingFrame('new')}
-                              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-                            >
-                              <Plus size={16} />
-                              Create Frame
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {visibleFrames.map(frame => (
-                              <div
-                                key={frame.id}
-                                onClick={() => setEditingFrame(frame)}
-                                className={`p-3 rounded-lg border ${borderClass} ${cardBg} cursor-pointer ${hoverBg} transition-colors`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-3 h-3 rounded-full ${frame.color}`} />
-                                  <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
-                                  {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>one-time</span>}
-                                  {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
-                                </div>
-                                <div className={`text-xs ${textSecondary} mt-1`}>
-                                  {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
-                                    ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                    : frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
-                                </div>
-                              </div>
-                            ))}
-                            <button
-                              onClick={() => setEditingFrame('new')}
-                              className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
-                            >
-                              <Plus size={16} />
-                              Add Frame
-                            </button>
-                          </div>
-                        );
-                        })()}
-                      </>
-                    )}
-                  </>
-                )}
-
-                {aiConfig?.enabled && aiConfig.features?.smartScheduling && framesModalTab === 'schedule' && (
-                  <SmartSchedulePanel
-                    aiConfig={aiConfig}
-                    inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
-                    smartScheduleResults={smartScheduleResults}
-                    smartScheduleLoading={smartScheduleLoading}
-                    smartScheduleError={smartScheduleError}
-                    smartScheduleAccepted={smartScheduleAccepted}
-                    setSmartScheduleAccepted={setSmartScheduleAccepted}
-                    onRun={runSmartSchedule}
-                    onApply={applySmartSchedule}
-                    onCancel={() => { setSmartScheduleResults(null); setSmartScheduleError(''); }}
-                    darkMode={darkMode}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                    borderClass={borderClass}
-                    cardBg={cardBg}
-                    hoverBg={hoverBg}
-                    gtdFrames={gtdFrames}
-                    formatTime={formatTime}
-                  />
-                )}
+            {mobileActiveTab === 'goals' && (
+              <div className="mobile-tab-fade-in flex flex-col flex-1 min-h-0 overflow-hidden">
+                <GoalDashboard embedded addGoalTrigger={addGoalTrigger} addProjectTrigger={addProjectTrigger} />
               </div>
             )}
+
 
             {mobileActiveTab === 'settings' && <MobileSettingsPanel />}
           </div>

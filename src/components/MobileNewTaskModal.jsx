@@ -23,12 +23,13 @@ const MobileNewTaskModal = () => {
     addTask, saveMobileEditTask, saveMobileEditNativeEvent,
     moveToRecycleBin, clearNativeEventOverride,
     handleNewTaskInputChange,
+    goals, projects, goalsProjectsEnabled,
   } = useDayPlannerCtx();
 
   return (
     <>
       {showAddTask && isMobile && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }}>
+        <div className="fixed inset-0 z-[80] flex flex-col justify-end" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }}>
           <div className="bg-black/30 absolute inset-0" />
           <div
             className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto`}
@@ -106,6 +107,51 @@ const MobileNewTaskModal = () => {
                 )}
               </div>
 
+              {/* Project assignment (only when Goals & Projects is enabled) */}
+              {goalsProjectsEnabled && (
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>Project</label>
+                  <select
+                    value={newTask.projectId || ''}
+                    onChange={(e) => {
+                      const pid = e.target.value || null;
+                      const proj = pid ? projects.find(p => p.id === pid) : null;
+                      const parentGoal = proj?.goalId ? goals.find(g => g.id === proj.goalId) : null;
+                      setNewTask({ ...newTask, projectId: pid, keepUnscheduled: false, ...(parentGoal?.color ? { color: parentGoal.color } : {}) });
+                    }}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                  >
+                    <option value="">No project</option>
+                    {(() => {
+                      const activeProjects = projects.filter(p => p.status !== 'archived' && p.status !== 'completed');
+                      const withGoal = activeProjects.filter(p => p.goalId);
+                      const standalone = activeProjects.filter(p => !p.goalId);
+                      const goalGroups = goals
+                        .filter(g => g.status !== 'archived' && withGoal.some(p => p.goalId === g.id))
+                        .map(g => ({ goal: g, projs: withGoal.filter(p => p.goalId === g.id) }));
+                      return (
+                        <>
+                          {goalGroups.map(({ goal, projs }) => (
+                            <optgroup key={goal.id} label={goal.title}>
+                              {projs.map(p => (
+                                <option key={p.id} value={p.id}>{p.title}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {standalone.length > 0 && (
+                            <optgroup label="Standalone">
+                              {standalone.map(p => (
+                                <option key={p.id} value={p.id}>{p.title}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </select>
+                </div>
+              )}
+
               {/* Color row */}
               <div>
                 <label className={`block text-sm ${textSecondary} mb-2`}>Color</label>
@@ -129,8 +175,9 @@ const MobileNewTaskModal = () => {
                     <label className={`block text-sm ${textSecondary} mb-1`}>Priority</label>
                     <button
                       type="button"
-                      onClick={() => setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
-                      className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1`}
+                      onClick={() => !newTask.projectId && setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
+                      disabled={!!newTask.projectId}
+                      className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1 ${newTask.projectId ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {[1, 2, 3].map((level) => (
                         <div
@@ -145,8 +192,9 @@ const MobileNewTaskModal = () => {
                     <div className="relative deadline-picker-container">
                       <button
                         type="button"
-                        onClick={() => setShowNewTaskDeadlinePicker(!showNewTaskDeadlinePicker)}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} flex items-center gap-2`}
+                        onClick={() => !newTask.projectId && setShowNewTaskDeadlinePicker(!showNewTaskDeadlinePicker)}
+                        disabled={!!newTask.projectId}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} flex items-center gap-2 ${newTask.projectId ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <Calendar size={14} className={textSecondary} />
                         {newTask.deadline
@@ -189,8 +237,9 @@ const MobileNewTaskModal = () => {
                     <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
                     <button
                       type="button"
-                      onClick={() => setShowDatePicker(true)}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      onClick={() => !newTask.keepUnscheduled && setShowDatePicker(true)}
+                      disabled={newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
                     </button>
@@ -199,9 +248,9 @@ const MobileNewTaskModal = () => {
                     <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
                     <button
                       type="button"
-                      onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
-                      disabled={newTask.isAllDay}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                      onClick={() => !newTask.isAllDay && !newTask.keepUnscheduled && setShowTimePicker(true)}
+                      disabled={newTask.isAllDay || newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
                     </button>
@@ -211,8 +260,8 @@ const MobileNewTaskModal = () => {
                     <select
                       value={newTask.duration}
                       onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
-                      disabled={newTask.isAllDay}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                      disabled={newTask.isAllDay || newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {durationOptions.map(minutes => (
                         <option key={minutes} value={minutes}>{minutes} min</option>
@@ -221,20 +270,38 @@ const MobileNewTaskModal = () => {
                   </div>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
-                    <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
+                    <label className={`flex items-center h-10 ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e) => { e.preventDefault(); !newTask.keepUnscheduled && setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
                       <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                         {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
                       </div>
                       <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
                     </label>
                   </div>
+                  {/* Unscheduled — only shown when a project is selected */}
+                  {newTask.projectId && (
+                    <div className="col-span-2">
+                      <label
+                        className="flex items-center gap-2 cursor-pointer py-1"
+                        onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, keepUnscheduled: !prev.keepUnscheduled })); }}
+                      >
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors flex-shrink-0 ${newTask.keepUnscheduled ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
+                          {newTask.keepUnscheduled && <Check size={14} className="text-white" strokeWidth={3} />}
+                        </div>
+                        <div>
+                          <span className={`text-sm ${textPrimary}`}>Unscheduled</span>
+                          <span className={`ml-1 text-xs ${textSecondary}`}>(add to project card, no date/time)</span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
                   {(<>
                     <div className="col-span-2 relative">
                       <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
                       <button
                         type="button"
-                        onClick={() => setShowRecurrencePicker(!showRecurrencePicker)}
-                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''}`}
+                        onClick={() => !newTask.keepUnscheduled && setShowRecurrencePicker(!showRecurrencePicker)}
+                        disabled={newTask.keepUnscheduled}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
                       </button>
@@ -341,7 +408,7 @@ const MobileNewTaskModal = () => {
                   type="submit"
                   className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  {mobileEditingTask ? 'Save Changes' : newTask.openInInbox ? 'Add to Inbox' : 'Add to Schedule'}
+                  {mobileEditingTask ? 'Save Changes' : newTask.openInInbox ? (newTask.projectId ? 'Add to Project' : 'Add to Inbox') : newTask.projectId && newTask.keepUnscheduled ? 'Add to Project' : newTask.projectId ? 'Add to Project and Schedule' : 'Add to Schedule'}
                 </button>
               </div>
 

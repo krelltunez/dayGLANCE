@@ -40,6 +40,7 @@ const ShortcutHelpModal = () => {
                 [isMac ? '⌘K' : 'Ctrl+K', 'Search tasks'],
                 ['/', 'Filter by tag'],
                 ['F', 'Focus mode'],
+                ['G', 'Goals & Projects'],
                 ['H', 'Habits'],
                 ['D', 'Toggle dark mode'],
                 ['B', 'Backup menu'],

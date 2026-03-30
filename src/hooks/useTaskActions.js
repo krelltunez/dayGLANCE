@@ -66,7 +66,7 @@ export default function useTaskActions({
   frameScheduleModal, setFrameScheduleModal,
   focusBlockTasks, setFocusBlockTasks,
   focusCompletedTasks, setFocusCompletedTasks,
-  exitFocusMode,
+  exitFocusModeRef,
   playFocusSound,
   // Obsidian integration.
   // getObsidianTaskMeta(rawTitle) → { id, importSource, obsidianRawTitle, obsidianFileDate }
@@ -153,6 +153,7 @@ export default function useTaskActions({
         notes: '',
         subtasks: [],
         ...(obsidianMeta ?? {}),
+        ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
       };
 
       if (toInbox) {
@@ -161,6 +162,9 @@ export default function useTaskActions({
           inboxTask.deadline = newTask.deadline;
         }
         setUnscheduledTasks(prev => [...prev, inboxTask]);
+      } else if (newTask.keepUnscheduled && newTask.projectId) {
+        // Save as unscheduled project task (no scheduling)
+        setUnscheduledTasks(prev => [...prev, task]);
       } else if (newTask.recurrence) {
         // Create recurring task template
         const taskDate = newTask.date || dateToString(selectedDate);
@@ -586,9 +590,10 @@ export default function useTaskActions({
     }
 
     pushUndo();
-    const task = fromInbox
-      ? unscheduledTasks.find(t => t.id === id)
-      : tasks.find(t => t.id === id);
+    const taskInScheduled = tasks.find(t => t.id === id);
+    const taskInInbox = unscheduledTasks.find(t => t.id === id);
+    const task = fromInbox ? taskInInbox : (taskInScheduled || taskInInbox);
+    const actuallyInInbox = !!taskInInbox && !taskInScheduled;
 
     if (task) {
       if (expandedNotesTaskId === id) {
@@ -596,11 +601,11 @@ export default function useTaskActions({
       }
       const taskWithMeta = {
         ...task,
-        _deletedFrom: fromInbox ? 'inbox' : 'calendar',
+        _deletedFrom: actuallyInInbox ? 'inbox' : 'calendar',
         deletedAt: new Date().toISOString()
       };
       setRecycleBin(prev => [...prev, taskWithMeta]);
-      if (fromInbox) {
+      if (actuallyInInbox) {
         setUnscheduledTasks(prev => prev.filter(t => t.id !== id));
       } else {
         setTasks(prev => prev.filter(t => t.id !== id));
@@ -711,7 +716,7 @@ export default function useTaskActions({
     playFocusSound('complete');
     const allDone = focusBlockTasks.every(t => t.completed || t.id === taskId || focusCompletedTasks.has(t.id));
     if (allDone) {
-      setTimeout(() => exitFocusMode(true), 500);
+      setTimeout(() => exitFocusModeRef.current?.(true), 500);
     }
   };
 

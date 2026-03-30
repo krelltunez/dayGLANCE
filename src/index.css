@@ -103,8 +103,15 @@ body.using-pointer a:focus-visible {
   outline: none;
 }
 
-/* Hide scrollbar on review carousel */
+/* Hide scrollbar on review carousel and goal dashboard carousel */
 .review-carousel::-webkit-scrollbar { display: none; }
+.goal-carousel::-webkit-scrollbar { display: none; }
+
+/* Dark mode scrollbar — applied when html.dark is active */
+.dark ::-webkit-scrollbar-track { background: #1f2937; }
+.dark ::-webkit-scrollbar-thumb { background: #4b5563; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+.dark * { scrollbar-color: #4b5563 #1f2937; }
 
 /* App shell — locks body to visible viewport so only inner panes scroll */
 .app-shell {

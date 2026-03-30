@@ -9,6 +9,7 @@ export default function useComputedViews({
   selectedTags,
   inboxPriorityFilter,
   hideCompletedInbox,
+  goalsProjectsEnabled,
 }) {
   // Tasks for the currently selected date
   const todayTasks = useMemo(
@@ -51,15 +52,18 @@ export default function useComputedViews({
     });
   }, [selectedTags]);
 
-  // Inbox tasks filtered by priority and completion status
-  // Completed deadline tasks are scheduled, not inbox
+  // Inbox tasks filtered by priority and completion status.
+  // When goalsProjectsEnabled, tasks tied to a project live on the dashboard
+  // instead of the inbox — they get their own home in the project card.
+  // If the feature is toggled off, the exclusion is lifted so nothing is hidden.
   const filteredUnscheduledTasks = useMemo(
     () => unscheduledTasks
+      .filter(task => !goalsProjectsEnabled || !task.projectId)
       .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
       .filter(task => !(task.completed && task.deadline))
       .filter(task => !hideCompletedInbox || !task.completed)
       .sort((a, b) => (b.priority || 0) - (a.priority || 0)),
-    [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox]
+    [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox, goalsProjectsEnabled]
   );
 
   // Today's tasks filtered by tag selection

@@ -15,6 +15,7 @@ const useFocusMode = () => {
   const [focusTimerRunning, setFocusTimerRunning] = useState(false);
   const [focusTaskMinutes, setFocusTaskMinutes] = useState({});
   const [focusBlockTasks, setFocusBlockTasks] = useState([]);
+  const [focusProjectId, setFocusProjectId] = useState(null);
   const [focusLog, setFocusLog] = useState(() => {
     const saved = localStorage.getItem('day-planner-focus-log');
     return saved ? JSON.parse(saved) : {};
@@ -23,6 +24,7 @@ const useFocusMode = () => {
   const wakeLockSentinel = useRef(null);
   const focusTimerRef = useRef(null);
   const handleFocusTimerEndRef = useRef(null);
+  const exitFocusModeRef = useRef(null);
   const focusModeAvailableRef = useRef(false);
 
   // Persist focusLog to localStorage
@@ -66,11 +68,13 @@ const useFocusMode = () => {
     focusTimerRunning, setFocusTimerRunning,
     focusTaskMinutes, setFocusTaskMinutes,
     focusBlockTasks, setFocusBlockTasks,
+    focusProjectId, setFocusProjectId,
     focusLog, setFocusLog,
     focusLogModalDate, setFocusLogModalDate,
     wakeLockSentinel,
     focusTimerRef,
     handleFocusTimerEndRef,
+    exitFocusModeRef,
     focusModeAvailableRef,
   };
 };

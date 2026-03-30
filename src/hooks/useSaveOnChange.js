@@ -7,6 +7,7 @@ export default function useSaveOnChange({
   tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
   completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate,
   removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+  goals, projects, goalsProjectsEnabled,
 }) {
   useEffect(() => {
     if (!dataLoaded) return; // Don't overwrite localStorage before initial load
@@ -23,5 +24,5 @@ export default function useSaveOnChange({
         suppressTimestampRef.current = false;
       });
     }
-  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames]);
+  }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, goals, projects, goalsProjectsEnabled]);
 }

@@ -3,7 +3,7 @@ import {
   AlertCircle, AlertTriangle, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
-  Eye, FileText, Filter, GripVertical, Hash, HelpCircle, Inbox, Key,
+  Eye, FileText, Filter, GitBranch, GripVertical, Hash, HelpCircle, Inbox, Key,
   LayoutGrid, Link, Loader, MapPin, Menu, Mic, Minus, Moon, MoreHorizontal,
   NotebookPen, Pencil, Pin, Plus, RefreshCw, Save, Search, Settings,
   SkipForward, Sparkles, Sun, Target, Trash2, Upload, X,
@@ -408,6 +408,9 @@ const DesktopLayout = () => {
     saveMobileEditTask, saveMobileEditNativeEvent,
     pushUndo, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
+    goals, projects, goalsProjectsEnabled,
+    setShowGoalsDashboard,
+    projectFilter, setProjectFilter,
   } = useDayPlannerCtx();
 
   return (
@@ -616,7 +619,7 @@ const DesktopLayout = () => {
           {/* Tablet static side panel */}
           {isTablet && (
             <div
-              className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0`}
+              className={`${cardBg} border-r ${borderClass} flex flex-col flex-shrink-0 relative`}
               style={{ width: '340px', height: '100%' }}
             >
               {/* Tabbed header — both portrait and landscape */}
@@ -1110,7 +1113,7 @@ const DesktopLayout = () => {
 
                       {/* Today's agenda — grouped by frames */}
                       {(() => {
-                        const filteredAgenda = filterByTags(todayAgenda);
+                        const filteredAgenda = filterByTags(projectFilter ? todayAgenda.filter(t => t.projectId === projectFilter) : todayAgenda);
                         const today = new Date(getTodayStr() + 'T12:00:00');
                         const nowMinGlance = currentTime.getHours() * 60 + currentTime.getMinutes();
                         const todayFrames = getFrameInstancesForDate(today).filter(f => timeToMinutes(f.end) > nowMinGlance);
@@ -1338,7 +1341,7 @@ const DesktopLayout = () => {
                                     <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                                   ))}
                                 </div>
-                                <div className={`text-sm ${textSecondary} flex items-center gap-1 flex-wrap`}>
+                                <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                                   <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
                                   {relativeLabel === 'In Progress' && focusModeAvailable && (
                                     <button
@@ -1350,6 +1353,19 @@ const DesktopLayout = () => {
                                     </button>
                                   )}
                                 </div>
+                                {goalsProjectsEnabled && task.projectId && (() => {
+                                  const proj = projects.find(p => p.id === task.projectId);
+                                  if (!proj) return null;
+                                  return (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                      className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium transition-colors ${darkMode ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/70' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${projectFilter === task.projectId ? 'ring-1 ring-blue-400' : ''}`}
+                                      title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                    >
+                                      {proj.title}
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
                                 <div className="flex items-center gap-1 flex-shrink-0 mr-5">
@@ -1819,6 +1835,16 @@ const DesktopLayout = () => {
                   </div>
                 )}
               </div>
+              {/* Goals & Projects FAB — bottom-left of GLANCE panel */}
+              {goalsProjectsEnabled && tabletActiveTab === 'glance' && (
+                <button
+                  onClick={() => setShowGoalsDashboard(true)}
+                  className={`absolute bottom-6 left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                >
+                  <GitBranch size={15} />
+                  <span className="text-xs font-medium whitespace-nowrap">Goals &amp; Projects</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -2539,7 +2565,7 @@ const DesktopLayout = () => {
                                 <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
                               ))}
                             </div>
-                            <div className={`text-sm ${textSecondary} flex items-center gap-1 flex-wrap`}>
+                            <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
                               <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
                               {relativeLabel === 'In Progress' && focusModeAvailable && (
                                 <button
@@ -2551,6 +2577,19 @@ const DesktopLayout = () => {
                                 </button>
                               )}
                             </div>
+                            {goalsProjectsEnabled && task.projectId && (() => {
+                              const proj = projects.find(p => p.id === task.projectId);
+                              if (!proj) return null;
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                  className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium transition-colors ${darkMode ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/70' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${projectFilter === task.projectId ? 'ring-1 ring-blue-400' : ''}`}
+                                  title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                >
+                                  {proj.title}
+                                </button>
+                              );
+                            })()}
                           </div>
                           {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
                             <div className="flex items-center gap-1 flex-shrink-0 mr-5">
@@ -3072,6 +3111,17 @@ const DesktopLayout = () => {
               </div>
               )}
             </div>
+            {/* Goals & Projects FAB — bottom-left of GLANCE panel */}
+            {goalsProjectsEnabled && tabletActiveTab === 'glance' && (
+              <button
+                onClick={() => setShowGoalsDashboard(true)}
+                className={`absolute bottom-6 left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                title="Goals & Projects"
+              >
+                <GitBranch size={15} />
+                <span className="text-xs font-medium whitespace-nowrap">Goals &amp; Projects</span>
+              </button>
+            )}
           </div>
           )}
 
@@ -3806,7 +3856,7 @@ const DesktopLayout = () => {
                   {visibleDates.map((date, dayIndex) => {
                     const dateStr = dateToString(date);
                     const isDateToday = dateStr === dateToString(new Date());
-                    const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay);
+                    const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && (!projectFilter || t.projectId === projectFilter));
                     const frameInstances = getFrameInstancesForDate(date);
 
                     return (
@@ -4255,9 +4305,24 @@ const DesktopLayout = () => {
                                               ))}
                                             </div>
                                           )}
-                                          {extractTags(task.title).length > 0 && (
-                                            <div className="text-xs italic opacity-75 truncate">
-                                              {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                          {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
+                                            <div className="flex items-center gap-1 flex-wrap text-xs italic opacity-75">
+                                              {extractTags(task.title).length > 0 && (
+                                                <span className="truncate">{extractTags(task.title).map(tag => `#${tag}`).join(' ')}</span>
+                                              )}
+                                              {goalsProjectsEnabled && task.projectId && (() => {
+                                                const proj = projects.find(p => p.id === task.projectId);
+                                                if (!proj) return null;
+                                                return (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                                    className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0`}
+                                                    title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                                  >
+                                                    {proj.title}
+                                                  </button>
+                                                );
+                                              })()}
                                             </div>
                                           )}
                                         </div>
@@ -4329,9 +4394,24 @@ const DesktopLayout = () => {
                                               ))}
                                             </div>
                                           )}
-                                          {extractTags(task.title).length > 0 && (
-                                            <div className="text-xs italic opacity-75 truncate">
-                                              {extractTags(task.title).map(tag => `#${tag}`).join(' ')}
+                                          {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
+                                            <div className="flex items-center gap-1 flex-wrap text-xs italic opacity-75">
+                                              {extractTags(task.title).length > 0 && (
+                                                <span className="truncate">{extractTags(task.title).map(tag => `#${tag}`).join(' ')}</span>
+                                              )}
+                                              {goalsProjectsEnabled && task.projectId && (() => {
+                                                const proj = projects.find(p => p.id === task.projectId);
+                                                if (!proj) return null;
+                                                return (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                                    className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0`}
+                                                    title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                                  >
+                                                    {proj.title}
+                                                  </button>
+                                                );
+                                              })()}
                                             </div>
                                           )}
                                         </div>
