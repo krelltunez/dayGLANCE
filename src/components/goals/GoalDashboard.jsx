@@ -1056,9 +1056,11 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
   const {
     showGoalsDashboard, setShowGoalsDashboard,
     goals, projects,
+    tasks,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
-    setShowFocusMode,
+    enterProjectFocusMode,
+    getTodayStr,
     showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
     isMobile,
     darkMode,
@@ -1069,6 +1071,7 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
   const [projectForm, setProjectForm] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [showArchived, setShowArchived] = useState(false);
+  const [focusNoTasksProject, setFocusNoTasksProject] = useState(null);
 
   // Trigger props from header buttons (mobile embedded mode)
   useEffect(() => { if (addGoalTrigger > 0) setGoalForm({ editing: null }); }, [addGoalTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1117,10 +1120,18 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
     setProjectForm(null);
   };
 
-  const handleFocusClick = useCallback(() => {
-    setShowGoalsDashboard(false);
-    setShowFocusMode(true);
-  }, [setShowGoalsDashboard, setShowFocusMode]);
+  const handleFocusClick = useCallback((project) => {
+    const todayStr = getTodayStr();
+    const projectTodayTasks = tasks.filter(
+      t => t.date === todayStr && t.projectId === project.id && !t.completed && !t.isAllDay
+    );
+    if (projectTodayTasks.length > 0) {
+      if (!embedded) setShowGoalsDashboard(false);
+      enterProjectFocusMode(project, projectTodayTasks);
+    } else {
+      setFocusNoTasksProject(project);
+    }
+  }, [tasks, getTodayStr, embedded, setShowGoalsDashboard, enterProjectFocusMode]);
 
   // Escape key — use capture phase so this fires before useModalClose and other handlers.
   // GoalDashboard owns all Escape behavior while it's visible.
@@ -1227,6 +1238,16 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
         )}
         {confirmDialog && (
           <ConfirmDialog title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(null)} />
+        )}
+        {focusNoTasksProject && (
+          <ConfirmDialog
+            title="No tasks scheduled today"
+            message={`"${focusNoTasksProject.title}" has no incomplete tasks on today's timeline. Schedule a task for today to start a Project Focus session.`}
+            onConfirm={() => setFocusNoTasksProject(null)}
+            onCancel={() => setFocusNoTasksProject(null)}
+            confirmLabel="Got it"
+            hideCancelButton
+          />
         )}
       </>
     );
@@ -1414,6 +1435,16 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
           message={confirmDialog.message}
           onConfirm={confirmDialog.onConfirm}
           onCancel={() => setConfirmDialog(null)}
+        />
+      )}
+      {focusNoTasksProject && (
+        <ConfirmDialog
+          title="No tasks scheduled today"
+          message={`"${focusNoTasksProject.title}" has no incomplete tasks on today's timeline. Schedule a task for today to start a Project Focus session.`}
+          onConfirm={() => setFocusNoTasksProject(null)}
+          onCancel={() => setFocusNoTasksProject(null)}
+          confirmLabel="Got it"
+          hideCancelButton
         />
       )}
     </>

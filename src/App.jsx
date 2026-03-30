@@ -501,6 +501,7 @@ const DayPlanner = () => {
     focusTimerRunning, setFocusTimerRunning,
     focusTaskMinutes, setFocusTaskMinutes,
     focusBlockTasks, setFocusBlockTasks,
+    focusProjectId, setFocusProjectId,
     focusLog, setFocusLog,
     focusLogModalDate, setFocusLogModalDate,
     wakeLockSentinel,
@@ -2608,6 +2609,33 @@ const DayPlanner = () => {
   };
   enterFocusModeRef.current = enterFocusMode;
 
+  const enterProjectFocusMode = (project, projectTasks) => {
+    setFocusProjectId(project.id);
+    setShowFocusMode(true);
+    setFocusShowSettings(true);
+    setFocusShowStats(false);
+    setFocusPhase('work');
+    setFocusTimerSeconds(0);
+    setFocusCycleCount(0);
+    setFocusSessionStart(null);
+    setFocusCompletedTasks(new Set());
+    setFocusTimerRunning(false);
+    setFocusTaskMinutes({});
+    setFocusBlockTasks(projectTasks);
+    setFocusWorkMinutes(25);
+    setFocusBreakMinutes(5);
+    setFocusLongBreakMinutes(15);
+    try { document.documentElement.requestFullscreen?.(); } catch (e) {}
+    (async () => {
+      try {
+        if (navigator.wakeLock) {
+          wakeLockSentinel.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    })();
+    nativeEnterFocusMode();
+  };
+
   const startFocusTimer = () => {
     setFocusShowSettings(false);
     setFocusSessionStart(new Date());
@@ -2651,20 +2679,27 @@ const DayPlanner = () => {
       const sessionMinutes = Math.round((new Date() - focusSessionStart) / 60000);
       if (sessionMinutes > 0) {
         const sessionDateStr = dateToString(new Date(focusSessionStart));
+        const sessionProjectId = focusProjectId;
         setFocusLog(prev => {
           const existing = prev[sessionDateStr] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 };
-          return {
-            ...prev,
-            [sessionDateStr]: {
-              totalMinutes: existing.totalMinutes + sessionMinutes,
-              sessions: existing.sessions + 1,
-              cyclesCompleted: existing.cyclesCompleted + focusCycleCount,
-              tasksCompleted: existing.tasksCompleted + focusCompletedTasks.size,
-            },
+          const updated = {
+            ...existing,
+            totalMinutes: existing.totalMinutes + sessionMinutes,
+            sessions: existing.sessions + 1,
+            cyclesCompleted: existing.cyclesCompleted + focusCycleCount,
+            tasksCompleted: existing.tasksCompleted + focusCompletedTasks.size,
           };
+          if (sessionProjectId) {
+            updated.projectSessions = [
+              ...(existing.projectSessions || []),
+              { projectId: sessionProjectId, minutes: sessionMinutes },
+            ];
+          }
+          return { ...prev, [sessionDateStr]: updated };
         });
       }
     }
+    setFocusProjectId(null);
     if (showStats) {
       setFocusShowStats(true);
     } else {
@@ -6539,7 +6574,8 @@ const DayPlanner = () => {
     addStepsHabit, addSleepHabit,
 
     // ── Functions – focus mode ────────────────────────────────────────────────
-    enterFocusMode, exitFocusMode, startFocusTimer, dismissFocusStats,
+    enterFocusMode, enterProjectFocusMode, exitFocusMode, startFocusTimer, dismissFocusStats,
+    focusProjectId,
     handleFocusTimerEnd,
     focusCompleteTask, focusToggleSubtask, focusAddSubtask,
     focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,

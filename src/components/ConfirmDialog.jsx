@@ -12,7 +12,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
  *   onConfirm    — called when the user confirms
  *   onCancel     — called when the user cancels or clicks the backdrop
  */
-const ConfirmDialog = ({ title, message, confirmLabel = 'Delete', onConfirm, onCancel }) => {
+const ConfirmDialog = ({ title, message, confirmLabel = 'Delete', onConfirm, onCancel, hideCancelButton = false }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } =
     useDayPlannerCtx();
 
@@ -33,15 +33,17 @@ const ConfirmDialog = ({ title, message, confirmLabel = 'Delete', onConfirm, onC
           </div>
         </div>
         <div className="flex gap-2 justify-end">
-          <button
-            onClick={onCancel}
-            className={`px-3 py-2 text-base rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
-          >
-            Cancel
-          </button>
+          {!hideCancelButton && (
+            <button
+              onClick={onCancel}
+              className={`px-3 py-2 text-base rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
+            >
+              Cancel
+            </button>
+          )}
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-base rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+            className={`px-4 py-2 text-base rounded-lg font-medium transition-colors ${hideCancelButton ? `${hoverBg} ${textPrimary}` : 'bg-red-600 hover:bg-red-700 text-white'}`}
           >
             {confirmLabel}
           </button>
