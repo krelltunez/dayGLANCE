@@ -507,6 +507,7 @@ const DayPlanner = () => {
     wakeLockSentinel,
     focusTimerRef,
     handleFocusTimerEndRef,
+    exitFocusModeRef,
     focusModeAvailableRef,
   } = useFocusMode();
   const {
@@ -2711,6 +2712,7 @@ const DayPlanner = () => {
       setShowFocusMode(false);
     }
   };
+  exitFocusModeRef.current = exitFocusMode;
 
   const dismissFocusStats = () => {
     try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
@@ -5438,7 +5440,7 @@ const DayPlanner = () => {
     frameScheduleModal, setFrameScheduleModal,
     focusBlockTasks, setFocusBlockTasks,
     focusCompletedTasks, setFocusCompletedTasks,
-    exitFocusMode,
+    exitFocusModeRef,
     playFocusSound,
     getObsidianTaskMeta: obsidianConfig?.enabled && obsidianVaultHandleRef.current
       ? (rawTitle) => {

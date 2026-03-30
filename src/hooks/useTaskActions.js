@@ -66,7 +66,7 @@ export default function useTaskActions({
   frameScheduleModal, setFrameScheduleModal,
   focusBlockTasks, setFocusBlockTasks,
   focusCompletedTasks, setFocusCompletedTasks,
-  exitFocusMode,
+  exitFocusModeRef,
   playFocusSound,
   // Obsidian integration.
   // getObsidianTaskMeta(rawTitle) → { id, importSource, obsidianRawTitle, obsidianFileDate }
@@ -716,7 +716,7 @@ export default function useTaskActions({
     playFocusSound('complete');
     const allDone = focusBlockTasks.every(t => t.completed || t.id === taskId || focusCompletedTasks.has(t.id));
     if (allDone) {
-      setTimeout(() => exitFocusMode(true), 500);
+      setTimeout(() => exitFocusModeRef.current?.(true), 500);
     }
   };
 

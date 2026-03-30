@@ -24,6 +24,7 @@ const useFocusMode = () => {
   const wakeLockSentinel = useRef(null);
   const focusTimerRef = useRef(null);
   const handleFocusTimerEndRef = useRef(null);
+  const exitFocusModeRef = useRef(null);
   const focusModeAvailableRef = useRef(false);
 
   // Persist focusLog to localStorage
@@ -73,6 +74,7 @@ const useFocusMode = () => {
     wakeLockSentinel,
     focusTimerRef,
     handleFocusTimerEndRef,
+    exitFocusModeRef,
     focusModeAvailableRef,
   };
 };
