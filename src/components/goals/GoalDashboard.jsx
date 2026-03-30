@@ -701,7 +701,7 @@ const DesktopDashboard = ({
                   </div>
                 )}
                 {doneProjs.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap gap-4 justify-center">
                     {doneProjs.map(proj => (
                       <ProjectCard
                         key={proj.id}
@@ -753,7 +753,7 @@ const DesktopDashboard = ({
                   </div>
                 )}
                 {doneProjs.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap gap-4">
                     {doneProjs.map(proj => (
                       <ProjectCard
                         key={proj.id}
