@@ -42,6 +42,22 @@ class SharedDataStore(context: Context) {
             ?: DEFAULT_DAILY_NOTE_PATTERN
         set(value) = prefs.edit { putString(KEY_DAILY_NOTE_PATTERN, value) }
 
+    // ── App appearance preference ───────────────────────────────────────────
+
+    /**
+     * The app's own dark-mode flag, independent of the Android system night-mode
+     * setting. Written by NativeBridge.setStatusBarAppearance() whenever JS
+     * updates the dark-mode state. Null until the first time JS writes it.
+     *
+     * Used by MainActivity.applyStatusBarAppearance() to restore the correct
+     * status-bar icon colour on cold starts and after WebView first-paint resets.
+     */
+    var appDarkMode: Boolean?
+        get() = if (prefs.contains(KEY_APP_DARK_MODE)) prefs.getBoolean(KEY_APP_DARK_MODE, false) else null
+        set(value) = prefs.edit {
+            if (value != null) putBoolean(KEY_APP_DARK_MODE, value) else remove(KEY_APP_DARK_MODE)
+        }
+
     // ── Widget snapshot ─────────────────────────────────────────────────────
 
     /** JSON snapshot of today's agenda written by the app for the widget to read. */
@@ -151,6 +167,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_ADD_TASK = "pending_add_task"
         private const val KEY_PENDING_ADD_INBOX_TASK = "pending_add_inbox_task"
         private const val KEY_PENDING_SHARE = "pending_share_text"
+        private const val KEY_APP_DARK_MODE = "app_dark_mode"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
     }

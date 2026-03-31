@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nativeBridge: NativeBridge
     private lateinit var obsidianBridge: ObsidianBridge
     private lateinit var healthRepository: HealthRepository
+    private lateinit var dataStore: com.dayglance.app.data.SharedDataStore
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
@@ -85,7 +86,8 @@ class MainActivity : AppCompatActivity() {
 
         // Store shortcut intent so JS can pick it up via getPendingAction()
         // after the WebView finishes loading.
-        val store = SharedDataStore(this)
+        dataStore = SharedDataStore(this)
+        val store = dataStore
         when (intent?.action) {
             ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
             ACTION_ADD_TASK       -> store.pendingAddTask = true
@@ -153,6 +155,12 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest
             ) = assetLoader.shouldInterceptRequest(request.url)
 
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                // Re-apply status bar appearance after the WebView's first paint,
+                // which can reset the icon colour on Android 15 edge-to-edge mode.
+                applyStatusBarAppearance()
+            }
         }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest) {
@@ -298,12 +306,21 @@ class MainActivity : AppCompatActivity() {
      * wins over any resets by Android 15's edge-to-edge enforcement or the
      * WebView's first paint.
      *
+     * Prefers the app's own dark-mode preference (stored by NativeBridge when JS
+     * calls setStatusBarAppearance) over the system night-mode flag.  The app
+     * setting can differ from the system setting, and using the system flag
+     * causes white-on-white status bar icons when the device is in dark mode but
+     * the app is in light mode.  Falls back to the system flag on first launch
+     * before JS has had a chance to write the preference.
+     *
      * Uses the direct WindowInsetsController API on API 30+ (more reliable on
      * API 35 than the compat wrapper), with the compat path as fallback.
      */
     private fun applyStatusBarAppearance() {
-        val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+        val systemNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
+        // Prefer the app's saved preference; fall back to system night mode on first launch.
+        val isNightMode = dataStore.appDarkMode ?: systemNightMode
         // Disable automatic contrast enforcement so our flag isn't overridden.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = false

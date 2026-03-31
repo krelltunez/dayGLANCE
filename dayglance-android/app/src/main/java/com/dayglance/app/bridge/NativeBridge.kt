@@ -315,6 +315,9 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun setStatusBarAppearance(isDark: Boolean) {
+        // Persist so MainActivity.applyStatusBarAppearance() can use the app
+        // preference instead of the system night-mode on future onResume/onPageFinished calls.
+        dataStore.appDarkMode = isDark
         (context as? android.app.Activity)?.runOnUiThread {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 (context as android.app.Activity).window.isStatusBarContrastEnforced = false

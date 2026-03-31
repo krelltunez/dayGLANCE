@@ -11,7 +11,7 @@ const ShortcutHelpModal = () => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcutHelp(false)}>
       <div
-        className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4`}
+        className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-lg w-full mx-4 overflow-y-auto max-h-[85vh]`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -20,7 +20,7 @@ const ShortcutHelpModal = () => {
             <X size={20} />
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-x-8 gap-y-0.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-0.5">
           <div>
             <h3 className={`text-xs font-semibold uppercase ${textSecondary} mb-2`}>Navigation</h3>
             {[
