@@ -107,6 +107,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
   const VISIBLE_COUNT = 3;
   const hasMore = allProjectDisplayTasks.length > VISIBLE_COUNT;
   const visibleTasks = tasksExpanded ? allProjectDisplayTasks : allProjectDisplayTasks.slice(0, VISIBLE_COUNT);
+  const expandedTask = allProjectDisplayTasks.find(t => t.id === expandedNotesTaskId) ?? null;
 
   // ── Drag-to-reorder ────────────────────────────────────────────────────────
   const handleDragStart = (e, idx) => {
@@ -289,6 +290,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
 
   return (
     <>
+    <div className="relative">
     <div
       ref={ref}
       className={`flex flex-col rounded-xl border overflow-hidden ${
@@ -377,8 +379,8 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
                 : -1;
               const draggable = incompleteUnscheduledIdx !== -1;
               return (
-                <React.Fragment key={t.id}>
                 <div
+                  key={t.id}
                   data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
                   draggable={draggable}
                   onDragStart={draggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
@@ -470,27 +472,6 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
                     </div>
                   )}
                 </div>
-                {expandedNotesTaskId === t.id && (
-                  <div className="notes-panel-container px-1 pb-1">
-                    <NotesSubtasksPanel
-                      task={t}
-                      isInbox={!scheduled}
-                      darkMode={darkMode}
-                      updateTaskNotes={updateTaskNotes}
-                      addSubtask={addSubtask}
-                      toggleSubtask={toggleSubtask}
-                      deleteSubtask={deleteSubtask}
-                      updateSubtaskTitle={updateSubtaskTitle}
-                      aiConfig={aiConfig}
-                      aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
-                      onGenerateSubtasks={generateAISubtasks}
-                      wikilinks={t.importSource === 'obsidian' ? extractWikilinks(t.title) : undefined}
-                      onLoadWikiNote={t.importSource === 'obsidian' ? loadWikiNote : undefined}
-                      onSaveWikiNote={t.importSource === 'obsidian' ? saveWikiNote : undefined}
-                    />
-                  </div>
-                )}
-                </React.Fragment>
               );
             })}
 
@@ -557,6 +538,31 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
           </button>
         )}
       </div>
+    </div>
+
+    {/* Notes/subtasks panel — floats below card, breaks out of overflow-hidden */}
+    {expandedTask && (
+      <div className={`notes-panel-container absolute top-full left-0 z-50 mt-1 w-72 rounded-xl shadow-xl border ${
+        darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
+      }`}>
+        <NotesSubtasksPanel
+          task={expandedTask}
+          isInbox={!isScheduled(expandedTask)}
+          darkMode={darkMode}
+          updateTaskNotes={updateTaskNotes}
+          addSubtask={addSubtask}
+          toggleSubtask={toggleSubtask}
+          deleteSubtask={deleteSubtask}
+          updateSubtaskTitle={updateSubtaskTitle}
+          aiConfig={aiConfig}
+          aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+          onGenerateSubtasks={generateAISubtasks}
+          wikilinks={expandedTask.importSource === 'obsidian' ? extractWikilinks(expandedTask.title) : undefined}
+          onLoadWikiNote={expandedTask.importSource === 'obsidian' ? loadWikiNote : undefined}
+          onSaveWikiNote={expandedTask.importSource === 'obsidian' ? saveWikiNote : undefined}
+        />
+      </div>
+    )}
     </div>
 
     {showConfirm && (
