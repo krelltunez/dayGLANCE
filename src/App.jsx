@@ -314,6 +314,10 @@ const DayPlanner = () => {
   const [hideCompletedInbox, setHideCompletedInbox] = useState(() => {
     return localStorage.getItem('hideCompletedInbox') === 'true';
   });
+  const [hideProjectTasksInbox, setHideProjectTasksInbox] = useState(() => {
+    // Default true (hide) to preserve existing behavior; user can opt in to seeing them
+    return localStorage.getItem('hideProjectTasksInbox') !== 'false';
+  });
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
@@ -662,6 +666,7 @@ const DayPlanner = () => {
     selectedTags,
     inboxPriorityFilter,
     hideCompletedInbox,
+    hideProjectTasksInbox,
     goalsProjectsEnabled,
   });
   const { taskWidths, setTaskRef, getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns } = useTaskDerived({
@@ -765,6 +770,7 @@ const DayPlanner = () => {
     use24HourClock,
     inboxPriorityFilter,
     hideCompletedInbox,
+    hideProjectTasksInbox,
     priorityPromptDismissed,
     sectionInfoDismissed, skipOnboardingPersist,
     dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -6247,6 +6253,7 @@ const DayPlanner = () => {
     updateDismissedVersion, setUpdateDismissedVersion,
     inboxPriorityFilter, setInboxPriorityFilter,
     hideCompletedInbox, setHideCompletedInbox,
+    hideProjectTasksInbox, setHideProjectTasksInbox,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,

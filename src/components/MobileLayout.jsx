@@ -94,6 +94,7 @@ const MobileLayout = () => {
     updateDismissedVersion, setUpdateDismissedVersion,
     inboxPriorityFilter, setInboxPriorityFilter,
     hideCompletedInbox, setHideCompletedInbox,
+    hideProjectTasksInbox, setHideProjectTasksInbox,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,
@@ -565,6 +566,15 @@ const MobileLayout = () => {
                     >
                       <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                     </button>
+                    {goalsProjectsEnabled && (
+                      <button
+                        onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
+                        className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                        title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
+                      >
+                        <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                      </button>
+                    )}
                     <button
                       onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                       className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
