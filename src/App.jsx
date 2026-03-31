@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
@@ -274,6 +274,8 @@ const DayPlanner = () => {
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
   const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
+  const [desktopStatsHabitsCollapsed, setDesktopStatsHabitsCollapsed] = useState(true);
+  const [desktopStatsAllTimeCollapsed, setDesktopStatsAllTimeCollapsed] = useState(true);
   const reviewScrollRef = useRef(null);
   const [syncNotification, setSyncNotification] = useState(null); // { type: 'success' | 'error' | 'info', message: string }
   const [isSyncing, setIsSyncing] = useState(false);
@@ -643,13 +645,25 @@ const DayPlanner = () => {
     actualTodayPlannedMinutes,
     actualTodayFocusMinutes,
     allTimeFocusMinutes,
+    allTimeProjectFocusMinutes,
     inboxCompletedTodayCount,
     inboxCompletedTodayMinutes,
     allTimeInboxCompletedCount,
     allTimeInboxCompletedMinutes,
+    projectTasksCompletedTodayCount,
+    projectTasksCompletedTodayMinutes,
+    allTimeUnscheduledProjectDoneCount,
+    allTimeUnscheduledProjectDoneMinutes,
+    allTimeGoalsCreated,
+    allTimeGoalsCompleted,
+    allTimeProjectsCreated,
+    allTimeProjectsCompleted,
+    todayCompletedGoals,
+    todayCompletedProjects,
+    consecutiveDayStreak,
     todayIncompleteTasks,
     allTimeIncompleteTasks,
-  } = useStats({ tasks, unscheduledTasks, recurringTasks });
+  } = useStats({ tasks, unscheduledTasks, recurringTasks, goals, projects });
 
   const {
     todayTasks,
@@ -6558,9 +6572,15 @@ const DayPlanner = () => {
     totalCompletedMinutes, totalScheduledMinutes,
     actualTodayNonImportedTasks, actualTodayCompletedTasks,
     actualTodayCompletedMinutes, actualTodayPlannedMinutes, actualTodayFocusMinutes,
-    allTimeFocusMinutes,
+    allTimeFocusMinutes, allTimeProjectFocusMinutes,
     inboxCompletedTodayCount, inboxCompletedTodayMinutes,
     allTimeInboxCompletedCount, allTimeInboxCompletedMinutes,
+    projectTasksCompletedTodayCount, projectTasksCompletedTodayMinutes,
+    allTimeUnscheduledProjectDoneCount, allTimeUnscheduledProjectDoneMinutes,
+    allTimeGoalsCreated, allTimeGoalsCompleted,
+    allTimeProjectsCreated, allTimeProjectsCompleted,
+    todayCompletedGoals, todayCompletedProjects,
+    consecutiveDayStreak,
     todayIncompleteTasks, allTimeIncompleteTasks,
 
     // ── Functions – audio / UI ────────────────────────────────────────────────
@@ -7374,8 +7394,33 @@ const DayPlanner = () => {
                         {inboxCompletedTodayCount > 0 && (
                           <div className={`text-sm ${textSecondary}`}>+ {inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
                         )}
+                        {goalsProjectsEnabled && projectTasksCompletedTodayCount > 0 && (
+                          <div className={`text-sm ${textSecondary}`}>+ {projectTasksCompletedTodayCount} project {projectTasksCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                        )}
+                        {consecutiveDayStreak > 1 && (
+                          <div className="flex items-center gap-1 text-sm text-orange-500 font-medium mt-0.5">
+                            <Flame size={13} />
+                            {consecutiveDayStreak} day streak
+                          </div>
+                        )}
                       </div>
                     </div>
+                    {goalsProjectsEnabled && (todayCompletedGoals.length > 0 || todayCompletedProjects.length > 0) && (
+                      <div className="space-y-1.5 mb-3">
+                        {todayCompletedGoals.map(g => (
+                          <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
+                            <Flag size={14} className="flex-shrink-0" />
+                            <span className="truncate">Goal complete: {g.title}</span>
+                          </div>
+                        ))}
+                        {todayCompletedProjects.map(p => (
+                          <div key={p.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'}`}>
+                            <FolderOpen size={14} className="flex-shrink-0" />
+                            <span className="truncate">Project complete: {p.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className={`space-y-3 ${textSecondary}`}>
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
@@ -7396,14 +7441,21 @@ const DayPlanner = () => {
                 );
               })()}
 
-              {/* Habit Streaks */}
+              {/* Habit Streaks — collapsible, default collapsed */}
               {habitsEnabled && activeHabits.length > 0 && (
                 <div className={`mt-4 pt-4 border-t ${borderClass}`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Flame size={18} className="text-orange-500" />
-                    <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
-                  </div>
-                  <div className="space-y-2">
+                  <button
+                    className="flex items-center justify-between w-full mb-0"
+                    onClick={() => setDesktopStatsHabitsCollapsed(c => !c)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Flame size={18} className="text-orange-500" />
+                      <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
+                    </div>
+                    {desktopStatsHabitsCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
+                  </button>
+                  {!desktopStatsHabitsCollapsed && (
+                  <div className="space-y-2 mt-3">
                     {(() => {
                       const overflow = activeHabits.length > 5;
                       const visible = overflow ? activeHabits.slice(0, 5) : activeHabits;
@@ -7439,16 +7491,36 @@ const DayPlanner = () => {
                       );
                     })()}
                   </div>
+                  )}
                 </div>
               )}
 
-              {/* All-Time Summary */}
+              {/* All-Time Summary — collapsible, default collapsed */}
               <div className={`mt-4 pt-4 border-t ${borderClass}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp size={18} className={textSecondary} />
-                  <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
-                </div>
-                <div className={`space-y-2 text-sm ${textSecondary}`}>
+                <button
+                  className="flex items-center justify-between w-full mb-0"
+                  onClick={() => setDesktopStatsAllTimeCollapsed(c => !c)}
+                >
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={18} className={textSecondary} />
+                    <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
+                  </div>
+                  {desktopStatsAllTimeCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
+                </button>
+                {!desktopStatsAllTimeCollapsed && (
+                <div className={`space-y-2 text-sm ${textSecondary} mt-3`}>
+                  {goalsProjectsEnabled && allTimeGoalsCreated > 0 && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2"><Flag size={14} className="text-amber-400" /> Goals</div>
+                      <span className={`font-medium ${textPrimary}`}>{allTimeGoalsCompleted}/{allTimeGoalsCreated} completed</span>
+                    </div>
+                  )}
+                  {goalsProjectsEnabled && allTimeProjectsCreated > 0 && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2"><FolderOpen size={14} className="text-blue-400" /> Projects</div>
+                      <span className={`font-medium ${textPrimary}`}>{allTimeProjectsCompleted}/{allTimeProjectsCreated} completed</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> Tasks scheduled</div>
                     <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
@@ -7473,19 +7545,33 @@ const DayPlanner = () => {
                       <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
                     </div>
                   )}
+                  {goalsProjectsEnabled && allTimeUnscheduledProjectDoneCount > 0 && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> Unscheduled done</div>
+                      <span className={`font-medium ${textPrimary}`}>{allTimeUnscheduledProjectDoneCount}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                    <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes) % 60}m</span>
+                    <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) % 60}m</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
                     <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
                   </div>
                   {allTimeFocusMinutes > 0 && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
-                      <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
+                        <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                      </div>
+                      {goalsProjectsEnabled && allTimeProjectFocusMinutes > 0 && (
+                        <div className="flex items-center justify-between pl-5">
+                          <div className="flex items-center gap-2"><FolderOpen size={12} className="text-purple-300" /> From projects</div>
+                          <span className={`text-xs font-medium ${textSecondary}`}>{Math.floor(allTimeProjectFocusMinutes / 60)}h {Math.round(allTimeProjectFocusMinutes % 60)}m</span>
+                        </div>
+                      )}
+                    </>
                   )}
                   {allTimeScheduledCount > 0 && (
                     <div className="flex items-center justify-between pt-1">
@@ -7494,6 +7580,7 @@ const DayPlanner = () => {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </div>

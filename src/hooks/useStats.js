@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
 
-export default function useStats({ tasks, unscheduledTasks, recurringTasks }) {
+export default function useStats({ tasks, unscheduledTasks, recurringTasks, goals = [], projects = [] }) {
   const todayStr = dateToString(new Date());
 
   // All-time stats helpers (exclude imported events, include recurring)
@@ -73,17 +73,70 @@ export default function useStats({ tasks, unscheduledTasks, recurringTasks }) {
   const actualTodayCompletedMinutes = actualTodayCompletedTasks.reduce((sum, task) => sum + (task.duration || 0), 0);
   const actualTodayPlannedMinutes = actualTodayNonImportedTasks.reduce((sum, task) => sum + (task.duration || 0), 0);
   const actualTodayFocusMinutes = actualTodayNonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
-  const allTimeFocusMinutes = nonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0)
-    + deadlineInboxTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
 
-  // Inbox completion stats (tasks completed today from inbox, for "extra credit")
-  // Exclude deadline tasks — they count as scheduled since they appear on the timeline
-  const inboxCompletedToday = unscheduledTasks.filter(t => t.completed && !t.deadline && t.completedAt && t.completedAt.startsWith(todayStr));
+  // Project task focus (unscheduled tasks with a projectId)
+  const allTimeProjectFocusMinutes = useMemo(
+    () => unscheduledTasks.filter(t => t.projectId).reduce((sum, t) => sum + (t.focusMinutes || 0), 0),
+    [unscheduledTasks]
+  );
+
+  const allTimeFocusMinutes = nonImportedTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0)
+    + deadlineInboxTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0)
+    + allTimeProjectFocusMinutes;
+
+  // Inbox completion stats — pure inbox only (no projectId, no deadline)
+  const inboxCompletedToday = unscheduledTasks.filter(t => t.completed && !t.deadline && !t.projectId && t.completedAt && t.completedAt.startsWith(todayStr));
   const inboxCompletedTodayCount = inboxCompletedToday.length;
   const inboxCompletedTodayMinutes = inboxCompletedToday.reduce((sum, t) => sum + (t.duration || 0), 0);
-  const allTimeInboxCompleted = unscheduledTasks.filter(t => t.completed && !t.deadline);
+  const allTimeInboxCompleted = unscheduledTasks.filter(t => t.completed && !t.deadline && !t.projectId);
   const allTimeInboxCompletedCount = allTimeInboxCompleted.length;
   const allTimeInboxCompletedMinutes = allTimeInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0);
+
+  // Project task completions today (unscheduled project tasks, won't count toward ring)
+  const projectTasksCompletedToday = unscheduledTasks.filter(t => t.projectId && t.completed && t.completedAt && t.completedAt.startsWith(todayStr));
+  const projectTasksCompletedTodayCount = projectTasksCompletedToday.length;
+  const projectTasksCompletedTodayMinutes = projectTasksCompletedToday.reduce((sum, t) => sum + (t.duration || 0), 0);
+
+  // All-time unscheduled project task completions
+  const allTimeUnscheduledProjectDone = useMemo(
+    () => unscheduledTasks.filter(t => t.completed && t.projectId),
+    [unscheduledTasks]
+  );
+  const allTimeUnscheduledProjectDoneCount = allTimeUnscheduledProjectDone.length;
+  const allTimeUnscheduledProjectDoneMinutes = allTimeUnscheduledProjectDone.reduce((sum, t) => sum + (t.duration || 0), 0);
+
+  // Goals & Projects all-time counts
+  const allTimeGoalsCreated = goals.filter(g => g.status !== 'archived').length;
+  const allTimeGoalsCompleted = goals.filter(g => g.status === 'completed').length;
+  const allTimeProjectsCreated = projects.filter(p => p.status !== 'archived').length;
+  const allTimeProjectsCompleted = projects.filter(p => p.status === 'completed').length;
+
+  // Goals & Projects completed today
+  const todayCompletedGoals = goals.filter(g => g.status === 'completed' && g.updatedAt?.startsWith(todayStr));
+  const todayCompletedProjects = projects.filter(p => p.status === 'completed' && p.updatedAt?.startsWith(todayStr));
+
+  // Consecutive day streak — count of consecutive days (going back from today)
+  // on which at least one task was completed
+  const consecutiveDayStreak = useMemo(() => {
+    let streak = 0;
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(todayDate);
+      d.setDate(d.getDate() - i);
+      const dateStr = dateToString(d);
+      const hadCompletion =
+        tasks.some(t => !t.imported && t.completed && t.date === dateStr) ||
+        recurringTasks.some(t => (t.completedDates || []).includes(dateStr)) ||
+        unscheduledTasks.some(t => t.completed && t.completedAt?.startsWith(dateStr));
+      if (hadCompletion) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [tasks, recurringTasks, unscheduledTasks]);
 
   // Incomplete task lists for modal
   // Don't flag tasks as incomplete if they haven't ended yet (still in progress or upcoming)
@@ -143,10 +196,22 @@ export default function useStats({ tasks, unscheduledTasks, recurringTasks }) {
     actualTodayPlannedMinutes,
     actualTodayFocusMinutes,
     allTimeFocusMinutes,
+    allTimeProjectFocusMinutes,
     inboxCompletedTodayCount,
     inboxCompletedTodayMinutes,
     allTimeInboxCompletedCount,
     allTimeInboxCompletedMinutes,
+    projectTasksCompletedTodayCount,
+    projectTasksCompletedTodayMinutes,
+    allTimeUnscheduledProjectDoneCount,
+    allTimeUnscheduledProjectDoneMinutes,
+    allTimeGoalsCreated,
+    allTimeGoalsCompleted,
+    allTimeProjectsCreated,
+    allTimeProjectsCompleted,
+    todayCompletedGoals,
+    todayCompletedProjects,
+    consecutiveDayStreak,
     todayIncompleteTasks,
     allTimeIncompleteTasks,
   };

@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertCircle, BarChart3, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, Clock, Loader, RefreshCw, Sparkles, Target, Trophy, X, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertCircle, BarChart3, CalendarDays, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Flag, Flame, FolderOpen, Loader, RefreshCw, Sparkles, Target, TrendingUp, Trophy, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
@@ -27,6 +27,10 @@ const WeeklyReviewModal = () => {
     formatTime, timeToMinutes,
     aiConfig,
   } = useDayPlannerCtx();
+
+  // Local collapse state for past-week HABITS and FRAME UTILIZATION sections
+  const [habitsCollapsed, setHabitsCollapsed] = useState(true);
+  const [framesCollapsed, setFramesCollapsed] = useState(true);
 
   if (!showWeeklyReview) return null;
 
@@ -119,7 +123,8 @@ const WeeklyReviewModal = () => {
             return sum + getOccurrencesInRange(t, pastStartStr, pastEndStr)
               .filter(ds => !isFutureToday(ds, t.exceptions?.[ds]?.startTime || t.startTime)).length * (t.duration || 0);
           }, 0);
-        const pastFocusMinutes = pastRegularCompleted.filter(t => t.tags && t.tags.includes('focus')).reduce((sum, t) => sum + (t.duration || 0), 0);
+        const pastFocusMinutes = pastRegularCompleted.reduce((sum, t) => sum + (t.focusMinutes || 0), 0)
+          + unscheduledTasks.filter(t => t.completed && t.completedAt && t.completedAt >= pastStartStr && t.completedAt <= pastEndStr + 'T99').reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
 
         // Best day
         const dayCompletions = {};
@@ -316,6 +321,34 @@ const WeeklyReviewModal = () => {
           };
         }).filter(Boolean).sort((a, b) => b.totalCapacityMin - a.totalCapacityMin);
 
+        // Goals & Projects completed this past week
+        const pastCompletedGoals = goalsProjectsEnabled
+          ? goals.filter(g => g.status === 'completed' && g.updatedAt && g.updatedAt >= pastStartStr && g.updatedAt <= pastEndStr + 'T99')
+          : [];
+        const pastCompletedProjects = goalsProjectsEnabled
+          ? projects.filter(p => p.status === 'completed' && p.updatedAt && p.updatedAt >= pastStartStr && p.updatedAt <= pastEndStr + 'T99')
+          : [];
+        const pastUnscheduledProjectDone = goalsProjectsEnabled
+          ? unscheduledTasks.filter(t => t.projectId && t.completed && t.completedAt && t.completedAt >= pastStartStr && t.completedAt <= pastEndStr + 'T99')
+          : [];
+
+        // Consecutive day streak (reuse same logic as useStats)
+        const weeklyStreak = (() => {
+          let streak = 0;
+          const d0 = new Date(today);
+          for (let i = 0; i < 365; i++) {
+            const d = new Date(d0);
+            d.setDate(d.getDate() - i);
+            const ds = dateToString(d);
+            const hadCompletion =
+              tasks.some(t => !t.imported && t.completed && t.date === ds) ||
+              recurringTasks.some(t => (t.completedDates || []).includes(ds)) ||
+              unscheduledTasks.some(t => t.completed && t.completedAt?.startsWith(ds));
+            if (hadCompletion) { streak++; } else { break; }
+          }
+          return streak;
+        })();
+
         // Goals & Projects stats for AI weekly summary
         const allTasksCombined = [...tasks, ...unscheduledTasks];
 
@@ -368,6 +401,50 @@ const WeeklyReviewModal = () => {
           .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.startTime || '').localeCompare(b.startTime || ''))
           .slice(0, 5)
           .map(t => ({ title: t.title, date: t.date, time: t.startTime, isAllDay: t.isAllDay || false }));
+
+        // Goals due in next 7 days (only goals with targetDate in range)
+        const nextWeekDueGoals = goalsProjectsEnabled
+          ? goals.filter(g => g.status === 'active' && g.targetDate && g.targetDate >= nextStartStr && g.targetDate <= nextEndStr)
+              .map(g => {
+                const progress = calculateGoalProgress(g.id, projects, allTasksCombined);
+                const target = new Date(g.targetDate + 'T12:00:00');
+                const todayMidnight = new Date(todayStr + 'T00:00:00');
+                const daysLeft = Math.ceil((target - todayMidnight) / (1000 * 60 * 60 * 24));
+                const childProjects = projects.filter(p => p.goalId === g.id && p.status !== 'archived');
+                const totalTasks = allTasksCombined.filter(t => childProjects.some(p => p.id === t.projectId) && !t.archived).length;
+                const completedTasks = allTasksCombined.filter(t => childProjects.some(p => p.id === t.projectId) && !t.archived && t.completed).length;
+                return { id: g.id, title: g.title, progressPct: Math.round(progress * 100), daysLeft, totalTasks, completedTasks };
+              })
+          : [];
+
+        // Active projects — with momentum indicator
+        // Momentum: green = completion in last 7 days, amber = no completion 7-14 days, red = no activity 14+ days
+        const sevenDaysAgoStr = dateToString(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
+        const fourteenDaysAgoStr = dateToString(new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000));
+        const nextWeekProjects = goalsProjectsEnabled
+          ? projects.filter(p => p.status === 'active').map(p => {
+              const pTasks = allTasksCombined.filter(t => t.projectId === p.id && !t.archived);
+              const totalTasks = pTasks.length;
+              const completedTasks = pTasks.filter(t => t.completed).length;
+              const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+              const lastCompletion = pTasks
+                .filter(t => t.completed && t.completedAt)
+                .map(t => t.completedAt.slice(0, 10))
+                .sort()
+                .pop() || null;
+              let momentum; // 'green' | 'amber' | 'red'
+              if (!lastCompletion) {
+                momentum = 'red';
+              } else if (lastCompletion >= sevenDaysAgoStr) {
+                momentum = 'green';
+              } else if (lastCompletion >= fourteenDaysAgoStr) {
+                momentum = 'amber';
+              } else {
+                momentum = 'red';
+              }
+              return { id: p.id, title: p.title, totalTasks, completedTasks, progressPct, momentum };
+            }).filter(p => p.totalTasks > 0)
+          : [];
 
         const weeklyAIStats = {
           dateRange: `${pastStartStr} to ${pastEndStr}`,
@@ -485,64 +562,99 @@ const WeeklyReviewModal = () => {
                         <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
                         <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<Target size={16} className="text-purple-400" />} />
                       </div>
-                      <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="grid grid-cols-2 gap-3 mb-3">
                         <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
                         {bestDayName && (
                           <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
                         )}
                       </div>
+                      {goalsProjectsEnabled && (pastCompletedGoals.length > 0 || pastCompletedProjects.length > 0 || pastUnscheduledProjectDone.length > 0) && (
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          {pastCompletedGoals.length > 0 && (
+                            <StatCard value={pastCompletedGoals.length} label={pastCompletedGoals.length === 1 ? 'Goal completed' : 'Goals completed'} icon={<Flag size={16} className="text-amber-400" />} />
+                          )}
+                          {pastCompletedProjects.length > 0 && (
+                            <StatCard value={pastCompletedProjects.length} label={pastCompletedProjects.length === 1 ? 'Project completed' : 'Projects completed'} icon={<FolderOpen size={16} className="text-blue-400" />} />
+                          )}
+                          {pastUnscheduledProjectDone.length > 0 && (
+                            <StatCard value={pastUnscheduledProjectDone.length} label="Project tasks done" icon={<TrendingUp size={16} className="text-green-400" />} />
+                          )}
+                        </div>
+                      )}
+                      {weeklyStreak >= 2 && (
+                        <div className={`flex items-center gap-2 rounded-lg px-3 py-2 mb-3 text-sm font-medium ${darkMode ? 'bg-orange-900/30 text-orange-300' : 'bg-orange-50 text-orange-700'}`}>
+                          <Flame size={15} className="flex-shrink-0" />
+                          {weeklyStreak} day streak — keep it going!
+                        </div>
+                      )}
                     </>
                   )}
 
-                  {/* Habits */}
+                  {/* Habits — collapsible, default collapsed */}
                   {habitsEnabled && habitStats.length > 0 && (
-                    <div className="mb-4">
-                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Habits</div>
-                      <div className="space-y-2">
-                        {habitStats.map(h => (
-                          <div key={h.id} className="flex items-center gap-2">
-                            <span className={`text-xs ${textPrimary} w-20 truncate flex-shrink-0`}>{h.name}</span>
-                            <div className="flex gap-1 flex-1">
-                              {h.days.map((hit, i) => (
-                                <div
-                                  key={i}
-                                  className="w-4 h-4 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: hit ? h.hexColor : (darkMode ? '#374151' : '#e7e5e4') }}
-                                  title={new Date(pastWeekDates[i] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                />
-                              ))}
+                    <div className="mb-3">
+                      <button
+                        className={`flex items-center justify-between w-full py-1.5 text-xs font-semibold uppercase ${textSecondary} tracking-wider`}
+                        onClick={() => setHabitsCollapsed(c => !c)}
+                      >
+                        <span>Habits</span>
+                        {habitsCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
+                      {!habitsCollapsed && (
+                        <div className="space-y-2 mt-1">
+                          {habitStats.map(h => (
+                            <div key={h.id} className="flex items-center gap-2">
+                              <span className={`text-xs ${textPrimary} w-20 truncate flex-shrink-0`}>{h.name}</span>
+                              <div className="flex gap-1 flex-1">
+                                {h.days.map((hit, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-4 h-4 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: hit ? h.hexColor : (darkMode ? '#374151' : '#e7e5e4') }}
+                                    title={new Date(pastWeekDates[i] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                  />
+                                ))}
+                              </div>
+                              <span className={`text-xs ${textSecondary} flex-shrink-0`}>{h.daysHit}/7</span>
                             </div>
-                            <span className={`text-xs ${textSecondary} flex-shrink-0`}>{h.daysHit}/7</span>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Frame Utilization */}
+                  {/* Frame Utilization — collapsible, default collapsed */}
                   {frameStats.length > 0 && (
-                    <div className="mb-4">
-                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Frame Utilization</div>
-                      <div className="space-y-2">
-                        {frameStats.map(f => {
-                          const pct = Math.min(f.utilizationPct, 100);
-                          const barColor = f.utilizationPct >= 70 ? '#22c55e' : f.utilizationPct >= 30 ? '#3b82f6' : (darkMode ? '#4b5563' : '#d6d3d1');
-                          return (
-                            <div key={f.frameId}>
-                              <div className="flex justify-between items-center mb-1">
-                                <span className={`text-xs ${textPrimary} truncate flex-1 mr-2`}>{f.label}</span>
-                                <span className={`text-xs ${textSecondary} flex-shrink-0`}>{f.utilizationPct}% &middot; {formatMinutes(f.scheduledMin)}</span>
+                    <div className="mb-3">
+                      <button
+                        className={`flex items-center justify-between w-full py-1.5 text-xs font-semibold uppercase ${textSecondary} tracking-wider`}
+                        onClick={() => setFramesCollapsed(c => !c)}
+                      >
+                        <span>Frame Utilization</span>
+                        {framesCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
+                      {!framesCollapsed && (
+                        <div className="space-y-2 mt-1">
+                          {frameStats.map(f => {
+                            const pct = Math.min(f.utilizationPct, 100);
+                            const barColor = f.utilizationPct >= 70 ? '#22c55e' : f.utilizationPct >= 30 ? '#3b82f6' : (darkMode ? '#4b5563' : '#d6d3d1');
+                            return (
+                              <div key={f.frameId}>
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className={`text-xs ${textPrimary} truncate flex-1 mr-2`}>{f.label}</span>
+                                  <span className={`text-xs ${textSecondary} flex-shrink-0`}>{f.utilizationPct}% &middot; {formatMinutes(f.scheduledMin)}</span>
+                                </div>
+                                <div className={`h-1.5 rounded-full w-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>
+                                  <div
+                                    className="h-full rounded-full transition-all"
+                                    style={{ width: `${pct}%`, backgroundColor: barColor }}
+                                  />
+                                </div>
                               </div>
-                              <div className={`h-1.5 rounded-full w-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{ width: `${pct}%`, backgroundColor: barColor }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -630,6 +742,70 @@ const WeeklyReviewModal = () => {
                       <StatCard value={formatMinutes(nextFrameAvailableMinutes)} label="Frame availability" icon={<CalendarDays size={16} className="text-green-400" />} />
                     )}
                   </div>
+
+                  {/* Goals due this week */}
+                  {goalsProjectsEnabled && nextWeekDueGoals.length > 0 && (
+                    <div className="mb-4">
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Goals Due This Week</div>
+                      <div className="space-y-2">
+                        {nextWeekDueGoals.map(g => (
+                          <div key={g.id} className={`rounded-lg border p-3 ${darkMode ? 'border-gray-600 bg-gray-700/40' : 'border-stone-200 bg-stone-50'}`}>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <Flag size={13} className="text-amber-400 flex-shrink-0" />
+                                <span className={`text-sm font-medium ${textPrimary} truncate`}>{g.title}</span>
+                              </div>
+                              <span className={`text-xs flex-shrink-0 font-medium px-1.5 py-0.5 rounded ${g.progressPct >= 80 ? (darkMode ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700') : (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700')}`}>
+                                {g.daysLeft === 0 ? 'Due today' : g.daysLeft === 1 ? 'Due tomorrow' : `${g.daysLeft}d left`}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${g.progressPct}%`, backgroundColor: g.progressPct >= 80 ? '#22c55e' : g.progressPct >= 40 ? '#f59e0b' : '#ef4444' }}
+                                />
+                              </div>
+                              <span className={`text-xs ${textSecondary} flex-shrink-0`}>{g.progressPct}%</span>
+                              {g.totalTasks > 0 && (
+                                <span className={`text-xs ${textSecondary} flex-shrink-0`}>{g.completedTasks}/{g.totalTasks}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active projects */}
+                  {goalsProjectsEnabled && nextWeekProjects.length > 0 && (
+                    <div className="mb-4">
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Active Projects</div>
+                      <div className="space-y-2">
+                        {nextWeekProjects.map(p => {
+                          const momentumColor = p.momentum === 'green' ? '#22c55e' : p.momentum === 'amber' ? '#f59e0b' : '#ef4444';
+                          const momentumLabel = p.momentum === 'green' ? 'Active' : p.momentum === 'amber' ? 'Slowing' : 'Stalled';
+                          return (
+                            <div key={p.id} className="flex items-center gap-2">
+                              <div
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: momentumColor }}
+                                title={momentumLabel}
+                              />
+                              <span className={`text-sm ${textPrimary} flex-1 min-w-0 truncate`}>{p.title}</span>
+                              <div className={`flex-shrink-0 w-16 h-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${p.progressPct}%`, backgroundColor: momentumColor }}
+                                />
+                              </div>
+                              <span className={`text-xs ${textSecondary} flex-shrink-0 w-10 text-right`}>{p.completedTasks}/{p.totalTasks}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Open days nudge */}
                   {openDays.length > 0 && (
