@@ -2030,6 +2030,7 @@ const DayPlanner = () => {
     showMobileDailySummary, setShowMobileDailySummary,
     showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
     showRecurrencePicker, setShowRecurrencePicker,
+    focusLogModalDate, setFocusLogModalDate,
   });
 
   useKeyboardShortcuts({
