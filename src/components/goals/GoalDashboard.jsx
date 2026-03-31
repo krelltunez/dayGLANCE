@@ -1157,6 +1157,7 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
     isMobile,
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    expandedNotesTaskId, setExpandedNotesTaskId,
   } = useDayPlannerCtx();
 
   const [goalForm, setGoalForm] = useState(null);
@@ -1233,6 +1234,7 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
       if (e.key !== 'Escape') return;
       e.stopImmediatePropagation(); // prevent all other keydown listeners
       e.preventDefault();
+      if (expandedNotesTaskId) { setExpandedNotesTaskId(null); return; }
       if (showAddTask) {
         // Close task edit modal without closing dashboard
         setShowAddTask(false);
@@ -1245,8 +1247,8 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
     };
     document.addEventListener('keydown', handler, true); // capture phase
     return () => document.removeEventListener('keydown', handler, true);
-  }, [showGoalsDashboard, embedded, goalForm, projectForm, showAddTask,
-      setShowAddTask, setShowNewTaskDeadlinePicker, setShowGoalsDashboard]);
+  }, [showGoalsDashboard, embedded, goalForm, projectForm, showAddTask, expandedNotesTaskId,
+      setShowAddTask, setShowNewTaskDeadlinePicker, setShowGoalsDashboard, setExpandedNotesTaskId]);
 
   if (!showGoalsDashboard && !embedded) return null;
 
