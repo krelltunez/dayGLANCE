@@ -201,6 +201,28 @@ Tasks completed, completion rate, time planned vs. spent, focus time logged, and
 
 ---
 
+## Goals & Projects
+
+Organize long-horizon work into a three-tier hierarchy: **Goals → Projects → Tasks**.
+
+![Goals & Projects Dashboard](screenshots/goals-projects.png)
+
+**Goals** are high-level objectives with an optional target date and color label. Each goal displays a progress bar and hosts a flowchart of its child projects, connected by visual lines. A one-click completion button appears once all child projects are done.
+
+**Projects** sit beneath a goal (or standalone) and group related tasks. Each project card shows task count, a duration-weighted progress bar, and an inline quick-add form. Tasks can be checked off, reordered by drag, or promoted to the full task editor.
+
+**Standalone Projects** are available for work that doesn't belong to a broader goal — they appear in a separate section below the goal carousel.
+
+**Project Focus** — when a project has tasks scheduled for today, a Focus button appears on its card. Activating it filters the timeline down to just that project's tasks for a distraction-free work session.
+
+Progress is duration-weighted: a 2-hour task moves the needle more than a 15-minute one. Goals without target dates never show as overdue; goals and projects past their target date surface an amber warning. Projects inactive for 7+ days with incomplete tasks are flagged as **Stalled**.
+
+Archived goals and projects collapse into a disclosure section at the bottom and are excluded from all progress calculations.
+
+**Setup:** Disabled by default — enable in **Settings → Goals & Projects**. Data syncs alongside tasks via WebDAV/Nextcloud.
+
+---
+
 ## Integrations
 
 ### Nextcloud & WebDAV Sync
@@ -285,6 +307,7 @@ Attach freeform notes to any day for journaling, reflections, or quick reference
 | `Ctrl/Cmd + K` | Spotlight search |
 | `N` | New scheduled task |
 | `I` | New inbox task |
+| `G` | Open Goals & Projects |
 | `R` | Open routines dashboard |
 | `F` | Focus mode |
 | `T` | Jump to today |
