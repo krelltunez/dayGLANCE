@@ -182,6 +182,14 @@ export const hasOnlySubtasks = (task) => {
   return (!task.notes || !task.notes.trim()) && task.subtasks && task.subtasks.length > 0;
 };
 
+// Check if task is Obsidian-sourced with only a note (no subtasks, no plain URL)
+export const isObsidianNoteOnlyTask = (task) => {
+  if (task.importSource !== 'obsidian') return false;
+  if (task.subtasks && task.subtasks.length > 0) return false;
+  if (isLinkOnlyTask(task)) return false;
+  return true;
+};
+
 // Strip wikilinks from displayed text; style hashtags
 export const renderTitle = (title) => {
   const stripped = title.replace(/\[\[[^\]]+\]\]/g, '');

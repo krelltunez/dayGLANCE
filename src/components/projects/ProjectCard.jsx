@@ -2,7 +2,7 @@ import React, { forwardRef, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
-  AlertTriangle, Calendar, CheckCircle2, CheckSquare, ChevronDown,
+  AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
   Edit2, ExternalLink, FileText, GripVertical, LogIn, NotebookPen, Plus,
   Square, Target, Trash2, X,
 } from 'lucide-react';
@@ -11,7 +11,7 @@ import { calculateProjectProgress, isProjectStalled } from '../../utils/projectP
 import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
-import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl } from '../../utils/textFormatting.jsx';
+import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask } from '../../utils/textFormatting.jsx';
 import { extractWikilinks } from '../../utils/taskUtils.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
@@ -470,7 +470,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
                     }`}
                     title={isLinkOnlyTask(t) ? `${getLinkUrl(t)} (hold to edit)` : 'Notes & subtasks'}
                   >
-                    {isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : <FileText size={10} />}
+                    {isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : isObsidianNoteOnlyTask(t) ? <BookOpen size={10} /> : <FileText size={10} />}
                   </button>
                   {/* Obsidian wikilink buttons (native Android only) */}
                   {window.DayGlanceObsidian && t.importSource === 'obsidian' && extractWikilinks(t.title).map((note, i) => (

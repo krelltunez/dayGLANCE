@@ -10,7 +10,7 @@ import {
   Wifi, X, Zap,
 } from 'lucide-react';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
-import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, renderFormattedText } from '../utils/textFormatting.jsx';
+import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask, renderFormattedText } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDate, formatDateRange, formatDeadlineDate, formatShortDate } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
@@ -877,7 +877,7 @@ const MobileLayout = () => {
                                               }}
                                               className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                                             >
-                                              {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                              {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                                             </button>
                                             <button
                                               onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
@@ -1002,7 +1002,7 @@ const MobileLayout = () => {
                                         }}
                                         className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                                       >
-                                        {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                        {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                                       </button>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
@@ -1325,7 +1325,7 @@ const MobileLayout = () => {
                                     }}
                                     className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                                   >
-                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                                     {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                                   </button>
                                   {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
@@ -2462,7 +2462,7 @@ const MobileLayout = () => {
                                 className={`notes-toggle-button flex-shrink-0 rounded p-1.5 transition-colors ${darkMode ? 'hover:bg-white/20 text-gray-400' : 'hover:bg-black/10 text-stone-500'}`}
                                 title={isLinkOnlyTask(task) ? getLinkUrl(task) : "Notes & subtasks"}
                               >
-                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                               </button>
                             )}
                           </div>
@@ -2911,7 +2911,7 @@ const MobileLayout = () => {
                                   }}
                                   className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                                 >
-                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : <FileText size={14} />}
+                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                                 </button>
                                 <div className="deadline-picker-container relative">
                                   <button
