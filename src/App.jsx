@@ -4483,8 +4483,10 @@ const DayPlanner = () => {
         const occs = getOccurrencesInRange(t, todayStr, todayStr);
         return occs.map(() => ({ title: t.title, time: t.startTime, completed: (t.completedDates || []).includes(todayStr) }));
       }).filter(t => !t.completed);
-      // Inbox count
-      const inboxCount = unscheduledTasks.filter(t => !t.completed && !t.isExample).length;
+      // Inbox count — split into free inbox tasks vs project-assigned tasks
+      const activeUnscheduled = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      const inboxCount = activeUnscheduled.filter(t => !goalsProjectsEnabled || !t.projectId).length;
+      const projectTaskCount = goalsProjectsEnabled ? activeUnscheduled.filter(t => t.projectId).length : 0;
       // Overdue tasks
       const overdue = getOverdueTasks();
       const overdueTasks = overdue.filter(t => t.date !== todayStr).slice(0, 5);
@@ -4506,6 +4508,7 @@ const DayPlanner = () => {
         recurringTasks: todayRecurring.map(t => ({ title: t.title, time: t.time })),
         calendarEvents: calendarEventsToday,
         inboxCount,
+        projectTaskCount,
         overdueTasks: overdueTasks.map(t => ({ title: t.title })),
         deadlinesToday: deadlinesToday.map(t => ({ title: t.title })),
         upcomingDeadlines: upcomingDeadlines.map(t => ({ title: t.title, deadline: t.deadline })),
@@ -4575,7 +4578,8 @@ const DayPlanner = () => {
       const tomorrowCalendarEvents = tasks.filter(t => t.date === tomorrowStr && t.imported && !t.isTaskCalendar)
         .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false }))
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample)
+      // For suggestions, only surface free inbox tasks — project tasks have their own home
+      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId))
         .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
       const total = completedToday.length + incompleteToday.length;
@@ -5816,8 +5820,9 @@ const DayPlanner = () => {
     try {
       const today = new Date();
       const todayStr = dateToString(today);
-      // Gather inbox tasks (non-completed, non-example)
-      const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      // Gather inbox tasks (non-completed, non-example, non-project)
+      // Project tasks belong to their project cards and shouldn't be auto-scheduled from here
+      const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId));
       if (inboxTasks.length === 0) {
         setSmartScheduleError('No inbox tasks to schedule.');
         setSmartScheduleLoading(false);

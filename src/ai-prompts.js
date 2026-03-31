@@ -206,7 +206,7 @@ Rules:
 }
 
 export function morningSummaryUserPrompt(data) {
-  const { todayDate, dayOfWeek, scheduledTasks, recurringTasks, calendarEvents = [], inboxCount, overdueTasks, deadlinesToday, upcomingDeadlines, totalMinutes } = data;
+  const { todayDate, dayOfWeek, scheduledTasks, recurringTasks, calendarEvents = [], inboxCount, projectTaskCount = 0, overdueTasks, deadlinesToday, upcomingDeadlines, totalMinutes } = data;
   const lines = [`Today is ${dayOfWeek}, ${todayDate}.`];
 
   if (calendarEvents.length > 0) {
@@ -247,8 +247,11 @@ export function morningSummaryUserPrompt(data) {
     lines.push(`Overdue from previous days: ${overdueTasks.map(t => t.title).join(', ')}.`);
   }
 
-  if (inboxCount > 0) {
-    lines.push(`${inboxCount} unscheduled task${inboxCount === 1 ? '' : 's'} in inbox.`);
+  if (inboxCount > 0 || projectTaskCount > 0) {
+    const parts = [];
+    if (inboxCount > 0) parts.push(`${inboxCount} unscheduled task${inboxCount === 1 ? '' : 's'} in inbox`);
+    if (projectTaskCount > 0) parts.push(`${projectTaskCount} task${projectTaskCount === 1 ? '' : 's'} assigned to projects (not yet scheduled)`);
+    lines.push(parts.join('; ') + '.');
   }
 
   return lines.join('\n');
@@ -342,7 +345,7 @@ Rules:
 export function weeklySummaryUserPrompt(data) {
   const { dateRange, tasksCompleted, tasksScheduled, completionRate, timeSpent, timePlanned, focusMinutes,
     recurringCompleted, recurringScheduled, bestDay, bestDayCount,
-    incompleteCount, tagBreakdown, inboxCount,
+    incompleteCount, tagBreakdown, inboxCount, projectTaskCount = 0,
     nextWeekTaskCount = 0, nextWeekTopTasks = [], nextWeekCalendarEvents = [],
     habitStats = [], frameStats = [],
     goalStats = [], projectStats = [] } = data;
@@ -369,8 +372,11 @@ export function weeklySummaryUserPrompt(data) {
     lines.push(`Tag breakdown: ${tagBreakdown.map(t => `#${t.tag}: ${t.completed}/${t.total}`).join(', ')}.`);
   }
 
-  if (inboxCount > 0) {
-    lines.push(`${inboxCount} tasks currently in inbox.`);
+  if (inboxCount > 0 || projectTaskCount > 0) {
+    const parts = [];
+    if (inboxCount > 0) parts.push(`${inboxCount} task${inboxCount === 1 ? '' : 's'} in inbox`);
+    if (projectTaskCount > 0) parts.push(`${projectTaskCount} task${projectTaskCount === 1 ? '' : 's'} assigned to projects (not yet scheduled)`);
+    lines.push(parts.join('; ') + '.');
   }
 
   if (habitStats.length > 0) {
