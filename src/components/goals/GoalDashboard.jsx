@@ -772,7 +772,7 @@ const DesktopDashboard = ({
               <div
                 key={proj.id}
                 data-proj-id={proj.id}
-                className={`transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
+                className={`relative transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
                   dropInsertBeforeId === proj.id && dragProjectId && dragProjectId !== proj.id
                     ? 'ring-2 ring-blue-500 rounded-xl' : ''
                 }`}
@@ -788,6 +788,9 @@ const DesktopDashboard = ({
                   endDrag();
                 }}
               >
+                {dragProjectId && dragProjectId !== proj.id && (
+                  <div className="absolute inset-0 z-10 rounded-xl" />
+                )}
                 {cardJsx}
               </div>
             );
@@ -876,7 +879,7 @@ const DesktopDashboard = ({
               <div
                 key={proj.id}
                 data-proj-id={proj.id}
-                className={`transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
+                className={`relative transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
                   dropInsertBeforeId === proj.id && dragProjectId && dragProjectId !== proj.id
                     ? 'ring-2 ring-blue-500 rounded-xl' : ''
                 }`}
@@ -892,6 +895,9 @@ const DesktopDashboard = ({
                   endDrag();
                 }}
               >
+                {dragProjectId && dragProjectId !== proj.id && (
+                  <div className="absolute inset-0 z-10 rounded-xl" />
+                )}
                 {cardJsx}
               </div>
             );
@@ -1016,6 +1022,7 @@ const MobileDashboard = ({
 
   // ── Touch drag handlers (within-page project reorder) ────────────────────────
   const handleGripTouchStart = useCallback((e, projId, goalId) => {
+    e.preventDefault(); // block text selection on long-press
     touchDragRef.current = { active: true, fromId: projId, overId: null, goalId };
     setTouchDragId(projId);
   }, []);

@@ -229,7 +229,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
           {/* Row 1: title + edit/delete */}
           <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1">
             {dragHandleProps && (
-              <div {...dragHandleProps} className={`flex-shrink-0 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none`} title="Drag to reorder">
+              <div {...dragHandleProps} className={`flex-shrink-0 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
                 <GripVertical size={12} />
               </div>
             )}
@@ -316,7 +316,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
         {/* Header: title + badges + edit + delete */}
         <div className="flex items-start justify-between gap-2">
           {dragHandleProps && (
-            <div {...dragHandleProps} className={`flex-shrink-0 mt-0.5 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none`} title="Drag to reorder">
+            <div {...dragHandleProps} className={`flex-shrink-0 mt-0.5 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
               <GripVertical size={14} />
             </div>
           )}
