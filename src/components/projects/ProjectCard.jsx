@@ -1,4 +1,5 @@
 import React, { forwardRef, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
   AlertTriangle, Calendar, CheckCircle2, CheckSquare, ChevronDown,
@@ -290,7 +291,6 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
 
   return (
     <>
-    <div className="relative">
     <div
       ref={ref}
       className={`flex flex-col rounded-xl border overflow-hidden ${
@@ -540,9 +540,9 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
       </div>
     </div>
 
-    {/* Notes/subtasks panel — floats below card, breaks out of overflow-hidden */}
-    {expandedTask && (
-      <div className={`notes-panel-container absolute top-full left-0 z-50 mt-1 w-72 rounded-xl shadow-xl border ${
+    {/* Notes/subtasks panel — portalled to body, centered over viewport */}
+    {expandedTask && createPortal(
+      <div className={`notes-panel-container fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 max-h-[75vh] overflow-y-auto rounded-xl shadow-2xl border ${
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
       }`}>
         <NotesSubtasksPanel
@@ -561,9 +561,9 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
           onLoadWikiNote={expandedTask.importSource === 'obsidian' ? loadWikiNote : undefined}
           onSaveWikiNote={expandedTask.importSource === 'obsidian' ? saveWikiNote : undefined}
         />
-      </div>
+      </div>,
+      document.body
     )}
-    </div>
 
     {showConfirm && (
       <ConfirmDialog
