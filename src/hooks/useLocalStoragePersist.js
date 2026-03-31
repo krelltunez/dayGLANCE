@@ -5,6 +5,7 @@ export default function useLocalStoragePersist({
   use24HourClock,
   inboxPriorityFilter,
   hideCompletedInbox,
+  hideProjectTasksInbox,
   priorityPromptDismissed,
   sectionInfoDismissed, skipOnboardingPersist,
   dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -32,6 +33,11 @@ export default function useLocalStoragePersist({
   useEffect(() => {
     localStorage.setItem('hideCompletedInbox', hideCompletedInbox.toString());
   }, [hideCompletedInbox]);
+
+  // Persist hideProjectTasksInbox to localStorage
+  useEffect(() => {
+    localStorage.setItem('hideProjectTasksInbox', hideProjectTasksInbox.toString());
+  }, [hideProjectTasksInbox]);
 
   // Persist priorityPromptDismissed to localStorage
   useEffect(() => {

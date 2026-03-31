@@ -314,6 +314,10 @@ const DayPlanner = () => {
   const [hideCompletedInbox, setHideCompletedInbox] = useState(() => {
     return localStorage.getItem('hideCompletedInbox') === 'true';
   });
+  const [hideProjectTasksInbox, setHideProjectTasksInbox] = useState(() => {
+    // Default true (hide) to preserve existing behavior; user can opt in to seeing them
+    return localStorage.getItem('hideProjectTasksInbox') !== 'false';
+  });
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
@@ -662,6 +666,7 @@ const DayPlanner = () => {
     selectedTags,
     inboxPriorityFilter,
     hideCompletedInbox,
+    hideProjectTasksInbox,
     goalsProjectsEnabled,
   });
   const { taskWidths, setTaskRef, getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns } = useTaskDerived({
@@ -765,6 +770,7 @@ const DayPlanner = () => {
     use24HourClock,
     inboxPriorityFilter,
     hideCompletedInbox,
+    hideProjectTasksInbox,
     priorityPromptDismissed,
     sectionInfoDismissed, skipOnboardingPersist,
     dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -1783,38 +1789,32 @@ const DayPlanner = () => {
         return next;
       });
 
-      // Collect IDs of Obsidian tasks that existed before this sync (use fresh refs)
-      const oldObsidianIds = new Set(
-        [...currentTasks, ...currentInbox]
-          .filter(t => t.importSource === 'obsidian')
-          .map(t => String(t.id))
-      );
-
-      // IDs that came back from the vault
-      const freshIds = new Set(
-        [...result.scheduledTasks, ...result.inboxTasks].map(t => String(t.id))
-      );
-
-      // Tombstone any Obsidian tasks that no longer exist in the vault
-      // so cloud sync won't resurrect them from other devices
-      const removedIds = [...oldObsidianIds].filter(id => !freshIds.has(id));
-      if (removedIds.length > 0) {
-        const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
-        const now = new Date().toISOString();
-        removedIds.forEach(id => { tombstones[id] = now; });
-        localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
-      }
-
-      // Update tasks — remove old Obsidian imports, add fresh ones
+      // Update tasks — remove old Obsidian imports, add fresh ones.
+      // Preserve app-only fields (projectId, deadline) that aren't stored in the
+      // Obsidian markdown and would otherwise be wiped on every re-sync.
       setTasks(prev => {
         const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
-        return [...nonObsidian, ...result.scheduledTasks];
+        const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
+        const merged = result.scheduledTasks.map(t => {
+          const old = oldObsidianMap.get(String(t.id));
+          if (!old) return t;
+          return { ...t, ...(old.projectId ? { projectId: old.projectId } : {}), ...(old.deadline ? { deadline: old.deadline } : {}) };
+        });
+        return [...nonObsidian, ...merged];
       });
 
-      // Update inbox — remove old Obsidian imports, add fresh ones
+      // Update inbox — remove old Obsidian imports, add fresh ones.
+      // Preserve app-only fields (projectId, deadline) that aren't stored in the
+      // Obsidian markdown and would otherwise be wiped on every re-sync.
       setUnscheduledTasks(prev => {
         const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
-        return [...nonObsidian, ...result.inboxTasks];
+        const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
+        const merged = result.inboxTasks.map(t => {
+          const old = oldObsidianMap.get(String(t.id));
+          if (!old) return t;
+          return { ...t, ...(old.projectId ? { projectId: old.projectId } : {}), ...(old.deadline ? { deadline: old.deadline } : {}) };
+        });
+        return [...nonObsidian, ...merged];
       });
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
@@ -2036,6 +2036,7 @@ const DayPlanner = () => {
     showMobileDailySummary, setShowMobileDailySummary,
     showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
     showRecurrencePicker, setShowRecurrencePicker,
+    focusLogModalDate, setFocusLogModalDate,
   });
 
   useKeyboardShortcuts({
@@ -6252,6 +6253,7 @@ const DayPlanner = () => {
     updateDismissedVersion, setUpdateDismissedVersion,
     inboxPriorityFilter, setInboxPriorityFilter,
     hideCompletedInbox, setHideCompletedInbox,
+    hideProjectTasksInbox, setHideProjectTasksInbox,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,
@@ -6821,7 +6823,7 @@ const DayPlanner = () => {
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Activity size={16} className="text-purple-500" />
+                  <Target size={16} className="text-purple-500" />
                   <span className={`font-semibold text-sm ${textPrimary}`}>Focus Log</span>
                   <span className={`text-xs ${textSecondary}`}>{displayDate}</span>
                 </div>

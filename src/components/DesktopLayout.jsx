@@ -4,7 +4,7 @@ import {
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
   Eye, FileText, Filter, GitBranch, GripVertical, Hash, HelpCircle, Inbox, Key,
-  LayoutGrid, Link, Loader, MapPin, Menu, Mic, Minus, Moon, MoreHorizontal,
+  Layers, LayoutGrid, Link, Loader, MapPin, Menu, Mic, Minus, Moon, MoreHorizontal,
   NotebookPen, Pencil, Pin, Plus, RefreshCw, Save, Search, Settings,
   SkipForward, Sparkles, Sun, Target, Trash2, Upload, X,
 } from 'lucide-react';
@@ -85,6 +85,7 @@ const DesktopLayout = () => {
     updateDismissedVersion, setUpdateDismissedVersion,
     inboxPriorityFilter, setInboxPriorityFilter,
     hideCompletedInbox, setHideCompletedInbox,
+    hideProjectTasksInbox, setHideProjectTasksInbox,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,
@@ -1644,6 +1645,15 @@ const DesktopLayout = () => {
                         >
                           <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                         </button>
+                        {goalsProjectsEnabled && (
+                          <button
+                            onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
+                            className={`ml-2 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                            title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
+                          >
+                            <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                          </button>
+                        )}
                         <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                           className={`ml-2 flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
@@ -2882,6 +2892,15 @@ const DesktopLayout = () => {
                           >
                             <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
                           </button>
+                          {goalsProjectsEnabled && (
+                            <button
+                              onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
+                              className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                              title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
+                            >
+                              <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                            </button>
+                          )}
                           <button
                             onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                             className={`flex gap-0.5 ${hoverBg} rounded pl-1 pr-2 py-1.5 transition-colors`}

@@ -22,12 +22,18 @@ export default function useModalClose({
   showMobileDailySummary, setShowMobileDailySummary,
   showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
   showRecurrencePicker, setShowRecurrencePicker,
+  focusLogModalDate, setFocusLogModalDate,
 }) {
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key !== 'Escape') return;
 
       // Escape to close modals/dialogs (works even when focus is on body)
+      if (focusLogModalDate) {
+        e.preventDefault();
+        setFocusLogModalDate(null);
+        return;
+      }
       if (taskContextMenu) {
         e.preventDefault();
         setTaskContextMenu(null);
@@ -139,5 +145,5 @@ export default function useModalClose({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, showSpotlight, showHelpModal, showShortcutHelp, editingRecurrenceTaskId, showMonthView, showAutoBackupManager, showBackupMenu, showVoiceInput, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showAddTask, showRecurrencePicker]);
+  }, [focusLogModalDate, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, showSpotlight, showHelpModal, showShortcutHelp, editingRecurrenceTaskId, showMonthView, showAutoBackupManager, showBackupMenu, showVoiceInput, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showAddTask, showRecurrencePicker]);
 }
