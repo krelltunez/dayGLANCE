@@ -77,7 +77,16 @@
     createdAt: now,
     updatedAt: now,
   };
-  const projects = [projBilling, projApiDocs, projAuth, projPortfolio];
+  const projBlog = {
+    id: uid(),
+    title: 'Tech Blog',
+    description: 'Publish short-form technical posts on topics I am learning or shipping.',
+    status: 'active',
+    goalId: goalBrand.id,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const projects = [projBilling, projApiDocs, projAuth, projPortfolio, projBlog];
 
   // ── Scheduled tasks (today) ──────────────────────────────────────────
   const tasks = [
@@ -370,6 +379,38 @@
       color: 'bg-red-500',
       notes: 'Downgrade user to free tier and send cancellation email.',
       projectId: projBilling.id,
+      subtasks: [],
+      lastModified: now,
+    },
+    {
+      id: uid(),
+      title: 'Draft blog post: lessons from the auth refactor #writing',
+      date: null,
+      startTime: '00:00',
+      duration: 60,
+      completed: false,
+      priority: 1,
+      color: 'bg-yellow-500',
+      notes: 'What went wrong, what we fixed, and why shared middleware matters.',
+      projectId: projBlog.id,
+      subtasks: [
+        { id: uid(), title: 'Outline key sections', completed: false },
+        { id: uid(), title: 'Write first draft', completed: false },
+        { id: uid(), title: 'Publish to blog', completed: false },
+      ],
+      lastModified: now,
+    },
+    {
+      id: uid(),
+      title: 'Set up blog with Astro + Netlify #work',
+      date: null,
+      startTime: '00:00',
+      duration: 90,
+      completed: false,
+      priority: 2,
+      color: 'bg-yellow-500',
+      notes: 'Use the minimal Astro blog starter. Custom domain already owned.',
+      projectId: projBlog.id,
       subtasks: [],
       lastModified: now,
     },
