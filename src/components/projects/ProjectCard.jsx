@@ -2,28 +2,18 @@ import React, { forwardRef, useState, useRef } from 'react';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
   AlertTriangle, Calendar, CheckCircle2, CheckSquare, ChevronDown,
-  Edit2, GripVertical, Plus, Square, Target, Trash2, X,
+  Edit2, ExternalLink, FileText, GripVertical, NotebookPen, Plus,
+  Square, Target, Trash2, X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
 import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
+import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
+import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl } from '../../utils/textFormatting.jsx';
+import { extractWikilinks } from '../../utils/taskUtils.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
-
-/** Renders a task title with #tags italicized. */
-const TitleWithTags = ({ title, className }) => {
-  const parts = title.split(/(#[a-zA-Z]\w*)/g);
-  return (
-    <span className={className}>
-      {parts.map((part, i) =>
-        part.startsWith('#')
-          ? <em key={i} className="italic opacity-60">{part}</em>
-          : part
-      )}
-    </span>
-  );
-};
 
 /**
  * ProjectCard — a single project node in the Goals dashboard.
@@ -45,7 +35,13 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
     openMobileEditTask,
     getTodayStr,
     darkMode, isMobile,
-    borderClass, textPrimary, textSecondary, hoverBg,
+    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    expandedNotesTaskId, setExpandedNotesTaskId,
+    updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
+    loadWikiNote, saveWikiNote,
+    generateAISubtasks, aiSubtasksLoadingForTask,
+    aiConfig,
+    longPressTriggeredRef, longPressTimerRef,
   } = useDayPlannerCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
@@ -381,8 +377,8 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
                 : -1;
               const draggable = incompleteUnscheduledIdx !== -1;
               return (
+                <React.Fragment key={t.id}>
                 <div
-                  key={t.id}
                   data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
                   draggable={draggable}
                   onDragStart={draggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
@@ -410,16 +406,58 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
                   </button>
                   <button
                     onClick={() => openMobileEditTask?.(t, false)}
-                    className="flex items-center gap-1.5 flex-1 min-w-0 pr-1.5 py-1.5"
+                    className="flex items-center gap-1 flex-1 min-w-0 py-1.5"
                   >
-                    <TitleWithTags
-                      title={t.title}
-                      className={`text-xs flex-1 min-w-0 truncate text-left ${
-                        t.completed ? `line-through opacity-40 ${textSecondary}` : textSecondary
-                      }`}
-                    />
-                    {scheduled && <Calendar size={10} className={`${textSecondary} opacity-40 flex-shrink-0`} />}
+                    <span className={`text-xs flex-1 min-w-0 truncate text-left ${
+                      t.completed ? `line-through opacity-40 ${textSecondary}` : textSecondary
+                    }`}>
+                      {renderTitle(t.title)}
+                    </span>
                   </button>
+                  {/* Notes / link icon */}
+                  <button
+                    onMouseDown={() => {
+                      if (isLinkOnlyTask(t)) {
+                        longPressTriggeredRef.current = false;
+                        longPressTimerRef.current = setTimeout(() => {
+                          longPressTriggeredRef.current = true;
+                          setExpandedNotesTaskId(prev => prev === t.id ? null : t.id);
+                        }, 500);
+                      }
+                    }}
+                    onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                    onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isLinkOnlyTask(t)) {
+                        if (!longPressTriggeredRef.current) {
+                          window.open(getLinkUrl(t), '_blank', 'noopener,noreferrer');
+                        }
+                        longPressTriggeredRef.current = false;
+                      } else {
+                        setExpandedNotesTaskId(prev => prev === t.id ? null : t.id);
+                      }
+                    }}
+                    className={`notes-toggle-button flex-shrink-0 p-1 rounded transition-colors ${hoverBg} ${
+                      hasNotesOrSubtasks(t) || (t.importSource === 'obsidian' && extractWikilinks(t.title).length > 0) ? `${textSecondary} opacity-70` : `${textSecondary} opacity-25`
+                    }`}
+                    title={isLinkOnlyTask(t) ? `${getLinkUrl(t)} (hold to edit)` : 'Notes & subtasks'}
+                  >
+                    {isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : <FileText size={10} />}
+                  </button>
+                  {/* Obsidian wikilink buttons (native Android only) */}
+                  {window.DayGlanceObsidian && t.importSource === 'obsidian' && extractWikilinks(t.title).map((note, i) => (
+                    <button
+                      key={i}
+                      className="flex-shrink-0 p-1 text-purple-400 active:text-purple-300"
+                      onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian.openNote(note); }}
+                      title={`Open "${note}" in Obsidian`}
+                    >
+                      <NotebookPen size={10} />
+                    </button>
+                  ))}
+                  {/* Calendar badge for scheduled tasks */}
+                  {scheduled && <Calendar size={10} className={`${textSecondary} opacity-40 flex-shrink-0`} />}
                   {draggable && (
                     <div
                       className={`flex-shrink-0 p-1 cursor-grab touch-none ${textSecondary} opacity-30`}
@@ -432,6 +470,27 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact },
                     </div>
                   )}
                 </div>
+                {expandedNotesTaskId === t.id && (
+                  <div className="notes-panel-container px-1 pb-1">
+                    <NotesSubtasksPanel
+                      task={t}
+                      isInbox={!scheduled}
+                      darkMode={darkMode}
+                      updateTaskNotes={updateTaskNotes}
+                      addSubtask={addSubtask}
+                      toggleSubtask={toggleSubtask}
+                      deleteSubtask={deleteSubtask}
+                      updateSubtaskTitle={updateSubtaskTitle}
+                      aiConfig={aiConfig}
+                      aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                      onGenerateSubtasks={generateAISubtasks}
+                      wikilinks={t.importSource === 'obsidian' ? extractWikilinks(t.title) : undefined}
+                      onLoadWikiNote={t.importSource === 'obsidian' ? loadWikiNote : undefined}
+                      onSaveWikiNote={t.importSource === 'obsidian' ? saveWikiNote : undefined}
+                    />
+                  </div>
+                )}
+                </React.Fragment>
               );
             })}
 
