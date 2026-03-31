@@ -434,25 +434,36 @@
     },
   ];
 
-  // ── Recurring task: daily standup ────────────────────────────────────
-  const recurringTasks = [
-    {
-      id: Date.now(),
-      title: 'Daily standup note #work',
-      startTime: '09:30',
-      duration: 15,
-      color: 'bg-yellow-500',
-      priority: 1,
-      notes: 'Write yesterday/today/blockers in the shared doc.',
-      recurrence: {
-        type: 'weekly',
-        startDate: '2026-01-05',
-        daysOfWeek: [1, 2, 3, 4, 5], // Mon–Fri
-      },
-      completedDates: [today],
-      exceptions: {},
-      lastModified: now,
-    },
+  // ── Recurring tasks ──────────────────────────────────────────────────
+  // (standup moved to routines)
+  const recurringTasks = [];
+
+  // ── Routines ─────────────────────────────────────────────────────────
+  // Chip IDs need to be stable so todayRoutines can reference them.
+  const rStandup     = { id: uid(), name: 'Daily standup note',            lastModified: now };
+  const rWeekPlan    = { id: uid(), name: 'Weekly planning & prioritisation', lastModified: now };
+  const rEmailClear  = { id: uid(), name: 'Clear email & Discord backlog', lastModified: now };
+  const rBilling     = { id: uid(), name: 'Billing & finances check',      lastModified: now };
+  const rTriage      = { id: uid(), name: 'Triage GitHub issues & PRs',    lastModified: now };
+  const rRetro       = { id: uid(), name: 'Weekly retro & log',            lastModified: now };
+  const rMealPrep    = { id: uid(), name: 'Meal prep for the week',        lastModified: now };
+  const rWeekAhead   = { id: uid(), name: 'Week ahead planning',           lastModified: now };
+
+  const routineDefinitions = {
+    everyday:  [rStandup],
+    monday:    [rWeekPlan],
+    tuesday:   [rEmailClear],
+    wednesday: [rBilling],
+    thursday:  [rTriage],
+    friday:    [rRetro],
+    saturday:  [rMealPrep],
+    sunday:    [rWeekAhead],
+  };
+
+  // Today is Tuesday — place everyday standup (done) + tuesday chip on the timeline.
+  const todayRoutines = [
+    { id: rStandup.id,    name: rStandup.name,    bucket: 'everyday', startTime: '09:30', duration: 15, isAllDay: false, completed: true,  lastModified: now },
+    { id: rEmailClear.id, name: rEmailClear.name, bucket: 'tuesday',  startTime: null,    duration: 15, isAllDay: true,  completed: false, lastModified: now },
   ];
 
   // ── Habits ───────────────────────────────────────────────────────────
@@ -519,6 +530,10 @@
   localStorage.setItem('day-planner-goals', JSON.stringify(goals));
   localStorage.setItem('day-planner-projects', JSON.stringify(projects));
   localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(true));
+  localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
+  localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
+  localStorage.setItem('day-planner-routines-date', today);
+  localStorage.setItem('day-planner-routines-enabled', JSON.stringify(true));
 
   console.log('Seed data loaded — refresh the page');
 })();
