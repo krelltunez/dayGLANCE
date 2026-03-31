@@ -1622,7 +1622,7 @@ const DesktopLayout = () => {
                     <div className="flex items-center mb-4">
                         <button
                           onClick={openNewInboxTask}
-                          className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                          className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                           title="New Inbox Task"
                         >
                           <Plus size={14} strokeWidth={3} />
@@ -1631,7 +1631,7 @@ const DesktopLayout = () => {
                         {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                           <button
                             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                            className="ml-3 w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                            className="ml-3 px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                             title="AI Smart Schedule"
                           >
                             <BrainCircuit size={14} />
@@ -2865,7 +2865,7 @@ const DesktopLayout = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={openNewInboxTask}
-                        className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         title="New Inbox Task"
                       >
                         <Plus size={14} strokeWidth={3} />
@@ -2874,7 +2874,7 @@ const DesktopLayout = () => {
                       {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                         <button
                           onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-                          className="w-24 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                           title="AI Smart Schedule"
                         >
                           <BrainCircuit size={14} />
