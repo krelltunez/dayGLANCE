@@ -3501,7 +3501,7 @@ const MobileLayout = () => {
                         )}
                         {goalsProjectsEnabled && allTimeUnscheduledProjectDoneCount > 0 && (
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> Unscheduled done</div>
+                            <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> Project tasks done</div>
                             <span className={`font-medium ${textPrimary}`}>{allTimeUnscheduledProjectDoneCount}</span>
                           </div>
                         )}
