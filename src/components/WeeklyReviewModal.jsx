@@ -148,7 +148,7 @@ const WeeklyReviewModal = () => {
             bestDayCount = count;
           }
         });
-        const bestDayName = bestDay ? new Date(bestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : null;
+        const bestDayName = bestDay ? new Date(bestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }) : null;
 
         // Incomplete list (future-today tasks already excluded from pastRegular/pastRecurringIncomplete)
         const pastIncomplete = [
@@ -221,7 +221,7 @@ const WeeklyReviewModal = () => {
             busiestMinutes = load.totalMinutes;
           }
         });
-        const busiestDayName = busiestDay ? new Date(busiestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) : null;
+        const busiestDayName = busiestDay ? new Date(busiestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }) : null;
 
         // Open days (< 60 min of commitments)
         const openDays = nextWeekDates.filter(ds => dayLoad[ds].totalMinutes < 60);
