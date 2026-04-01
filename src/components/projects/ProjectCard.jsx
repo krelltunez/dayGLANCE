@@ -288,13 +288,14 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
             </div>
           )}
         </div>
-        {showConfirm && (
+        {showConfirm && createPortal(
           <ConfirmDialog
             title={`Delete "${project.title}"?`}
             message="Tasks linked to this project will remain but won't be grouped."
             onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
             onCancel={() => setShowConfirm(false)}
-          />
+          />,
+          document.body
         )}
       </>
     );
@@ -592,13 +593,14 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
       document.body
     )}
 
-    {showConfirm && (
+    {showConfirm && createPortal(
       <ConfirmDialog
         title={`Delete "${project.title}"?`}
         message="Tasks linked to this project will remain but won't be grouped."
         onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
         onCancel={() => setShowConfirm(false)}
-      />
+      />,
+      document.body
     )}
     </>
   );
