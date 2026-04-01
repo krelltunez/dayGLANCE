@@ -1,5 +1,5 @@
-import React from 'react';
-import { Cloud, Clock, Save, Trash2, Undo2, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight, Cloud, Clock, Save, Trash2, Undo2, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
 
@@ -15,6 +15,9 @@ const AutoBackupManagerModal = () => {
     restoreFromAutoBackup, restoreFromRemoteBackup,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
   } = useDayPlannerCtx();
+
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const [remoteExpanded, setRemoteExpanded] = useState(false);
 
   if (!showAutoBackupManager) return null;
 
@@ -108,73 +111,37 @@ const AutoBackupManagerModal = () => {
 
                   {/* Local Backups */}
                   <div>
-                    <h4 className={`font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
+                    <button
+                      onClick={() => setLocalExpanded(v => !v)}
+                      className={`w-full flex items-center gap-2 font-medium ${textPrimary} mb-2 hover:opacity-70 transition-opacity`}
+                    >
+                      {localExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       <Save size={14} />
                       Local Backups ({autoBackupHistory.local.length})
-                    </h4>
-                    {autoBackupHistory.local.length === 0 ? (
-                      <p className={`text-sm ${textSecondary}`}>No local backups yet.</p>
-                    ) : (
-                      <div className="space-y-1">
-                        {autoBackupHistory.local.map(b => (
-                          <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
-                            <div className="min-w-0 flex-1">
-                              <p className={`text-sm ${textPrimary} truncate`}>
-                                {new Date(b.timestamp).toLocaleString()}
-                              </p>
-                              <p className={`text-xs ${textSecondary}`}>{b.frequency}</p>
-                            </div>
-                            <div className="flex items-center gap-1 ml-2 shrink-0">
-                              <button
-                                onClick={() => setAutoBackupRestoreConfirm({ type: 'local', id: b.id, timestamp: b.timestamp })}
-                                className={`p-1.5 rounded ${hoverBg}`}
-                                title="Restore"
-                              >
-                                <Undo2 size={14} className={textSecondary} />
-                              </button>
-                              <button
-                                onClick={() => deleteLocalAutoBackup(b.id)}
-                                className={`p-1.5 rounded ${hoverBg}`}
-                                title="Delete"
-                              >
-                                <Trash2 size={14} className={textSecondary} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Remote Backups */}
-                  {autoBackupConfig.remote.enabled && (
-                    <div>
-                      <h4 className={`font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                        <Cloud size={14} />
-                        Remote Backups ({autoBackupHistory.remote.length})
-                      </h4>
-                      {autoBackupHistory.remote.length === 0 ? (
-                        <p className={`text-sm ${textSecondary}`}>No remote backups yet.</p>
+                    </button>
+                    {localExpanded && (
+                      autoBackupHistory.local.length === 0 ? (
+                        <p className={`text-sm ${textSecondary} pl-6`}>No local backups yet.</p>
                       ) : (
                         <div className="space-y-1">
-                          {autoBackupHistory.remote.map(b => (
-                            <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
+                          {autoBackupHistory.local.map(b => (
+                            <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                               <div className="min-w-0 flex-1">
                                 <p className={`text-sm ${textPrimary} truncate`}>
-                                  {b.lastModified ? new Date(b.lastModified).toLocaleString() : b.filename}
+                                  {new Date(b.timestamp).toLocaleString()}
                                 </p>
-                                <p className={`text-xs ${textSecondary} truncate`}>{b.filename}</p>
+                                <p className={`text-xs ${textSecondary}`}>{b.frequency}</p>
                               </div>
                               <div className="flex items-center gap-1 ml-2 shrink-0">
                                 <button
-                                  onClick={() => setAutoBackupRestoreConfirm({ type: 'remote', filename: b.filename, timestamp: b.lastModified })}
+                                  onClick={() => setAutoBackupRestoreConfirm({ type: 'local', id: b.id, timestamp: b.timestamp })}
                                   className={`p-1.5 rounded ${hoverBg}`}
                                   title="Restore"
                                 >
                                   <Undo2 size={14} className={textSecondary} />
                                 </button>
                                 <button
-                                  onClick={() => deleteRemoteAutoBackup(b.filename)}
+                                  onClick={() => deleteLocalAutoBackup(b.id)}
                                   className={`p-1.5 rounded ${hoverBg}`}
                                   title="Delete"
                                 >
@@ -184,6 +151,54 @@ const AutoBackupManagerModal = () => {
                             </div>
                           ))}
                         </div>
+                      )
+                    )}
+                  </div>
+
+                  {/* Remote Backups */}
+                  {autoBackupConfig.remote.enabled && (
+                    <div>
+                      <button
+                        onClick={() => setRemoteExpanded(v => !v)}
+                        className={`w-full flex items-center gap-2 font-medium ${textPrimary} mb-2 hover:opacity-70 transition-opacity`}
+                      >
+                        {remoteExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        <Cloud size={14} />
+                        Remote Backups ({autoBackupHistory.remote.length})
+                      </button>
+                      {remoteExpanded && (
+                        autoBackupHistory.remote.length === 0 ? (
+                          <p className={`text-sm ${textSecondary} pl-6`}>No remote backups yet.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {autoBackupHistory.remote.map(b => (
+                              <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-sm ${textPrimary} truncate`}>
+                                    {b.lastModified ? new Date(b.lastModified).toLocaleString() : b.filename}
+                                  </p>
+                                  <p className={`text-xs ${textSecondary} truncate`}>{b.filename}</p>
+                                </div>
+                                <div className="flex items-center gap-1 ml-2 shrink-0">
+                                  <button
+                                    onClick={() => setAutoBackupRestoreConfirm({ type: 'remote', filename: b.filename, timestamp: b.lastModified })}
+                                    className={`p-1.5 rounded ${hoverBg}`}
+                                    title="Restore"
+                                  >
+                                    <Undo2 size={14} className={textSecondary} />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteRemoteAutoBackup(b.filename)}
+                                    className={`p-1.5 rounded ${hoverBg}`}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={14} className={textSecondary} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
                       )}
                     </div>
                   )}
