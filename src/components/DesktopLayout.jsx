@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   AlertCircle, AlertTriangle, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
@@ -20,6 +20,7 @@ import DailyNotesModal from './DailyNotesModal.jsx';
 import FrameNudgeCard from './FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import DesktopHeader from './DesktopHeader.jsx';
+import InboxFilterPopover from './InboxFilterPopover.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const DesktopLayout = () => {
@@ -412,7 +413,20 @@ const DesktopLayout = () => {
     goals, projects, goalsProjectsEnabled,
     setShowGoalsDashboard,
     projectFilter, setProjectFilter,
+    hideCompletedInbox, hideProjectTasksInbox,
+    hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter,
   } = useDayPlannerCtx();
+
+  const [showInboxFilter, setShowInboxFilter] = useState(false);
+  const inboxFilterBtnRef = useRef(null);
+
+  // A filter is "active" (non-default) when any non-priority filter deviates from defaults
+  const inboxFilterActive =
+    hideCompletedInbox ||
+    hideStandaloneTasksInbox ||
+    (goalsProjectsEnabled && !hideProjectTasksInbox) ||
+    inboxTagFilter.length > 0 ||
+    inboxProjectFilter.length > 0;
 
   return (
       <>
@@ -1639,21 +1653,14 @@ const DesktopLayout = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                          className={`ml-4 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
-                          title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                          ref={node => { inboxFilterBtnRef.current = node; }}
+                          onClick={() => { inboxFilterBtnRef.current = document.activeElement; setShowInboxFilter(v => !v); playUISound('click'); }}
+                          className={`ml-4 relative ${hoverBg} rounded px-2 py-1.5 transition-colors`}
+                          title="Filter inbox"
                         >
-                          <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                          <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
+                          {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
                         </button>
-                        {goalsProjectsEnabled && (
-                          <button
-                            onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
-                            className={`ml-2 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
-                            title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
-                          >
-                            <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
-                          </button>
-                        )}
                         <button
                           onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                           className={`ml-2 flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
@@ -2899,21 +2906,14 @@ const DesktopLayout = () => {
                       {unscheduledTasks.filter(t => !t.deadline).length > 0 && (
                         <>
                           <button
-                            onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                            className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                            title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                            ref={node => { if (node) inboxFilterBtnRef.current = node; }}
+                            onClick={() => { setShowInboxFilter(v => !v); playUISound('click'); }}
+                            className={`relative ${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                            title="Filter inbox"
                           >
-                            <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                            <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
+                            {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
                           </button>
-                          {goalsProjectsEnabled && (
-                            <button
-                              onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
-                              className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                              title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
-                            >
-                              <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
-                            </button>
-                          )}
                           <button
                             onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                             className={`flex gap-0.5 ${hoverBg} rounded pl-1 pr-2 py-1.5 transition-colors`}
@@ -4743,6 +4743,11 @@ const DesktopLayout = () => {
           <Trash2 size={26} className="text-white" />
         </div>
       )}
+      <InboxFilterPopover
+        open={showInboxFilter}
+        onClose={() => setShowInboxFilter(false)}
+        buttonRef={inboxFilterBtnRef}
+      />
       </>
 );
 };

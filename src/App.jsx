@@ -327,6 +327,15 @@ const DayPlanner = () => {
     // Default true (hide) to preserve existing behavior; user can opt in to seeing them
     return localStorage.getItem('hideProjectTasksInbox') !== 'false';
   });
+  const [hideStandaloneTasksInbox, setHideStandaloneTasksInbox] = useState(() => {
+    return localStorage.getItem('hideStandaloneTasksInbox') === 'true';
+  });
+  const [inboxTagFilter, setInboxTagFilter] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('inboxTagFilter') || '[]'); } catch { return []; }
+  });
+  const [inboxProjectFilter, setInboxProjectFilter] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('inboxProjectFilter') || '[]'); } catch { return []; }
+  });
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
@@ -688,6 +697,9 @@ const DayPlanner = () => {
     inboxPriorityFilter,
     hideCompletedInbox,
     hideProjectTasksInbox,
+    hideStandaloneTasksInbox,
+    inboxTagFilter,
+    inboxProjectFilter,
     goalsProjectsEnabled,
   });
   const { taskWidths, setTaskRef, getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns } = useTaskDerived({
@@ -792,6 +804,9 @@ const DayPlanner = () => {
     inboxPriorityFilter,
     hideCompletedInbox,
     hideProjectTasksInbox,
+    hideStandaloneTasksInbox,
+    inboxTagFilter,
+    inboxProjectFilter,
     priorityPromptDismissed,
     sectionInfoDismissed, skipOnboardingPersist,
     dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -6295,6 +6310,9 @@ const DayPlanner = () => {
     inboxPriorityFilter, setInboxPriorityFilter,
     hideCompletedInbox, setHideCompletedInbox,
     hideProjectTasksInbox, setHideProjectTasksInbox,
+    hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
+    inboxTagFilter, setInboxTagFilter,
+    inboxProjectFilter, setInboxProjectFilter,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,

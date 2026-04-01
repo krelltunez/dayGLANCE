@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Activity, AlertCircle, AlertTriangle, BarChart3, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
@@ -30,6 +30,7 @@ import MobileSettingsPanel from './MobileSettingsPanel.jsx';
 import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import InboxFilterPopover from './InboxFilterPopover.jsx';
 
 const MobileLayout = () => {
   const {
@@ -430,7 +431,18 @@ const MobileLayout = () => {
     goals,
     projects,
     goalsProjectsEnabled,
+    hideCompletedInbox, hideProjectTasksInbox,
+    hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter,
   } = useDayPlannerCtx();
+
+  const [showInboxFilter, setShowInboxFilter] = useState(false);
+  const inboxFilterBtnRef = useRef(null);
+  const inboxFilterActive =
+    hideCompletedInbox ||
+    hideStandaloneTasksInbox ||
+    (goalsProjectsEnabled && !hideProjectTasksInbox) ||
+    inboxTagFilter.length > 0 ||
+    inboxProjectFilter.length > 0;
 
   const [addGoalTrigger, setAddGoalTrigger] = useState(0);
   const [addProjectTrigger, setAddProjectTrigger] = useState(0);
@@ -568,21 +580,14 @@ const MobileLayout = () => {
                   </div>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                      className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                      title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                      ref={inboxFilterBtnRef}
+                      onClick={() => { setShowInboxFilter(v => !v); playUISound('click'); }}
+                      className={`relative ${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                      title="Filter inbox"
                     >
-                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                      <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
+                      {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
                     </button>
-                    {goalsProjectsEnabled && (
-                      <button
-                        onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
-                        className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                        title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
-                      >
-                        <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
-                      </button>
-                    )}
                     <button
                       onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                       className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
@@ -3557,6 +3562,11 @@ const MobileLayout = () => {
           {/* Bottom Tab Bar */}
           <MobileTabBar />
         </>
+      <InboxFilterPopover
+        open={showInboxFilter}
+        onClose={() => setShowInboxFilter(false)}
+        buttonRef={inboxFilterBtnRef}
+      />
 );
 };
 
