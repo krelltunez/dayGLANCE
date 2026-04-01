@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  Activity, AlertCircle, AlertTriangle, BarChart3, Bell, BookOpen, BrainCircuit,
+  Activity, AlertCircle, AlertTriangle, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
   Eye, FileText, Filter, Flag, Flame, FolderOpen, GitBranch, GripVertical, Hash, HelpCircle,
@@ -31,6 +31,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import InboxFilterPopover from './InboxFilterPopover.jsx';
+import InboxArchivedBar from './InboxArchivedBar.jsx';
 
 const MobileLayout = () => {
   const {
@@ -433,6 +434,7 @@ const MobileLayout = () => {
     goalsProjectsEnabled,
     hideCompletedInbox, hideProjectTasksInbox,
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter,
+    archiveInboxTask,
   } = useDayPlannerCtx();
 
   const [showInboxFilter, setShowInboxFilter] = useState(false);
@@ -2960,7 +2962,16 @@ const MobileLayout = () => {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex justify-end mt-1.5">
+                            <div className="flex items-center justify-between mt-1.5">
+                              {task.completed ? (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
+                                  className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
+                                  title="Archive task"
+                                >
+                                  <Archive size={11} className="text-white" />
+                                </button>
+                              ) : <span />}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2983,6 +2994,7 @@ const MobileLayout = () => {
                     ))
                   )}
                 </div>
+                <InboxArchivedBar />
 
                 {/* Mobile notes panel overlay for inbox tasks */}
                 {expandedNotesTaskId && (() => {

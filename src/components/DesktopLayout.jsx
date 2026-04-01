@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  AlertCircle, AlertTriangle, Bell, BookOpen, BrainCircuit,
+  AlertCircle, AlertTriangle, Archive, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
   Eye, FileText, Filter, GitBranch, GripVertical, Hash, HelpCircle, Inbox, Key,
@@ -21,6 +21,7 @@ import FrameNudgeCard from './FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import DesktopHeader from './DesktopHeader.jsx';
 import InboxFilterPopover from './InboxFilterPopover.jsx';
+import InboxArchivedBar from './InboxArchivedBar.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const DesktopLayout = () => {
@@ -415,6 +416,7 @@ const DesktopLayout = () => {
     projectFilter, setProjectFilter,
     hideCompletedInbox, hideProjectTasksInbox,
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter,
+    archiveInboxTask,
   } = useDayPlannerCtx();
 
   const [showInboxFilter, setShowInboxFilter] = useState(false);
@@ -1839,7 +1841,16 @@ const DesktopLayout = () => {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex justify-end mt-1.5">
+                                <div className="flex items-center justify-between mt-1.5">
+                                  {task.completed ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
+                                      className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
+                                      title="Archive task"
+                                    >
+                                      <Archive size={11} className="text-white" />
+                                    </button>
+                                  ) : <span />}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1862,6 +1873,7 @@ const DesktopLayout = () => {
                         ))
                       )}
                     </div>
+                    <InboxArchivedBar />
                   </div>
                 )}
               </div>
@@ -3099,21 +3111,32 @@ const DesktopLayout = () => {
                                   <Pencil size={14} />
                                 </button>
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cyclePriority(task.id);
-                                }}
-                                className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 mt-1 transition-colors"
-                                title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
-                              >
-                                {[0, 1, 2].map(i => (
-                                  <span
-                                    key={i}
-                                    className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
-                                  />
-                                ))}
-                              </button>
+                              <div className="flex items-center justify-between mt-1">
+                                {task.completed ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
+                                    className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
+                                    title="Archive task"
+                                  >
+                                    <Archive size={11} className="text-white" />
+                                  </button>
+                                ) : <span />}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    cyclePriority(task.id);
+                                  }}
+                                  className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 transition-colors"
+                                  title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
+                                >
+                                  {[0, 1, 2].map(i => (
+                                    <span
+                                      key={i}
+                                      className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
+                                    />
+                                  ))}
+                                </button>
+                              </div>
                             </div>
                           </div>
                           {expandedNotesTaskId === task.id && (
@@ -3139,6 +3162,7 @@ const DesktopLayout = () => {
                     ))
                   )}
                   </div>
+                  <InboxArchivedBar />
                 </div>
               </div>
               )}

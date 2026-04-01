@@ -5534,6 +5534,13 @@ const DayPlanner = () => {
   clearDeadlineRef.current = clearDeadline;
   moveToInboxRef.current = moveToInbox;
 
+  const archiveInboxTask = (id) => {
+    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: true } : t));
+  };
+  const restoreArchivedInboxTask = (id) => {
+    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false } : t));
+  };
+
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
   // Runs whenever tasks, habits, routines, or frames change so the widget is always
@@ -6630,6 +6637,7 @@ const DayPlanner = () => {
 
     // ── Functions – task CRUD ─────────────────────────────────────────────────
     addTask, toggleComplete,
+    archiveInboxTask, restoreArchivedInboxTask,
     deleteRecurringInstance, updateRecurrencePattern,
     updateRecurrenceEndCondition, updateRecurringTemplate,
     moveToRecycleBin, moveToInbox, undeleteTask,

@@ -63,6 +63,7 @@ export default function useComputedViews({
   // If the feature is toggled off, the exclusion is lifted so nothing is hidden.
   const filteredUnscheduledTasks = useMemo(
     () => unscheduledTasks
+      .filter(task => !task.archived)
       .filter(task => {
         if (!goalsProjectsEnabled) return true;
         // If specific projects are selected, show only tasks from those projects
