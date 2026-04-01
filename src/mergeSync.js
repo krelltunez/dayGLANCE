@@ -594,6 +594,24 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     localChanged = true;
   }
 
+  // Combine goal and project tombstones from both sides
+  const localDeletedGoalIds = localData.deletedGoalIds || {};
+  const remoteDeletedGoalIds = remoteData.deletedGoalIds || {};
+  const allDeletedGoalIds = { ...localDeletedGoalIds };
+  for (const [id, ts] of Object.entries(remoteDeletedGoalIds)) {
+    if (!allDeletedGoalIds[id] || new Date(ts) > new Date(allDeletedGoalIds[id])) {
+      allDeletedGoalIds[id] = ts;
+    }
+  }
+  const localDeletedProjectIds = localData.deletedProjectIds || {};
+  const remoteDeletedProjectIds = remoteData.deletedProjectIds || {};
+  const allDeletedProjectIds = { ...localDeletedProjectIds };
+  for (const [id, ts] of Object.entries(remoteDeletedProjectIds)) {
+    if (!allDeletedProjectIds[id] || new Date(ts) > new Date(allDeletedProjectIds[id])) {
+      allDeletedProjectIds[id] = ts;
+    }
+  }
+
   // Merge goals by ID using updatedAt for conflict resolution (same strategy as frames)
   const localGoals = localData.goals || [];
   const remoteGoals = remoteData.goals || [];
@@ -602,6 +620,10 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   const mergedGoals = [];
   for (const localGoal of localGoals) {
     const id = String(localGoal.id);
+    if (allDeletedGoalIds[id] && new Date(allDeletedGoalIds[id]) > new Date(localGoal.updatedAt || 0)) {
+      localChanged = true; // goal was deleted
+      continue;
+    }
     const remoteGoal = remoteGoalMap.get(id);
     if (remoteGoal && JSON.stringify(localGoal) !== JSON.stringify(remoteGoal)) {
       const localTime = new Date(localGoal.updatedAt || 0);
@@ -619,10 +641,13 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     }
   }
   for (const remoteGoal of remoteGoals) {
-    if (!localGoalIds.has(String(remoteGoal.id))) {
-      mergedGoals.push(remoteGoal);
-      localChanged = true;
+    if (localGoalIds.has(String(remoteGoal.id))) continue;
+    if (allDeletedGoalIds[String(remoteGoal.id)] && new Date(allDeletedGoalIds[String(remoteGoal.id)]) > new Date(remoteGoal.updatedAt || 0)) {
+      remoteChanged = true; // tell remote this was deleted
+      continue;
     }
+    mergedGoals.push(remoteGoal);
+    localChanged = true;
   }
 
   // Merge projects by ID using updatedAt for conflict resolution (same strategy as frames)
@@ -633,6 +658,10 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   const mergedProjects = [];
   for (const localProject of localProjects) {
     const id = String(localProject.id);
+    if (allDeletedProjectIds[id] && new Date(allDeletedProjectIds[id]) > new Date(localProject.updatedAt || 0)) {
+      localChanged = true; // project was deleted
+      continue;
+    }
     const remoteProject = remoteProjectMap.get(id);
     if (remoteProject && JSON.stringify(localProject) !== JSON.stringify(remoteProject)) {
       const localTime = new Date(localProject.updatedAt || 0);
@@ -650,10 +679,13 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     }
   }
   for (const remoteProject of remoteProjects) {
-    if (!localProjectIds.has(String(remoteProject.id))) {
-      mergedProjects.push(remoteProject);
-      localChanged = true;
+    if (localProjectIds.has(String(remoteProject.id))) continue;
+    if (allDeletedProjectIds[String(remoteProject.id)] && new Date(allDeletedProjectIds[String(remoteProject.id)]) > new Date(remoteProject.updatedAt || 0)) {
+      remoteChanged = true; // tell remote this was deleted
+      continue;
     }
+    mergedProjects.push(remoteProject);
+    localChanged = true;
   }
 
   // Check if goalsProjectsEnabled setting differs
@@ -681,6 +713,8 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   const prunedDeletedFrameIds = pruneTombstones(allDeletedFrameIds, tombstoneCutoff);
   const prunedRemovedTodayIds = pruneTombstones(allRemovedTodayIds, tombstoneCutoff);
   const prunedDeletedHabitIds = pruneTombstones(habitsMerge.mergedDeletedIds, tombstoneCutoff);
+  const prunedDeletedGoalIds = pruneTombstones(allDeletedGoalIds, tombstoneCutoff);
+  const prunedDeletedProjectIds = pruneTombstones(allDeletedProjectIds, tombstoneCutoff);
 
   return {
     data: {
@@ -711,7 +745,9 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,
       gtdFrames: mergedFrames,
       goals: mergedGoals,
+      deletedGoalIds: prunedDeletedGoalIds,
       projects: mergedProjects,
+      deletedProjectIds: prunedDeletedProjectIds,
       goalsProjectsEnabled: remoteData.goalsProjectsEnabled !== undefined ? remoteData.goalsProjectsEnabled : localData.goalsProjectsEnabled,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local

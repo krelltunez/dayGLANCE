@@ -3993,7 +3993,9 @@ const DayPlanner = () => {
         routinesEnabled,
         gtdFrames,
         goals,
+        deletedGoalIds: JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}'),
         projects,
+        deletedProjectIds: JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}'),
         goalsProjectsEnabled,
       }
     };
@@ -4149,6 +4151,8 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
       setGoalsProjectsEnabled(data.goalsProjectsEnabled);
     }
+    if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
+    if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload).

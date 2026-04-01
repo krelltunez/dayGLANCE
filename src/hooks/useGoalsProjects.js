@@ -52,6 +52,10 @@ const useGoalsProjects = () => {
 
   const deleteGoal = useCallback((id) => {
     setGoals(prev => prev.filter(g => g.id !== id));
+    // Record tombstone so cloud sync doesn't resurrect the goal from other devices
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}');
+    tombstones[String(id)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(tombstones));
   }, []);
 
   // ── Project CRUD ─────────────────────────────────────────────────────────────
@@ -79,6 +83,10 @@ const useGoalsProjects = () => {
 
   const deleteProject = useCallback((id) => {
     setProjects(prev => prev.filter(p => p.id !== id));
+    // Record tombstone so cloud sync doesn't resurrect the project from other devices
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}');
+    tombstones[String(id)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(tombstones));
   }, []);
 
   // Move a project to a new goal (or standalone) and optionally insert it before
