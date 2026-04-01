@@ -422,7 +422,7 @@ const WeeklyReviewModal = () => {
         const sevenDaysAgoStr = dateToString(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
         const fourteenDaysAgoStr = dateToString(new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000));
         const nextWeekProjects = goalsProjectsEnabled
-          ? projects.filter(p => p.status === 'active').map(p => {
+          ? projects.filter(p => p.status === 'active' && !p.goalId).map(p => {
               const pTasks = allTasksCombined.filter(t => t.projectId === p.id && !t.archived);
               const totalTasks = pTasks.length;
               const completedTasks = pTasks.filter(t => t.completed).length;
@@ -777,14 +777,15 @@ const WeeklyReviewModal = () => {
                     </div>
                   )}
 
-                  {/* Active projects */}
+                  {/* Standalone projects */}
                   {goalsProjectsEnabled && nextWeekProjects.length > 0 && (
                     <div className="mb-4">
-                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Active Projects</div>
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Standalone Projects</div>
                       <div className="space-y-2">
                         {nextWeekProjects.map(p => {
                           const momentumColor = p.momentum === 'green' ? '#22c55e' : p.momentum === 'amber' ? '#f59e0b' : '#ef4444';
                           const momentumLabel = p.momentum === 'green' ? 'Active' : p.momentum === 'amber' ? 'Slowing' : 'Stalled';
+                          const barColor = p.progressPct >= 100 ? '#22c55e' : p.progressPct >= 50 ? '#3b82f6' : p.progressPct >= 20 ? '#f59e0b' : '#ef4444';
                           return (
                             <div key={p.id} className="flex items-center gap-2">
                               <div
@@ -796,7 +797,7 @@ const WeeklyReviewModal = () => {
                               <div className={`flex-shrink-0 w-16 h-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${p.progressPct}%`, backgroundColor: momentumColor }}
+                                  style={{ width: `${p.progressPct}%`, backgroundColor: barColor }}
                                 />
                               </div>
                               <span className={`text-xs ${textSecondary} flex-shrink-0 w-10 text-right`}>{p.completedTasks}/{p.totalTasks}</span>
