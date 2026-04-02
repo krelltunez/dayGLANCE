@@ -475,8 +475,8 @@ const WeeklyReviewModal = () => {
           projectStats,
         };
 
-        const StatCard = ({ value, label, icon }) => (
-          <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3`}>
+        const StatCard = ({ value, label, icon, className = '' }) => (
+          <div className={`${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} rounded-lg p-3 ${className}`}>
             <div className={`text-xl font-bold ${textPrimary} flex items-center gap-1.5`}>
               {icon}
               {value}
@@ -735,17 +735,22 @@ const WeeklyReviewModal = () => {
                     <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
                     <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    {busiestDayName && busiestMinutes > 0 && (
-                      <StatCard value={busiestDayName} label="Busiest" icon={<Zap size={16} className="text-amber-400" />} />
-                    )}
-                    {nextRecurringCount > 0 && (
-                      <StatCard value={nextRecurringCount} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
-                    )}
-                    {nextFrameTotalMinutes > 0 && (
-                      <StatCard value={formatMinutes(nextFrameAvailableMinutes)} label="Frame availability" icon={<CalendarDays size={16} className="text-green-400" />} />
-                    )}
-                  </div>
+                  {(() => {
+                    const tiles = [];
+                    if (busiestDayName && busiestMinutes > 0) tiles.push({ key: 'busiest', value: busiestDayName, label: 'Busiest', icon: <Zap size={16} className="text-amber-400" /> });
+                    if (nextRecurringCount > 0) tiles.push({ key: 'recurring', value: nextRecurringCount, label: 'Recurring', icon: <RefreshCw size={14} className="text-blue-400" /> });
+                    if (nextFrameTotalMinutes > 0) tiles.push({ key: 'frames', value: formatMinutes(nextFrameAvailableMinutes), label: 'Frame availability', icon: <CalendarDays size={16} className="text-green-400" /> });
+                    if (tiles.length === 0) return null;
+                    return (
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        {tiles.map((t, i) => (
+                          <StatCard key={t.key} value={t.value} label={t.label} icon={t.icon}
+                            className={tiles.length % 2 !== 0 && i === tiles.length - 1 ? 'col-span-2' : ''}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   {/* Goals due this week */}
                   {goalsProjectsEnabled && nextWeekDueGoals.length > 0 && (
