@@ -25,6 +25,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     currentTime,
     use24HourClock,
     tasks, setTasks,
+    expandedRecurringTasks,
     unscheduledTasks, setUnscheduledTasks,
     recycleBin, setRecycleBin,
     recurringTasks, setRecurringTasks,
@@ -89,6 +90,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     getFrameInstancesForDate,
     computeAvailableSlots,
     moveToRecycleBin,
+    showVoiceInput, setShowVoiceInput,
+    voiceCanRecord,
   } = useDayPlannerCtx();
 
   const isDesktop = variant === 'desktop';

@@ -623,6 +623,24 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
             </div>
           </div>
           </div>{/* end swipe wrapper */}
+          {expandedNotesTaskId === task.id && (
+            <NotesSubtasksPanel
+              task={task}
+              isInbox={true}
+              darkMode={darkMode}
+              updateTaskNotes={updateTaskNotes}
+              addSubtask={addSubtask}
+              toggleSubtask={toggleSubtask}
+              deleteSubtask={deleteSubtask}
+              updateSubtaskTitle={updateSubtaskTitle}
+              aiConfig={aiConfig}
+              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+              onGenerateSubtasks={generateAISubtasks}
+              wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
+              onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
+              onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
+            />
+          )}
         </div>
       ))
     )}
