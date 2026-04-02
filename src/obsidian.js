@@ -86,9 +86,21 @@ export async function requestVaultAccess() {
 }
 
 /**
+ * Silently restore a previously-granted vault handle from IndexedDB.
+ * Only succeeds if permission is already 'granted' — does NOT call
+ * requestPermission, so it is safe to call on page load without a user gesture.
+ * Returns the handle or null.
+ */
+export async function tryRestoreVaultAccess() {
+  const handle = await loadVaultHandle();
+  if (!handle) return null;
+  const perm = await handle.queryPermission({ mode: 'readwrite' });
+  return perm === 'granted' ? handle : null;
+}
+
+/**
  * Try to restore a previously-granted vault handle from IndexedDB.
- * Re-requests permission if needed (requires a user gesture the first time
- * after a page reload). Returns the handle or null.
+ * Re-requests permission if needed (requires a user gesture). Returns the handle or null.
  */
 export async function getVaultAccess() {
   const handle = await loadVaultHandle();
