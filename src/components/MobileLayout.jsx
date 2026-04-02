@@ -552,7 +552,7 @@ const MobileLayout = () => {
               </div>
             )}
             {mobileActiveTab === 'inbox' && (
-              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
+              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`} data-inbox-container>
                 <div className="px-4 pt-3 pb-1">
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
                     <Inbox size={20} /> Inbox

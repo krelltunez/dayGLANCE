@@ -22,17 +22,25 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
 
   const popoverRef = useRef(null);
 
-  // Position below the trigger button
+  // Position below the trigger button, spanning the inbox container width
   useEffect(() => {
     if (!open || !buttonRef?.current || !popoverRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
+    const btnRect = buttonRef.current.getBoundingClientRect();
+    const container = buttonRef.current.closest('[data-inbox-container]');
     const pop = popoverRef.current;
-    const vw = window.innerWidth;
-    // Align right edge with button right edge, don't go off-screen left
-    let left = Math.min(rect.right - pop.offsetWidth, vw - pop.offsetWidth - 8);
-    if (left < 8) left = 8;
-    pop.style.top = `${rect.bottom + 6}px`;
-    pop.style.left = `${left}px`;
+    if (container) {
+      const cRect = container.getBoundingClientRect();
+      pop.style.top = `${btnRect.bottom + 6}px`;
+      pop.style.left = `${cRect.left}px`;
+      pop.style.width = `${cRect.width}px`;
+    } else {
+      // Fallback: align to button
+      const vw = window.innerWidth;
+      let left = Math.min(btnRect.right - pop.offsetWidth, vw - pop.offsetWidth - 8);
+      if (left < 8) left = 8;
+      pop.style.top = `${btnRect.bottom + 6}px`;
+      pop.style.left = `${left}px`;
+    }
   }, [open, buttonRef]);
 
   // Close on Escape
@@ -101,7 +109,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
       {/* Popover */}
       <div
         ref={popoverRef}
-        className={`fixed z-[80] w-64 rounded-xl shadow-2xl border ${cardBg} ${borderClass} overflow-hidden`}
+        className={`fixed z-[80] rounded-xl shadow-2xl border ${cardBg} ${borderClass} overflow-hidden`}
         style={{ top: 0, left: 0 }} // overwritten by effect
       >
         {/* Header */}

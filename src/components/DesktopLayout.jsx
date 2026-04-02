@@ -1632,7 +1632,7 @@ const DesktopLayout = () => {
 
                 {/* Inbox section — shown when inbox tab active */}
                 {tabletActiveTab === 'inbox' && (
-                  <div className="p-4">
+                  <div className="p-4" data-inbox-container>
                     {/* Inbox header with priority filter */}
                     <div className="flex items-center mb-4">
                         <button
@@ -2893,7 +2893,7 @@ const DesktopLayout = () => {
 
               {/* Inbox section — shown when inbox tab active */}
               {tabletActiveTab === 'inbox' && (
-              <div className="p-4">
+              <div className="p-4" data-inbox-container>
                 <div
                   onDragOver={handleDragOverInbox}
                   onDragLeave={(e) => {
