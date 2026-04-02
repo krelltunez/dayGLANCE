@@ -414,7 +414,7 @@ const DesktopLayout = () => {
     goals, projects, goalsProjectsEnabled,
     setShowGoalsDashboard,
     projectFilter, setProjectFilter,
-    hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter,
+    hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     archiveInboxTask,
   } = useDayPlannerCtx();
 
@@ -3063,7 +3063,12 @@ const DesktopLayout = () => {
                                     if (!proj) return null;
                                     return (
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const active = projectFilter === task.projectId;
+                                          setProjectFilter(active ? null : task.projectId);
+                                          setInboxProjectFilter(active ? [] : [task.projectId]);
+                                        }}
                                         className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                                         title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
                                       >
