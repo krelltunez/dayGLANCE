@@ -1062,6 +1062,10 @@ const MobileDashboard = ({
     if (!el) return;
 
     const onStart = (e) => {
+      // Guard: don't capture swipes when this component is hidden (display:none).
+      // On real Android WebView, passive:false listeners remain active on hidden
+      // elements and can interfere with touch handling elsewhere in the app.
+      if (el.offsetParent === null) return;
       const t = e.touches[0];
       swipeRef.current = { startX: t.clientX, startY: t.clientY, locked: null };
     };
