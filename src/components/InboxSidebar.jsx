@@ -54,13 +54,19 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     handleDragStart, handleDragEnd,
     handleDragOverInbox, handleDropOnInbox,
     dragOverInbox, setDragOverInbox,
-    inboxFilterActive,
-    setInboxProjectFilter,
+    hideCompletedInbox, hideStandaloneTasksInbox, hideProjectTasksInbox,
+    inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
   } = useDayPlannerCtx();
 
   const [showInboxFilter, setShowInboxFilter] = useState(false);
   const inboxFilterBtnRef = useRef(null);
+  const inboxFilterActive =
+    hideCompletedInbox ||
+    hideStandaloneTasksInbox ||
+    (goalsProjectsEnabled && !hideProjectTasksInbox) ||
+    inboxTagFilter.length > 0 ||
+    inboxProjectFilter.length > 0;
   const isDesktop = variant === 'desktop';
 
   if (isDesktop) {
