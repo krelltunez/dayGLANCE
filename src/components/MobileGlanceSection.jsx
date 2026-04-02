@@ -1067,6 +1067,7 @@ const MobileGlanceSection = () => {
                 </div>
               </div>
             ) : (
+              <div className={`${agendaTask.color || ''} rounded-lg`}>
               <NotesSubtasksPanel
                 task={agendaTask}
                 isInbox={isInbox}
@@ -1081,6 +1082,7 @@ const MobileGlanceSection = () => {
                 aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                 onGenerateSubtasks={generateAISubtasks}
               />
+              </div>
             )}
           </div>
         </div>

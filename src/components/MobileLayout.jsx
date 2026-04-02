@@ -1059,6 +1059,7 @@ const MobileLayout = () => {
                           </button>
                         </div>
                         <div className="p-4">
+                          <div className={`${noteTask.color || ''} rounded-lg`}>
                           <NotesSubtasksPanel
                             task={noteTask}
                             isInbox={true}
@@ -1073,6 +1074,7 @@ const MobileLayout = () => {
                             aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                             onGenerateSubtasks={generateAISubtasks}
                           />
+                          </div>
                         </div>
                       </div>
                     </div>
