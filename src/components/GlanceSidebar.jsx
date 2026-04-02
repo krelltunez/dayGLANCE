@@ -24,6 +24,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     darkMode,
     currentTime,
     use24HourClock,
+    selectedDate, setSelectedDate,
     tasks, setTasks,
     expandedRecurringTasks,
     unscheduledTasks, setUnscheduledTasks,
