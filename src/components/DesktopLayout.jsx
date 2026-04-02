@@ -416,14 +416,6 @@ const DesktopLayout = () => {
   } = useDayPlannerCtx();
 
 
-  // A filter is "active" (non-default) when any non-priority filter deviates from defaults
-  const inboxFilterActive =
-    hideCompletedInbox ||
-    hideStandaloneTasksInbox ||
-    (goalsProjectsEnabled && !hideProjectTasksInbox) ||
-    inboxTagFilter.length > 0 ||
-    inboxProjectFilter.length > 0;
-
   return (
       <>
       {/* Desktop & Tablet Layout */}
