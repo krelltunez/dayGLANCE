@@ -968,6 +968,7 @@ const MobileDashboard = ({
   onEditProject,
   onFocusClick,
   onNewProject,
+  isActive = false,
 }) => {
   const {
     darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass,
@@ -1057,16 +1058,18 @@ const MobileDashboard = ({
   // preventDefault() on horizontal gestures. This is necessary in Android
   // WebView where CSS touch-action on vertically-scrollable children does
   // not reliably propagate horizontal gestures to the scroll-snap container.
+  //
+  // Listeners are registered/unregistered based on isActive so they are only
+  // attached when the carousel is actually visible. On real Android WebView,
+  // registering a passive:false listener on a display:none element (at first
+  // mount while another tab is shown) causes the WebView to not route touch
+  // events to the element later when it becomes visible.
   useEffect(() => {
+    if (!isActive) return;
     const el = scrollRef.current;
     if (!el) return;
 
     const onStart = (e) => {
-      // Guard: don't capture swipes when this component is hidden via Tailwind's
-      // `hidden` class (display:none). On real Android WebView, passive:false
-      // listeners remain active on hidden elements and can interfere with touch
-      // handling elsewhere in the app.
-      if (el.closest('.hidden')) return;
       const t = e.touches[0];
       swipeRef.current = { startX: t.clientX, startY: t.clientY, locked: null };
     };
@@ -1103,7 +1106,7 @@ const MobileDashboard = ({
       el.removeEventListener('touchmove',  onMove);
       el.removeEventListener('touchend',   onEnd);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Empty state — no goals and no standalone projects
   if (sortedGoals.length === 0 && standaloneProjects.length === 0) {
@@ -1457,7 +1460,7 @@ const MobileDashboard = ({
 
 // ─── GoalDashboard modal ──────────────────────────────────────────────────────
 
-const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger = 0 }) => {
+const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0, addProjectTrigger = 0 }) => {
   const {
     showGoalsDashboard, setShowGoalsDashboard,
     goals, projects,
@@ -1578,6 +1581,7 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
             onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
             onFocusClick={handleFocusClick}
             onNewProject={defaultGoalId => setProjectForm({ editing: null, defaultGoalId })}
+            isActive={isActive}
           />
           {archivedCount > 0 && (
             <div className={`border-t ${borderClass} px-4 py-3 flex-shrink-0`}>
