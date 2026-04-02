@@ -621,7 +621,6 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                 </button>
               </div>
             </div>
-          </div>
           {expandedNotesTaskId === task.id && (
             <NotesSubtasksPanel
               task={task}
@@ -640,6 +639,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
               onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
             />
           )}
+          </div>
           </div>{/* end swipe wrapper */}
         </div>
       ))
