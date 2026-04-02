@@ -1,8 +1,8 @@
 import React from 'react';
 import {
   BookOpen, Check, CheckSquare, Clock, ExternalLink,
-  FileText, GripVertical, MoreHorizontal, NotebookPen,
-  RefreshCw, SkipForward, Trash2,
+  FileText, GripVertical, Inbox, MoreHorizontal, NotebookPen,
+  RefreshCw, Settings, SkipForward, Trash2,
 } from 'lucide-react';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
@@ -43,6 +43,10 @@ const MobileTimeGrid = () => {
     getTasksForDate, getFrameInstancesForDate,
     getTaskCalendarStyle,
     computeAvailableSlots,
+    minutesToPosition, positionToMinutes,
+    calculateTaskPosition, calculateConflictPosition,
+    goalsProjectsEnabled,
+    getTimeFromCursorPosition,
   } = useDayPlannerCtx();
 
   return (
