@@ -10,6 +10,9 @@ export default function useComputedViews({
   inboxPriorityFilter,
   hideCompletedInbox,
   hideProjectTasksInbox,
+  hideStandaloneTasksInbox,
+  inboxTagFilter,
+  inboxProjectFilter,
   goalsProjectsEnabled,
 }) {
   // Tasks for the currently selected date
@@ -60,12 +63,27 @@ export default function useComputedViews({
   // If the feature is toggled off, the exclusion is lifted so nothing is hidden.
   const filteredUnscheduledTasks = useMemo(
     () => unscheduledTasks
-      .filter(task => !goalsProjectsEnabled || !task.projectId || !hideProjectTasksInbox)
+      .filter(task => !task.archived)
+      .filter(task => {
+        if (!goalsProjectsEnabled) return true;
+        // If specific projects are selected, show only tasks from those projects
+        if (inboxProjectFilter.length > 0) return task.projectId && inboxProjectFilter.includes(task.projectId);
+        // Otherwise apply type-level toggles
+        if (hideProjectTasksInbox && task.projectId) return false;
+        if (hideStandaloneTasksInbox && !task.projectId) return false;
+        return true;
+      })
       .filter(task => inboxPriorityFilter === 0 || (task.priority || 0) >= inboxPriorityFilter)
       .filter(task => !(task.completed && task.deadline))
       .filter(task => !hideCompletedInbox || !task.completed)
+      .filter(task => {
+        if (inboxTagFilter.length === 0) return true;
+        const taskTags = extractTags(task.title);
+        return inboxTagFilter.some(tag => taskTags.includes(tag));
+      })
       .sort((a, b) => (b.priority || 0) - (a.priority || 0)),
-    [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox, goalsProjectsEnabled]
+    [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox,
+     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, goalsProjectsEnabled]
   );
 
   // Today's tasks filtered by tag selection

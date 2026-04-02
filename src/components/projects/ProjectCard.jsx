@@ -30,7 +30,7 @@ const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, dragHandleProps, onMoveToClick }, ref) => {
   const {
     tasks, setTasks,
-    unscheduledTasks, setUnscheduledTasks,
+    unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
     goals,
     deleteProject,
     openMobileEditTask,
@@ -138,7 +138,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
     const toFull = next.findIndex(t => t.id === toId);
     const [moved] = next.splice(fromFull, 1);
     next.splice(toFull, 0, moved);
-    setUnscheduledTasks(next);
+    reorderUnscheduledTasks(next);
     setDragIdx(null);
     setDragOverIdx(null);
   };
@@ -183,7 +183,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
         const toFull = next.findIndex(t => t.id === toId);
         const [moved] = next.splice(fromFull, 1);
         next.splice(toFull, 0, moved);
-        setUnscheduledTasks(next);
+        reorderUnscheduledTasks(next);
       }
     }
     setDragIdx(null);
@@ -288,13 +288,14 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
             </div>
           )}
         </div>
-        {showConfirm && (
+        {showConfirm && createPortal(
           <ConfirmDialog
             title={`Delete "${project.title}"?`}
             message="Tasks linked to this project will remain but won't be grouped."
             onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
             onCancel={() => setShowConfirm(false)}
-          />
+          />,
+          document.body
         )}
       </>
     );
@@ -592,13 +593,14 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
       document.body
     )}
 
-    {showConfirm && (
+    {showConfirm && createPortal(
       <ConfirmDialog
         title={`Delete "${project.title}"?`}
         message="Tasks linked to this project will remain but won't be grouped."
         onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
         onCancel={() => setShowConfirm(false)}
-      />
+      />,
+      document.body
     )}
     </>
   );

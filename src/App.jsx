@@ -225,6 +225,13 @@ const DayPlanner = () => {
   });
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
+  const [unscheduledOrderTimestamp, setUnscheduledOrderTimestamp] = useState(null);
+  // Call this instead of setUnscheduledTasks when the user explicitly reorders tasks
+  // so the new order is timestamped and wins during cloud sync merges.
+  const reorderUnscheduledTasks = (nextTasks) => {
+    setUnscheduledTasks(nextTasks);
+    setUnscheduledOrderTimestamp(new Date().toISOString());
+  };
   const [dataLoaded, setDataLoaded] = useState(false); // Track if initial data has been loaded
   const [recycleBin, setRecycleBin] = useState([]);
   const [recurringTasks, setRecurringTasks] = useState([]);
@@ -319,6 +326,15 @@ const DayPlanner = () => {
   const [hideProjectTasksInbox, setHideProjectTasksInbox] = useState(() => {
     // Default true (hide) to preserve existing behavior; user can opt in to seeing them
     return localStorage.getItem('hideProjectTasksInbox') !== 'false';
+  });
+  const [hideStandaloneTasksInbox, setHideStandaloneTasksInbox] = useState(() => {
+    return localStorage.getItem('hideStandaloneTasksInbox') === 'true';
+  });
+  const [inboxTagFilter, setInboxTagFilter] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('inboxTagFilter') || '[]'); } catch { return []; }
+  });
+  const [inboxProjectFilter, setInboxProjectFilter] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('inboxProjectFilter') || '[]'); } catch { return []; }
   });
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
@@ -681,6 +697,9 @@ const DayPlanner = () => {
     inboxPriorityFilter,
     hideCompletedInbox,
     hideProjectTasksInbox,
+    hideStandaloneTasksInbox,
+    inboxTagFilter,
+    inboxProjectFilter,
     goalsProjectsEnabled,
   });
   const { taskWidths, setTaskRef, getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns } = useTaskDerived({
@@ -785,6 +804,9 @@ const DayPlanner = () => {
     inboxPriorityFilter,
     hideCompletedInbox,
     hideProjectTasksInbox,
+    hideStandaloneTasksInbox,
+    inboxTagFilter,
+    inboxProjectFilter,
     priorityPromptDismissed,
     sectionInfoDismissed, skipOnboardingPersist,
     dailyNotes, suppressCloudUploadRef, cloudSyncConfig, cloudSyncInitialDoneRef,
@@ -801,12 +823,14 @@ const DayPlanner = () => {
     setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
     setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
     setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
+    setUnscheduledOrderTimestamp,
     // values for saveData
     tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
     habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
     goals, projects, goalsProjectsEnabled,
+    unscheduledOrderTimestamp,
     cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
     setUndoToast,
   });
@@ -3955,6 +3979,7 @@ const DayPlanner = () => {
       data: {
         tasks: stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks'),
         unscheduledTasks: stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled'),
+        unscheduledOrderTimestamp,
         recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
         syncUrl,
         taskCalendarUrl,
@@ -3983,7 +4008,9 @@ const DayPlanner = () => {
         routinesEnabled,
         gtdFrames,
         goals,
+        deletedGoalIds: JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}'),
         projects,
+        deletedProjectIds: JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}'),
         goalsProjectsEnabled,
       }
     };
@@ -4139,6 +4166,8 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
       setGoalsProjectsEnabled(data.goalsProjectsEnabled);
     }
+    if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
+    if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload).
@@ -4153,6 +4182,10 @@ const DayPlanner = () => {
       return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported))];
     });
     if (normalizedUnsched) setUnscheduledTasks(normalizedUnsched);
+    if (data.unscheduledOrderTimestamp) {
+      setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
+      localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);
+    }
     if (data.recycleBin) setRecycleBin(data.recycleBin);
     if (data.syncUrl) setSyncUrl(data.syncUrl);
     if (data.taskCalendarUrl) setTaskCalendarUrl(data.taskCalendarUrl);
@@ -5501,6 +5534,13 @@ const DayPlanner = () => {
   clearDeadlineRef.current = clearDeadline;
   moveToInboxRef.current = moveToInbox;
 
+  const archiveInboxTask = (id) => {
+    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: true } : t));
+  };
+  const restoreArchivedInboxTask = (id) => {
+    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false } : t));
+  };
+
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
   // Runs whenever tasks, habits, routines, or frames change so the widget is always
@@ -6277,6 +6317,9 @@ const DayPlanner = () => {
     inboxPriorityFilter, setInboxPriorityFilter,
     hideCompletedInbox, setHideCompletedInbox,
     hideProjectTasksInbox, setHideProjectTasksInbox,
+    hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
+    inboxTagFilter, setInboxTagFilter,
+    inboxProjectFilter, setInboxProjectFilter,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,
@@ -6594,6 +6637,7 @@ const DayPlanner = () => {
 
     // ── Functions – task CRUD ─────────────────────────────────────────────────
     addTask, toggleComplete,
+    archiveInboxTask, restoreArchivedInboxTask,
     deleteRecurringInstance, updateRecurrencePattern,
     updateRecurrenceEndCondition, updateRecurringTemplate,
     moveToRecycleBin, moveToInbox, undeleteTask,
@@ -6677,6 +6721,8 @@ const DayPlanner = () => {
     handleSpotlightSelect,
     updateDailyNote,
     setTaskRef,
+
+    reorderUnscheduledTasks,
 
     // ── Functions – drag / drop ───────────────────────────────────────────────
     handleCalendarMouseMove, handleCalendarMouseLeave,

@@ -7,12 +7,14 @@ export default function useDataPersistence({
   setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
   setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
   setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
+  setUnscheduledOrderTimestamp,
   // values for saveData
   tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
   darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
   routineDefinitions, routinesDate, removedTodayRoutineIds,
   habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
   goals, projects, goalsProjectsEnabled,
+  unscheduledOrderTimestamp,
   cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
   setUndoToast,
 }) {
@@ -132,6 +134,10 @@ export default function useDataPersistence({
       const routinesEnabledData = localStorage.getItem('day-planner-routines-enabled');
       if (routinesEnabledData !== null) setRoutinesEnabled(JSON.parse(routinesEnabledData));
 
+      // Load unscheduled task order timestamp
+      const orderTsData = localStorage.getItem('day-planner-unscheduled-order-ts');
+      if (orderTsData) setUnscheduledOrderTimestamp(orderTsData);
+
       // Load goals and projects
       const goalsData = localStorage.getItem('day-planner-goals');
       if (goalsData) setGoals(JSON.parse(goalsData));
@@ -198,6 +204,7 @@ export default function useDataPersistence({
     safeSet('day-planner-goals', JSON.stringify(goals));
     safeSet('day-planner-projects', JSON.stringify(projects));
     safeSet('day-planner-goals-projects-enabled', JSON.stringify(goalsProjectsEnabled));
+    if (unscheduledOrderTimestamp) safeSet('day-planner-unscheduled-order-ts', unscheduledOrderTimestamp);
     // Only update local-modified after initial cloud sync has run,
     // otherwise the initial loadData() sets it to "now" and overwrites remote
     if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {

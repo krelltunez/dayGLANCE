@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-  Activity, AlertCircle, AlertTriangle, BarChart3, Bell, BookOpen, BrainCircuit,
+  Activity, AlertCircle, AlertTriangle, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
   Eye, FileText, Filter, Flag, Flame, FolderOpen, GitBranch, GripVertical, Hash, HelpCircle,
@@ -30,6 +30,8 @@ import MobileSettingsPanel from './MobileSettingsPanel.jsx';
 import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import InboxFilterPopover from './InboxFilterPopover.jsx';
+import InboxArchivedBar from './InboxArchivedBar.jsx';
 
 const MobileLayout = () => {
   const {
@@ -430,7 +432,18 @@ const MobileLayout = () => {
     goals,
     projects,
     goalsProjectsEnabled,
+    hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter,
+    archiveInboxTask,
   } = useDayPlannerCtx();
+
+  const [showInboxFilter, setShowInboxFilter] = useState(false);
+  const inboxFilterBtnRef = useRef(null);
+  const inboxFilterActive =
+    hideCompletedInbox ||
+    hideStandaloneTasksInbox ||
+    (goalsProjectsEnabled && !hideProjectTasksInbox) ||
+    inboxTagFilter.length > 0 ||
+    inboxProjectFilter.length > 0;
 
   const [addGoalTrigger, setAddGoalTrigger] = useState(0);
   const [addProjectTrigger, setAddProjectTrigger] = useState(0);
@@ -568,21 +581,14 @@ const MobileLayout = () => {
                   </div>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => { setHideCompletedInbox(prev => !prev); playUISound('click'); }}
-                      className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                      title={hideCompletedInbox ? 'Completed tasks hidden (click to show)' : 'Showing completed tasks (click to hide)'}
+                      ref={inboxFilterBtnRef}
+                      onClick={() => { setShowInboxFilter(v => !v); playUISound('click'); }}
+                      className={`relative ${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
+                      title="Filter inbox"
                     >
-                      <CheckCircle size={14} className={hideCompletedInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
+                      <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
+                      {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
                     </button>
-                    {goalsProjectsEnabled && (
-                      <button
-                        onClick={() => { setHideProjectTasksInbox(prev => !prev); playUISound('click'); }}
-                        className={`${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                        title={hideProjectTasksInbox ? 'Project tasks hidden (click to show in inbox)' : 'Showing project tasks in inbox (click to hide)'}
-                      >
-                        <Layers size={14} className={hideProjectTasksInbox ? (darkMode ? 'text-gray-500' : 'text-stone-400') : (darkMode ? 'text-blue-400' : 'text-blue-500')} />
-                      </button>
-                    )}
                     <button
                       onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
                       className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
@@ -2882,7 +2888,7 @@ const MobileLayout = () => {
                                   >
                                     {renderTitle(task.title)}
                                   </div>
-                                  <div className="text-xs opacity-90 mt-1 flex items-center gap-2">
+                                  <div className="text-xs opacity-90 mt-1 flex items-center gap-2 flex-wrap">
                                     <span>{task.duration} min</span>
                                     {task.deadline && (
                                       <span className="flex items-center gap-1">
@@ -2890,6 +2896,19 @@ const MobileLayout = () => {
                                         {formatDeadlineDate(task.deadline)}
                                       </span>
                                     )}
+                                    {goalsProjectsEnabled && task.projectId && (() => {
+                                      const proj = projects.find(p => p.id === task.projectId);
+                                      if (!proj) return null;
+                                      return (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setProjectFilter(prev => prev === task.projectId ? null : task.projectId); }}
+                                          className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
+                                          title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                                        >
+                                          {proj.title}
+                                        </button>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               </div>
@@ -2942,7 +2961,16 @@ const MobileLayout = () => {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex justify-end mt-1.5">
+                            <div className="flex items-center justify-between mt-1.5">
+                              {task.completed ? (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
+                                  className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
+                                  title="Archive task"
+                                >
+                                  <Archive size={11} className="text-white" />
+                                </button>
+                              ) : <span />}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2965,6 +2993,7 @@ const MobileLayout = () => {
                     ))
                   )}
                 </div>
+                <InboxArchivedBar />
 
                 {/* Mobile notes panel overlay for inbox tasks */}
                 {expandedNotesTaskId && (() => {
@@ -3035,6 +3064,15 @@ const MobileLayout = () => {
           {/* Glance tab FABs - stacked on right: Weekly Review (bottom), Daily Stats (above weekly), Recycle Bin (top) */}
           {mobileActiveTab === 'dayglance' && (
             <>
+              {/* Daily Note FAB — bottom-left */}
+              <button
+                onClick={() => setDailyNotesModalDate(getTodayStr())}
+                className={`fixed left-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
+                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                title="Today's daily note"
+              >
+                {obsidianConfig?.enabled ? <BookOpen size={22} /> : <NotebookPen size={22} />}
+              </button>
               {/* Daily summary ring FAB */}
               {(() => {
                 const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
@@ -3543,6 +3581,11 @@ const MobileLayout = () => {
 
           {/* Bottom Tab Bar */}
           <MobileTabBar />
+          <InboxFilterPopover
+            open={showInboxFilter}
+            onClose={() => setShowInboxFilter(false)}
+            buttonRef={inboxFilterBtnRef}
+          />
         </>
 );
 };
