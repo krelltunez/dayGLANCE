@@ -5,9 +5,9 @@ import {
   NotebookPen, Pencil, RefreshCw, Settings, SkipForward,
   Target, Trash2,
 } from 'lucide-react';
-import { isNativeAndroid } from '../native.js';
+import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
-import { dateToString, extractWikilinks, formatShortDate } from '../utils/taskUtils.js';
+import { dateToString, extractWikilinks, formatDeadlineDate, formatShortDate } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { MiniHabitRing } from './HabitRing.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
