@@ -3,7 +3,7 @@ import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Inbox, LayoutGrid, Loader,
-  Minus, Moon, NotebookPen, Plus, RefreshCw, Search,
+  Mic, Minus, Moon, NotebookPen, Plus, RefreshCw, Search,
   Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
 import { isNativeAndroid } from '../native.js';
