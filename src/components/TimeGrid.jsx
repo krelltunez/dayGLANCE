@@ -59,6 +59,8 @@ const TimeGrid = () => {
     getTasksForDate, getFrameInstancesForDate,
     getTaskCalendarStyle,
     computeAvailableSlots,
+    minutesToPosition, positionToMinutes,
+    calculateTaskPosition, calculateConflictPosition,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
     loadWikiNote, saveWikiNote,
