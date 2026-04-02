@@ -445,11 +445,11 @@ const GoalMiniCard = ({ goal, onClick }) => {
     if (diff < 0) isOverdue = true;
   }
 
-  const allTasks = [...tasks, ...unscheduledTasks];
-  const childProjects = projects.filter(p => p.goalId === goal.id && p.status !== 'archived');
-  const hasStalledProject = childProjects.some(p => isProjectStalled(p.id, allTasks, p));
+  const allTasks = useMemo(() => [...tasks, ...unscheduledTasks], [tasks, unscheduledTasks]);
+  const childProjects = useMemo(() => projects.filter(p => p.goalId === goal.id && p.status !== 'archived'), [projects, goal.id]);
+  const hasStalledProject = useMemo(() => childProjects.some(p => isProjectStalled(p.id, allTasks, p)), [childProjects, allTasks]);
   const showCaution = isOverdue || hasStalledProject;
-  const goalProgress = calculateGoalProgress(goal.id, childProjects, allTasks);
+  const goalProgress = useMemo(() => calculateGoalProgress(goal.id, childProjects, allTasks), [goal.id, childProjects, allTasks]);
   const allProjectsDone = childProjects.length > 0 && goalProgress >= 1;
 
   return (
@@ -994,7 +994,7 @@ const MobileDashboard = ({
   const defaultPageIdx = useMemo(() => findDefaultActiveIdx(sortedGoals), [sortedGoals]);
   const [page, setPage] = useState(defaultPageIdx);
 
-  const standaloneProjects = sortByOrder(activeProjects.filter(p => !p.goalId));
+  const standaloneProjects = useMemo(() => sortByOrder(activeProjects.filter(p => !p.goalId)), [activeProjects]);
   const pages = [
     ...sortedGoals.map(g => ({ type: 'goal', goal: g })),
     { type: 'standalone' },
@@ -1482,10 +1482,10 @@ const GoalDashboard = ({ embedded = false, addGoalTrigger = 0, addProjectTrigger
   const goalCardRefs = useRef({});
   const projectCardRefs = useRef({});
 
-  const activeGoals = goals.filter(g => g.status !== 'archived');
-  const activeProjects = projects.filter(p => p.status !== 'archived');
-  const archivedGoals = goals.filter(g => g.status === 'archived');
-  const archivedProjects = projects.filter(p => p.status === 'archived');
+  const activeGoals = useMemo(() => goals.filter(g => g.status !== 'archived'), [goals]);
+  const activeProjects = useMemo(() => projects.filter(p => p.status !== 'archived'), [projects]);
+  const archivedGoals = useMemo(() => goals.filter(g => g.status === 'archived'), [goals]);
+  const archivedProjects = useMemo(() => projects.filter(p => p.status === 'archived'), [projects]);
   const archivedCount = archivedGoals.length + archivedProjects.length;
 
   const handleSaveGoal = (fields) => {

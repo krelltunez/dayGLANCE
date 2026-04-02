@@ -3044,11 +3044,10 @@ const MobileLayout = () => {
 
             {mobileActiveTab === 'routines' && <MobileRoutinesTab />}
 
-            {mobileActiveTab === 'goals' && (
-              <div className="mobile-tab-fade-in flex flex-col flex-1 min-h-0 overflow-hidden">
-                <GoalDashboard embedded addGoalTrigger={addGoalTrigger} addProjectTrigger={addProjectTrigger} />
-              </div>
-            )}
+            {/* GoalDashboard stays mounted to avoid expensive remount on every tab switch */}
+            <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${mobileActiveTab === 'goals' ? '' : 'hidden'}`}>
+              <GoalDashboard embedded addGoalTrigger={addGoalTrigger} addProjectTrigger={addProjectTrigger} />
+            </div>
 
 
             {mobileActiveTab === 'settings' && <MobileSettingsPanel />}
