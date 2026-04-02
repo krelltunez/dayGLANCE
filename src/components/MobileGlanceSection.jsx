@@ -24,6 +24,7 @@ const MobileGlanceSection = () => {
     habitLongPressTimer,
     darkMode,
     currentTime, use24HourClock,
+    selectedDate, setSelectedDate,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
     recycleBin, setRecycleBin,
