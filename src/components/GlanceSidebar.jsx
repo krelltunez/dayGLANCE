@@ -2,7 +2,7 @@ import React from 'react';
 import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
-  ChevronUp, Clock, Filter, Inbox, LayoutGrid, Loader,
+  ChevronUp, Clock, Filter, Hash, Inbox, LayoutGrid, Loader,
   Mic, Minus, Moon, NotebookPen, Plus, RefreshCw, Search,
   Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
@@ -86,7 +86,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
     timeToMinutes,
-    selectAllTags, clearTagFilter,
+    selectAllTags, clearTagFilter, toggleTag,
     getFrameInstancesForDate,
     computeAvailableSlots,
     moveToRecycleBin,
