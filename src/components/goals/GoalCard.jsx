@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers } from 'lucide-react';
+import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers, Plus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
@@ -140,9 +140,21 @@ const GoalCard = forwardRef(
             </div>
           ) : (
             <div className="flex items-center justify-between">
-              <span className={`text-xs ${textSecondary}`}>
-                {projects.length} project{projects.length !== 1 ? 's' : ''}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs ${textSecondary}`}>
+                  {projects.length} project{projects.length !== 1 ? 's' : ''}
+                </span>
+                {onNewProject && (
+                  <button
+                    type="button"
+                    onClick={onNewProject}
+                    className={`p-0.5 rounded transition-colors ${textSecondary} hover:text-emerald-500`}
+                    aria-label="Add project"
+                  >
+                    <Plus size={11} />
+                  </button>
+                )}
+              </div>
               <span className={`text-xs font-medium ${progress >= 1 ? 'text-green-500' : textSecondary}`}>
                 {Math.round(progress * 100)}%
               </span>
