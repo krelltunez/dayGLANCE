@@ -410,7 +410,7 @@ const WeeklyReviewModal = () => {
           ? goals.filter(g => g.status === 'active' && g.targetDate && g.targetDate >= todayStr && g.targetDate <= nextEndStr)
               .map(g => {
                 const progress = calculateGoalProgress(g.id, projects, allTasksCombined);
-                const target = new Date(g.targetDate + 'T12:00:00');
+                const target = new Date(g.targetDate + 'T00:00:00');
                 const todayMidnight = new Date(todayStr + 'T00:00:00');
                 const daysLeft = Math.ceil((target - todayMidnight) / (1000 * 60 * 60 * 24));
                 const childProjects = projects.filter(p => p.goalId === g.id && p.status !== 'archived');
