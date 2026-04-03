@@ -448,7 +448,7 @@ const TimeGrid = () => {
                     <GripVertical size={14} />
                   </div>
                 )}
-                <div className={`${isTablet ? 'flex-1 min-w-0 rounded-lg shadow-md' : ''} h-full ${isTablet ? (expandedNotesTaskId === task.id ? 'overflow-visible z-30' : 'overflow-hidden') : ''}`}>
+                <div className={`${isTablet ? 'flex-1 min-w-0 rounded-lg shadow-md' : ''} h-full ${isTablet && expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''}`}>
                 {task.isExample && isTablet && (
                   <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
                     Example

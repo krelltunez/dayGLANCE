@@ -995,7 +995,7 @@ const MobileLayout = () => {
                                         e.stopPropagation();
                                         setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
                                       }}
-                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : 'opacity-40'}`}
                                       title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
                                     >
                                       <Calendar size={14} />
