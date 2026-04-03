@@ -759,6 +759,80 @@ const MobileLayout = () => {
                   {/* Time grid */}
                   <MobileTimeGrid />
                 </div>
+
+                {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
+                {expandedNotesTaskId && (() => {
+                  const scheduledTask = visibleDates.reduce((found, date) => {
+                    if (found) return found;
+                    return getTasksForDate(date).find(t => t.id === expandedNotesTaskId);
+                  }, null);
+                  const deadlineTask = !scheduledTask ? unscheduledTasks.find(t => t.id === expandedNotesTaskId && t.deadline) : null;
+                  const noteTask = scheduledTask || deadlineTask;
+                  if (!noteTask) return null;
+                  return (
+                    <div className="notes-panel-container fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setExpandedNotesTaskId(null)}>
+                      <div className="bg-black/30 absolute inset-0" />
+                      <div
+                        className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[60vh] overflow-y-auto`}
+                        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
+                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{noteTask.title}</div>
+                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
+                            <X size={18} className={textSecondary} />
+                          </button>
+                        </div>
+                        <div className="p-4">
+                          {noteTask.imported && !noteTask.isTaskCalendar ? (
+                            <div>
+                              <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
+                              <textarea
+                                defaultValue={noteTask.notes || ''}
+                                placeholder="Add description…"
+                                rows={4}
+                                className={`w-full text-sm p-3 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-white/5 text-white placeholder:text-white/40' : 'bg-black/5 text-stone-900 placeholder:text-stone-400'}`}
+                                onBlur={async (e) => {
+                                  const newNotes = e.target.value;
+                                  if (newNotes === (noteTask.notes || '')) return;
+                                  setTasks(prev => prev.map(t => t.id === noteTask.id ? { ...t, notes: newNotes } : t));
+                                  if (isNativeAndroid() && noteTask.nativeEventId) {
+                                    await nativeUpdateEvent({
+                                      id: noteTask.nativeEventId,
+                                      title: noteTask.title,
+                                      start: `${noteTask.date}T${noteTask.startTime}:00`,
+                                      end: `${noteTask.date}T${minutesToTime(timeToMinutes(noteTask.startTime || '0:00') + (noteTask.duration || 0))}:00`,
+                                      allDay: false,
+                                      notes: newNotes,
+                                      location: noteTask.location || '',
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className={`${noteTask.color || ''} rounded-lg`}>
+                            <NotesSubtasksPanel
+                              task={noteTask}
+                              isInbox={!!deadlineTask}
+                              darkMode={darkMode}
+                              updateTaskNotes={updateTaskNotes}
+                              addSubtask={addSubtask}
+                              toggleSubtask={toggleSubtask}
+                              deleteSubtask={deleteSubtask}
+                              updateSubtaskTitle={updateSubtaskTitle}
+                              noAutoFocus
+                              aiConfig={aiConfig}
+                              aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                              onGenerateSubtasks={generateAISubtasks}
+                            />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1123,80 +1197,6 @@ const MobileLayout = () => {
               <Trash2 size={26} className="text-white" />
             </div>
           )}
-
-          {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
-          {mobileActiveTab === 'timeline' && expandedNotesTaskId && (() => {
-            const scheduledTask = visibleDates.reduce((found, date) => {
-              if (found) return found;
-              return getTasksForDate(date).find(t => t.id === expandedNotesTaskId);
-            }, null);
-            const deadlineTask = !scheduledTask ? unscheduledTasks.find(t => t.id === expandedNotesTaskId && t.deadline) : null;
-            const noteTask = scheduledTask || deadlineTask;
-            if (!noteTask) return null;
-            return (
-              <div className="notes-panel-container fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setExpandedNotesTaskId(null)}>
-                <div className="bg-black/30 absolute inset-0" />
-                <div
-                  className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[60vh] overflow-y-auto`}
-                  style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
-                    <div className={`font-medium ${textPrimary} truncate flex-1`}>{noteTask.title}</div>
-                    <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
-                      <X size={18} className={textSecondary} />
-                    </button>
-                  </div>
-                  <div className="p-4">
-                    {noteTask.imported && !noteTask.isTaskCalendar ? (
-                      <div>
-                        <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
-                        <textarea
-                          defaultValue={noteTask.notes || ''}
-                          placeholder="Add description…"
-                          rows={4}
-                          className={`w-full text-sm p-3 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-white/5 text-white placeholder:text-white/40' : 'bg-black/5 text-stone-900 placeholder:text-stone-400'}`}
-                          onBlur={async (e) => {
-                            const newNotes = e.target.value;
-                            if (newNotes === (noteTask.notes || '')) return;
-                            setTasks(prev => prev.map(t => t.id === noteTask.id ? { ...t, notes: newNotes } : t));
-                            if (isNativeAndroid() && noteTask.nativeEventId) {
-                              await nativeUpdateEvent({
-                                id: noteTask.nativeEventId,
-                                title: noteTask.title,
-                                start: `${noteTask.date}T${noteTask.startTime}:00`,
-                                end: `${noteTask.date}T${minutesToTime(timeToMinutes(noteTask.startTime || '0:00') + (noteTask.duration || 0))}:00`,
-                                allDay: false,
-                                notes: newNotes,
-                                location: noteTask.location || '',
-                              });
-                            }
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className={`${noteTask.color || ''} rounded-lg`}>
-                      <NotesSubtasksPanel
-                        task={noteTask}
-                        isInbox={!!deadlineTask}
-                        darkMode={darkMode}
-                        updateTaskNotes={updateTaskNotes}
-                        addSubtask={addSubtask}
-                        toggleSubtask={toggleSubtask}
-                        deleteSubtask={deleteSubtask}
-                        updateSubtaskTitle={updateSubtaskTitle}
-                        noAutoFocus
-                        aiConfig={aiConfig}
-                        aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
-                        onGenerateSubtasks={generateAISubtasks}
-                      />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           <MobileBottomSheets />
 
