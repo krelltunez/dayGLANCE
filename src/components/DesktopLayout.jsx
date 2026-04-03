@@ -289,6 +289,8 @@ const DesktopLayout = () => {
     mobileDragTaskIdState, setMobileDragTaskIdState,
     mobileDragPreviewTime, setMobileDragPreviewTime,
     mobileDragPreviewDate, setMobileDragPreviewDate,
+    mobileDragOverTrash,
+    trashFabRef,
     timelineScrolledAway, setTimelineScrolledAway,
     isToday, currentTimeMinutes, currentHour, currentTimeTop, showCurrentTimeLine,
     bgClass, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
@@ -779,6 +781,16 @@ const DesktopLayout = () => {
           onDragLeave={() => setDragOverRecycleBin(false)}
           onDrop={handleDropOnRecycleBin}
           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-16 h-16 rounded-full shadow-xl flex items-center justify-center transition-all duration-150 pointer-events-auto ${dragOverRecycleBin ? 'bg-red-600 scale-110' : 'bg-red-500'}`}
+        >
+          <Trash2 size={26} className="text-white" />
+        </div>
+      )}
+      {/* Trash FAB — visible during tablet touch drag (same position as mobile so hit-testing coords match) */}
+      {isTablet && mobileDragTaskIdState !== null && (
+        <div
+          ref={trashFabRef}
+          className={`fixed left-4 z-50 w-16 h-16 rounded-full shadow-xl flex items-center justify-center transition-all duration-150 ${mobileDragOverTrash ? 'bg-red-600 scale-110' : 'bg-red-500'}`}
+          style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <Trash2 size={26} className="text-white" />
         </div>
