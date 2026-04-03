@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-  CalendarDays, Check, CheckCircle, ChevronDown, ChevronUp,
+  BarChart3, CalendarDays, Check, CheckCircle, ChevronDown, ChevronUp,
   Clock, Filter, Flag, Flame, FolderOpen, Hash, Inbox,
-  MoreHorizontal, Target, TrendingUp, Trophy,
+  MoreHorizontal, Target, Trash2, TrendingUp, Trophy, Undo2,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
