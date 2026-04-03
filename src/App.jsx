@@ -89,6 +89,7 @@ import useModalClose from './hooks/useModalClose.js';
 import useMobileInteractions from './hooks/useMobileInteractions.js';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts.js';
 import { DayPlannerContext } from './context/DayPlannerContext.jsx';
+import { SyncContext } from './context/SyncContext.jsx';
 import FrameNudgeCard from './components/FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './components/DeadlinePickerPopover.jsx';
 import DatePicker from './components/DatePicker.jsx';
@@ -6771,8 +6772,90 @@ const DayPlanner = () => {
     confirmEmptyBin, emptyRecycleBin,
   };
 
+  const syncCtx = {
+    // ── Calendar sync ─────────────────────────────────────────────────────────
+    syncUrl, setSyncUrl,
+    taskCalendarUrl, setTaskCalendarUrl,
+    taskCalendarAuth, setTaskCalendarAuth,
+    syncRetentionDays, setSyncRetentionDays,
+    calSyncStatus, setCalSyncStatus,
+    calSyncLastSynced, setCalSyncLastSynced,
+    calSyncConfigured,
+    showCalendarUrlHint, setShowCalendarUrlHint,
+    availableCalendars, setAvailableCalendars,
+    calendarFilter, setCalendarFilter,
+    calendarUrlAuth, setCalendarUrlAuth,
+    isSyncing, setIsSyncing,
+    syncNotification, setSyncNotification,
+    pendingImportFile, setPendingImportFile,
+    showImportModal, setShowImportModal,
+    importColor, setImportColor,
+
+    // ── Backup / restore ──────────────────────────────────────────────────────
+    pendingBackupFile, setPendingBackupFile,
+    showRestoreConfirm, setShowRestoreConfirm,
+    showBackupMenu, setShowBackupMenu,
+    showEmptyBinConfirm, setShowEmptyBinConfirm,
+    showMobileRecycleBin, setShowMobileRecycleBin,
+    autoBackupConfig, setAutoBackupConfig,
+    autoBackupStatus, setAutoBackupStatus,
+    showAutoBackupManager, setShowAutoBackupManager,
+    autoBackupManagerTab, setAutoBackupManagerTab,
+    autoBackupHistory, setAutoBackupHistory,
+    autoBackupRestoreConfirm, setAutoBackupRestoreConfirm,
+    showStorageBreakdown, setShowStorageBreakdown,
+
+    // ── Cloud sync ────────────────────────────────────────────────────────────
+    cloudSyncConfig, setCloudSyncConfig,
+    cloudSyncStatus, setCloudSyncStatus,
+    cloudSyncError, setCloudSyncError,
+    cloudSyncLastSynced, setCloudSyncLastSynced,
+    cloudSyncConflict, setCloudSyncConflict,
+
+    // ── Obsidian ──────────────────────────────────────────────────────────────
+    obsidianConfig, setObsidianConfig,
+    obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError, setObsidianSyncError,
+    obsidianLastSynced, setObsidianLastSynced,
+
+    // ── TRMNL ─────────────────────────────────────────────────────────────────
+    trmnlConfig, setTrmnlConfig,
+    trmnlSyncStatus, setTrmnlSyncStatus,
+    trmnlLastSynced, setTrmnlLastSynced,
+
+    // ── Refs ──────────────────────────────────────────────────────────────────
+    autoBackupInProgressRef, syncAllRef,
+    cloudSyncDebounceRef, suppressCloudUploadRef, suppressTimestampRef,
+    suppressClearPendingRef, cloudSyncInProgressRef, cloudSyncInitialDoneRef,
+    cloudSyncDownloadRef, cloudSyncErrorCountRef, cloudSyncBackoffUntilRef,
+    obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
+    obsidianTasksRef, obsidianInboxRef,
+    trmnlSyncTimerRef, trmnlLastPushRef, trmnlBackoffUntilRef, trmnlBackoffCountRef,
+    trmnlSyncInProgressRef, performTrmnlSyncRef,
+
+    // ── Functions – calendar sync ─────────────────────────────────────────────
+    syncWithCalendar, syncTaskCalendar, syncTaskCompletionToCalDAV,
+    nativeEventToTask, clearNativeEventOverride,
+    parseDatetime, parseICS, filterByDateWindow,
+
+    // ── Functions – data persistence ──────────────────────────────────────────
+    loadData, saveData, applyRemoteData,
+    cloudSyncDownload, cloudSyncUpload, cloudSyncTest, syncAll,
+    performObsidianSync, loadWikiNote, saveWikiNote,
+    performTrmnlSync,
+    performLocalBackup, performRemoteBackup,
+    buildAutoBackupPayload, loadAutoBackupHistory,
+    deleteLocalAutoBackup, deleteRemoteAutoBackup,
+    restoreFromAutoBackup, restoreFromRemoteBackup,
+    exportBackup, restoreBackup,
+    handleFileUpload, handleBackupFileSelect, processImportFile,
+    buildSyncPayload,
+    fetchAllDailyContent, fetchWeather,
+  };
+
   return (
     <DayPlannerContext.Provider value={ctx}>
+    <SyncContext.Provider value={syncCtx}>
     <div className={`app-shell ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}
       onContextMenu={(e) => {
         // Allow native context menu on inputs/textareas/contenteditable
@@ -8181,6 +8264,7 @@ const DayPlanner = () => {
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
     </div>
+    </SyncContext.Provider>
     </DayPlannerContext.Provider>
   );
 };
