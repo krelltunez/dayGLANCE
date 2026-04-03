@@ -43,6 +43,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
     generateAISubtasks, aiSubtasksLoadingForTask,
     aiConfig,
     longPressTriggeredRef, longPressTimerRef,
+    showGoalsDashboard, mobileActiveTab,
   } = useDayPlannerCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
@@ -568,7 +569,9 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
     </div>
 
     {/* Notes/subtasks panel — portalled to body, centered over viewport */}
-    {expandedTask && createPortal(
+    {/* Only render when goals tab is active — GoalDashboard stays mounted when hidden,
+        so without this guard the portal fires for any project task's notes on other tabs */}
+    {expandedTask && (isMobile ? mobileActiveTab === 'goals' : showGoalsDashboard) && createPortal(
       <div className={`notes-panel-container fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] max-w-[92vw] max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl border ${
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
       }`}>
