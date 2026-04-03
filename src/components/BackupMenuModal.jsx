@@ -1,14 +1,15 @@
 import React from 'react';
 import { Clock, Save, Upload } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 
 const BackupMenuModal = () => {
+  const { cardBg, borderClass, textPrimary, textSecondary, darkMode } = useDayPlannerCtx();
   const {
     showBackupMenu, setShowBackupMenu,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode,
     autoBackupConfig, setAutoBackupManagerTab, setShowAutoBackupManager,
     exportBackup, handleBackupFileSelect,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
 
   if (!showBackupMenu) return null;
 
