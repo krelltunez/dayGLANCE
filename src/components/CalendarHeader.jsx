@@ -339,24 +339,7 @@ const CalendarHeader = () => {
                 className={`notes-panel-container relative ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''}`}
                 style={isTablet && !isImported ? { marginLeft: '12px' } : {}}
               >
-                {/* Protruding drag tab (tablet only) */}
-                {isTablet && !isImported && (
-                  <div
-                    data-drag-handle
-                    className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
-                    style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
-                    onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
-                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
-                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
-                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                  >
-                    <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
-                    <div className="absolute top-0 border-t border-white/20 pointer-events-none" style={{ left: '12px', width: '2px' }} />
-                    <GripVertical size={14} />
-                  </div>
-                )}
-                <div className={`${isTablet ? 'rounded-lg overflow-hidden' : ''} relative`}>
-                {/* Tablet swipe strips */}
+                {/* Tablet swipe strips — outside data-swipe-container so they stay behind as content slides */}
                 {isTablet && !isImported && (
                   <>
                     <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${isRecurringAllDay ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
@@ -371,6 +354,26 @@ const CalendarHeader = () => {
                     </div>
                   </>
                 )}
+                {/* On tablet: data-swipe-container wraps drag tab + card so they slide together.
+                    On desktop: plain wrapper with no special attributes. */}
+                <div {...(isTablet && !isImported ? { 'data-swipe-container': '', className: 'flex items-start' } : {})}>
+                {/* Protruding drag tab (tablet only, in-flow with negative margin) */}
+                {isTablet && !isImported && (
+                  <div
+                    data-drag-handle
+                    className={`relative flex-shrink-0 ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                    style={{ marginLeft: '-12px', marginRight: '-8px', marginTop: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
+                    onTouchStart={(e) => handleMobileTaskTouchStart(e, task, 'allday')}
+                    onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                    onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'allday')}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  >
+                    <div className="absolute top-0 left-0 h-full rounded-l-lg border-l border-t border-b border-white/20 pointer-events-none" style={{ width: '12px' }} />
+                    <div className="absolute top-0 border-t border-white/20 pointer-events-none" style={{ left: '12px', width: '2px' }} />
+                    <GripVertical size={14} />
+                  </div>
+                )}
+                <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : 'relative'}>
                 <div
                 {...(isTablet && !isImported ? {
                   onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
@@ -530,7 +533,8 @@ const CalendarHeader = () => {
                   </div>
                 )}
               </div>
-              </div>
+              </div>{/* inner flex-1 wrapper */}
+              </div>{/* data-swipe-container / desktop wrapper */}
               </div>
             );
           })}
@@ -542,12 +546,25 @@ const CalendarHeader = () => {
               className="notes-panel-container relative"
               style={isTablet ? { marginLeft: '12px' } : {}}
             >
-              {/* Protruding drag tab (tablet only) */}
+              {/* Swipe action strips — outside data-swipe-container so they stay behind as content slides */}
+              {isTablet && (
+                <>
+                  <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                    <Inbox size={14} className="mr-1" />Inbox
+                  </div>
+                  <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                    Edit<Settings size={14} className="ml-1" />
+                  </div>
+                </>
+              )}
+              {/* data-swipe-container wraps drag tab + card so they slide together on tablet */}
+              <div {...(isTablet ? { 'data-swipe-container': '', className: 'flex items-start' } : {})}>
+              {/* Protruding drag tab (tablet only, in-flow with negative margin) */}
               {isTablet && (
                 <div
                   data-drag-handle
-                  className={`absolute ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
-                  style={{ left: '-12px', top: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
+                  className={`relative flex-shrink-0 ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                  style={{ marginLeft: '-12px', marginRight: '-8px', marginTop: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
                   onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}
                   onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
@@ -558,14 +575,7 @@ const CalendarHeader = () => {
                   <GripVertical size={14} />
                 </div>
               )}
-              <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
-              {/* Swipe action strips */}
-              <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                <Inbox size={14} className="mr-1" />Inbox
-              </div>
-              <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                Edit<Settings size={14} className="ml-1" />
-              </div>
+              <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'} ${isTablet ? 'flex-1 min-w-0' : ''}`}>
             <div
               data-task-id={task.id}
               data-ctx-menu
@@ -708,6 +718,7 @@ const CalendarHeader = () => {
               )}
             </div>
             </div>
+            </div>{/* data-swipe-container / desktop wrapper */}
             </div>
           ))}
 

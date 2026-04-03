@@ -1082,7 +1082,7 @@ export default function useDragDrop({
     // Only allow drag initiation from dedicated drag handles (data-drag-handle attribute)
     // or from routine pills (which are entirely draggable, no handle needed)
     const isFromDragHandle = e.target.closest('[data-drag-handle]');
-    // Drag tab lives outside the swipe container, so prevent swipe tracking when touching it
+    // Drag handle initiates a long-press drag, not a swipe — disable swipe tracking
     if (isFromDragHandle) {
       swipedTaskId.current = null;
     }
