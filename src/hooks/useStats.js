@@ -115,6 +115,9 @@ export default function useStats({ tasks, unscheduledTasks, recurringTasks, goal
   const todayCompletedGoals = goals.filter(g => g.status === 'completed' && g.updatedAt?.startsWith(todayStr));
   const todayCompletedProjects = projects.filter(p => p.status === 'completed' && p.updatedAt?.startsWith(todayStr));
 
+  // Incomplete goals due today
+  const todayDueGoals = goals.filter(g => g.targetDate === todayStr && g.status !== 'completed');
+
   // Consecutive day streak — count of consecutive days (going back from today)
   // on which at least one task was completed
   const consecutiveDayStreak = useMemo(() => {
@@ -211,6 +214,7 @@ export default function useStats({ tasks, unscheduledTasks, recurringTasks, goal
     allTimeProjectsCompleted,
     todayCompletedGoals,
     todayCompletedProjects,
+    todayDueGoals,
     consecutiveDayStreak,
     todayIncompleteTasks,
     allTimeIncompleteTasks,
