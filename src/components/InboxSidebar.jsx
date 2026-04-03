@@ -387,20 +387,18 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
   <div className="flex items-center mb-4">
       <button
         onClick={openNewInboxTask}
-        className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+        className="p-2 flex items-center justify-center bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
         title="New Inbox Task"
       >
-        <Plus size={14} strokeWidth={3} />
-        <span className="text-xs font-medium">New Task</span>
+        <Plus size={16} strokeWidth={3} />
       </button>
       {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
         <button
           onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
-          className="ml-3 px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+          className="ml-2 p-2 flex items-center justify-center bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
           title="AI Smart Schedule"
         >
-          <BrainCircuit size={14} />
-          <span className="text-xs font-medium">Schedule</span>
+          <BrainCircuit size={16} />
         </button>
       )}
       <button
