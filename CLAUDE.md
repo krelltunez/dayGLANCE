@@ -15,3 +15,13 @@ Use a **fresh branch per logical task or PR**. Do not accumulate multiple unrela
 ## Pull Requests
 
 Always create a PR after pushing a branch. Use the GitHub MCP tools (`mcp__github__create_pull_request`) to do this — do not wait for the user to ask. Write a clear title and a summary that describes what changed and why.
+
+## CRITICAL: Always check PR status before pushing
+
+**Before pushing any commit to an existing branch**, use `mcp__github__pull_request_read` to check whether the PR for that branch has already been merged. If it has:
+
+1. Do NOT push to that branch.
+2. Create a new branch from the latest `main`.
+3. Apply the changes to the new branch instead.
+
+This check is mandatory — even mid-task, even for "small fixes", even when you just created the PR moments ago. PRs can be merged at any time.
