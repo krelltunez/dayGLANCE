@@ -558,8 +558,7 @@ const CalendarHeader = () => {
                 </>
               )}
               {/* data-swipe-container wraps drag tab + card so they slide together on tablet */}
-              <div {...(isTablet ? { 'data-swipe-container': '', className: 'flex items-start' } : {})}>
-              {/* Protruding drag tab (tablet only, in-flow with negative margin) */}
+              <div {...(isTablet ? { 'data-swipe-container': '', className: `flex items-start ${task.completed ? 'opacity-50' : 'opacity-90'}` } : { className: task.completed ? 'opacity-50' : 'opacity-90' })}>              {/* Protruding drag tab (tablet only, in-flow with negative margin) */}
               {isTablet && (
                 <div
                   data-drag-handle
@@ -603,7 +602,7 @@ const CalendarHeader = () => {
               onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
               onTouchMove={(e) => handleMobileTaskTouchMove(e)}
               onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
-              className={`${task.color} rounded-lg shadow-sm cursor-move ${task.completed ? 'opacity-50' : 'opacity-90'} relative border-2 border-dashed border-white/60`}
+              className={`${task.color} rounded-lg shadow-sm cursor-move relative border-2 border-dashed border-white/60`}
               style={{ touchAction: 'pan-y' }}
             >
               {task.isExample && (
