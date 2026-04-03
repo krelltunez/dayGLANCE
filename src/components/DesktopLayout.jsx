@@ -760,7 +760,7 @@ const DesktopLayout = () => {
             <div
               ref={calendarRef}
               className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative`}
-              style={{ height: '100%', touchAction: isTablet ? 'manipulation' : undefined }}
+              style={{ height: '100%' }}
             >
               {/* Combined sticky header — date headers + all-day section */}
               <div ref={(el) => { stickyHeaderRef.current = el; }} className={`sticky top-0 z-20 ${cardBg}`}>
