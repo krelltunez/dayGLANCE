@@ -1485,7 +1485,8 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const {
     showGoalsDashboard, setShowGoalsDashboard,
     goals, projects,
-    tasks,
+    tasks, setTasks,
+    unscheduledTasks, setUnscheduledTasks,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
     enterProjectFocusMode,
@@ -1519,6 +1520,20 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
 
   const handleSaveGoal = (fields) => {
     if (goalForm.editing) {
+      const wasArchived = goalForm.editing.status === 'archived';
+      const nowArchived = fields.status === 'archived';
+      if (nowArchived && !wasArchived) {
+        // Cascade: archive completed child projects; detach incomplete ones as standalone
+        projects
+          .filter(p => p.goalId === goalForm.editing.id)
+          .forEach(p => {
+            if (p.status === 'completed') {
+              updateProject(p.id, { status: 'archived' });
+            } else {
+              updateProject(p.id, { goalId: undefined });
+            }
+          });
+      }
       updateGoal(goalForm.editing.id, fields);
     } else {
       addGoal(fields);
@@ -1543,6 +1558,20 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
 
   const handleSaveProject = (fields) => {
     if (projectForm.editing) {
+      const wasArchived = projectForm.editing.status === 'archived';
+      const nowArchived = fields.status === 'archived';
+      if (nowArchived && !wasArchived) {
+        // Cascade: archive completed tasks; detach incomplete tasks from this project
+        const projectId = projectForm.editing.id;
+        setTasks(prev => prev.map(t => {
+          if (t.projectId !== projectId) return t;
+          return t.completed ? { ...t, archived: true } : { ...t, projectId: undefined };
+        }));
+        setUnscheduledTasks(prev => prev.map(t => {
+          if (t.projectId !== projectId) return t;
+          return t.completed ? { ...t, archived: true } : { ...t, projectId: undefined };
+        }));
+      }
       updateProject(projectForm.editing.id, fields);
     } else {
       addProject(fields);
