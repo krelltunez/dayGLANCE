@@ -336,6 +336,7 @@ const DayPlanner = () => {
   const [inboxProjectFilter, setInboxProjectFilter] = useState(() => {
     try { return JSON.parse(localStorage.getItem('inboxProjectFilter') || '[]'); } catch { return []; }
   });
+  const [inboxArchivedExpanded, setInboxArchivedExpanded] = useState(false);
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
@@ -650,6 +651,7 @@ const DayPlanner = () => {
     setMobileActiveTab,
     setTabletActiveTab,
     setInboxProjectFilter,
+    setInboxArchivedExpanded,
     calendarRef,
   });
 
@@ -6342,6 +6344,7 @@ const DayPlanner = () => {
     hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
     inboxTagFilter, setInboxTagFilter,
     inboxProjectFilter, setInboxProjectFilter,
+    inboxArchivedExpanded, setInboxArchivedExpanded,
     priorityPromptDismissed, setPriorityPromptDismissed,
     sectionInfoDismissed, setSectionInfoDismissed,
     expandedSectionInfo, setExpandedSectionInfo,

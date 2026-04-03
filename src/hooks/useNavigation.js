@@ -10,6 +10,7 @@ export default function useNavigation({
   setMobileActiveTab,
   setTabletActiveTab,
   setInboxProjectFilter,
+  setInboxArchivedExpanded,
   calendarRef,
 }) {
   const changeDate = useCallback((direction) => {
@@ -70,10 +71,8 @@ export default function useNavigation({
       } else {
         setTabletActiveTab('inbox');
       }
-      // If the task belongs to a project, pre-apply the project filter so it's visible
-      if (task.projectId) {
-        setInboxProjectFilter([task.projectId]);
-      }
+      // Apply project filter for project tasks; clear it for plain inbox tasks
+      setInboxProjectFilter(task.projectId ? [task.projectId] : []);
       scrollAndHighlight(`[data-task-id="${task.id}"]`);
     } else if (source === 'archived') {
       if (isMobile) {
@@ -81,7 +80,8 @@ export default function useNavigation({
       } else {
         setTabletActiveTab('inbox');
       }
-      scrollAndHighlight(`[data-task-id="${task.id}"]`, 400);
+      setInboxArchivedExpanded(true);
+      scrollAndHighlight(`[data-task-id="${task.id}"]`, 500);
     } else if (source === 'recurring') {
       const date = task.startDate || dateToString(new Date());
       if (isMobile) {
@@ -91,7 +91,7 @@ export default function useNavigation({
     } else if (source === 'deleted') {
       scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
     }
-  }, [setShowSpotlight, isMobile, setMobileActiveTab, setTabletActiveTab, setInboxProjectFilter, calendarRef, goToDate]);
+  }, [setShowSpotlight, isMobile, setMobileActiveTab, setTabletActiveTab, setInboxProjectFilter, setInboxArchivedExpanded, calendarRef, goToDate]);
 
   return { changeDate, goToToday, goToDate, handleSpotlightSelect };
 }

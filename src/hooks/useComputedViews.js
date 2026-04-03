@@ -81,7 +81,11 @@ export default function useComputedViews({
         const taskTags = extractTags(task.title);
         return inboxTagFilter.some(tag => taskTags.includes(tag));
       })
-      .sort((a, b) => (b.priority || 0) - (a.priority || 0)),
+      .sort((a, b) => {
+        // Completed tasks always sink below incomplete ones
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return (b.priority || 0) - (a.priority || 0);
+      }),
     [unscheduledTasks, inboxPriorityFilter, hideCompletedInbox, hideProjectTasksInbox,
      hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, goalsProjectsEnabled]
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Archive, ChevronDown, RotateCcw } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
@@ -8,9 +8,9 @@ const InboxArchivedBar = () => {
     unscheduledTasks,
     restoreArchivedInboxTask,
     goalsProjectsEnabled, projects,
+    inboxArchivedExpanded: expanded,
+    setInboxArchivedExpanded: setExpanded,
   } = useDayPlannerCtx();
-
-  const [expanded, setExpanded] = useState(false);
 
   const archivedTasks = unscheduledTasks.filter(t => t.archived && !t.imported);
 
@@ -39,6 +39,7 @@ const InboxArchivedBar = () => {
             return (
               <div
                 key={task.id}
+                data-task-id={task.id}
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}
               >
                 <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate line-through opacity-60`}>

@@ -960,79 +960,81 @@ const MobileLayout = () => {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  onMouseDown={() => {
-                                    if (isLinkOnlyTask(task)) {
-                                      longPressTriggeredRef.current = false;
-                                      longPressTimerRef.current = setTimeout(() => {
-                                        longPressTriggeredRef.current = true;
-                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
-                                      }, 500);
-                                    }
-                                  }}
-                                  onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                  onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isLinkOnlyTask(task)) {
-                                      if (!longPressTriggeredRef.current) {
-                                        window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onMouseDown={() => {
+                                      if (isLinkOnlyTask(task)) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
+                                          setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                        }, 500);
                                       }
-                                      longPressTriggeredRef.current = false;
-                                    } else {
-                                      setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
-                                    }
-                                  }}
-                                  className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
-                                >
-                                  {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
-                                </button>
-                                <div className="deadline-picker-container relative">
+                                    }}
+                                    onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isLinkOnlyTask(task)) {
+                                        if (!longPressTriggeredRef.current) {
+                                          window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                        }
+                                        longPressTriggeredRef.current = false;
+                                      } else {
+                                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                      }
+                                    }}
+                                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                                  >
+                                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
+                                  </button>
+                                  <div className="deadline-picker-container relative">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                      }}
+                                      className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
+                                      title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                    >
+                                      <Calendar size={14} />
+                                    </button>
+                                    {showDeadlinePicker === task.id && (
+                                      <DeadlinePickerPopover
+                                        taskId={task.id}
+                                        currentDeadline={task.deadline}
+                                        onClose={() => setShowDeadlinePicker(null)}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between w-full">
+                                  {task.completed ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
+                                      className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
+                                      title="Archive task"
+                                    >
+                                      <Archive size={11} className="text-white" />
+                                    </button>
+                                  ) : <span />}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                      cyclePriority(task.id);
                                     }}
-                                    className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : ''}`}
-                                    title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                                    className="flex gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors"
                                   >
-                                    <Calendar size={14} />
+                                    {[0, 1, 2].map(i => (
+                                      <span
+                                        key={i}
+                                        className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
+                                      />
+                                    ))}
                                   </button>
-                                  {showDeadlinePicker === task.id && (
-                                    <DeadlinePickerPopover
-                                      taskId={task.id}
-                                      currentDeadline={task.deadline}
-                                      onClose={() => setShowDeadlinePicker(null)}
-                                    />
-                                  )}
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex items-center justify-between mt-1.5">
-                              {task.completed ? (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
-                                  className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
-                                  title="Archive task"
-                                >
-                                  <Archive size={11} className="text-white" />
-                                </button>
-                              ) : <span />}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cyclePriority(task.id);
-                                }}
-                                className="flex gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors"
-                              >
-                                {[0, 1, 2].map(i => (
-                                  <span
-                                    key={i}
-                                    className={`w-2 h-0.5 rounded-full bg-white ${i < (pendingPriorities[task.id] ?? task.priority ?? 0) ? 'opacity-100' : 'opacity-30'}`}
-                                  />
-                                ))}
-                              </button>
                             </div>
                           </div>
                         </div>
