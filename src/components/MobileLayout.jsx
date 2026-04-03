@@ -778,7 +778,7 @@ const MobileLayout = () => {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
-                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{noteTask.title}</div>
+                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{renderTitle(noteTask.title)}</div>
                           <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
                             <X size={18} className={textSecondary} />
                           </button>
@@ -1057,7 +1057,7 @@ const MobileLayout = () => {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
-                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{noteTask.title}</div>
+                          <div className={`font-medium ${textPrimary} truncate flex-1`}>{renderTitle(noteTask.title)}</div>
                           <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
                             <X size={18} className={textSecondary} />
                           </button>

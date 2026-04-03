@@ -102,7 +102,7 @@ const SpotlightModal = () => {
                     <div className="flex-1 min-w-0">
                       <div className={`text-sm font-medium truncate ${textPrimary}`}>
                         {result.match.field === 'title'
-                          ? highlightMatch(result.task.title, spotlightQuery)
+                          ? highlightMatch(result.task.title.replace(/\[\[[^\]]+\]\]/g, ''), spotlightQuery)
                           : renderTitle(result.task.title)}
                       </div>
                       {result.match.field !== 'title' && (
