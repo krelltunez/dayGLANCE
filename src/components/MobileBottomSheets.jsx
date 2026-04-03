@@ -46,10 +46,11 @@ const MobileBottomSheets = () => {
     allTimeGoalsCreated, allTimeGoalsCompleted,
     allTimeProjectsCreated, allTimeProjectsCompleted,
     allTimeIncompleteTasks,
+    todayIncompleteTasks,
     formatTime,
     toggleTag,
     selectAllTags, clearTagFilter,
-    restoreFromRecycleBin, emptyRecycleBin,
+    restoreFromRecycleBin, emptyRecycleBin, undeleteTask,
     getTasksForDate,
   } = useDayPlannerCtx();
 
