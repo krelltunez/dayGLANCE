@@ -15,6 +15,25 @@ const minutesToTime = (minutes) => {
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
 
+// Compute whether a touch point is over the Trash FAB using CSS-derived coordinates.
+// Avoids a ref timing race (the FAB ref is null until React commits the render that mounts it).
+// Tablet FAB (DesktopLayout): left: calc(340px + 1rem), bottom: calc(1.5rem), w-16 h-16
+// Mobile FAB (MobileLayout):  left-4 (1rem),            bottom: 4.5rem,       w-16 h-16
+const isOverTrashFAB = (touchX, touchY, padding = 24) => {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  if (window.innerWidth >= 721) {
+    return touchX >= 340 + 1 * rem - padding &&
+           touchX <= 340 + 5 * rem + padding &&
+           touchY >= vh - 5.5 * rem - padding &&
+           touchY <= vh - 1.5 * rem + padding;
+  }
+  return touchX >= 1 * rem - padding &&
+         touchX <= 5 * rem + padding &&
+         touchY >= vh - 8.5 * rem - padding &&
+         touchY <= vh - 4.5 * rem + padding;
+};
+
 export default function useDragDrop({
   calendarRef, timeGridRef,
   setNewTask, setShowAddTask, selectedDate, setExpandedNotesTaskId,
@@ -941,29 +960,8 @@ export default function useDragDrop({
     const touch = mobileDragLastTouch.current;
 
     // If finger is over the trash FAB zone, freeze the time preview and mark for deletion.
-    // Use the ref's bounding rect when available (handles any FAB position, e.g. tablet offset).
-    // Fall back to hardcoded mobile CSS values if the ref hasn't mounted yet on the first frame.
     {
-      const HIT_PADDING = 24; // extra slack for safe-area-inset and fat fingers
-      let overTrash;
-      const fabEl = trashFabRef.current;
-      if (fabEl) {
-        const rect = fabEl.getBoundingClientRect();
-        overTrash =
-          touch.clientX >= rect.left - HIT_PADDING &&
-          touch.clientX <= rect.right + HIT_PADDING &&
-          touch.clientY >= rect.top - HIT_PADDING &&
-          touch.clientY <= rect.bottom + HIT_PADDING;
-      } else {
-        // Fallback: hardcoded mobile position (left-4, w-16 h-16, bottom-[4.5rem])
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-        const vh = window.visualViewport?.height ?? window.innerHeight;
-        overTrash =
-          touch.clientX >= 1 * rem - HIT_PADDING &&
-          touch.clientX <= 5 * rem + HIT_PADDING &&
-          touch.clientY >= vh - 4.5 * rem - 4 * rem - HIT_PADDING &&
-          touch.clientY <= vh - 4.5 * rem + HIT_PADDING;
-      }
+      const overTrash = isOverTrashFAB(touch.clientX, touch.clientY);
       if (overTrash !== mobileDragOverTrashRef.current) {
         mobileDragOverTrashRef.current = overTrash;
         setMobileDragOverTrash(overTrash);
@@ -1221,26 +1219,9 @@ export default function useDragDrop({
     // Fallback: check release position in case the touchmove handler missed it.
     const releasedTouch = e?.changedTouches?.[0];
     if (mobileDragActive.current && releasedTouch && !mobileDragOverTrashRef.current) {
-      const HIT_PADDING = 24;
-      let overTrashAtRelease;
-      const fabEl = trashFabRef.current;
-      if (fabEl) {
-        const rect = fabEl.getBoundingClientRect();
-        overTrashAtRelease =
-          releasedTouch.clientX >= rect.left - HIT_PADDING &&
-          releasedTouch.clientX <= rect.right + HIT_PADDING &&
-          releasedTouch.clientY >= rect.top - HIT_PADDING &&
-          releasedTouch.clientY <= rect.bottom + HIT_PADDING;
-      } else {
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-        const vh = window.visualViewport?.height ?? window.innerHeight;
-        overTrashAtRelease =
-          releasedTouch.clientX >= 1 * rem - HIT_PADDING &&
-          releasedTouch.clientX <= 5 * rem + HIT_PADDING &&
-          releasedTouch.clientY >= vh - 4.5 * rem - 4 * rem - HIT_PADDING &&
-          releasedTouch.clientY <= vh - 4.5 * rem + HIT_PADDING;
+      if (isOverTrashFAB(releasedTouch.clientX, releasedTouch.clientY)) {
+        mobileDragOverTrashRef.current = true;
       }
-      if (overTrashAtRelease) mobileDragOverTrashRef.current = true;
     }
 
     // Drop on trash FAB: delete the task
