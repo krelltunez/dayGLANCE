@@ -187,7 +187,7 @@ const CalendarHeader = () => {
       return (
         <div
           key={dateStr}
-          className={`flex-1 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis || (isTablet && mobileDragPreviewTime === 'all-day') ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
+          className={`flex-1 min-w-0 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis || (isTablet && mobileDragPreviewTime === 'all-day') ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
           onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
           onDragEnter={(e) => {
             e.preventDefault();
@@ -375,7 +375,7 @@ const CalendarHeader = () => {
                     <GripVertical size={14} />
                   </div>
                 )}
-                <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : 'relative'}>
+                <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : 'relative overflow-hidden'}>
                 <div
                 {...(isTablet && !isImported ? {
                   onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
