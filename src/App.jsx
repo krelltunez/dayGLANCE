@@ -678,6 +678,7 @@ const DayPlanner = () => {
     allTimeProjectsCompleted,
     todayCompletedGoals,
     todayCompletedProjects,
+    todayDueGoals,
     consecutiveDayStreak,
     todayIncompleteTasks,
     allTimeIncompleteTasks,
@@ -6644,7 +6645,7 @@ const DayPlanner = () => {
     allTimeUnscheduledProjectDoneCount, allTimeUnscheduledProjectDoneMinutes,
     allTimeGoalsCreated, allTimeGoalsCompleted,
     allTimeProjectsCreated, allTimeProjectsCompleted,
-    todayCompletedGoals, todayCompletedProjects,
+    todayCompletedGoals, todayCompletedProjects, todayDueGoals,
     consecutiveDayStreak,
     todayIncompleteTasks, allTimeIncompleteTasks,
 
@@ -7473,8 +7474,14 @@ const DayPlanner = () => {
                         )}
                       </div>
                     </div>
-                    {goalsProjectsEnabled && (todayCompletedGoals.length > 0 || todayCompletedProjects.length > 0) && (
+                    {goalsProjectsEnabled && (todayDueGoals.length > 0 || todayCompletedGoals.length > 0 || todayCompletedProjects.length > 0) && (
                       <div className="space-y-1.5 mb-3">
+                        {todayDueGoals.map(g => (
+                          <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
+                            <Target size={14} className="flex-shrink-0" />
+                            <span className="truncate">Goal due today: {g.title}</span>
+                          </div>
+                        ))}
                         {todayCompletedGoals.map(g => (
                           <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
                             <Flag size={14} className="flex-shrink-0" />
