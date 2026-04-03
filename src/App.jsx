@@ -632,6 +632,8 @@ const DayPlanner = () => {
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
+  const [dailyStatsHabitsCollapsed, setDailyStatsHabitsCollapsed] = useState(true);
+  const [dailyStatsAllTimeCollapsed, setDailyStatsAllTimeCollapsed] = useState(true);
 
   // Spotlight search
   const [showSpotlight, setShowSpotlight] = useState(false);
@@ -6368,6 +6370,8 @@ const DayPlanner = () => {
     editingRecurrenceTaskId, setEditingRecurrenceTaskId,
     showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker,
     showIncompleteTasks, setShowIncompleteTasks,
+    dailyStatsHabitsCollapsed, setDailyStatsHabitsCollapsed,
+    dailyStatsAllTimeCollapsed, setDailyStatsAllTimeCollapsed,
     showShortcutHelp, setShowShortcutHelp,
     showHelpModal, setShowHelpModal,
 
