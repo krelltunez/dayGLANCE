@@ -1484,7 +1484,7 @@ const MobileDashboard = ({
 const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0, addProjectTrigger = 0 }) => {
   const {
     showGoalsDashboard, setShowGoalsDashboard,
-    goals, projects,
+    goals, projects, setProjects,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
     addGoal, updateGoal, deleteGoal,
@@ -1523,16 +1523,19 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
       const wasArchived = goalForm.editing.status === 'archived';
       const nowArchived = fields.status === 'archived';
       if (nowArchived && !wasArchived) {
-        // Cascade: archive completed child projects; detach incomplete ones as standalone
-        projects
-          .filter(p => p.goalId === goalForm.editing.id)
-          .forEach(p => {
-            if (p.status === 'completed') {
-              updateProject(p.id, { status: 'archived' });
-            } else {
-              updateProject(p.id, { goalId: undefined });
-            }
-          });
+        // Cascade: archive completed child projects; detach incomplete ones as standalone.
+        // Single atomic setProjects call so all changes land in one state update.
+        const goalId = goalForm.editing.id;
+        const now = new Date().toISOString();
+        setProjects(prev => prev.map(p => {
+          if (p.goalId !== goalId) return p;
+          if (p.status === 'completed') {
+            return { ...p, status: 'archived', updatedAt: now };
+          }
+          // Remove goalId entirely so the project becomes standalone
+          const { goalId: _removed, ...rest } = p;
+          return { ...rest, updatedAt: now };
+        }));
       }
       updateGoal(goalForm.editing.id, fields);
     } else {
@@ -1561,16 +1564,17 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
       const wasArchived = projectForm.editing.status === 'archived';
       const nowArchived = fields.status === 'archived';
       if (nowArchived && !wasArchived) {
-        // Cascade: archive completed tasks; detach incomplete tasks from this project
+        // Cascade: archive completed tasks; detach incomplete tasks from this project.
         const projectId = projectForm.editing.id;
-        setTasks(prev => prev.map(t => {
+        const cascadeTask = t => {
           if (t.projectId !== projectId) return t;
-          return t.completed ? { ...t, archived: true } : { ...t, projectId: undefined };
-        }));
-        setUnscheduledTasks(prev => prev.map(t => {
-          if (t.projectId !== projectId) return t;
-          return t.completed ? { ...t, archived: true } : { ...t, projectId: undefined };
-        }));
+          if (t.completed) return { ...t, archived: true };
+          // Remove projectId entirely so the task becomes a plain inbox/timeline task
+          const { projectId: _removed, ...rest } = t;
+          return rest;
+        };
+        setTasks(prev => prev.map(cascadeTask));
+        setUnscheduledTasks(prev => prev.map(cascadeTask));
       }
       updateProject(projectForm.editing.id, fields);
     } else {
