@@ -407,7 +407,7 @@ const WeeklyReviewModal = () => {
 
         // Goals due in next 7 days (only goals with targetDate in range)
         const nextWeekDueGoals = goalsProjectsEnabled
-          ? goals.filter(g => g.status === 'active' && g.targetDate && g.targetDate >= nextStartStr && g.targetDate <= nextEndStr)
+          ? goals.filter(g => g.status === 'active' && g.targetDate && g.targetDate >= todayStr && g.targetDate <= nextEndStr)
               .map(g => {
                 const progress = calculateGoalProgress(g.id, projects, allTasksCombined);
                 const target = new Date(g.targetDate + 'T12:00:00');
