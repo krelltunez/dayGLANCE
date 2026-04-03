@@ -785,12 +785,12 @@ const DesktopLayout = () => {
           <Trash2 size={26} className="text-white" />
         </div>
       )}
-      {/* Trash FAB — visible during tablet touch drag (same position as mobile so hit-testing coords match) */}
+      {/* Trash FAB — visible during tablet touch drag */}
       {isTablet && mobileDragTaskIdState !== null && (
         <div
           ref={trashFabRef}
-          className={`fixed left-4 z-50 w-16 h-16 rounded-full shadow-xl flex items-center justify-center transition-all duration-150 ${mobileDragOverTrash ? 'bg-red-600 scale-110' : 'bg-red-500'}`}
-          style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+          className={`fixed z-50 w-16 h-16 rounded-full shadow-xl flex items-center justify-center transition-all duration-150 ${mobileDragOverTrash ? 'bg-red-600 scale-110' : 'bg-red-500'}`}
+          style={{ left: 'calc(340px + 1rem)', bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <Trash2 size={26} className="text-white" />
         </div>
