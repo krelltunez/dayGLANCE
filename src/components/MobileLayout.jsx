@@ -839,7 +839,6 @@ const MobileLayout = () => {
             {mobileActiveTab === 'dayglance' && (
               <MobileGlanceSection />
             )}
-            )}
 
             {mobileActiveTab === 'inbox' && (
               <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
