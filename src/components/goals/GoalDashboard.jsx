@@ -1261,6 +1261,17 @@ const MobileDashboard = ({
                           <GoalProgress progress={goalProgress} color={goalColor} />
                         </div>
                       )}
+                      {/* Project count + completion % */}
+                      {!isCompleted && nonArchivedProjects.length > 0 && (
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className={`text-xs ${textSecondary}`}>
+                            {nonArchivedProjects.length} project{nonArchivedProjects.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className={`text-xs font-medium ${goalProgress >= 1 ? 'text-green-500' : textSecondary}`}>
+                            {Math.round(goalProgress * 100)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
