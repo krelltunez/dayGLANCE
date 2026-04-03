@@ -60,6 +60,8 @@ const CalendarHeader = () => {
     openMobileEditTask,
     postponeTask, postponeDeadlineTask,
     moveToRecycleBin, moveToInbox,
+    goalsProjectsEnabled, projects,
+    projectFilter, setProjectFilter, setInboxProjectFilter,
     getTasksForDate, getDeadlineTasksForDate,
     getTaskCalendarStyle,
     setTaskRef,
@@ -169,7 +171,7 @@ const CalendarHeader = () => {
       ALL DAY
     </div>
     {visibleDates.map((date, idx) => {
-      const dayTasks = getTasksForDate(date).filter(t => t.isAllDay).sort((a, b) => {
+      const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && (!projectFilter || t.projectId === projectFilter)).sort((a, b) => {
         const order = (t) => {
           if (t.importSource === 'file') return 0;             // ICS downloads
           if (t.imported && !t.isTaskCalendar) return 1;       // Imported calendar events
@@ -479,6 +481,19 @@ const CalendarHeader = () => {
                       </button>
                     ) : null}
                   </div>
+                  {goalsProjectsEnabled && task.projectId && (() => {
+                    const proj = projects.find(p => p.id === task.projectId);
+                    if (!proj) return null;
+                    return (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
+                        className={`mt-1 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
+                        title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                      >
+                        {proj.title}
+                      </button>
+                    );
+                  })()}
                 </div>
                 {/* Notes panel for all-day tasks */}
                 {expandedNotesTaskId === task.id && !isImported && (

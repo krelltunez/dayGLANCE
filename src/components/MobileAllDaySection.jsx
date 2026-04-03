@@ -23,7 +23,7 @@ const MobileAllDaySection = () => {
     taskContextMenu, setTaskContextMenu,
     mobileDragPreviewTime, mobileDragTaskIdState,
     routinesEnabled, todayRoutines,
-    goalsProjectsEnabled, projects, projectFilter,
+    goalsProjectsEnabled, projects, projectFilter, setProjectFilter, setInboxProjectFilter,
     toggleComplete,
     postponeTask, postponeDeadlineTask,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
@@ -44,7 +44,7 @@ const MobileAllDaySection = () => {
       </div>
       <div className="flex-1 min-w-0 p-2 space-y-1.5">
         {visibleDates.map((date) => {
-          const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample).sort((a, b) => {
+          const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter)).sort((a, b) => {
             const order = (t) => {
               if (t.importSource === 'file') return 0;             // ICS downloads
               if (t.imported && !t.isTaskCalendar) return 1;       // Imported calendar events
@@ -200,6 +200,19 @@ const MobileAllDaySection = () => {
                         </button>
                       )}
                     </div>
+                    {goalsProjectsEnabled && task.projectId && (() => {
+                      const proj = projects.find(p => p.id === task.projectId);
+                      if (!proj) return null;
+                      return (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
+                          className={`mt-1 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
+                          title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                        >
+                          {proj.title}
+                        </button>
+                      );
+                    })()}
                   </div>
                   </div>
                   </div>{/* end data-swipe-container */}
