@@ -1,14 +1,15 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 
 const RestoreConfirmModal = () => {
+  const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const {
     showRestoreConfirm, setShowRestoreConfirm,
     pendingBackupFile, setPendingBackupFile,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
     restoreBackup,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
 
   if (!showRestoreConfirm) return null;
 
