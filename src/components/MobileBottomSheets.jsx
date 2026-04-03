@@ -15,6 +15,7 @@ const MobileBottomSheets = () => {
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     tasks,
+    expandedRecurringTasks,
     unscheduledTasks,
     recycleBin, setRecycleBin,
     completedTaskUids,
