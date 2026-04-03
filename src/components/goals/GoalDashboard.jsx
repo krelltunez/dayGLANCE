@@ -1854,6 +1854,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
           <ProjectForm
             initial={projectForm.editing}
             goals={goals}
+            defaultGoalId={projectForm.defaultGoalId}
             onSave={handleSaveProject}
             onCancel={() => setProjectForm(null)}
             mobile={isMobile}
