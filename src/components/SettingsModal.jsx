@@ -758,7 +758,7 @@ const SettingsModal = () => {
                       </>)}
                     </div>
 
-                    {(!isMobile && !isTablet || isNativeAndroid()) && (<>
+                    {(!isMobile || isNativeAndroid()) && (<>
                     <hr className={borderClass} />
 
                     {/* Obsidian Integration Section — desktop + Android native */}
