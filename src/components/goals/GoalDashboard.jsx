@@ -21,6 +21,7 @@ import {
   GripVertical,
   Layers,
   LogIn,
+  Plus,
   RotateCcw,
   X,
 } from 'lucide-react';
@@ -1264,9 +1265,19 @@ const MobileDashboard = ({
                       {/* Project count + completion % */}
                       {!isCompleted && nonArchivedProjects.length > 0 && (
                         <div className="flex items-center justify-between mt-1.5">
-                          <span className={`text-xs ${textSecondary}`}>
-                            {nonArchivedProjects.length} project{nonArchivedProjects.length !== 1 ? 's' : ''}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-xs ${textSecondary}`}>
+                              {nonArchivedProjects.length} project{nonArchivedProjects.length !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onNewProject(goal.id)}
+                              className={`p-0.5 rounded transition-colors ${textSecondary} hover:text-emerald-500`}
+                              aria-label="Add project"
+                            >
+                              <Plus size={11} />
+                            </button>
+                          </div>
                           <span className={`text-xs font-medium ${goalProgress >= 1 ? 'text-green-500' : textSecondary}`}>
                             {Math.round(goalProgress * 100)}%
                           </span>
