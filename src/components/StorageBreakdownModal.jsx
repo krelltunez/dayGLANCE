@@ -1,13 +1,12 @@
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 import { getStorageUsage, formatBytes } from '../utils/storage.js';
 
 const StorageBreakdownModal = () => {
-  const {
-    showStorageBreakdown, setShowStorageBreakdown,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
-  } = useDayPlannerCtx();
+  const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
+  const { showStorageBreakdown, setShowStorageBreakdown } = useSyncCtx();
 
   if (!showStorageBreakdown) return null;
 
