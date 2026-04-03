@@ -981,7 +981,7 @@ const MobileLayout = () => {
                                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                                     }
                                   }}
-                                  className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                                  className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
                                 >
                                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                                 </button>
@@ -1072,6 +1072,9 @@ const MobileLayout = () => {
                             aiConfig={aiConfig}
                             aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                             onGenerateSubtasks={generateAISubtasks}
+                            wikilinks={noteTask.importSource === 'obsidian' ? extractWikilinks(noteTask.title) : undefined}
+                            onLoadWikiNote={noteTask.importSource === 'obsidian' ? loadWikiNote : undefined}
+                            onSaveWikiNote={noteTask.importSource === 'obsidian' ? saveWikiNote : undefined}
                           />
                           </div>
                         </div>

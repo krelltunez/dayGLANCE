@@ -467,7 +467,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     ) : (
       filteredUnscheduledTasks.filter(t => !t.isExample).map(task => (
         <div key={task.id} className="notes-panel-container">
-          <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
+          <div className={`relative rounded-lg ${(showDeadlinePicker === task.id || expandedNotesTaskId === task.id) ? '' : 'overflow-hidden'}`}>
             {/* Swipe action strips */}
             <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-green-900/80 text-green-300' : 'bg-green-100 text-green-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
               <Calendar size={14} className="mr-1" />Schedule
@@ -570,7 +570,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                         setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                       }
                     }}
-                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
+                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
                   >
                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                   </button>
