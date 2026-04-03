@@ -115,9 +115,19 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
         {/* Header */}
         <div className={`flex items-center justify-between px-3 py-2.5 border-b ${borderClass}`}>
           <span className={`text-sm font-semibold ${textPrimary}`}>Filter Inbox</span>
-          <button onClick={onClose} className={`p-1 rounded ${hoverBg} transition-colors`}>
-            <X size={13} className={textSecondary} />
-          </button>
+          <div className="flex items-center gap-1">
+            {isNonDefault && (
+              <button
+                onClick={clearAll}
+                className={`text-xs px-2 py-0.5 rounded ${hoverBg} ${textSecondary} transition-colors`}
+              >
+                Clear all
+              </button>
+            )}
+            <button onClick={onClose} className={`p-1 rounded ${hoverBg} transition-colors`}>
+              <X size={13} className={textSecondary} />
+            </button>
+          </div>
         </div>
 
         <div className="p-3 flex flex-col gap-3">
@@ -199,15 +209,6 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
             </div>
           )}
 
-          {/* Clear */}
-          {isNonDefault && (
-            <button
-              onClick={clearAll}
-              className={`w-full text-xs py-1.5 rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
-            >
-              Clear all filters
-            </button>
-          )}
         </div>
       </div>
     </>,
