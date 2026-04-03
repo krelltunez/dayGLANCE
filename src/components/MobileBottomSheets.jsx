@@ -2,7 +2,7 @@ import React from 'react';
 import {
   BarChart3, CalendarDays, Check, CheckCircle, ChevronDown, ChevronUp,
   Clock, Filter, Flag, Flame, FolderOpen, Hash, Inbox,
-  MoreHorizontal, Target, Trash2, TrendingUp, Trophy, Undo2,
+  MoreHorizontal, Target, Trash2, TrendingUp, Trophy, Undo2, X,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
