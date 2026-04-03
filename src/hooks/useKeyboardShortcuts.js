@@ -55,7 +55,7 @@ export default function useKeyboardShortcuts({
   // reschedule ('e')
   gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
   // smart schedule ('s')
-  setMobileActiveTab, setFramesModalTab, setEditingFrame, setShowFramesModal,
+  setMobileActiveTab, setMobileSettingsView, setFramesModalTab, setEditingFrame, setShowFramesModal,
   // date navigation (arrows)
   changeDate, setSelectedDate,
 }) {
@@ -143,7 +143,11 @@ export default function useKeyboardShortcuts({
       if (e.key === 'r' && noModifiers) {
         e.preventDefault();
         if (!routinesEnabled) setRoutinesEnabled(true);
-        setShowRoutinesDashboard(true);
+        if (isMobile) {
+          setMobileActiveTab('routines');
+        } else {
+          setShowRoutinesDashboard(true);
+        }
       }
 
       // 'f' for focus mode (only when available)
@@ -210,7 +214,11 @@ export default function useKeyboardShortcuts({
       if (e.key === 'g' && noModifiers) {
         e.preventDefault();
         if (!goalsProjectsEnabled) setGoalsProjectsEnabled(true);
-        setShowGoalsDashboard(true);
+        if (isMobile) {
+          setMobileActiveTab('goals');
+        } else {
+          setShowGoalsDashboard(true);
+        }
       }
 
       // 'h' for habits modal
@@ -232,7 +240,8 @@ export default function useKeyboardShortcuts({
       if (e.key === 's' && noModifiers && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0) {
         e.preventDefault();
         if (isMobile) {
-          setMobileActiveTab('frames');
+          setMobileActiveTab('settings');
+          setMobileSettingsView('frames');
           setFramesModalTab('schedule');
           setEditingFrame(null);
         } else {
