@@ -11,6 +11,8 @@ import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import InboxFilterPopover from './InboxFilterPopover.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const InboxSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -27,17 +29,8 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     suggestions,
     selectedSuggestionIndex,
     suggestionContext,
-    aiConfig,
-    gtdFrames,
-    showFramesModal, setShowFramesModal,
-    framesModalTab, setFramesModalTab,
-    editingFrame, setEditingFrame,
-    goalsProjectsEnabled,
-    projects,
-    projectFilter, setProjectFilter,
     pendingPriorities,
     filteredUnscheduledTasks,
-    aiSubtasksLoadingForTask,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     playUISound,
     toggleComplete,
@@ -49,8 +42,6 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     archiveInboxTask,
     openMobileEditTask,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
-    generateAISubtasks,
-    loadWikiNote, saveWikiNote,
     handleDragStart, handleDragEnd,
     handleDragOverInbox, handleDropOnInbox,
     dragOverInbox, setDragOverInbox,
@@ -58,6 +49,16 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
   } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
+  const {
+    aiConfig,
+    gtdFrames,
+    showFramesModal, setShowFramesModal,
+    framesModalTab, setFramesModalTab,
+    editingFrame, setEditingFrame,
+    goalsProjectsEnabled, projects, projectFilter, setProjectFilter,
+    aiSubtasksLoadingForTask, generateAISubtasks,
+  } = useFeaturesCtx();
 
   const [showInboxFilter, setShowInboxFilter] = useState(false);
   const inboxFilterBtnRef = useRef(null);

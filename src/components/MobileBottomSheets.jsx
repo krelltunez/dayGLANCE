@@ -8,6 +8,8 @@ import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileBottomSheets = () => {
   const {
@@ -22,13 +24,8 @@ const MobileBottomSheets = () => {
     selectedTags,
     allTags,
     showUntagged, setShowUntagged,
-    showMobileRecycleBin, setShowMobileRecycleBin,
     showMobileTagFilter, setShowMobileTagFilter,
     showMobileDailySummary, setShowMobileDailySummary,
-    activeHabits, habitStreaks, habitLogs, habitsEnabled,
-    focusLog,
-    goals, projects,
-    goalsProjectsEnabled,
     showIncompleteTasks, setShowIncompleteTasks,
     dailyStatsAllTimeCollapsed, setDailyStatsAllTimeCollapsed,
     dailyStatsHabitsCollapsed, setDailyStatsHabitsCollapsed,
@@ -53,6 +50,12 @@ const MobileBottomSheets = () => {
     restoreFromRecycleBin, emptyRecycleBin, undeleteTask,
     getTasksForDate,
   } = useDayPlannerCtx();
+  const { showMobileRecycleBin, setShowMobileRecycleBin } = useSyncCtx();
+  const {
+    activeHabits, habitStreaks, habitLogs, habitsEnabled,
+    focusLog,
+    goals, projects, goalsProjectsEnabled,
+  } = useFeaturesCtx();
 
   return (
     <>

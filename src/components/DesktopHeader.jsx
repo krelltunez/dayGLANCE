@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const DesktopHeader = () => {
   const {
@@ -16,20 +18,21 @@ const DesktopHeader = () => {
     setShowSettings,
     updateInfo,
     setShowHelpModal,
+    weather, weatherTempUnit,
+    dailyContent, contentRotation,
+    cardBg, borderClass, textPrimary, textSecondary, hoverBg, colors,
+    changeDate, goToToday, goToDate, changeViewedMonth,
+    getDateIndicators, getMonthDays,
+  } = useDayPlannerCtx();
+  const {
     calSyncStatus, calSyncLastSynced, calSyncConfigured,
     isSyncing,
     setShowBackupMenu,
     cloudSyncConfig, cloudSyncStatus, cloudSyncLastSynced,
     obsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced,
-    setShowRemindersSettings,
-    activeReminders,
-    weather, weatherTempUnit,
-    dailyContent, contentRotation,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg, colors,
-    changeDate, goToToday, goToDate, changeViewedMonth,
     cloudSyncUpload, syncAll, performObsidianSync,
-    getDateIndicators, getMonthDays,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
+  const { setShowRemindersSettings, activeReminders } = useFeaturesCtx();
 
   return (
       <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between relative`} style={{ height: '80px' }}>
