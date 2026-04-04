@@ -116,33 +116,36 @@ const SettingsModal = () => {
                   {/* Left column */}
                   <div className="space-y-6">
 
-                    {/* Clock Format Section */}
+                    {/* Localization Section */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Clock size={16} className={textSecondary} />
-                        Clock Format
+                        Localization
                       </h4>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setUse24HourClock(true)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          24-hour
-                        </button>
-                        <button
-                          onClick={() => setUse24HourClock(false)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            !use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          12-hour
-                        </button>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Clock format</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setUse24HourClock(false)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              !use24HourClock
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            12-hour
+                          </button>
+                          <button
+                            onClick={() => setUse24HourClock(true)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              use24HourClock
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            24-hour
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className={`block text-xs ${textSecondary} mb-1.5`}>First day of week</label>
