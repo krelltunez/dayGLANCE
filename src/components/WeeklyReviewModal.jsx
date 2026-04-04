@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, BarChart3, CalendarDays, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Flag, Flame, FolderOpen, Loader, RefreshCw, Sparkles, Target, TrendingUp, Trophy, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
 import { calculateProjectProgress, isProjectStalled } from '../utils/projectProgress.js';
@@ -8,25 +9,24 @@ import { calculateGoalProgress } from '../utils/goalProgress.js';
 
 const WeeklyReviewModal = () => {
   const {
-    showWeeklyReview, setShowWeeklyReview,
     mobileReviewPage, setMobileReviewPage,
-    weeklyAISummary, setWeeklyAISummary,
-    weeklyAILoading,
-    weeklyAIError, setWeeklyAIError,
-    generateWeeklyAISummary,
     reviewScrollRef,
     tasks, recurringTasks, unscheduledTasks,
+    selectedDate,
+    isMobile, isTablet,
+    darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    use24HourClock, formatTime, timeToMinutes,
+  } = useDayPlannerCtx();
+  const {
+    showWeeklyReview, setShowWeeklyReview,
+    weeklyAISummary, setWeeklyAISummary,
+    weeklyAILoading, weeklyAIError, setWeeklyAIError,
+    generateWeeklyAISummary,
     goals, projects, goalsProjectsEnabled,
     habitsEnabled, habits, habitLogs,
     gtdFrames,
-    selectedDate,
-    isMobile, isTablet,
-    darkMode,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-    use24HourClock,
-    formatTime, timeToMinutes,
     aiConfig,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   // Local collapse state for past-week HABITS and FRAME UTILIZATION sections
   const [habitsCollapsed, setHabitsCollapsed] = useState(true);
