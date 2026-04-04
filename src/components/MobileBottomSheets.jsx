@@ -308,7 +308,7 @@ const MobileBottomSheets = () => {
               <div className="space-y-1.5 mb-3">
                 {todayDueGoals.map(g => (
                   <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
-                    <Target size={14} className="flex-shrink-0" />
+                    <Flag size={14} className="flex-shrink-0" />
                     <span className="truncate">Goal due today: {g.title}</span>
                   </div>
                 ))}

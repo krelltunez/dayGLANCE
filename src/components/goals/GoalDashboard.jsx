@@ -1637,14 +1637,14 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
             isActive={isActive}
           />
           {archivedCount > 0 && (
-            <div className={`border-t ${borderClass} px-4 py-3 flex-shrink-0`}>
+            <div className={`border-t ${borderClass} flex-shrink-0`}>
               <button
                 onClick={() => setShowArchived(v => !v)}
-                className={`flex items-center gap-2 text-sm ${textSecondary} ${hoverBg} px-2 py-1.5 rounded-lg transition-colors w-full`}
+                className={`flex items-center gap-2 text-xs ${textSecondary} ${hoverBg} px-3 py-2 transition-colors w-full`}
               >
-                <Archive size={14} />
-                <span>Archived ({archivedCount})</span>
-                <ChevronDown size={14} className={`ml-auto transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`} />
+                <Archive size={13} className="flex-shrink-0" />
+                <span className="font-medium">Archived ({archivedCount})</span>
+                <ChevronDown size={13} className={`ml-auto flex-shrink-0 transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`} />
               </button>
               {showArchived && (
                 <div className="flex gap-4 mt-2">
@@ -1785,16 +1785,16 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
 
             {/* Archived section */}
             {archivedCount > 0 && (
-              <div className={`border-t ${borderClass} px-6 py-3`}>
+              <div className={`border-t ${borderClass}`}>
                 <button
                   onClick={() => setShowArchived(v => !v)}
-                  className={`flex items-center gap-2 text-sm ${textSecondary} ${hoverBg} px-2 py-1.5 rounded-lg transition-colors w-full`}
+                  className={`flex items-center gap-2 text-xs ${textSecondary} ${hoverBg} px-3 py-2 transition-colors w-full`}
                 >
-                  <Archive size={14} />
-                  <span>Archived ({archivedCount})</span>
+                  <Archive size={13} className="flex-shrink-0" />
+                  <span className="font-medium">Archived ({archivedCount})</span>
                   <ChevronDown
-                    size={14}
-                    className={`ml-auto transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`}
+                    size={13}
+                    className={`ml-auto flex-shrink-0 transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`}
                   />
                 </button>
 

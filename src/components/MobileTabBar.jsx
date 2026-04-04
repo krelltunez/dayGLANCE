@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Eye, Inbox, Settings, Sparkles, Target } from 'lucide-react';
+import { Calendar, Eye, Flag, Inbox, Settings, Sparkles } from 'lucide-react';
 import { isNativeAndroid } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -107,7 +107,7 @@ const MobileTabBar = () => {
           className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'goals' ? 'text-blue-500' : textSecondary}`}
         >
           <div className="relative">
-            <Target size={iconSize} />
+            <Flag size={iconSize} />
             {goalsCount > 0 && (
               <span className={`absolute -top-1.5 -right-2.5 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1 ${hasOverdueGoal ? 'bg-red-600' : 'bg-blue-600'}`}>
                 {goalsCount > 9 ? '9+' : goalsCount}
