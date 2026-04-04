@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, RefreshCw, Server, Settings, Sparkles, Sun, Target, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -247,7 +247,7 @@ const SettingsModal = () => {
                     {/* Weather — desktop only */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Cloud size={16} className={textSecondary} />
+                        <Thermometer size={16} className={textSecondary} />
                         Weather
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
@@ -289,7 +289,7 @@ const SettingsModal = () => {
                     {/* Daily Content — desktop only */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Sparkles size={16} className={textSecondary} />
+                        <Newspaper size={16} className={textSecondary} />
                         Daily Content
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
@@ -303,27 +303,7 @@ const SettingsModal = () => {
                       </label>
                     </div>
 
-                    <hr className={borderClass} />
-
                     </>)}
-
-                    <hr className={borderClass} />
-
-                    {/* iCal Import Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Upload size={16} className={textSecondary} />
-                        iCal Import
-                      </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
-                        <Upload size={14} className={textSecondary} />
-                        Choose .ics file
-                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
-                      </label>
-                      <p className={`text-xs ${textSecondary}`}>
-                        Import events from an iCal (.ics) file
-                      </p>
-                    </div>
                   </div>
 
                   {/* Right column — integrations (side-by-side on desktop, stacked below on tablet) */}
@@ -549,6 +529,17 @@ const SettingsModal = () => {
                         </div>
                       )}
                       </>)}
+
+                      {/* iCal Import — one-time .ics file import, lives alongside live Calendar Sync */}
+                      <div className={`pt-2 border-t ${borderClass} space-y-2`}>
+                        <p className={`text-sm font-medium ${textPrimary}`}>Import .ics file</p>
+                        <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                          <Upload size={14} className={textSecondary} />
+                          Choose .ics file
+                          <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
+                        </label>
+                        <p className={`text-xs ${textSecondary}`}>Import events from an iCal (.ics) file</p>
+                      </div>
                     </div>
 
                     <hr className={borderClass} />
