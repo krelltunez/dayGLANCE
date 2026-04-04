@@ -268,6 +268,16 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : false;
   });
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
+  const [weatherEnabled, setWeatherEnabled] = useState(() => {
+    const saved = localStorage.getItem('day-planner-weather-enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [dailyContentEnabled, setDailyContentEnabled] = useState(() => {
+    const saved = localStorage.getItem('day-planner-daily-content-enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-weather-enabled', JSON.stringify(weatherEnabled)); }, [weatherEnabled]);
+  useEffect(() => { localStorage.setItem('day-planner-daily-content-enabled', JSON.stringify(dailyContentEnabled)); }, [dailyContentEnabled]);
   const [syncUrl, setSyncUrl] = useState('');
   const [showCalendarUrlHint, setShowCalendarUrlHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -6411,10 +6421,12 @@ const DayPlanner = () => {
     weather, setWeather,
     weatherZip, setWeatherZip,
     weatherTempUnit, setWeatherTempUnit,
+    weatherEnabled, setWeatherEnabled,
 
     // ── Daily content (quotes / tips) ─────────────────────────────────────────
     dailyContent, setDailyContent,
     contentRotation, setContentRotation,
+    dailyContentEnabled, setDailyContentEnabled,
 
     // ── Onboarding / welcome ──────────────────────────────────────────────────
     showWelcome, setShowWelcome,

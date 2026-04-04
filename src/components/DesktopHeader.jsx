@@ -18,8 +18,8 @@ const DesktopHeader = () => {
     setShowSettings,
     updateInfo,
     setShowHelpModal,
-    weather, weatherTempUnit,
-    dailyContent, contentRotation,
+    weather, weatherTempUnit, weatherEnabled,
+    dailyContent, contentRotation, dailyContentEnabled,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg, colors,
     changeDate, goToToday, goToDate, changeViewedMonth,
     getDateIndicators, getMonthDays,
@@ -38,7 +38,7 @@ const DesktopHeader = () => {
       <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between relative`} style={{ height: '80px' }}>
         {/* Left: Weather + Daily Content */}
         <div className="flex items-center gap-4 min-w-0">
-          {weather && (
+          {weather && weatherEnabled && (
             <>
               {/* Current weather */}
               <div className={`flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg flex-shrink-0`}>
@@ -68,7 +68,7 @@ const DesktopHeader = () => {
           )}
 
           {/* Rotating Daily Content - 1 item at a time (3-col only to avoid header overlap) */}
-          {visibleDays >= 3 && (() => {
+          {dailyContentEnabled && visibleDays >= 3 && (() => {
             const contentItems = [
               { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
               { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },

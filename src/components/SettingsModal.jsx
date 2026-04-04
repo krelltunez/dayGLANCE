@@ -22,6 +22,8 @@ const SettingsModal = () => {
     setOnboardingProgress,
     isMobile, isTablet,
     weatherZip, setWeatherZip, fetchWeather, weatherTempUnit, setWeatherTempUnit,
+    weatherEnabled, setWeatherEnabled,
+    dailyContentEnabled, setDailyContentEnabled,
     setTasks, setUnscheduledTasks,
     dailyNoteTemplate, setDailyNoteTemplate,
   } = useDayPlannerCtx();
@@ -242,57 +244,67 @@ const SettingsModal = () => {
                     {!isMobile && !isTablet && (<>
                     <hr className={borderClass} />
 
-                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
+                    {/* Weather — desktop only */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <MapPin size={16} className={textSecondary} />
-                        Weather Location
+                        <Cloud size={16} className={textSecondary} />
+                        Weather
                       </h4>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          ZIP code or city name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 90210 or Seattle"
-                          value={weatherZip}
-                          onChange={(e) => setWeatherZip(e.target.value)}
-                          onBlur={() => fetchWeather()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          Leave empty to hide weather
-                        </p>
-                      </div>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Temperature unit
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'fahrenheit'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °F
-                          </button>
-                          <button
-                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'celsius'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °C
-                          </button>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input type="checkbox" checked={weatherEnabled} onChange={(e) => setWeatherEnabled(e.target.checked)} className="sr-only" />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${weatherEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${weatherEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
                         </div>
-                      </div>
+                        <span className={`text-sm ${textPrimary}`}>Show weather in header</span>
+                      </label>
+                      {weatherEnabled && (
+                        <>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>ZIP code or city name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 90210 or Seattle"
+                              value={weatherZip}
+                              onChange={(e) => setWeatherZip(e.target.value)}
+                              onBlur={() => fetchWeather()}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                              className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Temperature unit</label>
+                            <div className="flex gap-2">
+                              <button onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${weatherTempUnit === 'fahrenheit' ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}`}>°F</button>
+                              <button onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${weatherTempUnit === 'celsius' ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}`}>°C</button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Daily Content — desktop only */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Sparkles size={16} className={textSecondary} />
+                        Daily Content
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input type="checkbox" checked={dailyContentEnabled} onChange={(e) => setDailyContentEnabled(e.target.checked)} className="sr-only" />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${dailyContentEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${dailyContentEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Show daily tips &amp; quotes in header</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
                     </>)}
 
                     <hr className={borderClass} />
