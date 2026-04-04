@@ -1527,22 +1527,49 @@ viewports after all steps are merged.**
 
 ---
 
-## Phase 10 — Context Splitting (Optional)
+## Phase 10 — Context Splitting ✅ PARTIALLY COMPLETE
 
-Only attempt this after Phase 9 is completely stable and you've used the app for a few
-days without issues.
+Steps 1–6 are done and merged to `develop` (PRs #323–340).
 
-Splitting DayPlannerContext into SyncContext + FeaturesContext is a **performance
-optimization**, not a correctness requirement. Skip it if the app feels fast enough.
+### What was completed
 
-If you proceed:
-1. Create `SyncContext` (cloud sync, calendar sync, Obsidian, TRMNL, backup state)
-2. Migrate sync-domain modals one at a time to `useSyncCtx()`
-3. Full smoke test — especially all sync features
-4. Create `FeaturesContext` (habits, routines, GTD frames, focus mode, reminders, AI/voice)
-5. Migrate features-domain modals one at a time to `useFeaturesCtx()`
-6. Full smoke test — especially all feature modals
-7. Reduce the main DayPlannerContext to only task/navigation/core state
+- `src/context/SyncContext.jsx` and `src/context/FeaturesContext.jsx` created
+- Both providers added to `App.jsx`, nested inside `DayPlannerContext.Provider`
+- **Sync-domain modals migrated** to `useSyncCtx()`:
+  - `BackupMenuModal`, `AutoBackupManagerModal`, `StorageBreakdownModal`,
+    `RestoreConfirmModal`, `ImportCalendarModal`, `EmptyBinConfirmModal`
+- **Features-domain modals migrated** to `useFeaturesCtx()`:
+  - `HabitModal`, `RoutinesDashboardModal`, `FocusModeModal`, `VoiceInputModal`,
+    `WeeklyReviewModal`, `FramesModal`, `RemindersSettingsModal`, `GoalDashboard`
+- All migrated files pass `npm run build` and `audit-undefined-refs.mjs` after each step
+
+### Why step 7 (ctx strip) is blocked — Phase 11
+
+`MobileLayout.jsx` and `DesktopLayout.jsx` are large orchestration components that still
+destructure nearly every sync and features value from `useDayPlannerCtx()`. Until they are
+migrated, those keys cannot be removed from `ctx` without crashing the app.
+
+Migrating the layout files is **Phase 11**. The split contexts and provider nesting are
+already in place — Phase 11 just needs to update `MobileLayout` and `DesktopLayout` to
+use `useSyncCtx()` / `useFeaturesCtx()` for their domain values, then the ctx strip
+(original step 7) can proceed.
+
+### Phase 11 — Layout file migration + ctx strip
+
+Follow the same pattern as Phase 10: one file per commit, build must pass after every
+commit, audit script after every build.
+
+1. Migrate `DesktopLayout.jsx` — split sync/features destructures to the new contexts
+2. Migrate `MobileLayout.jsx` — same split
+3. Check any remaining consumers (`SettingsModal`, `MobileSettingsPanel`,
+   `GlanceSidebar`, `CalendarHeader`, `DesktopHeader`, `TimeGrid`, `MobileTimeGrid`,
+   `MobileGlanceSection`, `MobileBottomSheets`, `MobileRoutinesTab`,
+   `WeeklyReviewReminderCard`, `ReminderToasts`, `FrameAdjustModal`,
+   `FrameScheduleModal`, `InboxSidebar`) — migrate whichever still pull
+   sync/features values from `useDayPlannerCtx()`
+4. Strip sync keys from `ctx` in `App.jsx`
+5. Strip features keys from `ctx` in `App.jsx`
+6. Full smoke test on both desktop and mobile
 
 ---
 
