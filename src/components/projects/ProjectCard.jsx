@@ -7,6 +7,8 @@ import {
   Square, Target, Trash2, X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
 import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
@@ -31,20 +33,17 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
   const {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
-    goals,
-    deleteProject,
     openMobileEditTask,
     getTodayStr,
     darkMode, isMobile,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
-    loadWikiNote, saveWikiNote,
-    generateAISubtasks, aiSubtasksLoadingForTask,
-    aiConfig,
     longPressTriggeredRef, longPressTimerRef,
-    showGoalsDashboard, mobileActiveTab,
+    mobileActiveTab,
   } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
+  const { goals, deleteProject, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
 

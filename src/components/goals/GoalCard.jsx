@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers, Plus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalProgress from './GoalProgress.jsx';
@@ -25,10 +26,10 @@ const GoalCard = forwardRef(
   ({ goal, projects, onEdit, onNewProject }, ref) => {
     const {
       tasks, unscheduledTasks,
-      updateGoal,
       darkMode,
       borderClass, textPrimary, textSecondary, hoverBg,
     } = useDayPlannerCtx();
+    const { updateGoal } = useFeaturesCtx();
 
     const allTasks = [...tasks, ...unscheduledTasks];
     const progress = calculateGoalProgress(goal.id, projects, allTasks);

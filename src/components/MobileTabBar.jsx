@@ -2,21 +2,23 @@ import React from 'react';
 import { Calendar, Eye, Inbox, Settings, Sparkles, Target } from 'lucide-react';
 import { isNativeAndroid } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileTabBar = () => {
   const {
     tabBarRef, currentTime,
     mobileActiveTab, setMobileActiveTab,
     setMobileSettingsView,
-    todayRoutines, setDashboardSelectedChips,
-    setRoutineAddingToBucket, setRoutineNewChipName,
-    routinesEnabled,
-    goalsProjectsEnabled,
-    goals,
     cardBg, borderClass, textSecondary,
     filteredUnscheduledTasks, todayAgenda,
-    goToToday, handleRoutinesDone,
+    goToToday,
   } = useDayPlannerCtx();
+  const {
+    todayRoutines, setDashboardSelectedChips,
+    setRoutineAddingToBucket, setRoutineNewChipName,
+    routinesEnabled, handleRoutinesDone,
+    goalsProjectsEnabled, goals,
+  } = useFeaturesCtx();
 
   const activeGoals = goalsProjectsEnabled ? (goals || []).filter(g => g.status !== 'archived') : [];
   const goalsCount = activeGoals.length;
