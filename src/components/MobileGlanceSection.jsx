@@ -502,13 +502,21 @@ const MobileGlanceSection = () => {
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {task.isRecurring ? (
-                    <button
-                      onClick={() => toggleComplete(task.id, false)}
-                      className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
-                      title="Mark complete"
-                    >
-                      <CheckCircle size={14} />
-                    </button>
+                    <>
+                      <span
+                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} opacity-50 cursor-default`}
+                        title="Recurring task"
+                      >
+                        <RefreshCw size={14} />
+                      </span>
+                      <button
+                        onClick={() => toggleComplete(task.id, false)}
+                        className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} active:scale-95 transition-transform`}
+                        title="Mark complete"
+                      >
+                        <CheckCircle size={14} />
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => {
@@ -793,7 +801,14 @@ const MobileGlanceSection = () => {
           </div>
           {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
             <div className="flex items-center gap-1 flex-shrink-0 mr-5">
-              {!task.isRecurring && (
+              {task.isRecurring ? (
+                <span
+                  className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} opacity-50 cursor-default`}
+                  title="Recurring task"
+                >
+                  <RefreshCw size={14} />
+                </span>
+              ) : (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
