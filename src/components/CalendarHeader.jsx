@@ -248,10 +248,18 @@ const CalendarHeader = () => {
 
             const renderAllDayActionButtons = (inMenu = false) => {
               if (isRecurringAllDay) {
-                // Recurring all-day: Notes, Edit + Delete (desktop only)
+                // Recurring all-day: Notes, Postpone, Edit + Delete (desktop only)
                 return (
                   <>
                     {renderAllDayNotesButton(inMenu)}
+                    <button
+                      onClick={() => postponeTask(task.id)}
+                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                      title="Postpone to tomorrow"
+                    >
+                      <SkipForward size={14} />
+                      {inMenu && <span className="text-xs">Postpone</span>}
+                    </button>
                     {!isTablet && (
                     <button
                       onClick={() => openMobileEditTask(task, false)}
