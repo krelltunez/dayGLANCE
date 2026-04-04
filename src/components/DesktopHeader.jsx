@@ -23,6 +23,7 @@ const DesktopHeader = () => {
     cardBg, borderClass, textPrimary, textSecondary, hoverBg, colors,
     changeDate, goToToday, goToDate, changeViewedMonth,
     getDateIndicators, getMonthDays,
+    weekStartDay,
   } = useDayPlannerCtx();
   const {
     calSyncStatus, calSyncLastSynced, calSyncConfigured,
@@ -128,7 +129,7 @@ const DesktopHeader = () => {
                   </button>
                 </div>
                 <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                  {(() => { const d = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map(day => (
                     <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
                   ))}
                 </div>

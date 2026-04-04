@@ -223,6 +223,7 @@ const MobileLayout = () => {
     filterByTags,
     getTasksForDate, getDateIndicators, hasTasksOnDate,
     getDayName, getMonthDays, getNextQuarterHour,
+    weekStartDay,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
     timeToMinutes, minutesToTime,
@@ -519,7 +520,7 @@ const MobileLayout = () => {
                       </button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 mb-2">
-                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                      {(() => { const d = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map(day => (
                         <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
                           {day}
                         </div>

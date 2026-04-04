@@ -27,6 +27,7 @@ const MobileSettingsPanel = () => {
     darkMode, setDarkMode,
     mobileSettingsView, setMobileSettingsView,
     use24HourClock, setUse24HourClock,
+    weekStartDay, setWeekStartDay,
     collapsedSettings,
     soundEnabled, setSoundEnabled,
     setShowHelpModal,
@@ -120,6 +121,13 @@ const MobileSettingsPanel = () => {
       >
         <Clock size={24} className={textSecondary} />
         <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
+      </button>
+      <button
+        onClick={() => setWeekStartDay(weekStartDay === 0 ? 1 : 0)}
+        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+      >
+        <CalendarDays size={24} className={textSecondary} />
+        <span className={`text-xs font-medium ${textPrimary}`}>Week: {weekStartDay === 0 ? 'Sun' : 'Mon'}</span>
       </button>
       <button
         onClick={() => setMobileSettingsView('habits')}

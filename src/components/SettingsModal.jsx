@@ -18,6 +18,7 @@ const SettingsModal = () => {
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     use24HourClock, setUse24HourClock,
+    weekStartDay, setWeekStartDay,
     soundEnabled, setSoundEnabled,
     setOnboardingProgress,
     isMobile, isTablet,
@@ -143,6 +144,31 @@ const SettingsModal = () => {
                           12-hour
                         </button>
                       </div>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>First day of week</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setWeekStartDay(0)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weekStartDay === 0
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            Sunday
+                          </button>
+                          <button
+                            onClick={() => setWeekStartDay(1)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weekStartDay === 1
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            Monday
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     <hr className={borderClass} />
@@ -166,78 +192,6 @@ const SettingsModal = () => {
                           </div>
                         </div>
                         <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
-                      </label>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Habit Tracking Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Activity size={16} className={textSecondary} />
-                        Habit Tracking
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={habitsEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
-                      </label>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Routines Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Sparkles size={16} className={textSecondary} />
-                        Routines
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={routinesEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(e.target.checked); }}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${routinesEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable routines</span>
-                      </label>
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Goals & Projects Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Target size={16} className={textSecondary} />
-                        Goals &amp; Projects
-                      </h4>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={goalsProjectsEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(e.target.checked); }}
-                            className="sr-only"
-                          />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${goalsProjectsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${goalsProjectsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                          </div>
-                        </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable goals &amp; projects</span>
                       </label>
                     </div>
 
@@ -304,6 +258,78 @@ const SettingsModal = () => {
                     </div>
 
                     </>)}
+
+                    <hr className={borderClass} />
+
+                    {/* Goals & Projects Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Target size={16} className={textSecondary} />
+                        Goals &amp; Projects
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={goalsProjectsEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(e.target.checked); }}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${goalsProjectsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${goalsProjectsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable goals &amp; projects</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Routines Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Sparkles size={16} className={textSecondary} />
+                        Routines
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={routinesEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(e.target.checked); }}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${routinesEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable routines</span>
+                      </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Habit Tracking Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Activity size={16} className={textSecondary} />
+                        Habit Tracking
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={habitsEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
+                            className="sr-only"
+                          />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Right column — integrations (side-by-side on desktop, stacked below on tablet) */}

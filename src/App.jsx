@@ -267,6 +267,11 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
     return saved !== null ? JSON.parse(saved) : false;
   });
+  const [weekStartDay, setWeekStartDay] = useState(() => {
+    const saved = localStorage.getItem('day-planner-week-start-day');
+    return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
+  });
+  useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
   const [weatherEnabled, setWeatherEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-weather-enabled');
@@ -2156,15 +2161,15 @@ const DayPlanner = () => {
     
     // First day of the month
     const firstDay = new Date(year, month, 1);
-    const firstDayOfWeek = firstDay.getDay(); // 0 = Sunday
-    
+    const firstDayOfWeek = (firstDay.getDay() - weekStartDay + 7) % 7;
+
     // Last day of the month
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    
+
     // Generate array of days
     const days = [];
-    
+
     // Add empty slots for days before month starts
     for (let i = 0; i < firstDayOfWeek; i++) {
       days.push(null);
@@ -6352,6 +6357,7 @@ const DayPlanner = () => {
 
     // ── Settings / preferences ────────────────────────────────────────────────
     use24HourClock, setUse24HourClock,
+    weekStartDay, setWeekStartDay,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
     collapsedSettings, setCollapsedSettings,
