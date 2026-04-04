@@ -45,6 +45,7 @@ class DayGlanceWidgetListFactory(
         const val TYPE_ROUTINE = 4
         const val TYPE_EMPTY = 5
         const val TYPE_GLANCEAHEAD = 6
+        const val TYPE_GOAL = 7
 
         private val TWELVE_HR = DateTimeFormatter.ofPattern("h:mm a")
         private val TWELVE_HR_SHORT = DateTimeFormatter.ofPattern("h:mm")
@@ -80,6 +81,7 @@ class DayGlanceWidgetListFactory(
             val isEmpty: Boolean,
         ) : AgendaItem(TYPE_GLANCEAHEAD)
         object Empty : AgendaItem(TYPE_EMPTY)
+        class Goal(val title: String, val progressPct: Int) : AgendaItem(TYPE_GOAL)
     }
 
     data class HabitData(
@@ -111,7 +113,7 @@ class DayGlanceWidgetListFactory(
     override fun onDestroy() { items.clear() }
 
     override fun getCount(): Int = items.size.coerceAtLeast(1)
-    override fun getViewTypeCount(): Int = 7
+    override fun getViewTypeCount(): Int = 8
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = false
     override fun getLoadingView(): RemoteViews? = null
@@ -139,6 +141,18 @@ class DayGlanceWidgetListFactory(
                 )
             }
             if (habits.isNotEmpty()) items += AgendaItem.Habits(habits)
+        }
+
+        // 1.5 Goals due today — compact rows below habits, above overdue
+        val goalsArray = snapshot.optJSONArray("goals")
+        if (goalsArray != null && goalsArray.length() > 0) {
+            for (i in 0 until goalsArray.length()) {
+                val g = goalsArray.optJSONObject(i) ?: continue
+                items += AgendaItem.Goal(
+                    title = g.optString("title", "Untitled"),
+                    progressPct = g.optInt("progressPct", 0).coerceIn(0, 100),
+                )
+            }
         }
 
         // 2. OVERDUE section — prior-day tasks only (no time, no badge — section header is enough)
@@ -397,6 +411,7 @@ class DayGlanceWidgetListFactory(
         is AgendaItem.FrameHeader -> buildFrameHeaderView(item)
         is AgendaItem.RoutineGroup -> buildRoutineGroupView(item)
         is AgendaItem.GlanceAhead -> buildGlanceAheadView(item)
+        is AgendaItem.Goal -> buildGoalView(item)
         AgendaItem.Empty -> buildEmptyView()
     }
 
@@ -425,6 +440,15 @@ class DayGlanceWidgetListFactory(
             }
         }
         rv.setOnClickFillInIntent(R.id.habits_item_root, android.content.Intent())
+        return rv
+    }
+
+    private fun buildGoalView(item: AgendaItem.Goal): RemoteViews {
+        val rv = RemoteViews(context.packageName, R.layout.widget_item_goal)
+        rv.setTextViewText(R.id.tv_goal_title, item.title)
+        rv.setProgressBar(R.id.pb_goal_progress, 100, item.progressPct, false)
+        rv.setTextViewText(R.id.tv_goal_pct, "${item.progressPct}%")
+        rv.setOnClickFillInIntent(R.id.goal_item_root, android.content.Intent())
         return rv
     }
 

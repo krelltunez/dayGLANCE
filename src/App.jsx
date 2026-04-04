@@ -13,6 +13,7 @@ import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_I
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
+import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
 import { FRAME_COLORS, DAY_LABELS } from './constants/frames.js';
 import { getOccurrencesInRange, getRecurrencePresets } from './utils/recurrenceEngine.js';
@@ -5770,6 +5771,17 @@ const DayPlanner = () => {
       isAllDay: !r.startTime || r.isAllDay || false,
     }));
 
+    // ── Goals due today ───────────────────────────────────────────────────
+    const allTasksCombinedW = [...tasks, ...unscheduledTasks];
+    const goalItems = goalsProjectsEnabled
+      ? goals
+          .filter(g => g.status === 'active' && g.targetDate === todayStr)
+          .map(g => {
+            const progressPct = Math.round(calculateGoalProgress(g.id, projects, allTasksCombinedW) * 100);
+            return { id: g.id, title: g.title, progressPct };
+          })
+      : [];
+
     // ── Steps (from HealthConnect cache if available) ─────────────────────
     let steps = -1;
     try {
@@ -5817,6 +5829,7 @@ const DayPlanner = () => {
       overdue: overdueItems,
       overdueToday: overdueTodayItems,
       habits: habitItems,
+      goals: goalItems,
       allDay: allDayItems,
       deadlines: deadlineItems,
       sections,
@@ -5839,6 +5852,7 @@ const DayPlanner = () => {
     glanceAhead,
     currentTime,
     projects,
+    goals,
     goalsProjectsEnabled,
   ]);
 
