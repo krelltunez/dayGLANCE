@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const DesktopHeader = () => {
   const {
@@ -16,26 +18,28 @@ const DesktopHeader = () => {
     setShowSettings,
     updateInfo,
     setShowHelpModal,
+    weather, weatherTempUnit, weatherEnabled,
+    dailyContent, contentRotation, dailyContentEnabled,
+    cardBg, borderClass, textPrimary, textSecondary, hoverBg, colors,
+    changeDate, goToToday, goToDate, changeViewedMonth,
+    getDateIndicators, getMonthDays,
+    weekStartDay,
+  } = useDayPlannerCtx();
+  const {
     calSyncStatus, calSyncLastSynced, calSyncConfigured,
     isSyncing,
     setShowBackupMenu,
     cloudSyncConfig, cloudSyncStatus, cloudSyncLastSynced,
     obsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced,
-    setShowRemindersSettings,
-    activeReminders,
-    weather, weatherTempUnit,
-    dailyContent, contentRotation,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg, colors,
-    changeDate, goToToday, goToDate, changeViewedMonth,
     cloudSyncUpload, syncAll, performObsidianSync,
-    getDateIndicators, getMonthDays,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
+  const { setShowRemindersSettings, activeReminders } = useFeaturesCtx();
 
   return (
       <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between relative`} style={{ height: '80px' }}>
         {/* Left: Weather + Daily Content */}
         <div className="flex items-center gap-4 min-w-0">
-          {weather && (
+          {weather && weatherEnabled && (
             <>
               {/* Current weather */}
               <div className={`flex items-center gap-2 px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg flex-shrink-0`}>
@@ -65,7 +69,7 @@ const DesktopHeader = () => {
           )}
 
           {/* Rotating Daily Content - 1 item at a time (3-col only to avoid header overlap) */}
-          {visibleDays >= 3 && (() => {
+          {dailyContentEnabled && visibleDays >= 3 && (() => {
             const contentItems = [
               { key: 'dadJoke', icon: '😄', label: 'Dad Joke', content: dailyContent.dadJoke },
               { key: 'funFact', icon: '💡', label: 'Fun Fact', content: dailyContent.funFact },
@@ -125,7 +129,7 @@ const DesktopHeader = () => {
                   </button>
                 </div>
                 <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                  {(() => { const d = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map(day => (
                     <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
                   ))}
                 </div>

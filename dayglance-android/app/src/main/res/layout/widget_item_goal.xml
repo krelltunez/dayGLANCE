@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget list item: a goal due today.
+
+  Structure:
+    [amber bar 3dp] [title — flex] [ProgressBar — 56dp] [X% label]
+
+  One row, same height as a short task row.
+  The amber bar signals "due today" without needing a text badge.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/goal_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="5dp"
+    android:paddingBottom="5dp"
+    android:paddingStart="0dp"
+    android:paddingEnd="0dp">
+
+    <!-- Amber color bar — same width/style as task_color_bar -->
+    <View
+        android:id="@+id/goal_color_bar"
+        android:layout_width="3dp"
+        android:layout_height="28dp"
+        android:background="#f59e0b"
+        android:layout_marginEnd="7dp" />
+
+    <!-- Goal title -->
+    <TextView
+        android:id="@+id/tv_goal_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Goal title"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="13sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Thin horizontal progress bar -->
+    <ProgressBar
+        android:id="@+id/pb_goal_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="56dp"
+        android:layout_height="4dp"
+        android:max="100"
+        android:progress="0"
+        android:layout_marginEnd="6dp" />
+
+    <!-- Percentage label -->
+    <TextView
+        android:id="@+id/tv_goal_pct"
+        android:layout_width="30dp"
+        android:layout_height="wrap_content"
+        android:text="0%"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="11sp"
+        android:gravity="end" />
+
+</LinearLayout>

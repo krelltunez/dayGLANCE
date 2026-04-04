@@ -1,15 +1,15 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const ReminderToasts = () => {
+  const { cardBg, borderClass, textPrimary, textSecondary, darkMode, toggleComplete } = useDayPlannerCtx();
   const {
     activeReminders,
     showWeeklyReviewReminder, showWeeklyReview,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode,
     dismissReminder, snoozeReminder, dismissAllReminders,
-    toggleComplete,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   if (activeReminders.length === 0) return null;
 

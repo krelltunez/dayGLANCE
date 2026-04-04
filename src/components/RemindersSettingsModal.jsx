@@ -1,21 +1,21 @@
 import React from 'react';
 import { Bell, BarChart3 } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
 
 const RemindersSettingsModal = () => {
+  const {
+    darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    isTablet, use24HourClock, formatTime,
+  } = useDayPlannerCtx();
   const {
     showRemindersSettings, setShowRemindersSettings,
     showMorningTimePicker, setShowMorningTimePicker,
     showWeeklyReviewTimePicker, setShowWeeklyReviewTimePicker,
     reminderSettings, setReminderSettings,
     applyReminderPreset, updateCategoryReminder,
-    darkMode,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-    isTablet,
-    use24HourClock,
-    formatTime,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   return (
     <>

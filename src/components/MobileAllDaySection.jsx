@@ -1,10 +1,9 @@
 import React from 'react';
 import {
   AlertCircle, BookOpen, Calendar, Check, CheckSquare,
-  ExternalLink, FileText, GripVertical, Inbox, NotebookPen,
+  ExternalLink, FileText, GripVertical, Inbox,
   RefreshCw, Settings, SkipForward, Trash2,
 } from 'lucide-react';
-import { isNativeAndroid } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
@@ -55,7 +54,7 @@ const MobileAllDaySection = () => {
             return order(a) - order(b);
           });
           const dateStr = dateToString(date);
-          const deadlineTasks = getDeadlineTasksForDate(dateStr).filter(t => !t.isExample);
+          const deadlineTasks = getDeadlineTasksForDate(dateStr).filter(t => !t.isExample && (!projectFilter || t.projectId === projectFilter));
           return (
             <React.Fragment key={dateStr}>
               {dayTasks.map((task) => {
@@ -131,9 +130,6 @@ const MobileAllDaySection = () => {
                       <span className={`truncate flex-1 ${task.isTaskCalendar ? 'font-bold' : 'font-medium'} ${task.completed && !isImported ? 'line-through' : ''}`}>
                         {renderTitle(task.title)}
                       </span>
-                      {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                        <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                      ))}
                       {!isImported && (
                         <>
                           {typeof task.id === 'string' && task.id.startsWith('recurring-') && (
@@ -179,12 +175,14 @@ const MobileAllDaySection = () => {
                           >
                             {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                           </button>
+                          {task.recurrenceType !== 'daily' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
                             className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
                           >
                             <SkipForward size={14} />
                           </button>
+                          )}
                         </>
                       )}
                       {isImported && !task.isTaskCalendar && task.notes && (
@@ -274,9 +272,6 @@ const MobileAllDaySection = () => {
                     </button>
                     <AlertCircle size={14} className="flex-shrink-0" />
                     <span className={`truncate flex-1 font-medium ${task.completed ? 'line-through' : ''}`}>{renderTitle(task.title)}</span>
-                    {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                      <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                    ))}
                     <button
                       onMouseDown={() => {
                         if (isLinkOnlyTask(task)) {

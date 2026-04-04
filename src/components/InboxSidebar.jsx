@@ -11,6 +11,8 @@ import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import InboxFilterPopover from './InboxFilterPopover.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const InboxSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -27,17 +29,8 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     suggestions,
     selectedSuggestionIndex,
     suggestionContext,
-    aiConfig,
-    gtdFrames,
-    showFramesModal, setShowFramesModal,
-    framesModalTab, setFramesModalTab,
-    editingFrame, setEditingFrame,
-    goalsProjectsEnabled,
-    projects,
-    projectFilter, setProjectFilter,
     pendingPriorities,
     filteredUnscheduledTasks,
-    aiSubtasksLoadingForTask,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     playUISound,
     toggleComplete,
@@ -49,15 +42,25 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     archiveInboxTask,
     openMobileEditTask,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
-    generateAISubtasks,
-    loadWikiNote, saveWikiNote,
     handleDragStart, handleDragEnd,
     handleDragOverInbox, handleDropOnInbox,
     dragOverInbox, setDragOverInbox,
-    hideCompletedInbox, hideStandaloneTasksInbox, hideProjectTasksInbox,
+    hideCompletedInbox, setHideCompletedInbox,
+    hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
+    hideProjectTasksInbox, setHideProjectTasksInbox,
     inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
   } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
+  const {
+    aiConfig,
+    gtdFrames,
+    showFramesModal, setShowFramesModal,
+    framesModalTab, setFramesModalTab,
+    editingFrame, setEditingFrame,
+    goalsProjectsEnabled, projects, projectFilter, setProjectFilter,
+    aiSubtasksLoadingForTask, generateAISubtasks,
+  } = useFeaturesCtx();
 
   const [showInboxFilter, setShowInboxFilter] = useState(false);
   const inboxFilterBtnRef = useRef(null);
@@ -246,6 +249,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                             const active = projectFilter === task.projectId;
                             setProjectFilter(active ? null : task.projectId);
                             setInboxProjectFilter(active ? [] : [task.projectId]);
+                            if (!active) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); }
                           }}
                           className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                           title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
@@ -286,7 +290,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                         setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                       }
                     }}
-                    className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                    className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                     title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                   >
                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
@@ -359,9 +363,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                 aiConfig={aiConfig}
                 aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                 onGenerateSubtasks={generateAISubtasks}
-                wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
-                onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
-                onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
+                wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
               />
             )}
           </div>
@@ -573,7 +577,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                           setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                         }
                       }}
-                      className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                      className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                     >
                       {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                     </button>

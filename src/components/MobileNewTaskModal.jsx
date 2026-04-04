@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, Check, Loader, Sparkles, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 
@@ -16,15 +17,14 @@ const MobileNewTaskModal = () => {
     selectedDate,
     cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg, colors,
     durationOptions, formatTime,
-    aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading,
     showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker,
     showRecurrencePicker, setShowRecurrencePicker,
     setShowDatePicker, setShowTimePicker, setShowRecurrenceEndDatePicker,
     addTask, saveMobileEditTask, saveMobileEditNativeEvent,
     moveToRecycleBin, clearNativeEventOverride,
     handleNewTaskInputChange,
-    goals, projects, goalsProjectsEnabled,
   } = useDayPlannerCtx();
+  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, goals, projects, goalsProjectsEnabled } = useFeaturesCtx();
 
   return (
     <>
@@ -235,14 +235,20 @@ const MobileNewTaskModal = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
-                    <button
-                      type="button"
-                      onClick={() => !newTask.keepUnscheduled && setShowDatePicker(true)}
-                      disabled={newTask.keepUnscheduled}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
-                    </button>
+                    {(() => {
+                      const isRecurringEdit = mobileEditingTask && typeof mobileEditingTask.id === 'string' && mobileEditingTask.id.startsWith('recurring-');
+                      const dateDisabled = newTask.keepUnscheduled || (isRecurringEdit && (mobileEditingTask.recurrenceType === 'daily' || newTask.recurrence?.type === 'daily'));
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => !dateDisabled && setShowDatePicker(true)}
+                          disabled={dateDisabled}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${dateDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
+                        </button>
+                      );
+                    })()}
                   </div>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>

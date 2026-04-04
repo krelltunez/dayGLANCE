@@ -22,7 +22,7 @@ export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
     if (count >= maxOcc) return false;
     if (endDate && d > endDate) return false;
     const ds = dateToString(d);
-    if (template.exceptions && template.exceptions[ds]?.deleted) { count++; return true; }
+    if (template.exceptions && (template.exceptions[ds]?.deleted || template.exceptions[ds]?.skipped)) { count++; return true; }
     if (d >= rangeStart && d <= rangeEnd) results.push(ds);
     count++;
     return true;

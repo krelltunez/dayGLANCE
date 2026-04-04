@@ -13,6 +13,7 @@ import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_I
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
+import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
 import { FRAME_COLORS, DAY_LABELS } from './constants/frames.js';
 import { getOccurrencesInRange, getRecurrencePresets } from './utils/recurrenceEngine.js';
@@ -89,6 +90,8 @@ import useModalClose from './hooks/useModalClose.js';
 import useMobileInteractions from './hooks/useMobileInteractions.js';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts.js';
 import { DayPlannerContext } from './context/DayPlannerContext.jsx';
+import { SyncContext } from './context/SyncContext.jsx';
+import { FeaturesContext } from './context/FeaturesContext.jsx';
 import FrameNudgeCard from './components/FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './components/DeadlinePickerPopover.jsx';
 import DatePicker from './components/DatePicker.jsx';
@@ -265,7 +268,22 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
     return saved !== null ? JSON.parse(saved) : false;
   });
+  const [weekStartDay, setWeekStartDay] = useState(() => {
+    const saved = localStorage.getItem('day-planner-week-start-day');
+    return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
+  });
+  useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
+  const [weatherEnabled, setWeatherEnabled] = useState(() => {
+    const saved = localStorage.getItem('day-planner-weather-enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [dailyContentEnabled, setDailyContentEnabled] = useState(() => {
+    const saved = localStorage.getItem('day-planner-daily-content-enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-weather-enabled', JSON.stringify(weatherEnabled)); }, [weatherEnabled]);
+  useEffect(() => { localStorage.setItem('day-planner-daily-content-enabled', JSON.stringify(dailyContentEnabled)); }, [dailyContentEnabled]);
   const [syncUrl, setSyncUrl] = useState('');
   const [showCalendarUrlHint, setShowCalendarUrlHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -903,6 +921,14 @@ const DayPlanner = () => {
   }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId]);
 
 
+  // Close habit day popup on ESC
+  useEffect(() => {
+    if (!habitDayPopup) return;
+    const handleKeyDown = (e) => { if (e.key === 'Escape') { e.preventDefault(); setHabitDayPopup(null); } };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [habitDayPopup]);
+
   // Close notes panel on ESC
   useEffect(() => {
     if (!expandedNotesTaskId) return;
@@ -1532,6 +1558,7 @@ const DayPlanner = () => {
           date: dateStr,
           isRecurring: true,
           recurringTemplateId: template.id,
+          recurrenceType: template.recurrence?.type,
           _overdueType: 'scheduled',
         });
       }
@@ -2136,15 +2163,15 @@ const DayPlanner = () => {
     
     // First day of the month
     const firstDay = new Date(year, month, 1);
-    const firstDayOfWeek = firstDay.getDay(); // 0 = Sunday
-    
+    const firstDayOfWeek = (firstDay.getDay() - weekStartDay + 7) % 7;
+
     // Last day of the month
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    
+
     // Generate array of days
     const days = [];
-    
+
     // Add empty slots for days before month starts
     for (let i = 0; i < firstDayOfWeek; i++) {
       days.push(null);
@@ -2382,28 +2409,57 @@ const DayPlanner = () => {
           recordDeletedTaskTombstone(parsed.templateId);
           setRecurringTasks(prev => prev.filter(t => t.id !== parsed.templateId));
         } else {
-          setRecurringTasks(prev => prev.map(t => {
-            if (t.id === parsed.templateId) {
-              const updated = {
+          const dateChanged = newTask.date && newTask.date !== parsed.dateStr;
+          const isDaily = newTask.recurrence?.type === 'daily';
+          if (dateChanged && !isDaily) {
+            // Date changed for a non-daily recurring instance:
+            // skip the original occurrence and create a one-off task on the new date
+            setRecurringTasks(prev => prev.map(t => {
+              if (t.id !== parsed.templateId) return t;
+              return {
                 ...t,
                 exceptions: {
                   ...t.exceptions,
-                  [parsed.dateStr]: {
-                    ...(t.exceptions?.[parsed.dateStr] || {}),
-                    title: cleanTitle(newTask.title),
-                    startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-                    duration: newTask.duration,
-                    isAllDay: newTask.isAllDay || false,
-                    color: newTask.color || colors[0].class,
-                  }
+                  [parsed.dateStr]: { ...(t.exceptions?.[parsed.dateStr] || {}), skipped: true },
                 }
               };
-              // Update recurrence pattern on template if changed
-              updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
-              return updated;
-            }
-            return t;
-          }));
+            }));
+            setTasks(prev => [...prev, {
+              id: crypto.randomUUID(),
+              title: cleanTitle(newTask.title),
+              startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+              duration: newTask.duration,
+              color: newTask.color || colors[0].class,
+              isAllDay: newTask.isAllDay || false,
+              date: newTask.date,
+              completed: false,
+              notes: '',
+              subtasks: [],
+            }]);
+          } else {
+            setRecurringTasks(prev => prev.map(t => {
+              if (t.id === parsed.templateId) {
+                const updated = {
+                  ...t,
+                  exceptions: {
+                    ...t.exceptions,
+                    [parsed.dateStr]: {
+                      ...(t.exceptions?.[parsed.dateStr] || {}),
+                      title: cleanTitle(newTask.title),
+                      startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+                      duration: newTask.duration,
+                      isAllDay: newTask.isAllDay || false,
+                      color: newTask.color || colors[0].class,
+                    }
+                  }
+                };
+                // Update recurrence pattern on template if changed
+                updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
+                return updated;
+              }
+              return t;
+            }));
+          }
         }
       }
     } else if (newTask.recurrence) {
@@ -4895,6 +4951,7 @@ const DayPlanner = () => {
           date: dateStr,
           isRecurring: true,
           recurringTemplateId: template.id,
+          recurrenceType: template.recurrence?.type,
           ...(template.isExample ? { isExample: true } : {}),
         });
       }
@@ -5745,6 +5802,17 @@ const DayPlanner = () => {
       isAllDay: !r.startTime || r.isAllDay || false,
     }));
 
+    // ── Goals due today ───────────────────────────────────────────────────
+    const allTasksCombinedW = [...tasks, ...unscheduledTasks];
+    const goalItems = goalsProjectsEnabled
+      ? goals
+          .filter(g => g.status === 'active' && g.targetDate === todayStr)
+          .map(g => {
+            const progressPct = Math.round(calculateGoalProgress(g.id, projects, allTasksCombinedW) * 100);
+            return { id: g.id, title: g.title, progressPct };
+          })
+      : [];
+
     // ── Steps (from HealthConnect cache if available) ─────────────────────
     let steps = -1;
     try {
@@ -5792,6 +5860,7 @@ const DayPlanner = () => {
       overdue: overdueItems,
       overdueToday: overdueTodayItems,
       habits: habitItems,
+      goals: goalItems,
       allDay: allDayItems,
       deadlines: deadlineItems,
       sections,
@@ -5814,6 +5883,7 @@ const DayPlanner = () => {
     glanceAhead,
     currentTime,
     projects,
+    goals,
     goalsProjectsEnabled,
   ]);
 
@@ -6332,6 +6402,7 @@ const DayPlanner = () => {
 
     // ── Settings / preferences ────────────────────────────────────────────────
     use24HourClock, setUse24HourClock,
+    weekStartDay, setWeekStartDay,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
     collapsedSettings, setCollapsedSettings,
@@ -6380,187 +6451,11 @@ const DayPlanner = () => {
     showShortcutHelp, setShowShortcutHelp,
     showHelpModal, setShowHelpModal,
 
-    // ── AI task suggestions ───────────────────────────────────────────────────
-    taskAISuggestion, setTaskAISuggestion,
-    taskAISuggestionLoading, setTaskAISuggestionLoading,
-    aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask,
-
     // ── Autocomplete suggestions ──────────────────────────────────────────────
     suggestions, setSuggestions,
     selectedSuggestionIndex, setSelectedSuggestionIndex,
     showSuggestions, setShowSuggestions,
     suggestionContext, setSuggestionContext,
-
-    // ── Calendar sync ─────────────────────────────────────────────────────────
-    syncUrl, setSyncUrl,
-    taskCalendarUrl, setTaskCalendarUrl,
-    taskCalendarAuth, setTaskCalendarAuth,
-    syncRetentionDays, setSyncRetentionDays,
-    calSyncStatus, setCalSyncStatus,
-    calSyncLastSynced, setCalSyncLastSynced,
-    calSyncConfigured,
-    showCalendarUrlHint, setShowCalendarUrlHint,
-    availableCalendars, setAvailableCalendars,
-    calendarFilter, setCalendarFilter,
-    calendarUrlAuth, setCalendarUrlAuth,
-    isSyncing, setIsSyncing,
-    syncNotification, setSyncNotification,
-    pendingImportFile, setPendingImportFile,
-    showImportModal, setShowImportModal,
-    importColor, setImportColor,
-
-    // ── Backup / restore ──────────────────────────────────────────────────────
-    pendingBackupFile, setPendingBackupFile,
-    showRestoreConfirm, setShowRestoreConfirm,
-    showBackupMenu, setShowBackupMenu,
-    showEmptyBinConfirm, setShowEmptyBinConfirm,
-    showMobileRecycleBin, setShowMobileRecycleBin,
-    autoBackupConfig, setAutoBackupConfig,
-    autoBackupStatus, setAutoBackupStatus,
-    showAutoBackupManager, setShowAutoBackupManager,
-    autoBackupManagerTab, setAutoBackupManagerTab,
-    autoBackupHistory, setAutoBackupHistory,
-    autoBackupRestoreConfirm, setAutoBackupRestoreConfirm,
-    showStorageBreakdown, setShowStorageBreakdown,
-
-    // ── Cloud sync ────────────────────────────────────────────────────────────
-    cloudSyncConfig, setCloudSyncConfig,
-    cloudSyncStatus, setCloudSyncStatus,
-    cloudSyncError, setCloudSyncError,
-    cloudSyncLastSynced, setCloudSyncLastSynced,
-    cloudSyncConflict, setCloudSyncConflict,
-
-    // ── Obsidian ──────────────────────────────────────────────────────────────
-    obsidianConfig, setObsidianConfig,
-    obsidianSyncStatus, setObsidianSyncStatus,
-    obsidianSyncError, setObsidianSyncError,
-    obsidianLastSynced, setObsidianLastSynced,
-
-    // ── TRMNL ─────────────────────────────────────────────────────────────────
-    trmnlConfig, setTrmnlConfig,
-    trmnlSyncStatus, setTrmnlSyncStatus,
-    trmnlLastSynced, setTrmnlLastSynced,
-
-    // ── Routines ──────────────────────────────────────────────────────────────
-    routineDefinitions, setRoutineDefinitions,
-    todayRoutines, setTodayRoutines,
-    routinesDate, setRoutinesDate,
-    removedTodayRoutineIds, setRemovedTodayRoutineIds,
-    showRoutinesDashboard, setShowRoutinesDashboard,
-    dashboardSelectedChips, setDashboardSelectedChips,
-    routineAddingToBucket, setRoutineAddingToBucket,
-    routineNewChipName, setRoutineNewChipName,
-    routineTimePickerChipId, setRoutineTimePickerChipId,
-    routineDeleteConfirm, setRoutineDeleteConfirm,
-    routineFocusedChipId, setRoutineFocusedChipId,
-    routineDurationEditId, setRoutineDurationEditId,
-    routinesEnabled, setRoutinesEnabled,
-
-    // ── Habits ────────────────────────────────────────────────────────────────
-    habits, setHabits,
-    habitLogs, setHabitLogs,
-    habitsEnabled, setHabitsEnabled,
-    showHabitModal, setShowHabitModal,
-    editingHabit, setEditingHabit,
-    draggedHabitIdx, setDraggedHabitIdx,
-    habitOverflowOpen, setHabitOverflowOpen,
-    habitLongPressId, setHabitLongPressId,
-    habitEditingCountId, setHabitEditingCountId,
-    habitDayPopup, setHabitDayPopup,
-    activeHabits, habitStreaks,
-
-    // ── Focus mode ────────────────────────────────────────────────────────────
-    showFocusMode, setShowFocusMode,
-    focusPhase, setFocusPhase,
-    focusTimerSeconds, setFocusTimerSeconds,
-    focusCycleCount, setFocusCycleCount,
-    focusSessionStart, setFocusSessionStart,
-    focusWorkMinutes, setFocusWorkMinutes,
-    focusBreakMinutes, setFocusBreakMinutes,
-    focusLongBreakMinutes, setFocusLongBreakMinutes,
-    focusCompletedTasks, setFocusCompletedTasks,
-    focusShowStats, setFocusShowStats,
-    focusShowSettings, setFocusShowSettings,
-    focusTimerRunning, setFocusTimerRunning,
-    focusTaskMinutes, setFocusTaskMinutes,
-    focusBlockTasks, setFocusBlockTasks,
-    focusLog, setFocusLog,
-    focusLogModalDate, setFocusLogModalDate,
-    wakeLockSentinel, focusModeAvailable,
-
-    // ── AI / Voice ────────────────────────────────────────────────────────────
-    aiConfig, setAiConfig,
-    aiConnectionStatus, setAiConnectionStatus,
-    aiConnectionMessage, setAiConnectionMessage,
-    aiOllamaHelp, setAiOllamaHelp,
-    showVoiceInput, setShowVoiceInput,
-    voiceIsRecording, setVoiceIsRecording,
-    voiceIsTranscribing, setVoiceIsTranscribing,
-    voiceTranscript, setVoiceTranscript,
-    voiceParsedTasks, setVoiceParsedTasks,
-    voiceTaskTimePickerIdx, setVoiceTaskTimePickerIdx,
-    voiceParsedEdits, setVoiceParsedEdits,
-    voiceIsParsing, setVoiceIsParsing,
-    voiceParseError, setVoiceParseError,
-    voiceEditingParsed, setVoiceEditingParsed,
-    voiceManualMode, setVoiceManualMode,
-    voiceMicError, setVoiceMicError,
-    voiceCanRecord,
-
-    // ── Weekly review / AI summaries ──────────────────────────────────────────
-    showWeeklyReview, setShowWeeklyReview,
-    showWeeklyReviewTimePicker, setShowWeeklyReviewTimePicker,
-    showWeeklyReviewReminder, setShowWeeklyReviewReminder,
-    showMorningTimePicker, setShowMorningTimePicker,
-    morningGlanceText, setMorningGlanceText,
-    morningGlanceLoading, setMorningGlanceLoading,
-    morningGlanceDismissed, setMorningGlanceDismissed,
-    morningGlanceError, setMorningGlanceError,
-    eveningGlanceText, setEveningGlanceText,
-    eveningGlanceLoading, setEveningGlanceLoading,
-    eveningGlanceDismissed, setEveningGlanceDismissed,
-    eveningGlanceError, setEveningGlanceError,
-    weeklyAISummary, setWeeklyAISummary,
-    weeklyAILoading, setWeeklyAILoading,
-    weeklyAIError, setWeeklyAIError,
-
-    // ── GTD Frames ────────────────────────────────────────────────────────────
-    gtdFrames, setGtdFrames,
-    showFramesModal, setShowFramesModal,
-    framesModalTab, setFramesModalTab,
-    editingFrame, setEditingFrame,
-    smartScheduleResults, setSmartScheduleResults,
-    smartScheduleLoading, setSmartScheduleLoading,
-    smartScheduleError, setSmartScheduleError,
-    smartScheduleAccepted, setSmartScheduleAccepted,
-    showRescheduleModal, setShowRescheduleModal,
-    rescheduleResults, setRescheduleResults,
-    rescheduleLoading, setRescheduleLoading,
-    rescheduleError, setRescheduleError,
-    rescheduleAccepted, setRescheduleAccepted,
-    frameContextMenu, setFrameContextMenu,
-    quickAddFrameModal, setQuickAddFrameModal,
-    frameAdjustModal, setFrameAdjustModal,
-    frameAdjustTimeField, setFrameAdjustTimeField,
-    frameScheduleModal, setFrameScheduleModal,
-    frameNudgeSuggestion, setFrameNudgeSuggestion,
-    frameNudgeLoading, setFrameNudgeLoading,
-    frameNudgeError, setFrameNudgeError,
-    frameNudgeDismissedKey, setFrameNudgeDismissedKey,
-
-    // ── Goals & Projects ──────────────────────────────────────────────────────
-    goals, setGoals,
-    projects, setProjects,
-    showGoalsDashboard, setShowGoalsDashboard,
-    goalsProjectsEnabled, setGoalsProjectsEnabled,
-    addGoal, updateGoal, deleteGoal,
-    addProject, updateProject, deleteProject, moveProject,
-    projectFilter, setProjectFilter,
-
-    // ── Reminders ─────────────────────────────────────────────────────────────
-    reminderSettings, setReminderSettings,
-    showRemindersSettings, setShowRemindersSettings,
-    activeReminders, setActiveReminders,
 
     // ── Spotlight ─────────────────────────────────────────────────────────────
     showSpotlight, setShowSpotlight,
@@ -6577,10 +6472,12 @@ const DayPlanner = () => {
     weather, setWeather,
     weatherZip, setWeatherZip,
     weatherTempUnit, setWeatherTempUnit,
+    weatherEnabled, setWeatherEnabled,
 
     // ── Daily content (quotes / tips) ─────────────────────────────────────────
     dailyContent, setDailyContent,
     contentRotation, setContentRotation,
+    dailyContentEnabled, setDailyContentEnabled,
 
     // ── Onboarding / welcome ──────────────────────────────────────────────────
     showWelcome, setShowWelcome,
@@ -6680,59 +6577,6 @@ const DayPlanner = () => {
     recordDeletedTaskTombstone, parseRecurringId,
     expandMultiDayEvent,
 
-    // ── Functions – routines ──────────────────────────────────────────────────
-    openRoutinesDashboard, addRoutineChip, deleteRoutineChip,
-    toggleRoutineChipSelection, handleRoutinesDone,
-
-    // ── Functions – habits ────────────────────────────────────────────────────
-    getTodayHabitCount, incrementHabit, setHabitCount,
-    addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
-    addStepsHabit, addSleepHabit,
-
-    // ── Functions – focus mode ────────────────────────────────────────────────
-    enterFocusMode, enterProjectFocusMode, exitFocusMode, startFocusTimer, dismissFocusStats,
-    focusProjectId,
-    handleFocusTimerEnd,
-    focusCompleteTask, focusToggleSubtask, focusAddSubtask,
-    focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,
-    computeFocusBlockTasks,
-
-    // ── Functions – GTD / AI ──────────────────────────────────────────────────
-    saveFrame, deleteFrame, skipFrameForDay,
-    openFrameAdjust, openFrameSchedule, saveFrameAdjust,
-    getFrameInstancesForDate,
-    runSmartSchedule, applySmartSchedule,
-    runReschedule, applyReschedule,
-    computeAvailableSlots,
-    generateFrameNudge, generateMorningSummary, generateEveningReflection,
-    generateWeeklyAISummary, generateAISubtasks,
-    dismissMorningGlance, dismissEveningGlance,
-    voiceParseWithAI, voiceStartRecording, voiceStopRecording, voiceApplyAllChanges,
-    voiceHasTranscription,
-    buildTaskContextForAI, resolveTaskMatch,
-
-    // ── Functions – reminders ─────────────────────────────────────────────────
-    applyReminderPreset, updateCategoryReminder,
-    snoozeReminder, dismissReminder, dismissAllReminders,
-
-    // ── Functions – calendar sync ─────────────────────────────────────────────
-    syncWithCalendar, syncTaskCalendar, syncTaskCompletionToCalDAV,
-    nativeEventToTask, clearNativeEventOverride, parseDatetime, parseICS, filterByDateWindow,
-
-    // ── Functions – data persistence ──────────────────────────────────────────
-    loadData, saveData, applyRemoteData,
-    cloudSyncDownload, cloudSyncUpload, cloudSyncTest, syncAll,
-    performObsidianSync, loadWikiNote, saveWikiNote,
-    performTrmnlSync,
-    performLocalBackup, performRemoteBackup,
-    buildAutoBackupPayload, loadAutoBackupHistory,
-    deleteLocalAutoBackup, deleteRemoteAutoBackup,
-    restoreFromAutoBackup, restoreFromRemoteBackup,
-    exportBackup, restoreBackup,
-    handleFileUpload, handleBackupFileSelect, processImportFile,
-    buildSyncPayload,
-    fetchAllDailyContent, fetchWeather,
-
     // ── Functions – timeline / layout helpers ──────────────────────────────────
     getHourHeight, minutesToPosition, positionToMinutes, durationToHeight,
     calculateTaskPosition, getTimeFromCursorPosition,
@@ -6771,8 +6615,259 @@ const DayPlanner = () => {
     confirmEmptyBin, emptyRecycleBin,
   };
 
+  const syncCtx = {
+    // ── Calendar sync ─────────────────────────────────────────────────────────
+    syncUrl, setSyncUrl,
+    taskCalendarUrl, setTaskCalendarUrl,
+    taskCalendarAuth, setTaskCalendarAuth,
+    syncRetentionDays, setSyncRetentionDays,
+    calSyncStatus, setCalSyncStatus,
+    calSyncLastSynced, setCalSyncLastSynced,
+    calSyncConfigured,
+    showCalendarUrlHint, setShowCalendarUrlHint,
+    availableCalendars, setAvailableCalendars,
+    calendarFilter, setCalendarFilter,
+    calendarUrlAuth, setCalendarUrlAuth,
+    isSyncing, setIsSyncing,
+    syncNotification, setSyncNotification,
+    pendingImportFile, setPendingImportFile,
+    showImportModal, setShowImportModal,
+    importColor, setImportColor,
+
+    // ── Backup / restore ──────────────────────────────────────────────────────
+    pendingBackupFile, setPendingBackupFile,
+    showRestoreConfirm, setShowRestoreConfirm,
+    showBackupMenu, setShowBackupMenu,
+    showEmptyBinConfirm, setShowEmptyBinConfirm,
+    showMobileRecycleBin, setShowMobileRecycleBin,
+    autoBackupConfig, setAutoBackupConfig,
+    autoBackupStatus, setAutoBackupStatus,
+    showAutoBackupManager, setShowAutoBackupManager,
+    autoBackupManagerTab, setAutoBackupManagerTab,
+    autoBackupHistory, setAutoBackupHistory,
+    autoBackupRestoreConfirm, setAutoBackupRestoreConfirm,
+    showStorageBreakdown, setShowStorageBreakdown,
+
+    // ── Cloud sync ────────────────────────────────────────────────────────────
+    cloudSyncConfig, setCloudSyncConfig,
+    cloudSyncStatus, setCloudSyncStatus,
+    cloudSyncError, setCloudSyncError,
+    cloudSyncLastSynced, setCloudSyncLastSynced,
+    cloudSyncConflict, setCloudSyncConflict,
+
+    // ── Obsidian ──────────────────────────────────────────────────────────────
+    obsidianConfig, setObsidianConfig,
+    obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncError, setObsidianSyncError,
+    obsidianLastSynced, setObsidianLastSynced,
+
+    // ── TRMNL ─────────────────────────────────────────────────────────────────
+    trmnlConfig, setTrmnlConfig,
+    trmnlSyncStatus, setTrmnlSyncStatus,
+    trmnlLastSynced, setTrmnlLastSynced,
+
+    // ── Refs ──────────────────────────────────────────────────────────────────
+    autoBackupInProgressRef, syncAllRef,
+    cloudSyncDebounceRef, suppressCloudUploadRef, suppressTimestampRef,
+    suppressClearPendingRef, cloudSyncInProgressRef, cloudSyncInitialDoneRef,
+    cloudSyncDownloadRef, cloudSyncErrorCountRef, cloudSyncBackoffUntilRef,
+    obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
+    obsidianTasksRef, obsidianInboxRef,
+    trmnlSyncTimerRef, trmnlLastPushRef, trmnlBackoffUntilRef, trmnlBackoffCountRef,
+    trmnlSyncInProgressRef, performTrmnlSyncRef,
+
+    // ── Functions – calendar sync ─────────────────────────────────────────────
+    syncWithCalendar, syncTaskCalendar, syncTaskCompletionToCalDAV,
+    nativeEventToTask, clearNativeEventOverride,
+    parseDatetime, parseICS, filterByDateWindow,
+
+    // ── Functions – data persistence ──────────────────────────────────────────
+    loadData, saveData, applyRemoteData,
+    cloudSyncDownload, cloudSyncUpload, cloudSyncTest, syncAll,
+    performObsidianSync, loadWikiNote, saveWikiNote,
+    performTrmnlSync,
+    performLocalBackup, performRemoteBackup,
+    buildAutoBackupPayload, loadAutoBackupHistory,
+    deleteLocalAutoBackup, deleteRemoteAutoBackup,
+    restoreFromAutoBackup, restoreFromRemoteBackup,
+    exportBackup, restoreBackup,
+    handleFileUpload, handleBackupFileSelect, processImportFile,
+    buildSyncPayload,
+    fetchAllDailyContent, fetchWeather,
+  };
+
+  const featuresCtx = {
+    // ── Routines ──────────────────────────────────────────────────────────────
+    routineDefinitions, setRoutineDefinitions,
+    todayRoutines, setTodayRoutines,
+    routinesDate, setRoutinesDate,
+    removedTodayRoutineIds, setRemovedTodayRoutineIds,
+    showRoutinesDashboard, setShowRoutinesDashboard,
+    dashboardSelectedChips, setDashboardSelectedChips,
+    routineAddingToBucket, setRoutineAddingToBucket,
+    routineNewChipName, setRoutineNewChipName,
+    routineTimePickerChipId, setRoutineTimePickerChipId,
+    routineDeleteConfirm, setRoutineDeleteConfirm,
+    routineFocusedChipId, setRoutineFocusedChipId,
+    routineDurationEditId, setRoutineDurationEditId,
+    routinesEnabled, setRoutinesEnabled,
+
+    // ── Habits ────────────────────────────────────────────────────────────────
+    habits, setHabits,
+    habitLogs, setHabitLogs,
+    habitsEnabled, setHabitsEnabled,
+    showHabitModal, setShowHabitModal,
+    editingHabit, setEditingHabit,
+    draggedHabitIdx, setDraggedHabitIdx,
+    habitOverflowOpen, setHabitOverflowOpen,
+    habitLongPressId, setHabitLongPressId,
+    habitEditingCountId, setHabitEditingCountId,
+    habitDayPopup, setHabitDayPopup,
+    activeHabits, habitStreaks,
+    habitLongPressTimer,
+
+    // ── Focus mode ────────────────────────────────────────────────────────────
+    showFocusMode, setShowFocusMode,
+    focusPhase, setFocusPhase,
+    focusTimerSeconds, setFocusTimerSeconds,
+    focusCycleCount, setFocusCycleCount,
+    focusSessionStart, setFocusSessionStart,
+    focusWorkMinutes, setFocusWorkMinutes,
+    focusBreakMinutes, setFocusBreakMinutes,
+    focusLongBreakMinutes, setFocusLongBreakMinutes,
+    focusCompletedTasks, setFocusCompletedTasks,
+    focusShowStats, setFocusShowStats,
+    focusShowSettings, setFocusShowSettings,
+    focusTimerRunning, setFocusTimerRunning,
+    focusTaskMinutes, setFocusTaskMinutes,
+    focusBlockTasks, setFocusBlockTasks,
+    focusLog, setFocusLog,
+    focusLogModalDate, setFocusLogModalDate,
+    wakeLockSentinel, focusModeAvailable,
+
+    // ── AI / Voice ────────────────────────────────────────────────────────────
+    aiConfig, setAiConfig,
+    aiConnectionStatus, setAiConnectionStatus,
+    aiConnectionMessage, setAiConnectionMessage,
+    aiOllamaHelp, setAiOllamaHelp,
+    showVoiceInput, setShowVoiceInput,
+    voiceIsRecording, setVoiceIsRecording,
+    voiceIsTranscribing, setVoiceIsTranscribing,
+    voiceTranscript, setVoiceTranscript,
+    voiceParsedTasks, setVoiceParsedTasks,
+    voiceTaskTimePickerIdx, setVoiceTaskTimePickerIdx,
+    voiceParsedEdits, setVoiceParsedEdits,
+    voiceIsParsing, setVoiceIsParsing,
+    voiceParseError, setVoiceParseError,
+    voiceEditingParsed, setVoiceEditingParsed,
+    voiceManualMode, setVoiceManualMode,
+    voiceMicError, setVoiceMicError,
+    voiceCanRecord,
+    taskAISuggestion, setTaskAISuggestion,
+    taskAISuggestionLoading, setTaskAISuggestionLoading,
+    aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask,
+
+    // ── Weekly review / AI summaries ──────────────────────────────────────────
+    showWeeklyReview, setShowWeeklyReview,
+    showWeeklyReviewTimePicker, setShowWeeklyReviewTimePicker,
+    showWeeklyReviewReminder, setShowWeeklyReviewReminder,
+    showMorningTimePicker, setShowMorningTimePicker,
+    morningGlanceText, setMorningGlanceText,
+    morningGlanceLoading, setMorningGlanceLoading,
+    morningGlanceDismissed, setMorningGlanceDismissed,
+    morningGlanceError, setMorningGlanceError,
+    eveningGlanceText, setEveningGlanceText,
+    eveningGlanceLoading, setEveningGlanceLoading,
+    eveningGlanceDismissed, setEveningGlanceDismissed,
+    eveningGlanceError, setEveningGlanceError,
+    weeklyAISummary, setWeeklyAISummary,
+    weeklyAILoading, setWeeklyAILoading,
+    weeklyAIError, setWeeklyAIError,
+
+    // ── GTD Frames ────────────────────────────────────────────────────────────
+    gtdFrames, setGtdFrames,
+    showFramesModal, setShowFramesModal,
+    framesModalTab, setFramesModalTab,
+    editingFrame, setEditingFrame,
+    smartScheduleResults, setSmartScheduleResults,
+    smartScheduleLoading, setSmartScheduleLoading,
+    smartScheduleError, setSmartScheduleError,
+    smartScheduleAccepted, setSmartScheduleAccepted,
+    showRescheduleModal, setShowRescheduleModal,
+    rescheduleResults, setRescheduleResults,
+    rescheduleLoading, setRescheduleLoading,
+    rescheduleError, setRescheduleError,
+    rescheduleAccepted, setRescheduleAccepted,
+    frameContextMenu, setFrameContextMenu,
+    quickAddFrameModal, setQuickAddFrameModal,
+    frameAdjustModal, setFrameAdjustModal,
+    frameAdjustTimeField, setFrameAdjustTimeField,
+    frameScheduleModal, setFrameScheduleModal,
+    frameNudgeSuggestion, setFrameNudgeSuggestion,
+    frameNudgeLoading, setFrameNudgeLoading,
+    frameNudgeError, setFrameNudgeError,
+    frameNudgeDismissedKey, setFrameNudgeDismissedKey,
+
+    // ── Goals & Projects ──────────────────────────────────────────────────────
+    goals, setGoals,
+    projects, setProjects,
+    showGoalsDashboard, setShowGoalsDashboard,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    addGoal, updateGoal, deleteGoal,
+    addProject, updateProject, deleteProject, moveProject,
+    projectFilter, setProjectFilter,
+
+    // ── Reminders ─────────────────────────────────────────────────────────────
+    reminderSettings, setReminderSettings,
+    showRemindersSettings, setShowRemindersSettings,
+    activeReminders, setActiveReminders,
+
+    // ── Refs ──────────────────────────────────────────────────────────────────
+    voiceRecorderRef, voiceAudioChunksRef, voiceAutoStartRef,
+    voiceAllTagsRef, voiceBuildTaskContextRef, voiceResolveTaskMatchRef,
+    lastWeeklyReviewFiredRef, weeklyReviewDismissedRef,
+    focusTimerRef, handleFocusTimerEndRef, focusModeAvailableRef,
+    syncHealthConnectHabitsRef,
+
+    // ── Functions – routines ──────────────────────────────────────────────────
+    openRoutinesDashboard, addRoutineChip, deleteRoutineChip,
+    toggleRoutineChipSelection, handleRoutinesDone,
+
+    // ── Functions – habits ────────────────────────────────────────────────────
+    getTodayHabitCount, incrementHabit, setHabitCount,
+    addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
+    addStepsHabit, addSleepHabit,
+
+    // ── Functions – focus mode ────────────────────────────────────────────────
+    enterFocusMode, enterProjectFocusMode, exitFocusMode,
+    startFocusTimer, dismissFocusStats, focusProjectId, handleFocusTimerEnd,
+    focusCompleteTask, focusToggleSubtask, focusAddSubtask,
+    focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,
+    computeFocusBlockTasks,
+
+    // ── Functions – GTD / AI ──────────────────────────────────────────────────
+    saveFrame, deleteFrame, skipFrameForDay,
+    openFrameAdjust, openFrameSchedule, saveFrameAdjust,
+    getFrameInstancesForDate,
+    runSmartSchedule, applySmartSchedule,
+    runReschedule, applyReschedule,
+    computeAvailableSlots,
+    generateFrameNudge, generateMorningSummary, generateEveningReflection,
+    generateWeeklyAISummary, generateAISubtasks,
+    dismissMorningGlance, dismissEveningGlance,
+    voiceParseWithAI, voiceStartRecording, voiceStopRecording,
+    voiceApplyAllChanges, voiceHasTranscription,
+    buildTaskContextForAI, resolveTaskMatch,
+
+    // ── Functions – reminders ─────────────────────────────────────────────────
+    applyReminderPreset, updateCategoryReminder,
+    snoozeReminder, dismissReminder, dismissAllReminders,
+  };
+
   return (
     <DayPlannerContext.Provider value={ctx}>
+    <SyncContext.Provider value={syncCtx}>
+    <FeaturesContext.Provider value={featuresCtx}>
     <div className={`app-shell ${bgClass}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}
       onContextMenu={(e) => {
         // Allow native context menu on inputs/textareas/contenteditable
@@ -7482,7 +7577,7 @@ const DayPlanner = () => {
                       <div className="space-y-1.5 mb-3">
                         {todayDueGoals.map(g => (
                           <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
-                            <Target size={14} className="flex-shrink-0" />
+                            <Flag size={14} className="flex-shrink-0" />
                             <span className="truncate">Goal due today: {g.title}</span>
                           </div>
                         ))}
@@ -7949,7 +8044,8 @@ const DayPlanner = () => {
         // Check if any menu items would be visible; if not, don't show the menu
         const hasEdit = !isImported;
         const hasNotes = isImported ? !!ctxHasNotes : true;
-        const hasMoveTomorrow = !isRecurring && !isImported && !isInbox;
+        const isDaily = isRecurring && ctxTask?.recurrenceType === 'daily';
+        const hasMoveTomorrow = !isImported && !isInbox && !isDaily;
         const hasMoveInbox = !isRecurring && !isImported && !isAllDay && !isInbox;
         const hasComplete = !isImported || isTaskCalendar;
         const hasDelete = !isImported;
@@ -8020,7 +8116,7 @@ const DayPlanner = () => {
                   Generate subtasks (AI)
                 </button>
               )}
-              {!isRecurring && !isImported && !isInbox && (
+              {!isImported && !isInbox && !isDaily && (
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
@@ -8181,6 +8277,8 @@ const DayPlanner = () => {
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
     </div>
+    </FeaturesContext.Provider>
+    </SyncContext.Provider>
     </DayPlannerContext.Provider>
   );
 };

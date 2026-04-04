@@ -444,7 +444,36 @@ export default function useTaskActions({
   // ── Task move ────────────────────────────────────────────────────────────
 
   const postponeTask = (id) => {
-    if (typeof id === 'string' && id.startsWith('recurring-')) return;
+    if (typeof id === 'string' && id.startsWith('recurring-')) {
+      const parsed = parseRecurringId(id);
+      if (!parsed) return;
+      const template = recurringTasks.find(t => t.id === parsed.templateId);
+      if (!template) return;
+      if (template.recurrence?.type === 'daily') return; // daily tasks recur tomorrow anyway
+      const exc = template.exceptions?.[parsed.dateStr] || {};
+      const title = exc.title || template.title;
+      const startTime = exc.startTime !== undefined ? exc.startTime : (template.startTime || '');
+      const duration = exc.duration !== undefined ? exc.duration : (template.duration ?? 30);
+      const color = exc.color || template.color;
+      const isAllDay = exc.isAllDay !== undefined ? exc.isAllDay : (template.isAllDay ?? false);
+      if (!startTime && !isAllDay) return;
+      const nextDay = new Date(parsed.dateStr + 'T12:00:00');
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDateStr = dateToString(nextDay);
+      pushUndo();
+      setRecurringTasks(prev => prev.map(t => t.id !== parsed.templateId ? t : {
+        ...t,
+        exceptions: { ...t.exceptions, [parsed.dateStr]: { ...(t.exceptions?.[parsed.dateStr] || {}), skipped: true } },
+      }));
+      setTasks(prev => [...prev, {
+        id: crypto.randomUUID(), title,
+        startTime: isAllDay ? '00:00' : startTime, duration, color,
+        isAllDay, date: nextDateStr, completed: false, notes: '', subtasks: [],
+      }]);
+      setUndoToast({ message: 'Task postponed to tomorrow', actionable: true });
+      playUISound('slide');
+      return;
+    }
     const task = tasks.find(t => t.id === id);
     if (!task || !task.startTime || !task.date) return;
 

@@ -1,6 +1,8 @@
 import React from 'react';
-import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, RefreshCw, Server, Settings, Sparkles, Sun, Target, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { getStorageUsage } from '../utils/storage.js';
@@ -16,13 +18,17 @@ const SettingsModal = () => {
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     use24HourClock, setUse24HourClock,
+    weekStartDay, setWeekStartDay,
     soundEnabled, setSoundEnabled,
-    habitsEnabled, setHabitsEnabled,
-    routinesEnabled, setRoutinesEnabled,
-    goalsProjectsEnabled, setGoalsProjectsEnabled,
     setOnboardingProgress,
     isMobile, isTablet,
     weatherZip, setWeatherZip, fetchWeather, weatherTempUnit, setWeatherTempUnit,
+    weatherEnabled, setWeatherEnabled,
+    dailyContentEnabled, setDailyContentEnabled,
+    setTasks, setUnscheduledTasks,
+    dailyNoteTemplate, setDailyNoteTemplate,
+  } = useDayPlannerCtx();
+  const {
     handleFileUpload,
     cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncLastSynced,
     calSyncConfigured, syncUrl, setSyncUrl,
@@ -32,16 +38,19 @@ const SettingsModal = () => {
     syncRetentionDays, setSyncRetentionDays,
     syncAll, isSyncing, calSyncLastSynced,
     availableCalendars, setAvailableCalendars, calendarFilter, setCalendarFilter,
-    aiConfig, setAiConfig,
-    aiConnectionStatus, setAiConnectionStatus, aiConnectionMessage, setAiConnectionMessage,
-    aiOllamaHelp, setAiOllamaHelp,
     obsidianConfig, setObsidianConfig, obsidianSyncStatus, obsidianLastSynced, setObsidianLastSynced,
     obsidianVaultHandleRef,
     performObsidianSync,
-    setTasks, setUnscheduledTasks,
-    dailyNoteTemplate, setDailyNoteTemplate,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
+  const {
+    habitsEnabled, setHabitsEnabled,
+    routinesEnabled, setRoutinesEnabled,
+    goalsProjectsEnabled, setGoalsProjectsEnabled,
+    aiConfig, setAiConfig,
+    aiConnectionStatus, setAiConnectionStatus, aiConnectionMessage, setAiConnectionMessage,
+    aiOllamaHelp, setAiOllamaHelp,
+  } = useFeaturesCtx();
 
   const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
   const provider = cloudSyncProviders[currentProvider];
@@ -107,33 +116,61 @@ const SettingsModal = () => {
                   {/* Left column */}
                   <div className="space-y-6">
 
-                    {/* Clock Format Section */}
+                    {/* Localization Section */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Clock size={16} className={textSecondary} />
-                        Clock Format
+                        Localization
                       </h4>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setUse24HourClock(true)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          24-hour
-                        </button>
-                        <button
-                          onClick={() => setUse24HourClock(false)}
-                          className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                            !use24HourClock
-                              ? 'bg-blue-600 text-white'
-                              : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                          }`}
-                        >
-                          12-hour
-                        </button>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Clock format</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setUse24HourClock(false)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              !use24HourClock
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            12-hour
+                          </button>
+                          <button
+                            onClick={() => setUse24HourClock(true)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              use24HourClock
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            24-hour
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>First day of week</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setWeekStartDay(0)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weekStartDay === 0
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            Sunday
+                          </button>
+                          <button
+                            onClick={() => setWeekStartDay(1)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                              weekStartDay === 1
+                                ? 'bg-blue-600 text-white'
+                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                            }`}
+                          >
+                            Monday
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -161,27 +198,91 @@ const SettingsModal = () => {
                       </label>
                     </div>
 
+                    {!isMobile && !isTablet && (<>
                     <hr className={borderClass} />
 
-                    {/* Habit Tracking Section */}
+                    {/* Weather — desktop only */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Activity size={16} className={textSecondary} />
-                        Habit Tracking
+                        <Thermometer size={16} className={textSecondary} />
+                        Weather
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input type="checkbox" checked={weatherEnabled} onChange={(e) => setWeatherEnabled(e.target.checked)} className="sr-only" />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${weatherEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${weatherEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Show weather in header</span>
+                      </label>
+                      {weatherEnabled && (
+                        <>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>ZIP code or city name</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 90210 or Seattle"
+                              value={weatherZip}
+                              onChange={(e) => setWeatherZip(e.target.value)}
+                              onBlur={() => fetchWeather()}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                              className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Temperature unit</label>
+                            <div className="flex gap-2">
+                              <button onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${weatherTempUnit === 'fahrenheit' ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}`}>°F</button>
+                              <button onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${weatherTempUnit === 'celsius' ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}`}>°C</button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Daily Content — desktop only */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Newspaper size={16} className={textSecondary} />
+                        Daily Content
+                      </h4>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input type="checkbox" checked={dailyContentEnabled} onChange={(e) => setDailyContentEnabled(e.target.checked)} className="sr-only" />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${dailyContentEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${dailyContentEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          </div>
+                        </div>
+                        <span className={`text-sm ${textPrimary}`}>Show daily tips &amp; quotes in header</span>
+                      </label>
+                    </div>
+
+                    </>)}
+
+                    <hr className={borderClass} />
+
+                    {/* Goals & Projects Section */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Flag size={16} className={textSecondary} />
+                        Goals &amp; Projects
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
                           <input
                             type="checkbox"
-                            checked={habitsEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
+                            checked={goalsProjectsEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(e.target.checked); }}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${goalsProjectsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${goalsProjectsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
+                        <span className={`text-sm ${textPrimary}`}>Enable goals &amp; projects</span>
                       </label>
                     </div>
 
@@ -211,100 +312,26 @@ const SettingsModal = () => {
 
                     <hr className={borderClass} />
 
-                    {/* Goals & Projects Section */}
+                    {/* Habit Tracking Section */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Target size={16} className={textSecondary} />
-                        Goals &amp; Projects
+                        <Activity size={16} className={textSecondary} />
+                        Habit Tracking
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
                           <input
                             type="checkbox"
-                            checked={goalsProjectsEnabled}
-                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(e.target.checked); }}
+                            checked={habitsEnabled}
+                            onChange={(e) => { if (e.target.checked) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(e.target.checked); }}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${goalsProjectsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${goalsProjectsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                          <div className={`w-10 h-6 rounded-full transition-colors ${habitsEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable goals &amp; projects</span>
+                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
                       </label>
-                    </div>
-
-                    {!isMobile && !isTablet && (<>
-                    <hr className={borderClass} />
-
-                    {/* Weather Location Section — desktop only (weather not shown on mobile/tablet) */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <MapPin size={16} className={textSecondary} />
-                        Weather Location
-                      </h4>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          ZIP code or city name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 90210 or Seattle"
-                          value={weatherZip}
-                          onChange={(e) => setWeatherZip(e.target.value)}
-                          onBlur={() => fetchWeather()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
-                          className={`w-48 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          Leave empty to hide weather
-                        </p>
-                      </div>
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Temperature unit
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'fahrenheit'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °F
-                          </button>
-                          <button
-                            onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                              weatherTempUnit === 'celsius'
-                                ? 'bg-blue-600 text-white'
-                                : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                            }`}
-                          >
-                            °C
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    </>)}
-
-                    <hr className={borderClass} />
-
-                    {/* iCal Import Section */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Upload size={16} className={textSecondary} />
-                        iCal Import
-                      </h4>
-                      <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
-                        <Upload size={14} className={textSecondary} />
-                        Choose .ics file
-                        <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
-                      </label>
-                      <p className={`text-xs ${textSecondary}`}>
-                        Import events from an iCal (.ics) file
-                      </p>
                     </div>
                   </div>
 
@@ -530,6 +557,16 @@ const SettingsModal = () => {
                           </>)}
                         </div>
                       )}
+                      {/* iCal Import — one-time .ics file import, lives inside Calendar Sync */}
+                      <div className={`pt-2 border-t ${borderClass} space-y-2`}>
+                        <p className={`text-sm font-medium ${textPrimary}`}>Import .ics file</p>
+                        <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
+                          <Upload size={14} className={textSecondary} />
+                          Choose .ics file
+                          <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
+                        </label>
+                        <p className={`text-xs ${textSecondary}`}>Import events from an iCal (.ics) file</p>
+                      </div>
                       </>)}
                     </div>
 

@@ -1,15 +1,11 @@
 import React from 'react';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FrameAdjustModal = () => {
-  const {
-    frameAdjustModal, setFrameAdjustModal,
-    frameAdjustTimeField, setFrameAdjustTimeField,
-    saveFrameAdjust,
-    darkMode, isTablet, use24HourClock,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-  } = useDayPlannerCtx();
+  const { darkMode, isTablet, use24HourClock, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { frameAdjustModal, setFrameAdjustModal, frameAdjustTimeField, setFrameAdjustTimeField, saveFrameAdjust } = useFeaturesCtx();
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setFrameAdjustModal(null)}>

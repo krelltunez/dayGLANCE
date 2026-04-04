@@ -1,13 +1,16 @@
 import React from 'react';
 import {
   BookOpen, Check, CheckSquare, Clock, ExternalLink,
-  FileText, GripVertical, Inbox, MoreHorizontal, NotebookPen,
+  FileText, GripVertical, Inbox, MoreHorizontal,
   RefreshCw, Settings, SkipForward, Trash2,
 } from 'lucide-react';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks } from '../utils/taskUtils.js';
+import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileTimeGrid = () => {
   const {
@@ -17,20 +20,16 @@ const MobileTimeGrid = () => {
     darkMode, use24HourClock,
     borderClass, textSecondary,
     tasks, setTasks,
-    projects,
-    projectFilter, setProjectFilter, setInboxProjectFilter,
     taskWidths,
     expandedNotesTaskId, setExpandedNotesTaskId,
     expandedTaskMenu, setExpandedTaskMenu,
     taskContextMenu, setTaskContextMenu,
     setTimelineContextMenu,
-    setFrameContextMenu,
     hoverPreviewTime, hoverPreviewDate,
     setHoverPreviewTime, setHoverPreviewDate,
     draggedTask,
     mobileDragPreviewTime, mobileDragPreviewDate, mobileDragTaskIdState,
     currentTimeTop,
-    routinesEnabled, todayRoutines,
     setTaskRef,
     handleDragOver, handleDropOnCalendar,
     handleCalendarMouseMove, handleCalendarMouseLeave,
@@ -40,14 +39,26 @@ const MobileTimeGrid = () => {
     toggleComplete,
     postponeTask,
     formatTime, timeToMinutes, minutesToTime,
-    getTasksForDate, getFrameInstancesForDate,
+    getTasksForDate,
     getTaskCalendarStyle,
-    computeAvailableSlots,
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
-    goalsProjectsEnabled,
     getTimeFromCursorPosition,
+    setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
+    setHideProjectTasksInbox, setHideStandaloneTasksInbox,
+    updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
   } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
+  const {
+    projects,
+    projectFilter, setProjectFilter,
+    routinesEnabled, todayRoutines,
+    goalsProjectsEnabled,
+    getFrameInstancesForDate,
+    computeAvailableSlots,
+    setFrameContextMenu,
+    aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
+  } = useFeaturesCtx();
 
   return (
 <div ref={timeGridRef} className="relative">
@@ -314,15 +325,16 @@ const MobileTimeGrid = () => {
                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                     }
                   }}
-                  className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                  className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                 >
                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                   {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
                 </button>
-                {!(typeof task.id === 'string' && task.id.startsWith('recurring-')) && (
+                {task.recurrenceType !== 'daily' && (
                   <button
                     onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                    title="Postpone to tomorrow"
                   >
                     <SkipForward size={14} />
                     {inMenu && <span className="text-xs">Postpone</span>}
@@ -413,9 +425,6 @@ const MobileTimeGrid = () => {
                         {renderTitle(task.title)}
                       </span>
                       <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
-                        {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                          <button key={i} className="text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                        ))}
                         {(task.notes) && (
                           <button
                             onClick={(e) => {
@@ -454,9 +463,6 @@ const MobileTimeGrid = () => {
                     <span className={`text-sm font-bold truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''}`}>
                       {renderTitle(task.title)}
                     </span>
-                    {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                      <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                    ))}
                     {!isNarrowWidth && (
                       <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                         <Clock size={10} />
@@ -489,9 +495,6 @@ const MobileTimeGrid = () => {
                       <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                         {renderTitle(task.title)}
                       </span>
-                      {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                        <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                      ))}
                     </div>
                     {goalsProjectsEnabled && task.projectId ? (() => {
                       const proj = projects.find(p => p.id === task.projectId);
@@ -499,7 +502,7 @@ const MobileTimeGrid = () => {
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <button
-                            onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
+                            onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                             className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                             title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
                           >
@@ -527,9 +530,6 @@ const MobileTimeGrid = () => {
                         <span className={`text-sm font-medium truncate ${task.completed ? 'line-through' : ''}`}>
                           {renderTitle(task.title)}
                         </span>
-                        {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                          <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                        ))}
                       </div>
                       <div className="flex items-center gap-0.5 flex-shrink-0">
                         <MobileActionButtons />
@@ -541,7 +541,7 @@ const MobileTimeGrid = () => {
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <button
-                            onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
+                            onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                             className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                             title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
                           >
@@ -571,6 +571,40 @@ const MobileTimeGrid = () => {
                     <div className="w-12 h-1 bg-white rounded-full"></div>
                   </div>
                 )}
+                {/* Notes panel for regular (non-imported) tasks — uses NotesSubtasksPanel with wikilink support */}
+                {expandedNotesTaskId === task.id && !isImported && (() => {
+                  const startMin = timeToMinutes(task.startTime || '0:00');
+                  const endMin = startMin + (task.duration || 0);
+                  const showAbove = endMin >= 22 * 60;
+                  const wikilinks = extractWikilinks(task.title);
+                  return (
+                    <div
+                      className="notes-panel-container absolute left-0 right-0 z-40"
+                      style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
+                        <NotesSubtasksPanel
+                          task={task}
+                          isInbox={false}
+                          darkMode={darkMode}
+                          updateTaskNotes={updateTaskNotes}
+                          addSubtask={addSubtask}
+                          toggleSubtask={toggleSubtask}
+                          deleteSubtask={deleteSubtask}
+                          updateSubtaskTitle={updateSubtaskTitle}
+                          noAutoFocus
+                          aiConfig={aiConfig}
+                          aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                          onGenerateSubtasks={generateAISubtasks}
+                          wikilinks={wikilinks.length > 0 ? wikilinks : undefined}
+                          onLoadWikiNote={wikilinks.length > 0 ? loadWikiNote : undefined}
+                          onSaveWikiNote={wikilinks.length > 0 ? saveWikiNote : undefined}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* Editable notes panel for mobile timeline imported events (not calendar events — they use the bottom sheet) */}
                 {expandedNotesTaskId === task.id && isImported && !isCalendarEvent && (() => {
                   const startMin = timeToMinutes(task.startTime || '0:00');

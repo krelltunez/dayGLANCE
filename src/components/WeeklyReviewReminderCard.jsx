@@ -1,15 +1,15 @@
 import React from 'react';
 import { BarChart3, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const WeeklyReviewReminderCard = () => {
+  const { darkMode, cardBg, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
   const {
     showWeeklyReviewReminder, setShowWeeklyReviewReminder,
     showWeeklyReview, setShowWeeklyReview,
     weeklyReviewDismissedRef, lastWeeklyReviewFiredRef,
-    darkMode,
-    cardBg, borderClass, textPrimary, textSecondary,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   if (!showWeeklyReviewReminder || showWeeklyReview) return null;
 

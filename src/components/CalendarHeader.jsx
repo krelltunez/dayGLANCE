@@ -14,6 +14,8 @@ import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const CalendarHeader = () => {
   const {
@@ -41,13 +43,7 @@ const CalendarHeader = () => {
     newTask, setNewTask,
     dailyNotes,
     dailyNotesModalDate, setDailyNotesModalDate,
-    focusLog, setFocusLogModalDate,
-    habitLogs, activeHabits, habitsEnabled,
-    habitDayPopup, setHabitDayPopup,
-    todayRoutines, routinesEnabled,
     taskWidths,
-    aiConfig,
-    aiSubtasksLoadingForTask,
     scheduledNotifications,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     toggleComplete,
@@ -60,8 +56,8 @@ const CalendarHeader = () => {
     openMobileEditTask,
     postponeTask, postponeDeadlineTask,
     moveToRecycleBin, moveToInbox,
-    goalsProjectsEnabled, projects,
-    projectFilter, setProjectFilter, setInboxProjectFilter,
+    setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
+    setHideProjectTasksInbox, setHideStandaloneTasksInbox,
     getTasksForDate, getDeadlineTasksForDate,
     getTaskCalendarStyle,
     setTaskRef,
@@ -69,16 +65,24 @@ const CalendarHeader = () => {
     setEditingRecurrenceTaskId,
     updateDragAutoScroll,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
-    generateAISubtasks,
-    loadWikiNote, saveWikiNote,
     editingInputRef,
     playUISound,
     pushUndo,
     setDragPreviewTime,
-    openRoutinesDashboard,
     getNextQuarterHour,
     addTasksFromSelection,
   } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
+  const {
+    focusLog, setFocusLogModalDate,
+    habitLogs, activeHabits, habitsEnabled,
+    habitDayPopup, setHabitDayPopup,
+    todayRoutines, routinesEnabled,
+    aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
+    goalsProjectsEnabled, projects,
+    projectFilter, setProjectFilter,
+    openRoutinesDashboard,
+  } = useFeaturesCtx();
 
   return (
     <>
@@ -182,7 +186,7 @@ const CalendarHeader = () => {
         return order(a) - order(b);
       });
       const dateStr = dateToString(date);
-      const deadlineTasks = getDeadlineTasksForDate(dateStr);
+      const deadlineTasks = getDeadlineTasksForDate(dateStr).filter(t => !projectFilter || t.projectId === projectFilter);
       const isDragOverThis = dragOverAllDay === dateStr;
       return (
         <div
@@ -244,10 +248,20 @@ const CalendarHeader = () => {
 
             const renderAllDayActionButtons = (inMenu = false) => {
               if (isRecurringAllDay) {
-                // Recurring all-day: Notes, Edit + Delete (desktop only)
+                // Recurring all-day: Notes, Postpone (non-daily only), Edit + Delete (desktop only)
                 return (
                   <>
                     {renderAllDayNotesButton(inMenu)}
+                    {task.recurrenceType !== 'daily' && (
+                    <button
+                      onClick={() => postponeTask(task.id)}
+                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                      title="Postpone to tomorrow"
+                    >
+                      <SkipForward size={14} />
+                      {inMenu && <span className="text-xs">Postpone</span>}
+                    </button>
+                    )}
                     {!isTablet && (
                     <button
                       onClick={() => openMobileEditTask(task, false)}
@@ -486,7 +500,7 @@ const CalendarHeader = () => {
                     if (!proj) return null;
                     return (
                       <button
-                        onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
+                        onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                         className={`mt-1 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                         title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
                       >

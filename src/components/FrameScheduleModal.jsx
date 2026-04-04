@@ -2,15 +2,11 @@ import React from 'react';
 import { Inbox, Calendar } from 'lucide-react';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FrameScheduleModal = () => {
-  const {
-    frameScheduleModal, setFrameScheduleModal,
-    unscheduledTasks,
-    computeAvailableSlots, manuallyScheduleTask,
-    darkMode,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-  } = useDayPlannerCtx();
+  const { unscheduledTasks, manuallyScheduleTask, darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { frameScheduleModal, setFrameScheduleModal, computeAvailableSlots } = useFeaturesCtx();
 
   const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!t.deadline || t.deadline === frameScheduleModal.dateStr)).sort((a, b) => {
     const aHasDeadline = a.deadline ? 1 : 0;

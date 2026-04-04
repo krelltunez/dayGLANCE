@@ -2,7 +2,7 @@ import React from 'react';
 import {
   BookOpen, Check, CheckSquare, Clock, ExternalLink,
   FileText, GripVertical, Inbox, MapPin, MoreHorizontal,
-  NotebookPen, Pencil, RefreshCw, Settings, SkipForward, Trash2,
+  Pencil, RefreshCw, Settings, SkipForward, Trash2,
 } from 'lucide-react';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitleWithoutTags, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
@@ -10,6 +10,8 @@ import { dateToString, extractTags, extractWikilinks, stripWikilinks } from '../
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const TimeGrid = () => {
   const {
@@ -21,9 +23,6 @@ const TimeGrid = () => {
     borderClass, cardBg, textPrimary, textSecondary, hoverBg,
     tasks, setTasks,
     conflicts,
-    goalsProjectsEnabled,
-    projects,
-    projectFilter, setProjectFilter, setInboxProjectFilter,
     taskWidths,
     expandedNotesTaskId, setExpandedNotesTaskId,
     expandedTaskMenu, setExpandedTaskMenu,
@@ -31,9 +30,7 @@ const TimeGrid = () => {
     showSuggestions, suggestions, selectedSuggestionIndex, suggestionContext,
     taskContextMenu, setTaskContextMenu,
     setTimelineContextMenu,
-    setFrameContextMenu,
     currentTimeTop,
-    routinesEnabled, todayRoutines,
     hoverPreviewTime, hoverPreviewDate,
     draggedTask,
     dragPreviewTime, setDragPreviewTime,
@@ -56,15 +53,25 @@ const TimeGrid = () => {
     applySuggestionForEdit,
     moveToInbox, moveToRecycleBin, postponeTask,
     formatTime, timeToMinutes, minutesToTime,
-    getTasksForDate, getFrameInstancesForDate,
+    getTasksForDate,
     getTaskCalendarStyle,
-    computeAvailableSlots,
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
-    aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
-    loadWikiNote, saveWikiNote,
+    setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
+    setHideProjectTasksInbox, setHideStandaloneTasksInbox,
   } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
+  const {
+    goalsProjectsEnabled,
+    projects,
+    projectFilter, setProjectFilter,
+    routinesEnabled, todayRoutines,
+    getFrameInstancesForDate,
+    computeAvailableSlots,
+    setFrameContextMenu,
+    aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
+  } = useFeaturesCtx();
 
   return (
 <div
@@ -303,7 +310,7 @@ const TimeGrid = () => {
                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                     }
                   }}
-                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                   title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                 >
                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
@@ -313,10 +320,20 @@ const TimeGrid = () => {
 
             const ActionButtons = ({ inMenu = false }) => {
               if (isRecurringTask) {
-                // Recurring: Notes (tablet+desktop), Edit + Delete (desktop only)
+                // Recurring: Notes, Postpone (non-daily only), Edit + Delete (desktop only)
                 return (
                   <>
                     <NotesButton inMenu={inMenu} />
+                    {task.recurrenceType !== 'daily' && (
+                    <button
+                      onClick={() => postponeTask(task.id)}
+                      className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
+                      title="Postpone to tomorrow"
+                    >
+                      <SkipForward size={14} />
+                      {inMenu && <span className="text-xs">Postpone</span>}
+                    </button>
+                    )}
                     {!isTablet && (
                     <button
                       onClick={() => openMobileEditTask(task, false)}
@@ -574,9 +591,6 @@ const TimeGrid = () => {
                                 >
                                   {renderTitleWithoutTags(task.title)}
                                 </div>
-                                {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                                  <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                                ))}
                               </div>
                             )}
                             {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
@@ -589,8 +603,8 @@ const TimeGrid = () => {
                                   if (!proj) return null;
                                   return (
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
-                                      className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0`}
+                                      onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
+                                      className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                                       title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
                                     >
                                       {proj.title}
@@ -663,9 +677,6 @@ const TimeGrid = () => {
                                 >
                                   {renderTitleWithoutTags(task.title)}
                                 </div>
-                                {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                                  <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                                ))}
                               </div>
                             )}
                             {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
@@ -678,8 +689,8 @@ const TimeGrid = () => {
                                   if (!proj) return null;
                                   return (
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
-                                      className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0`}
+                                      onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
+                                      className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                                       title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
                                     >
                                       {proj.title}
@@ -741,9 +752,9 @@ const TimeGrid = () => {
                             aiConfig={aiConfig}
                             aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                             onGenerateSubtasks={generateAISubtasks}
-                            wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
-                            onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
-                            onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
+                            wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                            onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                            onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
                           />
                         </div>
                       </div>

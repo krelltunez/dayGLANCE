@@ -1,11 +1,11 @@
 import React from 'react';
 import { Clock, Plus, Sparkles, Undo2, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileRoutinesTab = () => {
+  const { isPhone, isTablet, darkMode, textSecondary, hoverBg, colors, formatTime, getDayName } = useDayPlannerCtx();
   const {
-    isPhone, isTablet,
-    darkMode,
     routineDefinitions,
     dashboardSelectedChips, setDashboardSelectedChips,
     routineAddingToBucket, setRoutineAddingToBucket,
@@ -13,10 +13,8 @@ const MobileRoutinesTab = () => {
     setRoutineTimePickerChipId,
     setRoutineDeleteConfirm,
     routineFocusedChipId, setRoutineFocusedChipId,
-    textSecondary, hoverBg, colors,
-    formatTime,
-    addRoutineChip, toggleRoutineChipSelection, getDayName,
-  } = useDayPlannerCtx();
+    addRoutineChip, toggleRoutineChipSelection,
+  } = useFeaturesCtx();
 
   const today = new Date();
   const todayDayName = getDayName(today);

@@ -1,16 +1,17 @@
 import React from 'react';
 import { Archive, ChevronDown, RotateCcw } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const InboxArchivedBar = () => {
   const {
     darkMode, textSecondary, hoverBg, borderClass,
     unscheduledTasks,
     restoreArchivedInboxTask,
-    goalsProjectsEnabled, projects,
     inboxArchivedExpanded: expanded,
     setInboxArchivedExpanded: setExpanded,
   } = useDayPlannerCtx();
+  const { goalsProjectsEnabled, projects } = useFeaturesCtx();
 
   const archivedTasks = unscheduledTasks.filter(t => t.archived && !t.imported);
 

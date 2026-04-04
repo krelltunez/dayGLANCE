@@ -1,16 +1,16 @@
 import React from 'react';
 import { Upload } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 
 const ImportCalendarModal = () => {
+  const { colors, cardBg, borderClass, textPrimary, textSecondary, darkMode } = useDayPlannerCtx();
   const {
     showImportModal, setShowImportModal,
     pendingImportFile, setPendingImportFile,
     importColor, setImportColor,
-    colors,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode,
     processImportFile,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
 
   if (!showImportModal) return null;
 

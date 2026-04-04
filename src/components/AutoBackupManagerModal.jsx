@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Cloud, Clock, Save, Trash2, Undo2, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
 
 const AutoBackupManagerModal = () => {
+  const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const {
     showAutoBackupManager, setShowAutoBackupManager,
     autoBackupRestoreConfirm, setAutoBackupRestoreConfirm,
     autoBackupManagerTab, setAutoBackupManagerTab,
     autoBackupConfig, setAutoBackupConfig,
     autoBackupStatus, autoBackupHistory,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
     loadAutoBackupHistory, performRemoteBackup,
     restoreFromAutoBackup, restoreFromRemoteBackup,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
-  } = useDayPlannerCtx();
+  } = useSyncCtx();
 
   const [localExpanded, setLocalExpanded] = useState(false);
   const [remoteExpanded, setRemoteExpanded] = useState(false);
