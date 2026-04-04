@@ -101,20 +101,7 @@ const MobileSettingsPanel = () => {
   >
     {/* Quick toggles */}
     <div className="grid grid-cols-3 gap-3">
-      <button
-        onClick={() => setDarkMode(!darkMode)}
-        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
-      >
-        {darkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
-      </button>
-      <button
-        onClick={() => setSoundEnabled(!soundEnabled)}
-        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
-      >
-        {soundEnabled ? <Volume2 size={24} className="text-green-500" /> : <VolumeX size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>Sound {soundEnabled ? 'On' : 'Off'}</span>
-      </button>
+      {/* Row 1: 12h/24h | First Day | Sound */}
       <button
         onClick={() => setUse24HourClock(!use24HourClock)}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
@@ -130,18 +117,26 @@ const MobileSettingsPanel = () => {
         <span className={`text-xs font-medium ${textPrimary}`}>Week: {weekStartDay === 0 ? 'Sun' : 'Mon'}</span>
       </button>
       <button
-        onClick={() => setMobileSettingsView('habits')}
+        onClick={() => setSoundEnabled(!soundEnabled)}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
-        <Activity size={24} className={mobileSettingsView === 'habits' ? 'text-green-500' : habitsEnabled ? 'text-green-500' : textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>Habits {habitsEnabled ? 'On' : 'Off'}</span>
+        {soundEnabled ? <Volume2 size={24} className="text-green-500" /> : <VolumeX size={24} className={textSecondary} />}
+        <span className={`text-xs font-medium ${textPrimary}`}>Sound {soundEnabled ? 'On' : 'Off'}</span>
+      </button>
+      {/* Row 2: Dark/Light | Frames | Goals */}
+      <button
+        onClick={() => setDarkMode(!darkMode)}
+        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+      >
+        {darkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} className={textSecondary} />}
+        <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
       </button>
       <button
-        onClick={() => { if (!routinesEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(!routinesEnabled); }}
+        onClick={() => setMobileSettingsView('frames')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
-        {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
+        <LayoutGrid size={24} className={mobileSettingsView === 'frames' ? 'text-blue-500' : textSecondary} />
+        <span className={`text-xs font-medium ${textPrimary}`}>Frames</span>
       </button>
       <button
         onClick={() => { if (!goalsProjectsEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(!goalsProjectsEnabled); }}
@@ -150,19 +145,27 @@ const MobileSettingsPanel = () => {
         {goalsProjectsEnabled ? <Flag size={24} className="text-blue-500" /> : <Flag size={24} className={textSecondary} />}
         <span className={`text-xs font-medium ${textPrimary}`}>Goals {goalsProjectsEnabled ? 'On' : 'Off'}</span>
       </button>
+      {/* Row 3: Routines | Habits | AI */}
+      <button
+        onClick={() => { if (!routinesEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(!routinesEnabled); }}
+        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+      >
+        {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
+        <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
+      </button>
+      <button
+        onClick={() => setMobileSettingsView('habits')}
+        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
+      >
+        <Activity size={24} className={mobileSettingsView === 'habits' ? 'text-green-500' : habitsEnabled ? 'text-green-500' : textSecondary} />
+        <span className={`text-xs font-medium ${textPrimary}`}>Habits {habitsEnabled ? 'On' : 'Off'}</span>
+      </button>
       <button
         onClick={() => setMobileSettingsView('ai')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         {aiConfig.enabled ? <BrainCircuit size={24} className="text-purple-400" /> : <BrainCircuit size={24} className={textSecondary} />}
         <span className={`text-xs font-medium ${textPrimary}`}>AI {aiConfig.enabled ? 'On' : 'Off'}</span>
-      </button>
-      <button
-        onClick={() => setMobileSettingsView('frames')}
-        className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
-      >
-        <LayoutGrid size={24} className={mobileSettingsView === 'frames' ? 'text-blue-500' : textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>Frames</span>
       </button>
     </div>
 
