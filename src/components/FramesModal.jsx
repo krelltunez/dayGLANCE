@@ -4,23 +4,25 @@ import { DAY_LABELS } from '../constants/frames.js';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FramesModal = () => {
   const {
-    setShowFramesModal,
-    editingFrame, setEditingFrame,
-    framesModalTab, setFramesModalTab,
-    gtdFrames, allTags,
-    aiConfig,
-    unscheduledTasks,
-    smartScheduleResults, smartScheduleLoading, smartScheduleError,
-    smartScheduleAccepted, setSmartScheduleAccepted,
-    runSmartSchedule, applySmartSchedule, setSmartScheduleResults, setSmartScheduleError,
-    saveFrame, deleteFrame,
+    allTags, unscheduledTasks,
     getTodayStr, formatTime,
     darkMode, isTablet, use24HourClock,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
   } = useDayPlannerCtx();
+  const {
+    setShowFramesModal,
+    editingFrame, setEditingFrame,
+    framesModalTab, setFramesModalTab,
+    gtdFrames, aiConfig,
+    smartScheduleResults, smartScheduleLoading, smartScheduleError,
+    smartScheduleAccepted, setSmartScheduleAccepted,
+    runSmartSchedule, applySmartSchedule, setSmartScheduleResults, setSmartScheduleError,
+    saveFrame, deleteFrame,
+  } = useFeaturesCtx();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowFramesModal(false); setEditingFrame(null); }}>
