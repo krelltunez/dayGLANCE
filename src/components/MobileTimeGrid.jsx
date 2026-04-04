@@ -42,10 +42,11 @@ const MobileTimeGrid = () => {
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
     getTimeFromCursorPosition,
+    setInboxProjectFilter,
   } = useDayPlannerCtx();
   const {
     projects,
-    projectFilter, setProjectFilter, setInboxProjectFilter,
+    projectFilter, setProjectFilter,
     routinesEnabled, todayRoutines,
     goalsProjectsEnabled,
     getFrameInstancesForDate,

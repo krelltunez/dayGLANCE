@@ -58,12 +58,13 @@ const TimeGrid = () => {
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
+    setInboxProjectFilter,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote } = useSyncCtx();
   const {
     goalsProjectsEnabled,
     projects,
-    projectFilter, setProjectFilter, setInboxProjectFilter,
+    projectFilter, setProjectFilter,
     routinesEnabled, todayRoutines,
     getFrameInstancesForDate,
     computeAvailableSlots,

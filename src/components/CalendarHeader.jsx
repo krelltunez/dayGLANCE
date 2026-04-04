@@ -56,6 +56,7 @@ const CalendarHeader = () => {
     openMobileEditTask,
     postponeTask, postponeDeadlineTask,
     moveToRecycleBin, moveToInbox,
+    setInboxProjectFilter,
     getTasksForDate, getDeadlineTasksForDate,
     getTaskCalendarStyle,
     setTaskRef,
@@ -78,7 +79,7 @@ const CalendarHeader = () => {
     todayRoutines, routinesEnabled,
     aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
     goalsProjectsEnabled, projects,
-    projectFilter, setProjectFilter, setInboxProjectFilter,
+    projectFilter, setProjectFilter,
     openRoutinesDashboard,
   } = useFeaturesCtx();
 
