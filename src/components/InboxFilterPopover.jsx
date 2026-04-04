@@ -60,9 +60,8 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
 
   const inboxProjects = useMemo(() => {
     if (!goalsProjectsEnabled) return [];
-    const ids = new Set(unscheduledTasks.filter(t => t.projectId).map(t => t.projectId));
-    return projects.filter(p => ids.has(p.id));
-  }, [projects, unscheduledTasks, goalsProjectsEnabled]);
+    return projects.filter(p => p.status !== 'archived' && p.status !== 'completed');
+  }, [projects, goalsProjectsEnabled]);
 
   const isNonDefault =
     hideCompletedInbox ||
