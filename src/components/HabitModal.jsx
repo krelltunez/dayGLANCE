@@ -5,8 +5,10 @@ import {
 } from 'lucide-react';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const HabitModal = () => {
+  const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const {
     setShowHabitModal,
     editingHabit, setEditingHabit,
@@ -14,8 +16,7 @@ const HabitModal = () => {
     activeHabits, habits,
     addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
     addStepsHabit, addSleepHabit,
-    cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
