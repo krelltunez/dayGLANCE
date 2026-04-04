@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
   AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
-  Edit2, ExternalLink, FileText, GripVertical, LogIn, NotebookPen, Plus,
+  Edit2, ExternalLink, FileText, GripVertical, LogIn, Plus,
   Square, Target, Trash2, X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -468,23 +468,12 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
                       }
                     }}
                     className={`notes-toggle-button flex-shrink-0 p-1 rounded transition-colors ${hoverBg} ${
-                      hasNotesOrSubtasks(t) || (t.importSource === 'obsidian' && extractWikilinks(t.title).length > 0) ? `${textSecondary} opacity-70` : `${textSecondary} opacity-25`
+                      hasNotesOrSubtasks(t) || extractWikilinks(t.title).length > 0 ? `${textSecondary} opacity-70` : `${textSecondary} opacity-25`
                     }`}
                     title={isLinkOnlyTask(t) ? `${getLinkUrl(t)} (hold to edit)` : 'Notes & subtasks'}
                   >
                     {isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : isObsidianNoteOnlyTask(t) ? <BookOpen size={10} /> : <FileText size={10} />}
                   </button>
-                  {/* Obsidian wikilink buttons (native Android only) */}
-                  {window.DayGlanceObsidian && t.importSource === 'obsidian' && extractWikilinks(t.title).map((note, i) => (
-                    <button
-                      key={i}
-                      className="flex-shrink-0 p-1 text-purple-400 active:text-purple-300"
-                      onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian.openNote(note); }}
-                      title={`Open "${note}" in Obsidian`}
-                    >
-                      <NotebookPen size={10} />
-                    </button>
-                  ))}
                   {/* Calendar badge for scheduled tasks — w-5 h-5 matches drag handle (p-1 + size-12) footprint exactly */}
                   {scheduled && (
                     <div className={`flex-shrink-0 w-5 h-5 flex items-center justify-center ${textSecondary} opacity-40`}>
@@ -591,9 +580,9 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
           aiConfig={aiConfig}
           aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
           onGenerateSubtasks={generateAISubtasks}
-          wikilinks={expandedTask.importSource === 'obsidian' ? extractWikilinks(expandedTask.title) : undefined}
-          onLoadWikiNote={expandedTask.importSource === 'obsidian' ? loadWikiNote : undefined}
-          onSaveWikiNote={expandedTask.importSource === 'obsidian' ? saveWikiNote : undefined}
+          wikilinks={extractWikilinks(expandedTask.title).length > 0 ? extractWikilinks(expandedTask.title) : undefined}
+          onLoadWikiNote={extractWikilinks(expandedTask.title).length > 0 ? loadWikiNote : undefined}
+          onSaveWikiNote={extractWikilinks(expandedTask.title).length > 0 ? saveWikiNote : undefined}
         />
       </div>,
       document.body

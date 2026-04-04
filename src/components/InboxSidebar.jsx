@@ -290,7 +290,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                         setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                       }
                     }}
-                    className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                    className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                     title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                   >
                     {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
@@ -363,9 +363,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                 aiConfig={aiConfig}
                 aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                 onGenerateSubtasks={generateAISubtasks}
-                wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
-                onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
-                onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
+                wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
               />
             )}
           </div>
@@ -577,7 +577,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                           setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                         }
                       }}
-                      className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                      className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                     >
                       {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                     </button>
