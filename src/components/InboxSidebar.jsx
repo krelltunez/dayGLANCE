@@ -45,7 +45,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     handleDragStart, handleDragEnd,
     handleDragOverInbox, handleDropOnInbox,
     dragOverInbox, setDragOverInbox,
-    hideCompletedInbox, setHideCompletedInbox, hideStandaloneTasksInbox, hideProjectTasksInbox,
+    hideCompletedInbox, setHideCompletedInbox,
+    hideStandaloneTasksInbox, setHideStandaloneTasksInbox,
+    hideProjectTasksInbox, setHideProjectTasksInbox,
     inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
   } = useDayPlannerCtx();
@@ -247,7 +249,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                             const active = projectFilter === task.projectId;
                             setProjectFilter(active ? null : task.projectId);
                             setInboxProjectFilter(active ? [] : [task.projectId]);
-                            if (!active) { setInboxPriorityFilter(0); setHideCompletedInbox(false); }
+                            if (!active) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); }
                           }}
                           className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
                           title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
