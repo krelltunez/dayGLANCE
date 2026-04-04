@@ -2,8 +2,14 @@ import React from 'react';
 import { X, Plus, Clock, Undo2, Sparkles, Trash2 } from 'lucide-react';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const RoutinesDashboardModal = () => {
+  const {
+    getDayName, formatTime,
+    isTablet, darkMode, use24HourClock,
+    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+  } = useDayPlannerCtx();
   const {
     setShowRoutinesDashboard, handleRoutinesDone,
     routineAddingToBucket, setRoutineAddingToBucket,
@@ -14,10 +20,7 @@ const RoutinesDashboardModal = () => {
     routineDefinitions,
     dashboardSelectedChips, setDashboardSelectedChips,
     addRoutineChip, deleteRoutineChip, toggleRoutineChipSelection,
-    getDayName, formatTime,
-    isTablet, darkMode, use24HourClock,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   return (
     <>
