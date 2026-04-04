@@ -1,15 +1,15 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 
 const EmptyBinConfirmModal = () => {
   const {
-    showEmptyBinConfirm, setShowEmptyBinConfirm,
-    setShowMobileRecycleBin,
     recycleBin,
     cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
     confirmEmptyBin,
   } = useDayPlannerCtx();
+  const { showEmptyBinConfirm, setShowEmptyBinConfirm, setShowMobileRecycleBin } = useSyncCtx();
 
   if (!showEmptyBinConfirm) return null;
 
