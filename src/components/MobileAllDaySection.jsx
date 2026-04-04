@@ -175,12 +175,14 @@ const MobileAllDaySection = () => {
                           >
                             {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                           </button>
+                          {task.recurrenceType !== 'daily' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
                             className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
                           >
                             <SkipForward size={14} />
                           </button>
+                          )}
                         </>
                       )}
                       {isImported && !task.isTaskCalendar && task.notes && (
