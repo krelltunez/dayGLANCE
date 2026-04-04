@@ -4,8 +4,12 @@ import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermissi
 import { stripWikilinks, extractWikilinks } from '../utils/taskUtils.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FocusModeModal = () => {
+  const { currentTime, isPhone, isTablet, formatTime, minutesToTime, timeToMinutes } = useDayPlannerCtx();
+  const { loadWikiNote, saveWikiNote } = useSyncCtx();
   const {
     exitFocusMode, startFocusTimer, dismissFocusStats,
     focusShowSettings, focusShowStats,
@@ -20,12 +24,8 @@ const FocusModeModal = () => {
     focusSessionStart,
     focusUpdateTaskNotes, focusAddSubtask, focusToggleSubtask,
     focusDeleteSubtask, focusUpdateSubtaskTitle,
-    currentTime,
-    isPhone, isTablet,
     aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
-    loadWikiNote, saveWikiNote,
-    formatTime, minutesToTime, timeToMinutes,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   return (
     <div className="fixed inset-0 bg-gray-950 z-[70] flex flex-col items-center overflow-y-auto">
