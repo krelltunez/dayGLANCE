@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { TASK_COLORS, TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
@@ -427,7 +428,8 @@ const FormOverlay = ({ children, onClose, mobile, cardBg }) => {
 // ─── Goal mini card (carousel side slots) ────────────────────────────────────
 
 const GoalMiniCard = ({ goal, onClick }) => {
-  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks, projects, updateGoal } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks } = useDayPlannerCtx();
+  const { projects, updateGoal } = useFeaturesCtx();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const hex = toHex(goal.color || 'bg-blue-500');
@@ -505,8 +507,8 @@ const DesktopDashboard = ({
   goalCardRefs,
   projectCardRefs,
 }) => {
-  const { darkMode, textPrimary, textSecondary, borderClass, hoverBg, moveProject } =
-    useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, borderClass, hoverBg } = useDayPlannerCtx();
+  const { moveProject } = useFeaturesCtx();
 
   const containerRef = useRef(null);
   const [svgLines, setSvgLines] = useState([]);
@@ -971,13 +973,8 @@ const MobileDashboard = ({
   onNewProject,
   isActive = false,
 }) => {
-  const {
-    darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass,
-    tasks: scheduledTasks,
-    unscheduledTasks,
-    updateGoal,
-    moveProject,
-  } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks } = useDayPlannerCtx();
+  const { updateGoal, moveProject } = useFeaturesCtx();
 
   const scrollRef = useRef(null);
   const swipeRef = useRef(null); // { startX, startY, locked }
@@ -1483,13 +1480,8 @@ const MobileDashboard = ({
 
 const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0, addProjectTrigger = 0 }) => {
   const {
-    showGoalsDashboard, setShowGoalsDashboard,
-    goals, projects, setProjects,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
-    addGoal, updateGoal, deleteGoal,
-    addProject, updateProject,
-    enterProjectFocusMode,
     getTodayStr,
     showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
     isMobile,
@@ -1497,6 +1489,13 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
   } = useDayPlannerCtx();
+  const {
+    showGoalsDashboard, setShowGoalsDashboard,
+    goals, projects, setProjects,
+    addGoal, updateGoal, deleteGoal,
+    addProject, updateProject,
+    enterProjectFocusMode,
+  } = useFeaturesCtx();
 
   const [goalForm, setGoalForm] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
