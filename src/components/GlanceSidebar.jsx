@@ -3,10 +3,9 @@ import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Hash, Inbox, LayoutGrid, Loader,
-  Mic, Minus, Moon, NotebookPen, Plus, RefreshCw, Search,
+  Mic, Minus, Moon, Plus, RefreshCw, Search,
   Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
-import { isNativeAndroid } from '../native.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
@@ -782,9 +781,6 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
               {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
               <span className="truncate">{renderTitle(task.title)}</span>
-              {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={13} /></button>
-              ))}
             </div>
             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
               <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}

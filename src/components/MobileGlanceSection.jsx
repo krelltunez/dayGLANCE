@@ -3,10 +3,9 @@ import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, ExternalLink, FileText, Filter, Inbox, LayoutGrid,
-  Loader, Mic, Minus, Moon, NotebookPen, Plus, RefreshCw,
+  Loader, Mic, Minus, Moon, Plus, RefreshCw,
   Search, Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
-import { isNativeAndroid } from '../native.js';
 import { renderTitle, renderFormattedText, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
@@ -725,13 +724,6 @@ const MobileGlanceSection = () => {
               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
               {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
               <span className="truncate">{renderTitle(task.title)}</span>
-              {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                <button key={i} className="flex-shrink-0 text-purple-400 active:text-purple-300"
-                  onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }}
-                  title={`Open "${note}" in Obsidian`}>
-                  <NotebookPen size={14} />
-                </button>
-              ))}
             </div>
             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
               {timeLabel}{relativeLabel ? <>{`, `}<span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span></> : ''}
@@ -1044,6 +1036,9 @@ const MobileGlanceSection = () => {
                 aiConfig={aiConfig}
                 aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                 onGenerateSubtasks={generateAISubtasks}
+                wikilinks={extractWikilinks(agendaTask.title).length > 0 ? extractWikilinks(agendaTask.title) : undefined}
+                onLoadWikiNote={extractWikilinks(agendaTask.title).length > 0 ? loadWikiNote : undefined}
+                onSaveWikiNote={extractWikilinks(agendaTask.title).length > 0 ? saveWikiNote : undefined}
               />
               </div>
             )}

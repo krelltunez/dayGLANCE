@@ -2,7 +2,7 @@ import React from 'react';
 import {
   BookOpen, Check, CheckSquare, Clock, ExternalLink,
   FileText, GripVertical, Inbox, MapPin, MoreHorizontal,
-  NotebookPen, Pencil, RefreshCw, Settings, SkipForward, Trash2,
+  Pencil, RefreshCw, Settings, SkipForward, Trash2,
 } from 'lucide-react';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitleWithoutTags, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
@@ -310,7 +310,7 @@ const TimeGrid = () => {
                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                     }
                   }}
-                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || (task.importSource === 'obsidian' && extractWikilinks(task.title).length > 0) ? '' : 'opacity-40'}`}
+                  className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                   title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
                 >
                   {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
@@ -581,9 +581,6 @@ const TimeGrid = () => {
                                 >
                                   {renderTitleWithoutTags(task.title)}
                                 </div>
-                                {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                                  <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                                ))}
                               </div>
                             )}
                             {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
@@ -670,9 +667,6 @@ const TimeGrid = () => {
                                 >
                                   {renderTitleWithoutTags(task.title)}
                                 </div>
-                                {isNativeAndroid() && extractWikilinks(task.title).map((note, i) => (
-                                  <button key={i} className="flex-shrink-0 text-purple-200 active:text-purple-100" onClick={(e) => { e.stopPropagation(); window.DayGlanceObsidian?.openNote(note); }} title={`Open "${note}" in Obsidian`}><NotebookPen size={14} /></button>
-                                ))}
                               </div>
                             )}
                             {(extractTags(task.title).length > 0 || (goalsProjectsEnabled && task.projectId)) && (
@@ -748,9 +742,9 @@ const TimeGrid = () => {
                             aiConfig={aiConfig}
                             aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                             onGenerateSubtasks={generateAISubtasks}
-                            wikilinks={task.importSource === 'obsidian' ? extractWikilinks(task.title) : undefined}
-                            onLoadWikiNote={task.importSource === 'obsidian' ? loadWikiNote : undefined}
-                            onSaveWikiNote={task.importSource === 'obsidian' ? saveWikiNote : undefined}
+                            wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                            onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                            onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
                           />
                         </div>
                       </div>
