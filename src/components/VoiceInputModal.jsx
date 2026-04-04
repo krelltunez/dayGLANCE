@@ -1,10 +1,16 @@
 import React from 'react';
 import { BrainCircuit, Check, Loader, Mic, MicOff, Pencil, Plus, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { supportsTranscription } from '../ai.js';
 
 const VoiceInputModal = () => {
+  const {
+    voiceTextareaRef,
+    darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    isTablet, use24HourClock,
+  } = useDayPlannerCtx();
   const {
     showVoiceInput, setShowVoiceInput,
     voiceIsRecording, voiceIsTranscribing, voiceIsParsing,
@@ -15,18 +21,11 @@ const VoiceInputModal = () => {
     voiceParseError, setVoiceParseError,
     voiceEditingParsed, setVoiceEditingParsed,
     voiceManualMode, setVoiceManualMode,
-    voiceMicError,
-    voiceCanRecord,
-    voiceHasTranscription,
+    voiceMicError, voiceCanRecord, voiceHasTranscription,
     voiceStartRecording, voiceStopRecording,
     voiceParseWithAI, voiceApplyAllChanges,
-    voiceTextareaRef,
     aiConfig,
-    darkMode,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-    isTablet,
-    use24HourClock,
-  } = useDayPlannerCtx();
+  } = useFeaturesCtx();
 
   return (
     <>
