@@ -237,7 +237,7 @@ const MobileNewTaskModal = () => {
                     <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
                     {(() => {
                       const isRecurringEdit = mobileEditingTask && typeof mobileEditingTask.id === 'string' && mobileEditingTask.id.startsWith('recurring-');
-                      const dateDisabled = newTask.keepUnscheduled || (isRecurringEdit && newTask.recurrence?.type === 'daily');
+                      const dateDisabled = newTask.keepUnscheduled || (isRecurringEdit && (mobileEditingTask.recurrenceType === 'daily' || newTask.recurrence?.type === 'daily'));
                       return (
                         <button
                           type="button"
