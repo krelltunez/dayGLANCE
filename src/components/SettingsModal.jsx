@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, RefreshCw, Server, Settings, Sparkles, Sun, Target, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -247,7 +247,7 @@ const SettingsModal = () => {
                     {/* Weather — desktop only */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Cloud size={16} className={textSecondary} />
+                        <Thermometer size={16} className={textSecondary} />
                         Weather
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
@@ -289,7 +289,7 @@ const SettingsModal = () => {
                     {/* Daily Content — desktop only */}
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Sparkles size={16} className={textSecondary} />
+                        <Newspaper size={16} className={textSecondary} />
                         Daily Content
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
