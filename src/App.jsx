@@ -1166,7 +1166,7 @@ const DayPlanner = () => {
         if (cfg?.configured) {
           obsidianVaultHandleRef.current = 'native';
           if (!obsidianConfig?.enabled) {
-            setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE' });
+            setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE', dailyNotePattern: cfg.pattern || 'yyyy-MM-dd' });
           }
           performObsidianSync();
           // Populate wikilink autocomplete candidates from the vault index
@@ -1206,7 +1206,7 @@ const DayPlanner = () => {
           if (cfg?.configured) {
             obsidianVaultHandleRef.current = 'native';
             if (!obsidianConfig?.enabled) {
-              setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE' });
+              setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE', dailyNotePattern: cfg.pattern || 'yyyy-MM-dd' });
             }
             performObsidianSync();
             // Refresh candidates in case new notes were added while in native settings

@@ -1083,6 +1083,48 @@ const MobileSettingsPanel = () => {
               </>
             )}
           </div>
+          {/* Daily notes folder */}
+          {obsidianConfig?.enabled && (
+            <div>
+              <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
+              <input
+                type="text"
+                placeholder="(vault root)"
+                value={obsidianConfig.dailyNotesPath || ''}
+                onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+              />
+              <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root. Common: "Daily Notes" or "journals"</p>
+            </div>
+          )}
+          {/* New notes folder */}
+          {obsidianConfig?.enabled && (
+            <div>
+              <label className={`block text-sm ${textSecondary} mb-1`}>New notes folder</label>
+              <input
+                type="text"
+                placeholder="dayGLANCE"
+                value={obsidianConfig.newNotesFolder ?? 'dayGLANCE'}
+                onChange={(e) => setObsidianConfig(prev => ({ ...prev, newNotesFolder: e.target.value }))}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+              />
+              <p className={`text-xs ${textSecondary} mt-1`}>Where new notes created in dayGLANCE are saved. Leave empty for vault root.</p>
+            </div>
+          )}
+          {/* Filename pattern */}
+          {obsidianConfig?.enabled && (
+            <div>
+              <label className={`block text-sm ${textSecondary} mb-1`}>Filename pattern</label>
+              <input
+                type="text"
+                placeholder="yyyy-MM-dd"
+                value={obsidianConfig.dailyNotePattern ?? 'yyyy-MM-dd'}
+                onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotePattern: e.target.value }))}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+              />
+              <p className={`text-xs ${textSecondary} mt-1`}>Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"</p>
+            </div>
+          )}
           {/* Task heading — same as web */}
           {obsidianConfig?.enabled && (
             <div>
