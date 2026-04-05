@@ -105,4 +105,27 @@ class ObsidianBridge(private val context: Context) {
     @JavascriptInterface
     fun writeDailyNote(date: String, content: String): Boolean =
         repository.writeDailyNote(date, content)
+
+    /**
+     * Returns the content and last-modified timestamp of the note at [path]
+     * (relative to vault root, without .md extension).
+     *
+     * Bare names (e.g. "My Note") are resolved by searching the vault recursively,
+     * mirroring Obsidian's own wikilink resolution. Explicit paths (e.g. "Folder/My Note")
+     * are navigated directly.
+     *
+     * Returns JSON: { "text": "<markdown>", "lastModified": "<ISO-8601>" }
+     * Returns "" if vault isn't configured or the note doesn't exist.
+     */
+    @JavascriptInterface
+    fun getNote(path: String): String = repository.getNote(path)
+
+    /**
+     * Creates or overwrites the note at [path] (relative to vault root, without .md extension)
+     * with [content]. For bare names the vault is searched first; if not found the file is
+     * created at the vault root.
+     * Returns false if the vault isn't configured or a write error occurs.
+     */
+    @JavascriptInterface
+    fun writeNote(path: String, content: String): Boolean = repository.writeNote(path, content)
 }

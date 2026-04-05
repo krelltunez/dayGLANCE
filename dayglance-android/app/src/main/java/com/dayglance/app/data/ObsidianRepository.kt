@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -225,6 +226,84 @@ class ObsidianRepository(private val context: Context) {
                 })
             }
         return arr.toString()
+    }
+
+    /**
+     * Returns the raw markdown content and last-modified timestamp of the note at [path]
+     * (relative to vault root, without the .md extension).
+     *
+     * If [path] contains slashes (e.g. "Folder/My Note") the exact path is used.
+     * If [path] is a bare name (e.g. "My Note") the entire vault is searched recursively,
+     * mirroring how Obsidian resolves wikilinks.
+     *
+     * Returns JSON: { "text": "<markdown>", "lastModified": "<ISO-8601>" }
+     * Returns "" if vault isn't configured or the note doesn't exist.
+     */
+    fun getNote(path: String): String {
+        val root = vaultRoot() ?: return ""
+        val segments = path.split("/").filter { it.isNotBlank() }
+        if (segments.isEmpty()) return ""
+
+        val fileName = "${segments.last()}.md"
+        val file = if (segments.size > 1) {
+            val folderPath = segments.dropLast(1).joinToString("/")
+            val dir = root.navigateTo(folderPath) ?: return ""
+            dir.findFile(fileName) ?: return ""
+        } else {
+            root.findFileRecursive(fileName) ?: return ""
+        }
+
+        val text = readText(file)
+        val lastModified = Instant.ofEpochMilli(file.lastModified()).toString()
+        return JSONObject().apply {
+            put("text", text)
+            put("lastModified", lastModified)
+        }.toString()
+    }
+
+    /**
+     * Creates or overwrites the note at [path] (relative to vault root, without .md extension)
+     * with [content].
+     *
+     * If [path] contains slashes (e.g. "Folder/My Note") the exact path is used and any
+     * missing parent directories are created. If [path] is a bare name the vault is searched
+     * first so edits land in the file's actual location; if not found the file is created at
+     * the vault root — mirroring how web's writeWikiNote() behaves.
+     *
+     * Returns false if the vault isn't configured or a write error occurs.
+     */
+    fun writeNote(path: String, content: String): Boolean = runCatching {
+        val root = vaultRoot() ?: return false
+        val segments = path.split("/").filter { it.isNotBlank() }
+        if (segments.isEmpty()) return false
+
+        val fileName = "${segments.last()}.md"
+        val file = if (segments.size > 1) {
+            val folderPath = segments.dropLast(1).joinToString("/")
+            val dir = root.navigateOrCreate(folderPath) ?: return false
+            dir.findFile(fileName)
+                ?: dir.createFile("text/markdown", fileName)
+                ?: return false
+        } else {
+            root.findFileRecursive(fileName)
+                ?: root.createFile("text/markdown", fileName)
+                ?: return false
+        }
+
+        writeText(file, content)
+        true
+    }.getOrDefault(false)
+
+    /** Recursively searches this directory tree for a file with the given [fileName]. */
+    private fun DocumentFile.findFileRecursive(fileName: String): DocumentFile? {
+        for (child in listFiles()) {
+            if (child.isFile && child.name == fileName) return child
+            if (child.isDirectory) {
+                val found = child.findFileRecursive(fileName)
+                if (found != null) return found
+            }
+        }
+        return null
     }
 
     fun getTasksFromNote(path: String): String {

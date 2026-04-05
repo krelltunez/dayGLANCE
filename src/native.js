@@ -53,6 +53,8 @@ export const nativeBridge = () =>
  *   listNotes(folder: string): string      — JSON array of note paths relative to vault root
  *   appendToNote(path: string, content: string): boolean
  *   getTasksFromNote(path: string): string — JSON array of { text, completed, line }
+ *   getNote(path: string): string          — JSON { text, lastModified } or "" if not found
+ *   writeNote(path: string, content: string): boolean — create or overwrite arbitrary note
  */
 export const obsidianBridge = () =>
   typeof window !== 'undefined' ? window.DayGlanceObsidian ?? null : null;
@@ -169,6 +171,34 @@ export const nativeGetVaultConfig = () => {
   const bridge = obsidianBridge();
   if (!bridge?.getVaultConfig) return null;
   try { return JSON.parse(bridge.getVaultConfig()); } catch { return null; }
+};
+
+/**
+ * Reads an arbitrary vault note by wikilink name (e.g. "My Note" or "Folder/My Note").
+ * Bare names are resolved by searching the vault recursively, matching Obsidian's behaviour.
+ * Returns { text, lastModified } or null if not found / vault not configured.
+ */
+export const nativeGetNote = (path) => {
+  const bridge = obsidianBridge();
+  if (!bridge?.getNote) return null;
+  try {
+    const raw = bridge.getNote(path);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Creates or overwrites an arbitrary vault note by wikilink name.
+ * For bare names the vault is searched first; if not found the file is created at vault root.
+ * Returns false if vault isn't configured or write fails.
+ */
+export const nativeWriteNote = (path, content) => {
+  const bridge = obsidianBridge();
+  if (!bridge?.writeNote) return false;
+  try { return bridge.writeNote(path, content); } catch { return false; }
 };
 
 /**
