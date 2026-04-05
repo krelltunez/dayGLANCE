@@ -1085,9 +1085,10 @@ const MobileLayout = () => {
                             aiConfig={aiConfig}
                             aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                             onGenerateSubtasks={generateAISubtasks}
-                            wikilinks={noteTask.importSource === 'obsidian' ? extractWikilinks(noteTask.title) : undefined}
-                            onLoadWikiNote={noteTask.importSource === 'obsidian' ? loadWikiNote : undefined}
-                            onSaveWikiNote={noteTask.importSource === 'obsidian' ? saveWikiNote : undefined}
+                            wikilinks={extractWikilinks(noteTask.title).length > 0 ? extractWikilinks(noteTask.title) : undefined}
+                            onLoadWikiNote={extractWikilinks(noteTask.title).length > 0 ? loadWikiNote : undefined}
+                            onSaveWikiNote={extractWikilinks(noteTask.title).length > 0 ? saveWikiNote : undefined}
+                            onOpenInObsidian={extractWikilinks(noteTask.title).length > 0 ? openInObsidian : undefined}
                           />
                           </div>
                         </div>

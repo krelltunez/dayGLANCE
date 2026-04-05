@@ -177,9 +177,10 @@ const NotesSubtasksPanel = ({
                       type="button"
                       onClick={() => onOpenInObsidian(noteName)}
                       title={`Open "${noteName}" in Obsidian`}
-                      className="opacity-60 hover:opacity-100 transition-opacity"
+                      className="flex items-center gap-1 opacity-70 hover:opacity-100 active:opacity-100 transition-opacity px-1 py-0.5 rounded hover:bg-white/10 active:bg-white/10"
                     >
                       <ExternalLink size={11} />
+                      <span className="text-[10px]">Open</span>
                     </button>
                   )}
                 </div>
