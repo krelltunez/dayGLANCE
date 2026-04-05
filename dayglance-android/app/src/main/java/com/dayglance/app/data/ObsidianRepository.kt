@@ -65,10 +65,22 @@ class ObsidianRepository(private val context: Context) {
         }
     }
 
-    /** Returns the URI for a note by bare name, building the index first if needed. */
+    /**
+     * Returns the URI for a note by bare name.
+     *
+     * Checks the in-memory index first (O(1)). On a cache miss — which happens
+     * when a note was added to the vault after the last sync — rebuilds the index
+     * and tries once more. This keeps the common case fast while still finding
+     * notes that were created outside of a sync cycle.
+     */
     private fun findNoteUri(noteName: String): Uri? {
         if (!noteIndexBuilt) buildNoteIndex()
         return noteUriIndex[noteName.lowercase()]
+            ?: run {
+                // Cache miss: note may have been added since last build — rescan and retry
+                buildNoteIndex()
+                noteUriIndex[noteName.lowercase()]
+            }
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
