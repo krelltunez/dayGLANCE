@@ -867,6 +867,21 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-sm ${textSecondary} mb-1`}>
+                              Filename pattern
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="yyyy-MM-dd"
+                              value={obsidianConfig.dailyNotePattern ?? 'yyyy-MM-dd'}
+                              onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotePattern: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                            <p className={`text-xs ${textSecondary} mt-1`}>
+                              Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"
+                            </p>
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>
                               Daily note template
                             </label>
                             <textarea
