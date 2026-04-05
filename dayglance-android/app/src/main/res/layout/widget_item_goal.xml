@@ -3,10 +3,11 @@
   Widget list item: a goal due today.
 
   Structure:
-    [amber bar 3dp] [title — flex] [ProgressBar — 56dp] [X% label]
+    [amber bar 3dp] [title — flex]           [DUE TODAY badge]
+                    [progress bar — flex] [X% · Y/Z tasks]
 
-  One row, same height as a short task row.
-  The amber bar signals "due today" without needing a text badge.
+  Two-line row matching the task row style.
+  The amber bar signals "goal" at a glance.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/goal_item_root"
@@ -14,8 +15,8 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingTop="5dp"
-    android:paddingBottom="5dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp"
     android:paddingStart="0dp"
     android:paddingEnd="0dp">
 
@@ -23,42 +24,77 @@
     <TextView
         android:id="@+id/goal_color_bar"
         android:layout_width="3dp"
-        android:layout_height="28dp"
+        android:layout_height="44dp"
         android:background="#f59e0b"
         android:layout_marginEnd="7dp"
         android:text="" />
 
-    <!-- Goal title -->
-    <TextView
-        android:id="@+id/tv_goal_title"
+    <!-- Text content: 2-line vertical stack -->
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:text="Goal title"
-        android:textColor="@color/widget_text_primary"
-        android:textSize="13sp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:layout_marginEnd="8dp" />
+        android:orientation="vertical">
 
-    <!-- Thin horizontal progress bar -->
-    <ProgressBar
-        android:id="@+id/pb_goal_progress"
-        style="@android:style/Widget.ProgressBar.Horizontal"
-        android:layout_width="56dp"
-        android:layout_height="8dp"
-        android:max="100"
-        android:progress="0"
-        android:layout_marginEnd="6dp" />
+        <!-- Line 1: title + DUE TODAY badge -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-    <!-- Percentage label -->
-    <TextView
-        android:id="@+id/tv_goal_pct"
-        android:layout_width="30dp"
-        android:layout_height="wrap_content"
-        android:text="0%"
-        android:textColor="@color/widget_text_secondary"
-        android:textSize="11sp"
-        android:gravity="end" />
+            <TextView
+                android:id="@+id/tv_goal_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Goal title"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tv_goal_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DUE TODAY"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06"
+                android:layout_marginStart="4dp" />
+
+        </LinearLayout>
+
+        <!-- Line 2: progress bar + "X% · Y/Z tasks" -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="3dp">
+
+            <ProgressBar
+                android:id="@+id/pb_goal_progress"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="0dp"
+                android:layout_height="6dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/tv_goal_stats"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0%"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

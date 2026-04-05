@@ -81,7 +81,12 @@ class DayGlanceWidgetListFactory(
             val isEmpty: Boolean,
         ) : AgendaItem(TYPE_GLANCEAHEAD)
         object Empty : AgendaItem(TYPE_EMPTY)
-        class Goal(val title: String, val progressPct: Int) : AgendaItem(TYPE_GOAL)
+        class Goal(
+            val title: String,
+            val progressPct: Int,
+            val totalTasks: Int,
+            val completedTasks: Int,
+        ) : AgendaItem(TYPE_GOAL)
     }
 
     data class HabitData(
@@ -143,14 +148,17 @@ class DayGlanceWidgetListFactory(
             if (habits.isNotEmpty()) items += AgendaItem.Habits(habits)
         }
 
-        // 1.5 Goals due today — compact rows below habits, above overdue
+        // 1.5 Goals due today — section header + rows below habits, above overdue
         val goalsArray = snapshot.optJSONArray("goals")
         if (goalsArray != null && goalsArray.length() > 0) {
+            items += AgendaItem.Section("GOALS")
             for (i in 0 until goalsArray.length()) {
                 val g = goalsArray.optJSONObject(i) ?: continue
                 items += AgendaItem.Goal(
                     title = g.optString("title", "Untitled"),
                     progressPct = g.optInt("progressPct", 0).coerceIn(0, 100),
+                    totalTasks = g.optInt("totalTasks", 0),
+                    completedTasks = g.optInt("completedTasks", 0),
                 )
             }
         }
@@ -447,7 +455,14 @@ class DayGlanceWidgetListFactory(
         val rv = RemoteViews(context.packageName, R.layout.widget_item_goal)
         rv.setTextViewText(R.id.tv_goal_title, item.title)
         rv.setProgressBar(R.id.pb_goal_progress, 100, item.progressPct, false)
-        rv.setTextViewText(R.id.tv_goal_pct, "${item.progressPct}%")
+        val statsStr = if (item.totalTasks > 0)
+            "${item.progressPct}% · ${item.completedTasks}/${item.totalTasks} tasks"
+        else
+            "${item.progressPct}%"
+        rv.setTextViewText(R.id.tv_goal_stats, statsStr)
+        rv.boostTextSizeForOneUi(R.id.tv_goal_title, 13f)
+        rv.boostTextSizeForOneUi(R.id.tv_goal_badge, 11f)
+        rv.boostTextSizeForOneUi(R.id.tv_goal_stats, 11f)
         rv.setOnClickFillInIntent(R.id.goal_item_root, android.content.Intent())
         return rv
     }
