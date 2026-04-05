@@ -6,8 +6,12 @@
     [amber bar 3dp] [title — flex]           [DUE TODAY badge]
                     [progress bar — flex] [X% · Y/Z tasks]
 
-  Two-line row matching the task row style.
-  The amber bar signals "goal" at a glance.
+  Three ProgressBars (red/amber/green) cover the three completion thresholds;
+  exactly one is VISIBLE at a time, the others are GONE. This is the only way
+  to vary progress bar color in RemoteViews — dynamic tint is not supported.
+    red   (#ef4444) — < 40%
+    amber (#f59e0b) — 40–79%
+    green (#22c55e) — ≥ 80%
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/goal_item_root"
@@ -67,7 +71,7 @@
 
         </LinearLayout>
 
-        <!-- Line 2: progress bar + "X% · Y/Z tasks" -->
+        <!-- Line 2: progress bar (color-coded) + stats label -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -75,15 +79,46 @@
             android:gravity="center_vertical"
             android:layout_marginTop="3dp">
 
+            <!-- Red — < 40% -->
             <ProgressBar
-                android:id="@+id/pb_goal_progress"
+                android:id="@+id/pb_goal_progress_red"
                 style="@android:style/Widget.ProgressBar.Horizontal"
                 android:layout_width="0dp"
                 android:layout_height="6dp"
                 android:layout_weight="1"
                 android:max="100"
                 android:progress="0"
+                android:progressTint="#ef4444"
+                android:progressBackgroundTint="#33ef4444"
                 android:layout_marginEnd="6dp" />
+
+            <!-- Amber — 40–79% -->
+            <ProgressBar
+                android:id="@+id/pb_goal_progress_amber"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="0dp"
+                android:layout_height="6dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="#f59e0b"
+                android:progressBackgroundTint="#33f59e0b"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
+
+            <!-- Green — ≥ 80% -->
+            <ProgressBar
+                android:id="@+id/pb_goal_progress_green"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="0dp"
+                android:layout_height="6dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="#22c55e"
+                android:progressBackgroundTint="#3322c55e"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_goal_stats"

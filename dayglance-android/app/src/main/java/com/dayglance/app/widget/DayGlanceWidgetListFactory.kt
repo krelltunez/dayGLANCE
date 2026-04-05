@@ -454,7 +454,23 @@ class DayGlanceWidgetListFactory(
     private fun buildGoalView(item: AgendaItem.Goal): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_item_goal)
         rv.setTextViewText(R.id.tv_goal_title, item.title)
-        rv.setProgressBar(R.id.pb_goal_progress, 100, item.progressPct, false)
+
+        // Show the colour-appropriate progress bar; GONE the other two
+        val (visRed, visAmber, visGreen) = when {
+            item.progressPct >= 80 -> Triple(View.GONE,    View.GONE,    View.VISIBLE)
+            item.progressPct >= 40 -> Triple(View.GONE,    View.VISIBLE, View.GONE)
+            else                   -> Triple(View.VISIBLE, View.GONE,    View.GONE)
+        }
+        rv.setViewVisibility(R.id.pb_goal_progress_red,   visRed)
+        rv.setViewVisibility(R.id.pb_goal_progress_amber, visAmber)
+        rv.setViewVisibility(R.id.pb_goal_progress_green, visGreen)
+        val activeBarId = when {
+            item.progressPct >= 80 -> R.id.pb_goal_progress_green
+            item.progressPct >= 40 -> R.id.pb_goal_progress_amber
+            else                   -> R.id.pb_goal_progress_red
+        }
+        rv.setProgressBar(activeBarId, 100, item.progressPct, false)
+
         val statsStr = if (item.totalTasks > 0)
             "${item.progressPct}% · ${item.completedTasks}/${item.totalTasks} tasks"
         else
