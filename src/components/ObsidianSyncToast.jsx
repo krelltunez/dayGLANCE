@@ -1,17 +1,49 @@
-import React from 'react';
-import { BookOpen, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
+// Minimum time (ms) to show the "syncing" state, even if the sync itself was
+// instant. On cold open, syncObsidianVaultNative blocks the JS thread, so React
+// cannot paint the syncing state before the freeze ends. This ensures the user
+// always sees the "building…" message for at least this long.
+const MIN_SYNCING_MS = 1500;
+
 const ObsidianSyncToast = () => {
   const { obsidianSyncStatus, obsidianSyncError } = useSyncCtx();
-  const { cardBg, borderClass, textPrimary, textSecondary, darkMode } = useDayPlannerCtx();
+  const { cardBg, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
 
-  if (obsidianSyncStatus === 'idle') return null;
+  // displayStatus is what the toast actually shows — it may lag behind
+  // obsidianSyncStatus to enforce the minimum syncing display time.
+  const [displayStatus, setDisplayStatus] = useState('idle');
+  const syncingStartRef = useRef(null);
+  const timerRef = useRef(null);
 
-  const isSyncing = obsidianSyncStatus === 'syncing';
-  const isSuccess = obsidianSyncStatus === 'success';
-  const isError = obsidianSyncStatus === 'error';
+  useEffect(() => {
+    if (obsidianSyncStatus === 'syncing') {
+      syncingStartRef.current = Date.now();
+      setDisplayStatus('syncing');
+    } else if (obsidianSyncStatus === 'success' || obsidianSyncStatus === 'error') {
+      const elapsed = syncingStartRef.current != null ? Date.now() - syncingStartRef.current : MIN_SYNCING_MS;
+      const remaining = Math.max(0, MIN_SYNCING_MS - elapsed);
+      clearTimeout(timerRef.current);
+      if (remaining > 0) {
+        // Hold on "syncing" until the minimum time is up, then flip to final status
+        timerRef.current = setTimeout(() => setDisplayStatus(obsidianSyncStatus), remaining);
+      } else {
+        setDisplayStatus(obsidianSyncStatus);
+      }
+    } else {
+      clearTimeout(timerRef.current);
+      setDisplayStatus('idle');
+    }
+    return () => clearTimeout(timerRef.current);
+  }, [obsidianSyncStatus]);
+
+  if (displayStatus === 'idle') return null;
+
+  const isSyncing = displayStatus === 'syncing';
+  const isSuccess = displayStatus === 'success';
 
   let icon, message, accentColor;
   if (isSyncing) {
