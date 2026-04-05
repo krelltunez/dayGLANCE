@@ -5852,7 +5852,10 @@ const DayPlanner = () => {
           .filter(g => g.status === 'active' && g.targetDate === todayStr)
           .map(g => {
             const progressPct = Math.round(calculateGoalProgress(g.id, projects, allTasksCombinedW) * 100);
-            return { id: g.id, title: g.title, progressPct };
+            const childProjects = projects.filter(p => p.goalId === g.id && p.status !== 'archived');
+            const totalTasks = allTasksCombinedW.filter(t => childProjects.some(p => p.id === t.projectId) && !t.archived).length;
+            const completedTasks = allTasksCombinedW.filter(t => childProjects.some(p => p.id === t.projectId) && !t.archived && t.completed).length;
+            return { id: g.id, title: g.title, progressPct, totalTasks, completedTasks };
           })
       : [];
 
