@@ -33,7 +33,7 @@ function renderNoteContent(text, onWikilinkClick) {
           title={`Open "${m[1]}"`}
           className="text-purple-300 hover:text-purple-200 underline decoration-dashed underline-offset-2 transition-colors"
         >
-          [[{m[1]}]]
+          {m[1]}
         </button>
       );
     }
