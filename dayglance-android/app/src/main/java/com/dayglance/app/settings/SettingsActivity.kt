@@ -54,9 +54,11 @@ class SettingsActivity : AppCompatActivity() {
         // Populate daily note fields from stored prefs
         val folderField = findViewById<TextInputEditText>(R.id.et_daily_note_folder)
         val patternField = findViewById<TextInputEditText>(R.id.et_daily_note_pattern)
+        val newNotesFolderField = findViewById<TextInputEditText>(R.id.et_new_notes_folder)
 
         folderField.setText(dataStore.dailyNoteFolder)
         patternField.setText(dataStore.dailyNotePattern)
+        newNotesFolderField.setText(dataStore.newNotesFolder)
 
         findViewById<Button>(R.id.btn_select_vault)?.setOnClickListener {
             vaultPicker.launch(null)
@@ -68,6 +70,9 @@ class SettingsActivity : AppCompatActivity() {
                 .takeIf { !it.isNullOrBlank() }
                 ?: SharedDataStore.DEFAULT_DAILY_NOTE_PATTERN
             dataStore.dailyNotePattern = pattern
+            dataStore.newNotesFolder = newNotesFolderField.text?.toString()?.trim()
+                .takeIf { !it.isNullOrBlank() }
+                ?: SharedDataStore.DEFAULT_NEW_NOTES_FOLDER
             Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
         }
     }

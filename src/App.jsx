@@ -1162,7 +1162,7 @@ const DayPlanner = () => {
         if (cfg?.configured) {
           obsidianVaultHandleRef.current = 'native';
           if (!obsidianConfig?.enabled) {
-            setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '' });
+            setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE' });
           }
           performObsidianSync();
         }
@@ -1196,7 +1196,7 @@ const DayPlanner = () => {
           if (cfg?.configured) {
             obsidianVaultHandleRef.current = 'native';
             if (!obsidianConfig?.enabled) {
-              setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '' });
+              setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE' });
             }
             performObsidianSync();
           }
@@ -1817,11 +1817,11 @@ const DayPlanner = () => {
       return;
     }
     try {
-      await writeWikiNote(handle, noteName, content);
+      await writeWikiNote(handle, noteName, content, obsidianConfig?.newNotesFolder || '');
     } catch (err) {
       console.error('Failed to write wiki note:', err);
     }
-  }, []);
+  }, [obsidianConfig?.newNotesFolder]);
 
   // Opens a vault note in the Obsidian app (Android) or via obsidian:// URI (web/desktop).
   const openInObsidian = useCallback((noteName) => {

@@ -226,6 +226,7 @@ class ObsidianRepository(private val context: Context) {
         put("configured", dataStore.vaultPath != null)
         put("folder", dataStore.dailyNoteFolder)
         put("pattern", dataStore.dailyNotePattern)
+        put("newNotesFolder", dataStore.newNotesFolder)
     }.toString()
 
     /**
@@ -351,13 +352,18 @@ class ObsidianRepository(private val context: Context) {
                 ?: dir.createFile("text/markdown", fileName)
                 ?: return false
         } else {
-            // Use the index to find the existing file; create at vault root if absent
+            // Use the index to find the existing file; if not found create in newNotesFolder
             val existingUri = findNoteUri(noteName)
             val existingFile = existingUri?.let { DocumentFile.fromSingleUri(context, it) }
             existingFile?.takeIf { it.exists() }
-                ?: (root.createFile("text/markdown", fileName) ?: return false).also { created ->
-                    // Keep the index up-to-date so the new file is found on next getNote()
-                    noteUriIndex[noteName.lowercase()] = created.uri
+                ?: run {
+                    val folder = dataStore.newNotesFolder
+                    val dir = if (folder.isBlank()) root
+                              else (root.navigateOrCreate(folder) ?: return false)
+                    (dir.createFile("text/markdown", fileName) ?: return false).also { created ->
+                        // Keep the index up-to-date so the new file is found on next getNote()
+                        noteUriIndex[noteName.lowercase()] = created.uri
+                    }
                 }
         }
 

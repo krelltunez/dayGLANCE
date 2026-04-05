@@ -42,6 +42,16 @@ class SharedDataStore(context: Context) {
             ?: DEFAULT_DAILY_NOTE_PATTERN
         set(value) = prefs.edit { putString(KEY_DAILY_NOTE_PATTERN, value) }
 
+    /**
+     * Folder inside the vault where new notes created by dayGLANCE are stored.
+     * e.g. "dayGLANCE" or "Inbox/dayGLANCE". Empty string means vault root.
+     * Only affects note creation — existing notes are always edited in-place.
+     */
+    var newNotesFolder: String
+        get() = prefs.getString(KEY_NEW_NOTES_FOLDER, DEFAULT_NEW_NOTES_FOLDER)
+            ?: DEFAULT_NEW_NOTES_FOLDER
+        set(value) = prefs.edit { putString(KEY_NEW_NOTES_FOLDER, value) }
+
     // ── App appearance preference ───────────────────────────────────────────
 
     /**
@@ -157,6 +167,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_VAULT_PATH = "obsidian_vault_path"
         private const val KEY_DAILY_NOTE_FOLDER = "obsidian_daily_note_folder"
         private const val KEY_DAILY_NOTE_PATTERN = "obsidian_daily_note_pattern"
+        private const val KEY_NEW_NOTES_FOLDER = "obsidian_new_notes_folder"
         private const val KEY_WIDGET_SNAPSHOT = "widget_snapshot"
         private const val KEY_WIDGET_SNAPSHOT_TS = "widget_snapshot_ts"
         private const val KEY_SCHEDULED_REMINDERS = "scheduled_reminders"
@@ -170,5 +181,6 @@ class SharedDataStore(context: Context) {
         private const val KEY_APP_DARK_MODE = "app_dark_mode"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
+        const val DEFAULT_NEW_NOTES_FOLDER = "dayGLANCE"
     }
 }

@@ -362,9 +362,12 @@ export async function readWikiNote(vaultHandle, noteName) {
  * Write (create or overwrite) an arbitrary vault note by wikilink name.
  *
  * For bare names the vault is searched first so edits land in the file's
- * actual location; if not found the file is created at the vault root.
+ * actual location; if not found the file is created in [newNotesFolder]
+ * (relative to vault root) or at vault root when newNotesFolder is blank.
+ *
+ * @param newNotesFolder  Optional folder for newly created notes, e.g. "dayGLANCE"
  */
-export async function writeWikiNote(vaultHandle, noteName, content) {
+export async function writeWikiNote(vaultHandle, noteName, content, newNotesFolder = '') {
   const parts = noteName.split('/').filter(Boolean);
   for (const part of parts) {
     if (part === '..' || part === '.') {
@@ -382,9 +385,18 @@ export async function writeWikiNote(vaultHandle, noteName, content) {
     }
     fileHandle = await dir.getFileHandle(mdFileName, { create: true });
   } else {
-    // Bare name — write to existing location or create at vault root
+    // Bare name — write to existing location, or create in newNotesFolder (or vault root)
     fileHandle = await findFileHandleInDir(vaultHandle, mdFileName)
-      ?? await vaultHandle.getFileHandle(mdFileName, { create: true });
+      ?? await (async () => {
+        if (newNotesFolder) {
+          let dir = vaultHandle;
+          for (const segment of newNotesFolder.split('/').filter(Boolean)) {
+            dir = await dir.getDirectoryHandle(segment, { create: true });
+          }
+          return dir.getFileHandle(mdFileName, { create: true });
+        }
+        return vaultHandle.getFileHandle(mdFileName, { create: true });
+      })();
   }
 
   const writable = await fileHandle.createWritable();

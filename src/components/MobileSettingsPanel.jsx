@@ -1089,6 +1089,17 @@ const MobileSettingsPanel = () => {
             <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root. Common: "Daily Notes" or "journals"</p>
           </div>
           <div>
+            <label className={`block text-sm ${textSecondary} mb-1`}>New notes folder</label>
+            <input
+              type="text"
+              placeholder="dayGLANCE"
+              value={obsidianConfig.newNotesFolder ?? 'dayGLANCE'}
+              onChange={(e) => setObsidianConfig(prev => ({ ...prev, newNotesFolder: e.target.value }))}
+              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+            />
+            <p className={`text-xs ${textSecondary} mt-1`}>Where new notes created in dayGLANCE are saved. Leave empty for vault root.</p>
+          </div>
+          <div>
             <label className={`block text-sm ${textSecondary} mb-1`}>Daily note template</label>
             <textarea
               value={dailyNoteTemplate}
