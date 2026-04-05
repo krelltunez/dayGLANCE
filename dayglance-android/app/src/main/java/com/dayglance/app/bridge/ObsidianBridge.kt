@@ -137,4 +137,11 @@ class ObsidianBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun buildNoteIndex() = repository.buildNoteIndex()
+
+    /**
+     * Clears the stored vault URI so the integration returns to unconfigured state.
+     * Does NOT revoke the SAF permission — the user can re-select the same folder.
+     */
+    @JavascriptInterface
+    fun clearVault() = repository.clearVault()
 }

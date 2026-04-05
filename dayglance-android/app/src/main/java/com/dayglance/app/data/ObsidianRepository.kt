@@ -210,6 +210,17 @@ class ObsidianRepository(private val context: Context) {
      * Returns a JSON array: [{ "text": "...", "completed": false, "line": 1 }, ...]
      * Line numbers are 1-based.
      */
+    /**
+     * Clears the stored vault URI, resetting the integration to unconfigured state.
+     * Does not revoke the SAF permission (the user can re-select the same folder).
+     * Also clears the in-memory note index so stale entries don't linger.
+     */
+    fun clearVault() {
+        dataStore.vaultPath = null
+        noteUriIndex.clear()
+        noteIndexBuilt = false
+    }
+
     /** Returns true if a vault root URI has been configured. */
     fun isVaultConfigured(): Boolean = dataStore.vaultPath != null
 

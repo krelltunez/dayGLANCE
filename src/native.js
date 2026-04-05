@@ -137,6 +137,16 @@ export const nativeBuildNoteIndex = () => {
 };
 
 /**
+ * Clears the stored vault URI on the Android side, resetting the integration
+ * to unconfigured state. The SAF permission is not revoked.
+ */
+export const nativeClearVault = () => {
+  const bridge = obsidianBridge();
+  if (!bridge?.clearVault) return;
+  bridge.clearVault();
+};
+
+/**
  * Opens [noteName] in the Obsidian app via the obsidian:// URI scheme.
  * No-op when the bridge is unavailable or Obsidian isn't installed.
  */
