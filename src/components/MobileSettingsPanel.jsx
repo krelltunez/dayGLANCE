@@ -170,7 +170,7 @@ const MobileSettingsPanel = () => {
     </div>
 
     {/* Sync buttons */}
-    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled) && (
+    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeAndroid()) && (
       <div className="space-y-2">
         <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
         {calSyncConfigured && (
