@@ -8,6 +8,7 @@ import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySub
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileAllDaySection = () => {
   const {
@@ -21,7 +22,6 @@ const MobileAllDaySection = () => {
     showDeadlinePicker, setShowDeadlinePicker,
     taskContextMenu, setTaskContextMenu,
     mobileDragPreviewTime, mobileDragTaskIdState,
-    routinesEnabled, todayRoutines,
     goalsProjectsEnabled, projects, projectFilter, setProjectFilter, setInboxProjectFilter,
     toggleComplete,
     postponeTask, postponeDeadlineTask,
@@ -29,8 +29,12 @@ const MobileAllDaySection = () => {
     formatTime, timeToMinutes,
     getTasksForDate, getDeadlineTasksForDate,
     getTaskCalendarStyle,
-    openRoutinesDashboard,
   } = useDayPlannerCtx();
+
+  const {
+    routinesEnabled, todayRoutines,
+    openRoutinesDashboard,
+  } = useFeaturesCtx();
 
   return (
     <>
