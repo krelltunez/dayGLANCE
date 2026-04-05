@@ -882,7 +882,7 @@ const DesktopDashboard = ({
               <div
                 key={proj.id}
                 data-proj-id={proj.id}
-                className={`relative transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
+                className={`relative w-[240px] transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
                   dropInsertBeforeId === proj.id && dragProjectId && dragProjectId !== proj.id
                     ? 'ring-2 ring-blue-500 rounded-xl' : ''
                 }`}
@@ -912,7 +912,7 @@ const DesktopDashboard = ({
             return (
               <>
                 {activeProjs.length > 0 && (
-                  <div className="flex flex-wrap gap-4 mb-3">
+                  <div className="flex flex-wrap gap-4 mb-3 justify-center">
                     {activeProjs.map(proj => wrapCard(proj,
                       <ProjectCard
                         ref={el => { projectCardRefs.current[proj.id] = el; }}
@@ -925,7 +925,7 @@ const DesktopDashboard = ({
                   </div>
                 )}
                 {doneProjs.length > 0 && (
-                  <div className="flex flex-wrap gap-4">
+                  <div className="flex flex-wrap gap-4 justify-center">
                     {doneProjs.map(proj => wrapCard(proj,
                       <ProjectCard
                         ref={el => { projectCardRefs.current[proj.id] = el; }}
