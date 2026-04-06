@@ -3,42 +3,52 @@ import { CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
-// Minimum time (ms) to show the "syncing" state, even if the sync itself was
-// instant. On cold open, syncObsidianVaultNative blocks the JS thread, so React
-// cannot paint the syncing state before the freeze ends. This ensures the user
-// always sees the "building…" message for at least this long.
+// Minimum time (ms) to show the "syncing" state.
+// On cold open, syncObsidianVaultNative blocks the JS thread so React batches
+// the 'syncing' + 'success' state updates into a single render — the 'syncing'
+// state is never rendered. We detect this (syncingStartRef is null when we see
+// 'success') and force-show the syncing message for the full minimum duration.
 const MIN_SYNCING_MS = 1500;
 
 const ObsidianSyncToast = () => {
   const { obsidianSyncStatus, obsidianSyncError } = useSyncCtx();
   const { cardBg, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
 
-  // displayStatus is what the toast actually shows — it may lag behind
-  // obsidianSyncStatus to enforce the minimum syncing display time.
   const [displayStatus, setDisplayStatus] = useState('idle');
   const syncingStartRef = useRef(null);
   const timerRef = useRef(null);
 
   useEffect(() => {
+    clearTimeout(timerRef.current);
+
     if (obsidianSyncStatus === 'syncing') {
       syncingStartRef.current = Date.now();
       setDisplayStatus('syncing');
     } else if (obsidianSyncStatus === 'success' || obsidianSyncStatus === 'error') {
-      const elapsed = syncingStartRef.current != null ? Date.now() - syncingStartRef.current : MIN_SYNCING_MS;
-      const remaining = Math.max(0, MIN_SYNCING_MS - elapsed);
-      clearTimeout(timerRef.current);
-      if (remaining > 0) {
-        // Hold on "syncing" until the minimum time is up, then flip to final status
-        timerRef.current = setTimeout(() => setDisplayStatus(obsidianSyncStatus), remaining);
+      if (syncingStartRef.current == null) {
+        // React batched 'syncing'+'success' — the 'syncing' render was skipped.
+        // Force-show the syncing message for the full minimum duration first.
+        syncingStartRef.current = Date.now();
+        setDisplayStatus('syncing');
+        timerRef.current = setTimeout(() => setDisplayStatus(obsidianSyncStatus), MIN_SYNCING_MS);
       } else {
-        setDisplayStatus(obsidianSyncStatus);
+        const elapsed = Date.now() - syncingStartRef.current;
+        const remaining = Math.max(0, MIN_SYNCING_MS - elapsed);
+        if (remaining > 0) {
+          timerRef.current = setTimeout(() => setDisplayStatus(obsidianSyncStatus), remaining);
+        } else {
+          setDisplayStatus(obsidianSyncStatus);
+        }
       }
     } else {
-      clearTimeout(timerRef.current);
+      // idle — reset for next sync
+      syncingStartRef.current = null;
       setDisplayStatus('idle');
     }
-    return () => clearTimeout(timerRef.current);
   }, [obsidianSyncStatus]);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   if (displayStatus === 'idle') return null;
 
