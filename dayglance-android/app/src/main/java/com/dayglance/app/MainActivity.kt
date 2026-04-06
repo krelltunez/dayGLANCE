@@ -9,6 +9,8 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -56,8 +58,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var healthRepository: HealthRepository
     private lateinit var dataStore: com.dayglance.app.data.SharedDataStore
 
-    // Splash screen: held until the WebView finishes its first page load
+    // Splash screen: held until both conditions are true:
+    //   1. WebView has finished its first page load (webViewReady)
+    //   2. JS has signalled the app is interactive — i.e. the initial Obsidian
+    //      sync (which blocks the JS thread) has completed (appReady).
+    //      A fallback timer sets appReady after 10 s in case JS never calls back.
     @Volatile private var webViewReady = false
+    @Volatile private var appReady = false
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
@@ -86,7 +93,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
-        splashScreen.setKeepOnScreenCondition { !webViewReady }
+        splashScreen.setKeepOnScreenCondition { !webViewReady || !appReady }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -112,6 +119,9 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     requestHealthPermissions.launch(healthRepository.requiredPermissions)
                 }
+            },
+            onAppReady = {
+                runOnUiThread { appReady = true }
             }
         )
 
@@ -163,11 +173,14 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                // Release the splash screen now that the WebView has rendered.
+                // Release the first half of the splash condition.
                 webViewReady = true
                 // Re-apply status bar appearance after the WebView's first paint,
                 // which can reset the icon colour on Android 15 edge-to-edge mode.
                 applyStatusBarAppearance()
+                // Safety fallback: if JS never calls notifyAppReady() (e.g. Obsidian
+                // not configured, or a JS error), dismiss the splash after 10 seconds.
+                Handler(Looper.getMainLooper()).postDelayed({ appReady = true }, 10_000)
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
