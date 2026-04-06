@@ -882,7 +882,7 @@ const DesktopDashboard = ({
               <div
                 key={proj.id}
                 data-proj-id={proj.id}
-                className={`relative w-[240px] transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
+                className={`relative w-[260px] transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
                   dropInsertBeforeId === proj.id && dragProjectId && dragProjectId !== proj.id
                     ? 'ring-2 ring-blue-500 rounded-xl' : ''
                 }`}

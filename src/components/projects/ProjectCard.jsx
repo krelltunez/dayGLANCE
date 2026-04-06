@@ -224,7 +224,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
           ref={ref}
           className={`flex flex-col rounded-xl border overflow-hidden ${
             darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
-          } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[240px] w-full'}`}
+          } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'}`}
           style={goalHex ? { borderLeft: `3px solid ${goalHex}88` } : {}}
         >
           {/* Row 1: title + edit/delete */}
@@ -307,7 +307,7 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
       ref={ref}
       className={`flex flex-col rounded-xl border overflow-hidden ${
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
-      } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[240px] w-full'}`}
+      } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'}`}
     >
       {/* Goal color bar */}
       {goalHex && (
