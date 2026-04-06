@@ -749,6 +749,9 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       projects: mergedProjects,
       deletedProjectIds: prunedDeletedProjectIds,
       goalsProjectsEnabled: remoteData.goalsProjectsEnabled !== undefined ? remoteData.goalsProjectsEnabled : localData.goalsProjectsEnabled,
+      // obsidianConfig: remote wins if present, preserving all app-level settings across devices.
+      // On Android, applyRemoteData only applies the non-native fields.
+      obsidianConfig: remoteData.obsidianConfig ?? localData.obsidianConfig ?? null,
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },

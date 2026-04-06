@@ -4147,6 +4147,7 @@ const DayPlanner = () => {
         projects,
         deletedProjectIds: JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}'),
         goalsProjectsEnabled,
+        obsidianConfig: obsidianConfig ?? null,
       }
     };
   };
@@ -4303,6 +4304,29 @@ const DayPlanner = () => {
     }
     if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
     if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
+    if (data.obsidianConfig) {
+      // On Android, vault path and pattern are managed by native settings — only apply
+      // the app-level fields so a desktop value doesn't break the native integration.
+      // The startup useEffect always re-seeds path/pattern from native config anyway.
+      if (isNativeAndroid()) {
+        setObsidianConfig(prev => prev ? {
+          ...prev,
+          taskHeading: data.obsidianConfig.taskHeading ?? prev.taskHeading,
+          dailyNoteTemplate: data.obsidianConfig.dailyNoteTemplate ?? prev.dailyNoteTemplate,
+          newNotesFolder: data.obsidianConfig.newNotesFolder ?? prev.newNotesFolder,
+        } : prev);
+        const existing = JSON.parse(localStorage.getItem('day-planner-obsidian-config') || 'null');
+        if (existing) localStorage.setItem('day-planner-obsidian-config', JSON.stringify({
+          ...existing,
+          taskHeading: data.obsidianConfig.taskHeading ?? existing.taskHeading,
+          dailyNoteTemplate: data.obsidianConfig.dailyNoteTemplate ?? existing.dailyNoteTemplate,
+          newNotesFolder: data.obsidianConfig.newNotesFolder ?? existing.newNotesFolder,
+        }));
+      } else {
+        localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
+        setObsidianConfig(data.obsidianConfig);
+      }
+    }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
     // Update React state directly (avoid page reload).
