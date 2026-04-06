@@ -26,6 +26,7 @@ class NativeBridge(
     private val context: Context,
     healthRepository: HealthRepository,
     onRequestHealthPermission: () -> Unit,
+    private val onAppReady: (() -> Unit)? = null,
 ) {
 
     private val health = HealthBridge(healthRepository, onRequestHealthPermission)
@@ -391,5 +392,15 @@ class NativeBridge(
         dataStore.pendingCompleteTaskId = null
         val escaped = completeId.replace("\\", "\\\\").replace("\"", "\\\"")
         return """{"action":"complete","taskId":"$escaped"}"""
+    }
+
+    /**
+     * Called by JS once the app is interactive and the initial Obsidian sync
+     * (if configured) has completed. Signals the native side to dismiss the
+     * splash screen, which has been held to hide the blocking sync freeze.
+     */
+    @JavascriptInterface
+    fun notifyAppReady() {
+        onAppReady?.invoke()
     }
 }

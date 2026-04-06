@@ -1169,15 +1169,20 @@ const DayPlanner = () => {
           if (!obsidianConfig?.enabled) {
             setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE', dailyNotePattern: cfg.pattern || 'yyyy-MM-dd' });
           }
+          // notifyNativeReady() is called in performObsidianSync's finally block
           performObsidianSync();
           // Populate wikilink autocomplete candidates from the vault index
           try {
             const notes = nativeListNotes('');
             if (notes) setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
           } catch {}
+        } else {
+          // No Obsidian configured — release the splash immediately
+          notifyNativeReady();
         }
       } catch (err) {
         console.error('Obsidian: failed to read native vault config', err);
+        notifyNativeReady();
       }
       return;
     }
@@ -1858,6 +1863,17 @@ const DayPlanner = () => {
     }
   }, []);
 
+  // Signal the native Android side that the app is interactive and the initial
+  // Obsidian sync has completed. This releases the splash screen that was held
+  // to hide the blocking sync freeze. Only fires once per session.
+  const nativeReadyNotifiedRef = useRef(false);
+  const notifyNativeReady = useCallback(() => {
+    if (!isNativeAndroid()) return;
+    if (nativeReadyNotifiedRef.current) return;
+    nativeReadyNotifiedRef.current = true;
+    try { window.DayGlanceNative?.notifyAppReady?.(); } catch {}
+  }, []);
+
   // Obsidian vault sync — reads daily notes + imports tasks
   const performObsidianSync = async () => {
     if (obsidianSyncInProgressRef.current) return;
@@ -1966,6 +1982,7 @@ const DayPlanner = () => {
       setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
     } finally {
       obsidianSyncInProgressRef.current = false;
+      notifyNativeReady();
     }
   };
 
