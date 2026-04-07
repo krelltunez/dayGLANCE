@@ -409,6 +409,10 @@ const DayPlanner = () => {
     cloudSyncBackoffUntilRef,
   } = useCloudSync();
 
+  // Ref so interval/timeout callbacks can read the current syncKeyReady without stale closure
+  const syncKeyReadyRef = useRef(syncKeyReady);
+  useEffect(() => { syncKeyReadyRef.current = syncKeyReady; }, [syncKeyReady]);
+
   // Daily Notes state — keyed by date string "YYYY-MM-DD" → { text, lastModified }
   const [dailyNotes, setDailyNotes] = useState(() => {
     try {
@@ -1126,7 +1130,7 @@ const DayPlanner = () => {
   useEffect(() => {
     if (!cloudSyncConfig?.enabled) return;
     const pollTimer = setInterval(() => {
-      if (Date.now() >= cloudSyncBackoffUntilRef.current) {
+      if (syncKeyReadyRef.current && Date.now() >= cloudSyncBackoffUntilRef.current) {
         cloudSyncDownloadRef.current?.();
       }
     }, 60 * 1000);
