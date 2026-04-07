@@ -94,8 +94,6 @@ The Android app ships the full web app in a WebView with native enhancements tha
 |:-:|:-:|
 | ![Android Home Screen Widget](screenshots/android-widget.png) | ![Android App Timeline](screenshots/android-timeline.png) |
 
-https://github.com/user-attachments/assets/58ba5bef-c563-48ff-8a8d-16e632002f81
-
 ---
 
 ## Core Features
@@ -236,6 +234,8 @@ The sync engine resolves conflicts at the task level using timestamps — not la
 
 **Setup:** Settings → Cloud Sync → choose Nextcloud or Generic WebDAV → enter URL and credentials. Syncs automatically every 15 minutes or on demand.
 
+**End-to-end encryption** is available as an opt-in. When enabled, all sync data is encrypted with AES-256-GCM before leaving your device — your passphrase never leaves your device and the server never sees plaintext. On Android, the derived key is stored in the hardware-backed Android Keystore. Enable in **Settings → Cloud Sync → Enable end-to-end encryption**.
+
 ### CalDAV / iCal Calendar Import
 
 Import events from any iCal-compatible source — Google Calendar, Nextcloud Calendar, Apple Calendar, Fastmail, Proton Calendar, etc. Events appear color-coded on your timeline and refresh every 15 minutes.
@@ -293,7 +293,7 @@ Pull step counts and activity data from **Google Health Connect** into your dail
 
 ## Auto-Backup
 
-Automatic local and remote backups with configurable frequency (hourly, daily, weekly) and retention policies. Remote backups go to your WebDAV server. Restore from any backup with one click.
+Automatic local and remote backups with configurable frequency (hourly, daily, weekly) and retention policies. Remote backups go to your WebDAV server and are encrypted if end-to-end encryption is enabled. Restore from any backup with one click.
 
 ---
 
@@ -341,7 +341,6 @@ Attach freeform notes to any day for journaling, reflections, or quick reference
 ## Roadmap
 
 - **Multiple calendar feeds** — support for more than one iCal/CalDAV source simultaneously
-- **PWA shortcuts** — Quick actions from the app icon (new task, open inbox, etc.)
 - **Server-side storage** — Optional self-hosted database backend (SQLite or Postgres)
 - **iOS app** — Native iOS wrapper with widget and Obsidian deep-link support
 
@@ -357,7 +356,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run the app locally, run tests
 
 ### Where help is most wanted
 
-- **Sync providers** — Dropbox, Google Drive, S3, and other WebDAV-compatible storage backends
 - **CalDAV write support** — Two-way calendar event sync (task sync is bidirectional; event sync is currently read-only import)
 - **iOS app** — A Capacitor or WKWebView wrapper equivalent to the Android app
 - **Translations / i18n** — The UI is English-only today
