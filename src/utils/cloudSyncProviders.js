@@ -39,9 +39,11 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
 // Creates a WebDAV collection and any missing intermediate collections.
 // MKCOL returns 409 when the parent directory doesn't exist; in that case
 // we walk up the path, create the parent first, then retry.
+// Some providers (e.g. Koofr) non-standardly return 404 instead of 409 —
+// treat both the same way.
 const mkcolWithParents = async (dirUrl, authHeaders) => {
   const res = await webdavFetch('MKCOL', dirUrl, authHeaders);
-  if (res.status === 409) {
+  if (res.status === 409 || res.status === 404) {
     const parent = dirUrl.replace(/\/+$/, '').replace(/\/[^/]+$/, '/');
     if (parent && parent !== dirUrl) {
       await mkcolWithParents(parent, authHeaders);

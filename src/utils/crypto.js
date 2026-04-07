@@ -200,7 +200,15 @@ function packBytes(...arrays) {
 }
 
 function toBase64(bytes) {
-  return btoa(String.fromCharCode(...bytes));
+  // Chunk to avoid "Maximum call stack size exceeded" for large payloads —
+  // spreading a large Uint8Array as function arguments hits the engine's
+  // argument-count limit (~65 K in V8).
+  let binary = '';
+  const chunk = 8192;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
 function fromBase64(b64) {
