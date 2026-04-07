@@ -28,4 +28,4 @@ This check is mandatory — even mid-task, even for "small fixes", even when you
 
 ## GitHub Issues
 
-Do **not** post comments to GitHub issues directly. Instead, draft the proposed response and present it to the user so they can review and post it themselves.
+Do **not** post comments to GitHub issues directly using `mcp__github__add_issue_comment`. Instead, draft the proposed response and present it to the user so they can review and post it themselves.
