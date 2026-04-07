@@ -3464,11 +3464,14 @@ const DayPlanner = () => {
 
   const performRemoteBackup = async (frequency) => {
     if (autoBackupInProgressRef.current) return;
+    // Guard: skip silently if the selected provider's required fields aren't filled yet.
+    // This prevents error spam on the backup interval when the user has enabled remote
+    // backup but hasn't finished configuring it (e.g. Nextcloud URL missing).
+    const provider = autoBackupProviders[autoBackupConfig.remote.provider];
+    if (!provider || !provider.configFields.every(f => autoBackupConfig.remote[f.key])) return;
     autoBackupInProgressRef.current = true;
     try {
       setAutoBackupStatus(prev => ({ ...prev, remote: { ...prev.remote, status: 'backing-up' } }));
-      const provider = autoBackupProviders[autoBackupConfig.remote.provider];
-      if (!provider) throw new Error('No provider configured');
       const payload = buildAutoBackupPayload();
       await provider.uploadBackup(autoBackupConfig.remote, payload);
       // Prune remote backups
@@ -3797,6 +3800,7 @@ const DayPlanner = () => {
   const syncTaskCompletionToCalDAV = async (icalUid, completed, { isRecurring = false, date, startTime, isAllDay } = {}) => {
     const { username, appPassword, caldavBaseUrl } = taskCalendarAuth;
     if (!caldavBaseUrl || !username || !appPassword) {
+      console.warn('CalDAV task sync skipped: caldavBaseUrl, username, or appPassword is not set in task calendar settings.');
       return;
     }
 
