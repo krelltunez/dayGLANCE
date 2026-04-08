@@ -5769,8 +5769,8 @@ const DayPlanner = () => {
         projectName: getProjectName(t),
       }));
 
-    // ── Habits (up to 5) ──────────────────────────────────────────────────
-    const habitItems = activeHabits.slice(0, 5).map(h => {
+    // ── Habits (up to 5) — omit entirely when habits feature is disabled ──
+    const habitItems = habitsEnabled ? activeHabits.slice(0, 5).map(h => {
       const colorObj = HABIT_COLORS.find(c => c.name === h.color) || HABIT_COLORS[0];
       const count = getTodayHabitCount(h.id);
       let progress, ringColorHex, isComplete;
@@ -5797,7 +5797,7 @@ const DayPlanner = () => {
         progress,
         complete: isComplete,
       };
-    });
+    }) : [];
 
     // ── All-day tasks/events ───────────────────────────────────────────────
     const allDayItems = todayAgenda
@@ -5983,6 +5983,7 @@ const DayPlanner = () => {
     dataLoaded,
     todayAgenda,
     activeHabits,
+    habitsEnabled,
     habitLogs,
     todayRoutines,
     tasks,
