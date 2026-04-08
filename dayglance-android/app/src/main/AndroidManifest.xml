@@ -101,7 +101,7 @@
             android:exported="false"
             android:parentActivityName=".MainActivity" />
 
-        <!-- Home screen widget -->
+        <!-- Home screen widget: full agenda -->
         <receiver
             android:name=".widget.DayGlanceWidget"
             android:exported="true">
@@ -112,6 +112,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
+        </receiver>
+
+        <!-- Home screen widget: Up Next (next scheduled task detail) -->
+        <receiver
+            android:name=".widget.UpNextWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.dayglance.app.widget.UPNEXT_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_upnext_info" />
         </receiver>
 
         <!--

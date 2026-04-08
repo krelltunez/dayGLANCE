@@ -5920,6 +5920,33 @@ const DayPlanner = () => {
           })
       : [];
 
+    // ── Next Task (for Up Next widget) ───────────────────────────────────
+    // The nearest non-completed scheduled task that hasn't ended yet (or is in progress).
+    const nowMin = today.getHours() * 60 + today.getMinutes();
+    const nextTaskCandidate = todayAgenda
+      .filter(t => t._agendaType === 'scheduled' && !t.completed && t.startTime)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+      .find(t => {
+        const start = timeToMinutes(t.startTime);
+        const end = start + (t.duration || 0);
+        // Include if not yet ended (covers "in progress" and "upcoming")
+        return end > nowMin || (t.duration === 0 && start >= nowMin);
+      }) || null;
+    const nextTaskItem = nextTaskCandidate ? {
+      id: nextTaskCandidate.id,
+      title: nextTaskCandidate.title,
+      colorHex: taskColorToHex(nextTaskCandidate.color, nextTaskCandidate.nativeCalendarColor),
+      startTime: nextTaskCandidate.startTime || '',
+      duration: nextTaskCandidate.duration || 0,
+      tags: (nextTaskCandidate.tags || []).slice(0, 5),
+      notes: (nextTaskCandidate.notes || '').substring(0, 300),
+      subtasks: (nextTaskCandidate.subtasks || []).slice(0, 5).map(s => ({
+        title: s.title,
+        completed: s.completed || false,
+      })),
+      projectName: getProjectName(nextTaskCandidate),
+    } : null;
+
     // ── Steps (from HealthConnect cache if available) ─────────────────────
     let steps = -1;
     try {
@@ -5973,6 +6000,7 @@ const DayPlanner = () => {
       sections,
       routines: routineItems,
       glanceAhead: glanceAheadData,
+      nextTask: nextTaskItem,
       updatedAt: Date.now(),
     };
 

@@ -54,7 +54,7 @@ class WidgetUpdateWorker(
         dataStore.widgetSnapshot = patched.toString()
         dataStore.widgetSnapshotUpdatedAt = System.currentTimeMillis()
 
-        // 3. Trigger widget update
+        // 3. Trigger widget updates
         try {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, DayGlanceWidget::class.java))
@@ -65,6 +65,9 @@ class WidgetUpdateWorker(
                 }
                 context.sendBroadcast(intent)
             }
+        } catch (_: Throwable) { }
+        try {
+            UpNextWidget.requestUpdate(context)
         } catch (_: Throwable) { }
 
         Result.success()
