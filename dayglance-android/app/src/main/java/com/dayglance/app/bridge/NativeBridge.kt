@@ -217,6 +217,9 @@ class NativeBridge(
             dataStore.widgetSnapshot = snapshotJson
             dataStore.widgetSnapshotUpdatedAt = System.currentTimeMillis()
             com.dayglance.app.widget.DayGlanceWidget.requestUpdate(context)
+            com.dayglance.app.widget.UpNextWidget.requestUpdate(context)
+            com.dayglance.app.widget.GoalWidget.requestUpdate(context)
+            com.dayglance.app.widget.ProjectWidget.requestUpdate(context)
         } catch (_: Throwable) { /* ignore — widget is non-critical */ }
     }
 

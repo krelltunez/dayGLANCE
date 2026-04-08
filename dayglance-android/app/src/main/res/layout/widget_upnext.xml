@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  "Up Next" widget layout — shows rich detail for the next scheduled task.
+
+  Structure:
+    FrameLayout (root, tap target)
+    └── LinearLayout (vertical)
+        ├── Header row  ("UP NEXT" label · date · refresh button)
+        ├── Hairline divider
+        ├── Task content (layout_upnext_task) — shown when a next task exists
+        │     horizontal: color bar | vertical details
+        │       title + time-until badge
+        │       time range line
+        │       project chip (gone when no project)
+        │       tags line (gone when no tags)
+        │       notes preview (gone when no notes)
+        │       subtasks header (gone when no subtasks)
+        │       subtask rows × 5 (each gone when not present)
+        └── Empty state (layout_upnext_empty) — shown when no upcoming task
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/upnext_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp">
+
+        <!-- ── Header ──────────────────────────────────────────────────── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="UP NEXT"
+                android:textColor="@color/widget_brand"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:id="@+id/tv_upnext_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text=""
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp"
+                android:gravity="end"
+                android:layout_marginStart="6dp" />
+
+            <ImageView
+                android:id="@+id/btn_upnext_refresh"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_widget_refresh"
+                android:padding="5dp"
+                android:contentDescription="Refresh" />
+
+        </LinearLayout>
+
+        <!-- Hairline divider -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider"
+            android:layout_marginBottom="6dp"
+            android:text="" />
+
+        <!-- ── Task content ────────────────────────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/layout_upnext_task"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Left color bar -->
+            <TextView
+                android:id="@+id/upnext_color_bar"
+                android:layout_width="3dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="8dp"
+                android:minHeight="24dp"
+                android:background="#3b82f6"
+                android:text="" />
+
+            <!-- Right: task details -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <!-- Title + time-until badge row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tv_upnext_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Task title"
+                        android:textColor="@color/widget_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/tv_upnext_time_until"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text=""
+                        android:textColor="@color/widget_brand"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <!-- Time range line (e.g. "2:30 PM – 3:15 PM") -->
+                <TextView
+                    android:id="@+id/tv_upnext_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <!-- Project chip -->
+                <TextView
+                    android:id="@+id/tv_upnext_project"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text=""
+                    android:textColor="@color/widget_committed_text"
+                    android:textSize="10sp"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp"
+                    android:paddingTop="1dp"
+                    android:paddingBottom="1dp"
+                    android:background="@drawable/widget_committed_pill"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:visibility="gone" />
+
+                <!-- Tags line -->
+                <TextView
+                    android:id="@+id/tv_upnext_tags"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:visibility="gone" />
+
+                <!-- Notes preview -->
+                <TextView
+                    android:id="@+id/tv_upnext_notes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12sp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:visibility="gone" />
+
+                <!-- Subtasks section -->
+                <TextView
+                    android:id="@+id/tv_upnext_subtasks_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="5dp"
+                    android:layout_marginBottom="3dp"
+                    android:background="@color/widget_divider"
+                    android:text=""
+                    android:visibility="gone" />
+
+                <!-- Subtask row 1 -->
+                <LinearLayout
+                    android:id="@+id/row_subtask_1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+                    <TextView
+                        android:id="@+id/tv_subtask_1_check"
+                        android:layout_width="14dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:text="○"
+                        android:textSize="10sp"
+                        android:textColor="@color/widget_text_secondary" />
+                    <TextView
+                        android:id="@+id/tv_subtask_1_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="@color/widget_text_primary"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <!-- Subtask row 2 -->
+                <LinearLayout
+                    android:id="@+id/row_subtask_2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+                    <TextView
+                        android:id="@+id/tv_subtask_2_check"
+                        android:layout_width="14dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:text="○"
+                        android:textSize="10sp"
+                        android:textColor="@color/widget_text_secondary" />
+                    <TextView
+                        android:id="@+id/tv_subtask_2_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="@color/widget_text_primary"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <!-- Subtask row 3 -->
+                <LinearLayout
+                    android:id="@+id/row_subtask_3"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+                    <TextView
+                        android:id="@+id/tv_subtask_3_check"
+                        android:layout_width="14dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:text="○"
+                        android:textSize="10sp"
+                        android:textColor="@color/widget_text_secondary" />
+                    <TextView
+                        android:id="@+id/tv_subtask_3_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="@color/widget_text_primary"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <!-- Subtask row 4 -->
+                <LinearLayout
+                    android:id="@+id/row_subtask_4"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+                    <TextView
+                        android:id="@+id/tv_subtask_4_check"
+                        android:layout_width="14dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:text="○"
+                        android:textSize="10sp"
+                        android:textColor="@color/widget_text_secondary" />
+                    <TextView
+                        android:id="@+id/tv_subtask_4_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="@color/widget_text_primary"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <!-- Subtask row 5 -->
+                <LinearLayout
+                    android:id="@+id/row_subtask_5"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:visibility="gone">
+                    <TextView
+                        android:id="@+id/tv_subtask_5_check"
+                        android:layout_width="14dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:text="○"
+                        android:textSize="10sp"
+                        android:textColor="@color/widget_text_secondary" />
+                    <TextView
+                        android:id="@+id/tv_subtask_5_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="@color/widget_text_primary"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ── Empty state ─────────────────────────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/layout_upnext_empty"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nothing up next"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="You're all done for today"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

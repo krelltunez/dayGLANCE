@@ -101,7 +101,7 @@
             android:exported="false"
             android:parentActivityName=".MainActivity" />
 
-        <!-- Home screen widget -->
+        <!-- Home screen widget: full agenda -->
         <receiver
             android:name=".widget.DayGlanceWidget"
             android:exported="true">
@@ -113,6 +113,61 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
         </receiver>
+
+        <!-- Home screen widget: Up Next (next scheduled task detail) -->
+        <receiver
+            android:name=".widget.UpNextWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.dayglance.app.widget.UPNEXT_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_upnext_info" />
+        </receiver>
+
+        <!-- Home screen widget: Goal (pinned goal card + child projects) -->
+        <receiver
+            android:name=".widget.GoalWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.dayglance.app.widget.GOAL_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_goal_info" />
+        </receiver>
+
+        <activity
+            android:name=".widget.GoalWidgetConfigureActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- Home screen widget: Project (pinned project card + tasks) -->
+        <receiver
+            android:name=".widget.ProjectWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.dayglance.app.widget.PROJECT_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_project_info" />
+        </receiver>
+
+        <activity
+            android:name=".widget.ProjectWidgetConfigureActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
 
         <!--
           RemoteViewsService that backs the scrollable ListView inside the widget.

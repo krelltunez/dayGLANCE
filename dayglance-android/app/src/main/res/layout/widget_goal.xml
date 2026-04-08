@@ -1,0 +1,471 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Goal widget layout — shows a pinned goal card with child projects below.
+
+  Structure:
+    FrameLayout (root)
+    └── LinearLayout (vertical)
+        ├── Header: "GOAL" brand label · date · refresh
+        ├── Hairline divider
+        ├── Goal content (layout_goal_content):
+        │     horizontal: colored left bar | vertical
+        │       title row · due-date badge
+        │       threshold progress bars (red/amber/green) · stats label
+        │     ── Project rows × 4 (each GONE when unused) ──
+        │     row_wp1..4: colored bar · title · "X/Y" · mini progress bar
+        │     Overflow label "+N more" (GONE when all fit)
+        └── Empty / not-configured state (layout_goal_empty)
+
+  Progress bar note: dynamic tint isn't available in RemoteViews below API 31.
+  Three ProgressBars with static progressTint are used; exactly one VISIBLE at a
+  time based on the completion threshold (red <40%, amber 40–79%, green ≥80%).
+  The same three-bar pattern is reused from widget_item_goal.xml.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/goal_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp">
+
+        <!-- ── Header ────────────────────────────────────────────────── -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GOAL"
+                android:textColor="@color/widget_brand"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:id="@+id/tv_goal_widget_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text=""
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp"
+                android:gravity="end"
+                android:layout_marginStart="6dp" />
+
+            <ImageView
+                android:id="@+id/btn_goal_widget_refresh"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_widget_refresh"
+                android:padding="5dp"
+                android:contentDescription="Refresh" />
+
+        </LinearLayout>
+
+        <!-- Hairline divider -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/widget_divider"
+            android:layout_marginBottom="6dp"
+            android:text="" />
+
+        <!-- ── Goal content (shown when a goal is selected and found) ── -->
+        <LinearLayout
+            android:id="@+id/layout_goal_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Goal card: colored left bar + details -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+
+                <TextView
+                    android:id="@+id/goal_widget_color_bar"
+                    android:layout_width="3dp"
+                    android:layout_height="44dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <!-- Title + due-date row -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/tv_goal_widget_title"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Goal title"
+                            android:textColor="@color/widget_text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
+
+                        <TextView
+                            android:id="@+id/tv_goal_widget_due"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:text=""
+                            android:textColor="@color/widget_text_secondary"
+                            android:textSize="11sp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                    <!-- Progress bar row (threshold-coloured) + stats -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="4dp">
+
+                        <!-- Red — < 40% -->
+                        <ProgressBar
+                            android:id="@+id/pb_goal_widget_red"
+                            style="@android:style/Widget.ProgressBar.Horizontal"
+                            android:layout_width="0dp"
+                            android:layout_height="6dp"
+                            android:layout_weight="1"
+                            android:max="100"
+                            android:progress="0"
+                            android:progressTint="#ef4444"
+                            android:progressBackgroundTint="#33ef4444"
+                            android:layout_marginEnd="6dp" />
+
+                        <!-- Amber — 40–79% -->
+                        <ProgressBar
+                            android:id="@+id/pb_goal_widget_amber"
+                            style="@android:style/Widget.ProgressBar.Horizontal"
+                            android:layout_width="0dp"
+                            android:layout_height="6dp"
+                            android:layout_weight="1"
+                            android:max="100"
+                            android:progress="0"
+                            android:progressTint="#f59e0b"
+                            android:progressBackgroundTint="#33f59e0b"
+                            android:layout_marginEnd="6dp"
+                            android:visibility="gone" />
+
+                        <!-- Green — ≥ 80% -->
+                        <ProgressBar
+                            android:id="@+id/pb_goal_widget_green"
+                            style="@android:style/Widget.ProgressBar.Horizontal"
+                            android:layout_width="0dp"
+                            android:layout_height="6dp"
+                            android:layout_weight="1"
+                            android:max="100"
+                            android:progress="0"
+                            android:progressTint="#22c55e"
+                            android:progressBackgroundTint="#3322c55e"
+                            android:layout_marginEnd="6dp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/tv_goal_widget_stats"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textColor="@color/widget_text_secondary"
+                            android:textSize="11sp" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Projects divider -->
+            <TextView
+                android:id="@+id/tv_goal_projects_divider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/widget_divider"
+                android:layout_marginBottom="4dp"
+                android:text=""
+                android:visibility="gone" />
+
+            <!-- Project row 1 -->
+            <LinearLayout
+                android:id="@+id/row_wp1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/bar_wp1"
+                    android:layout_width="3dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="7dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/tv_wp1_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_wp1_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pb_wp1"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="48dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/widget_brand"
+                    android:progressBackgroundTint="@color/widget_ring_track" />
+
+            </LinearLayout>
+
+            <!-- Project row 2 -->
+            <LinearLayout
+                android:id="@+id/row_wp2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/bar_wp2"
+                    android:layout_width="3dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="7dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/tv_wp2_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_wp2_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pb_wp2"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="48dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/widget_brand"
+                    android:progressBackgroundTint="@color/widget_ring_track" />
+
+            </LinearLayout>
+
+            <!-- Project row 3 -->
+            <LinearLayout
+                android:id="@+id/row_wp3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/bar_wp3"
+                    android:layout_width="3dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="7dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/tv_wp3_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_wp3_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pb_wp3"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="48dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/widget_brand"
+                    android:progressBackgroundTint="@color/widget_ring_track" />
+
+            </LinearLayout>
+
+            <!-- Project row 4 -->
+            <LinearLayout
+                android:id="@+id/row_wp4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/bar_wp4"
+                    android:layout_width="3dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="7dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/tv_wp4_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_wp4_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pb_wp4"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="48dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/widget_brand"
+                    android:progressBackgroundTint="@color/widget_ring_track" />
+
+            </LinearLayout>
+
+            <!-- Overflow: "+N more projects" when more than 4 exist -->
+            <TextView
+                android:id="@+id/tv_goal_widget_more"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp"
+                android:paddingStart="10dp"
+                android:paddingTop="3dp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- ── Empty / not-configured state ────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/layout_goal_empty"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="visible">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No goal selected"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_goal_empty_sub"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Long-press widget to reconfigure"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
