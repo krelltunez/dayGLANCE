@@ -83,7 +83,7 @@ const DesktopHeader = () => {
             const item = contentItems[idx1];
 
             return (
-              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500 min-[2300px]:hidden`}>
+              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500 hidden min-[2300px]:block`}>
                 <div className={`text-[10px] font-semibold ${textSecondary} mb-0.5`}>{item.icon} {item.label}</div>
                 <div className={`text-xs ${textPrimary} leading-snug line-clamp-2`}>{item.content}</div>
               </div>
