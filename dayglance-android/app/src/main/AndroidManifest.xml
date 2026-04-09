@@ -198,6 +198,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- AlarmManager-driven receiver that keeps the Up Next notification updated
+             even when the WebView is suspended in the background. -->
+        <receiver
+            android:name=".notifications.UpNextNotificationUpdater"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.dayglance.app.notification.UP_NEXT_TICK" />
+            </intent-filter>
+        </receiver>
+
         <!-- FileProvider: used by NativeBridge.shareFile() to expose cache-dir JSON
              backup files to the system share sheet without WRITE_EXTERNAL_STORAGE. -->
         <provider
