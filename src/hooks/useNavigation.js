@@ -89,6 +89,7 @@ export default function useNavigation({
         setMobileActiveTab('timeline');
       }
       goToDate(date);
+      scrollAndHighlight(`[data-task-id="recurring-${task.id}-${date}"]`);
     } else if (source === 'deleted') {
       scrollAndHighlight(`[data-task-id="bin-${task.id}"]`);
     }
