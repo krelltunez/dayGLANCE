@@ -279,6 +279,47 @@ class NotificationBridge(private val context: Context) {
         }
     }
 
+    // ── Up Next persistent notification ─────────────────────────────────────
+
+    /**
+     * Posts (or updates) the sticky "Up Next" notification on the lock screen and
+     * in the notification drawer.
+     *
+     * Uses IMPORTANCE_LOW so it never makes sound or vibration. setOngoing(true)
+     * prevents the user from swiping it away. setOnlyAlertOnce(true) suppresses
+     * any animation on subsequent content updates (e.g. countdown tick).
+     *
+     * [taskJson] must contain: { title, bodyText }
+     *   title    — task name
+     *   bodyText — pre-formatted status string ("Starts in 15m", "In progress · ends at 3:15 PM")
+     */
+    fun updateUpNextNotification(taskJson: String) {
+        try {
+            val task = JSONObject(taskJson)
+            val notification = NotificationCompat.Builder(context, DayGlanceApplication.CHANNEL_UP_NEXT)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setSubText("Up Next")
+                .setContentTitle(task.optString("title", "Up Next"))
+                .setContentText(task.optString("bodyText", ""))
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(tapPendingIntent())
+                .build()
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(NOTIF_ID_UP_NEXT, notification)
+        } catch (_: Throwable) { }
+    }
+
+    /** Cancels the Up Next persistent notification (e.g. when no tasks remain today). */
+    fun cancelUpNextNotification() {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIF_ID_UP_NEXT)
+        } catch (_: Throwable) { }
+    }
+
     /** Schedules a single alarm from a JSON object (same schema as syncReminders). */
     internal fun scheduleFromJson(r: JSONObject) {
         val id = r.getString("id")
@@ -295,5 +336,9 @@ class NotificationBridge(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         scheduleAlarm(pi, r.getLong("triggerAtMillis"))
+    }
+
+    companion object {
+        private const val NOTIF_ID_UP_NEXT = 9001
     }
 }

@@ -36,6 +36,12 @@ class DayGlanceApplication : Application() {
                     "Events",
                     NotificationManager.IMPORTANCE_DEFAULT
                 ).apply { description = "Upcoming calendar event notifications" },
+
+                NotificationChannel(
+                    CHANNEL_UP_NEXT,
+                    "Up Next",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { description = "Persistent notification showing your next scheduled task" },
             )
         )
     }
@@ -44,5 +50,6 @@ class DayGlanceApplication : Application() {
         const val CHANNEL_REMINDERS = "reminders"
         const val CHANNEL_FOCUS = "focus_mode"
         const val CHANNEL_EVENTS = "events"
+        const val CHANNEL_UP_NEXT = "up_next"
     }
 }

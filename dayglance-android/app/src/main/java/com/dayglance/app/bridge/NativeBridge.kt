@@ -188,6 +188,14 @@ class NativeBridge(
     @JavascriptInterface
     fun syncReminders(remindersJson: String) = notifications.syncReminders(remindersJson)
 
+    /** Posts or updates the sticky Up Next notification on the lock screen / drawer. */
+    @JavascriptInterface
+    fun updateUpNextNotification(taskJson: String) = notifications.updateUpNextNotification(taskJson)
+
+    /** Cancels the Up Next notification (called when no upcoming tasks remain today). */
+    @JavascriptInterface
+    fun cancelUpNextNotification() = notifications.cancelUpNextNotification()
+
     // ── Widget snapshot ──────────────────────────────────────────────────────
 
     /**
