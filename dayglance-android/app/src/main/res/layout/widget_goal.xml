@@ -371,7 +371,18 @@
 
             </LinearLayout>
 
-            <!-- Project row 4 -->
+            <!-- Completed-projects separator — shown only when both active and completed exist -->
+            <TextView
+                android:id="@+id/tv_goal_completed_sep"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/widget_divider"
+                android:layout_marginTop="3dp"
+                android:layout_marginBottom="2dp"
+                android:text=""
+                android:visibility="gone" />
+
+            <!-- Project row 4 (completed slot 1) -->
             <LinearLayout
                 android:id="@+id/row_wp4"
                 android:layout_width="match_parent"
@@ -423,7 +434,111 @@
 
             </LinearLayout>
 
-            <!-- Overflow: "+N more projects" when more than 4 exist -->
+            <!-- Project row 5 (completed slot 2) -->
+            <LinearLayout
+                android:id="@+id/row_wp5"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/bar_wp5"
+                    android:layout_width="3dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="7dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/tv_wp5_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_wp5_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pb_wp5"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="48dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/widget_brand"
+                    android:progressBackgroundTint="@color/widget_ring_track" />
+
+            </LinearLayout>
+
+            <!-- Project row 6 (completed slot 3) -->
+            <LinearLayout
+                android:id="@+id/row_wp6"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/bar_wp6"
+                    android:layout_width="3dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="7dp"
+                    android:background="#3b82f6"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/tv_wp6_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tv_wp6_stats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text=""
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="11sp" />
+
+                <ProgressBar
+                    android:id="@+id/pb_wp6"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="48dp"
+                    android:layout_height="4dp"
+                    android:layout_marginStart="6dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/widget_brand"
+                    android:progressBackgroundTint="@color/widget_ring_track" />
+
+            </LinearLayout>
+
+            <!-- Overflow: "+N more projects" when more than 6 exist -->
             <TextView
                 android:id="@+id/tv_goal_widget_more"
                 android:layout_width="match_parent"
