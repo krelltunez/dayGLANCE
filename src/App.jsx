@@ -6079,6 +6079,36 @@ const DayPlanner = () => {
     try {
       window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
     } catch (_) {}
+
+    // ── Up Next lock screen / drawer notification ─────────────────────────
+    try {
+      if (nextTaskItem) {
+        const startMin2 = timeToMinutes(nextTaskItem.startTime);
+        const endMin2 = startMin2 + nextTaskItem.duration;
+        let bodyText;
+        if (nowMin < startMin2) {
+          const diff = startMin2 - nowMin;
+          bodyText = diff >= 60
+            ? `Starts in ${Math.floor(diff / 60)}h${diff % 60 > 0 ? ` ${diff % 60}m` : ''}`
+            : `Starts in ${diff}m`;
+        } else if (nextTaskItem.duration === 0) {
+          bodyText = 'Starting now';
+        } else {
+          const endH = Math.floor(endMin2 / 60) % 24;
+          const endM = (endMin2 % 60).toString().padStart(2, '0');
+          const endStr = use24HourClock
+            ? `${endH}:${endM}`
+            : `${endH > 12 ? endH - 12 : (endH || 12)}:${endM} ${endH >= 12 ? 'PM' : 'AM'}`;
+          bodyText = `In progress · ends at ${endStr}`;
+        }
+        window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({
+          title: nextTaskItem.title,
+          bodyText,
+        }));
+      } else {
+        window.DayGlanceNative?.cancelUpNextNotification?.();
+      }
+    } catch (_) {}
   }, [
     dataLoaded,
     todayAgenda,
