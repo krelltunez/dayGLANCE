@@ -118,6 +118,19 @@ export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
 };
 
 /**
+ * Return the next occurrence date string (YYYY-MM-DD) of a recurring task
+ * on or after today, or null if there are no future occurrences within 2 years.
+ */
+export const getNextOccurrence = (template) => {
+  const today = dateToString(new Date());
+  const futureEnd = new Date();
+  futureEnd.setFullYear(futureEnd.getFullYear() + 2);
+  const futureEndStr = dateToString(futureEnd);
+  const occurrences = getOccurrencesInRange(template, today, futureEndStr);
+  return occurrences.length > 0 ? occurrences[0] : null;
+};
+
+/**
  * Return the standard set of recurrence preset options for a given date string.
  * Used to populate the recurrence picker dropdown in the task editor.
  */
