@@ -52,7 +52,7 @@ const DesktopHeader = () => {
 
               {/* Forecast — proportional to visible day columns */}
               {visibleDays >= 2 && weather.forecast && weather.forecast.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="hidden min-[1230px]:flex items-center gap-1.5 flex-shrink-0">
                   {weather.forecast.slice(0, visibleDays === 3 ? 5 : 3).map((day, index) => (
                     <div key={index} className={`px-2 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg text-center`}>
                       <div className={`text-[10px] font-semibold ${textSecondary}`}>{day.day}</div>
@@ -83,7 +83,7 @@ const DesktopHeader = () => {
             const item = contentItems[idx1];
 
             return (
-              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500`}>
+              <div className={`flex-1 max-w-md px-3 py-1.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-100'} rounded-lg overflow-hidden min-w-0 transition-opacity duration-500 min-[2300px]:hidden`}>
                 <div className={`text-[10px] font-semibold ${textSecondary} mb-0.5`}>{item.icon} {item.label}</div>
                 <div className={`text-xs ${textPrimary} leading-snug line-clamp-2`}>{item.content}</div>
               </div>
@@ -93,7 +93,7 @@ const DesktopHeader = () => {
 
         {/* Center: Logo + Date Nav */}
         {/* Narrow (<1080px): shift up + stack Today below. Wide: original 3-col grid centered. */}
-        <div className="absolute inset-0 flex items-start pt-2 min-[1080px]:items-center min-[1080px]:pt-0 justify-center pointer-events-none">
+        <div className="absolute inset-0 flex items-start pt-2 min-[1080px]:items-center min-[1080px]:pt-0 justify-center max-[950px]:pr-36 pointer-events-none">
         <div className="flex flex-col items-center gap-1 min-[1080px]:grid min-[1080px]:grid-cols-[1fr_auto_1fr] min-[1080px]:gap-0 pointer-events-auto">
           <div className="hidden min-[1080px]:flex justify-end pr-2">
             <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
