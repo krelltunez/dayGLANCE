@@ -160,16 +160,16 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
 
                     if (nextMinMs < startMs - 500L) {
                         // Arm a per-minute countdown tick (fires when screen is on).
-                        am.setExact(AlarmManager.RTC_WAKEUP, nextMinMs, pendingIntent(context, RC_TICK))
+                        am.setExact(AlarmManager.RTC_WAKEUP, nextMinMs, pendingIntent(context, RC_TICK)!!)
                     }
                     // Always arm a Doze-proof alarm at the exact start time so the
                     // "In progress" state is shown even if the tick alarms were throttled.
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pendingIntent(context, RC_TRANSITION))
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, startMs, pendingIntent(context, RC_TRANSITION)!!)
                 }
                 duration > 0 -> {
                     // In progress — fire at the end time to clear the notification.
                     val endMs = midnight + endMin * 60_000L
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endMs, pendingIntent(context, RC_TRANSITION))
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endMs, pendingIntent(context, RC_TRANSITION)!!)
                 }
                 // duration == 0 ("Starting now") — one-shot, no follow-up alarm needed.
             }

@@ -4,10 +4,9 @@ import {
   FileText, GripVertical, Inbox, MoreHorizontal,
   RefreshCw, Settings, SkipForward, Trash2,
 } from 'lucide-react';
-import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
+import { isNativeAndroid } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks } from '../utils/taskUtils.js';
-import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -38,7 +37,7 @@ const MobileTimeGrid = () => {
     openNewTaskAtTime,
     toggleComplete,
     postponeTask,
-    formatTime, timeToMinutes, minutesToTime,
+    formatTime, timeToMinutes,
     getTasksForDate,
     getTaskCalendarStyle,
     minutesToPosition, positionToMinutes,
@@ -571,82 +570,6 @@ const MobileTimeGrid = () => {
                     <div className="w-12 h-1 bg-white rounded-full"></div>
                   </div>
                 )}
-                {/* Notes panel for regular (non-imported) tasks — uses NotesSubtasksPanel with wikilink support */}
-                {expandedNotesTaskId === task.id && !isImported && (() => {
-                  const startMin = timeToMinutes(task.startTime || '0:00');
-                  const endMin = startMin + (task.duration || 0);
-                  const showAbove = endMin >= 22 * 60;
-                  const wikilinks = extractWikilinks(task.title);
-                  return (
-                    <div
-                      className="notes-panel-container absolute left-0 right-0 z-40"
-                      style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
-                        <NotesSubtasksPanel
-                          task={task}
-                          isInbox={false}
-                          darkMode={darkMode}
-                          updateTaskNotes={updateTaskNotes}
-                          addSubtask={addSubtask}
-                          toggleSubtask={toggleSubtask}
-                          deleteSubtask={deleteSubtask}
-                          updateSubtaskTitle={updateSubtaskTitle}
-                          noAutoFocus
-                          aiConfig={aiConfig}
-                          aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
-                          onGenerateSubtasks={generateAISubtasks}
-                          wikilinks={wikilinks.length > 0 ? wikilinks : undefined}
-                          onLoadWikiNote={wikilinks.length > 0 ? loadWikiNote : undefined}
-                          onSaveWikiNote={wikilinks.length > 0 ? saveWikiNote : undefined}
-                          onOpenInObsidian={wikilinks.length > 0 ? openInObsidian : undefined}
-                        />
-                      </div>
-                    </div>
-                  );
-                })()}
-                {/* Editable notes panel for mobile timeline imported events (not calendar events — they use the bottom sheet) */}
-                {expandedNotesTaskId === task.id && isImported && !isCalendarEvent && (() => {
-                  const startMin = timeToMinutes(task.startTime || '0:00');
-                  const endMin = startMin + (task.duration || 0);
-                  const showAbove = endMin >= 22 * 60;
-                  return (
-                    <div
-                      className="notes-panel-container absolute left-0 right-0 z-40"
-                      style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
-                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`}>
-                          <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
-                          <textarea
-                            defaultValue={task.notes || ''}
-                            placeholder="Add description…"
-                            rows={3}
-                            className="w-full text-sm p-2 rounded bg-white/10 text-white placeholder:text-white/40 resize-y focus:outline-none focus:bg-white/20"
-                            onBlur={async (e) => {
-                              const newNotes = e.target.value;
-                              if (newNotes === (task.notes || '')) return;
-                              setTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: newNotes } : t));
-                              if (isNativeAndroid() && task.nativeEventId) {
-                                await nativeUpdateEvent({
-                                  id: task.nativeEventId,
-                                  title: task.title,
-                                  start: `${task.date}T${task.startTime}:00`,
-                                  end: `${task.date}T${minutesToTime(timeToMinutes(task.startTime || '0:00') + (task.duration || 0))}:00`,
-                                  allDay: false,
-                                  notes: newNotes,
-                                  location: task.location || '',
-                                });
-                              }
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
               );
             })}
