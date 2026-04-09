@@ -96,6 +96,8 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
                     put("bodyText", bodyText)
                 }.toString()
             )
+            // Keep the UpNextWidget in sync on the same alarm ticks.
+            try { com.dayglance.app.widget.UpNextWidget.requestUpdate(context) } catch (_: Throwable) { }
 
             scheduleNextAlarm(context, cal, nowMin, startMin, endMin, duration)
         }
