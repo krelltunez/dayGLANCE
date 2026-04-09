@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
+import { getNextOccurrence } from '../utils/recurrenceEngine.js';
 
 export default function useNavigation({
   visibleDays,
@@ -83,7 +84,7 @@ export default function useNavigation({
       setInboxArchivedExpanded(true);
       scrollAndHighlight(`[data-task-id="${task.id}"]`, 500);
     } else if (source === 'recurring') {
-      const date = task.startDate || dateToString(new Date());
+      const date = getNextOccurrence(task) || task.recurrence?.startDate || dateToString(new Date());
       if (isMobile) {
         setMobileActiveTab('timeline');
       }
