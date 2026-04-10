@@ -4,7 +4,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileRoutinesTab = () => {
-  const { isPhone, isTablet, darkMode, textSecondary, hoverBg, colors, formatTime, getDayName } = useDayPlannerCtx();
+  const { isPhone, isMobile, isTablet, darkMode, textSecondary, hoverBg, colors, formatTime, getDayName } = useDayPlannerCtx();
   const {
     routineDefinitions,
     dashboardSelectedChips, setDashboardSelectedChips,
@@ -42,7 +42,7 @@ const MobileRoutinesTab = () => {
                   key={chip.id}
                   className={`group relative rounded-full px-3 py-1.5 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
                   onClick={() => {
-                    if (isPhone || isTablet) {
+                    if (isMobile || isTablet) {
                       if (isFocused) {
                         setRoutineTimePickerChipId(chip.id);
                         setRoutineFocusedChipId(null);
@@ -76,7 +76,7 @@ const MobileRoutinesTab = () => {
                   <button
                     onClick={(e) => { e.stopPropagation(); setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id)); setRoutineFocusedChipId(null); }}
                     className={`absolute -top-1.5 -right-1.5 transition-opacity ${darkMode ? 'bg-gray-500 text-white' : 'bg-stone-400 text-white'} rounded-full w-4 h-4 flex items-center justify-center ${
-                      (isPhone || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
+                      (isMobile || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                     }`}
                   >
                     <Undo2 size={10} />
@@ -141,7 +141,7 @@ const MobileRoutinesTab = () => {
                     <div
                       key={chip.id}
                       onClick={() => {
-                        if (isPhone || isTablet) {
+                        if (isMobile || isTablet) {
                           if (isFocused) {
                             toggleRoutineChipSelection(chip, bucket);
                             setRoutineFocusedChipId(null);
@@ -162,7 +162,7 @@ const MobileRoutinesTab = () => {
                       <button
                         onClick={(e) => { e.stopPropagation(); setRoutineDeleteConfirm({ bucket, chipId: chip.id, chipName: chip.name }); setRoutineFocusedChipId(null); }}
                         className={`absolute -top-1.5 -right-1.5 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center ${
-                          (isPhone || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
+                          (isMobile || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                         }`}
                       >
                         <X size={10} />

@@ -253,7 +253,7 @@ const WeeklyReviewModal = () => {
         // Tag breakdown for AI summary
         const tagStats = {};
         pastRegular.forEach(t => {
-          const taskTags = (t.title.match(/#(\w+)/g) || []).map(tag => tag.slice(1));
+          const taskTags = (t.title.match(/#(\p{L}[\p{L}\p{N}_]*)/gu) || []).map(tag => tag.slice(1));
           taskTags.forEach(tag => {
             if (!tagStats[tag]) tagStats[tag] = { total: 0, completed: 0 };
             tagStats[tag].total++;

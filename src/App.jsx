@@ -4661,7 +4661,7 @@ const DayPlanner = () => {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
             setter(prev => prev.map(t => {
               if (t.id !== id) return t;
-              const existing = (t.title.match(/#(\w+)/g) || []).map(s => s.slice(1).toLowerCase());
+              const existing = (t.title.match(/#(\p{L}[\p{L}\p{N}_]*)/gu) || []).map(s => s.slice(1).toLowerCase());
               if (existing.includes(edit.tag.toLowerCase())) return t;
               return { ...t, title: t.title + ` #${edit.tag}` };
             }));

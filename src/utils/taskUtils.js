@@ -15,7 +15,7 @@ export const localDateStr = (d = new Date()) => dateToString(d);
 
 // Extract #hashtags from a task title (tags must start with a letter).
 export const extractTags = (title) => {
-  const matches = title.match(/#([a-zA-Z]\w*)/g);
+  const matches = title.match(/#(\p{L}[\p{L}\p{N}_]*)/gu);
   return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
 };
 

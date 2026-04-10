@@ -195,9 +195,9 @@ export const isObsidianNoteOnlyTask = (task) => {
 // Strip wikilinks from displayed text; style hashtags
 export const renderTitle = (title) => {
   const stripped = title.replace(/\[\[[^\]]+\]\]/g, '');
-  const parts = stripped.split(/(#[a-zA-Z]\w*)/g);
+  const parts = stripped.split(/(#\p{L}[\p{L}\p{N}_]*)/gu);
   return parts.map((part, i) => {
-    if (part.match(/^#[a-zA-Z]\w*$/)) {
+    if (part.match(/^#\p{L}[\p{L}\p{N}_]*$/u)) {
       return <span key={i} className="text-xs italic opacity-75">{part}</span>;
     }
     return part;
@@ -228,5 +228,5 @@ export const highlightMatch = (text, query) => {
 
 // Remove wikilinks AND hashtags (used for AI context only)
 export const renderTitleWithoutTags = (title) => {
-  return title.replace(/\[\[[^\]]+\]\]/g, '').replace(/#[a-zA-Z]\w*/g, '').replace(/\s+/g, ' ').trim();
+  return title.replace(/\[\[[^\]]+\]\]/g, '').replace(/#\p{L}[\p{L}\p{N}_]*/gu, '').replace(/\s+/g, ' ').trim();
 };
