@@ -29,3 +29,20 @@ This check is mandatory — even mid-task, even for "small fixes", even when you
 ## GitHub Issues
 
 Do **not** post comments to GitHub issues directly using `mcp__github__add_issue_comment`. Instead, draft the proposed response and present it to the user so they can review and post it themselves.
+
+# App.jsx — Ongoing Decomposition
+
+`App.jsx` started at ~30,000 lines and has been reduced to ~8,500 across three refactor passes. It is still the largest file and has known areas worth extracting **opportunistically** — i.e. when a feature or bugfix already touches that area, not as a dedicated refactor pass.
+
+## Remaining candidates
+
+- **ICS/CalDAV parser** (`~lines 2900–3200`): RRULE expansion, VTODO handling, and date parsing are self-contained utility logic with no UI dependency. Could move to `src/utils/icsParser.js`.
+- **Voice input pipeline**: The `voiceParseAndApply`, `voiceApplyAllChanges`, and related callbacks are substantial and cohesive. Candidate for a `useVoiceInput` hook.
+- **Morning summary / AI features**: `generateMorningSummary` and surrounding AI callback logic could become a `useMorningSummary` hook.
+- **Obsidian sync handlers**: The inline Obsidian sync callbacks could move to a `useObsidianSync` hook (the pattern is already established with `useTaskActions`, `useDragDrop`, etc.).
+- **Native calendar integration**: The `nativeEventToTask` function and fetch logic around Android calendar sync are self-contained and could move to `src/utils/nativeCalendar.js`.
+
+## Guidance
+
+When adding a new feature or fixing a bug in one of these areas, consider extracting the surrounding logic at the same time if it keeps the diff focused and doesn't bloat the PR scope. Don't extract for its own sake — only when it makes the change cleaner.
+
