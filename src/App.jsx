@@ -1828,11 +1828,13 @@ const DayPlanner = () => {
   const loadWikiNote = useCallback(async (noteName) => {
     const handle = obsidianVaultHandleRef.current;
     if (!handle) return null;
+    // Strip [[Note#Heading]] fragment — we load the whole note file, not just a section
+    const notePath = noteName.split('#')[0].trim();
     if (handle === 'native') {
-      return nativeGetNote(noteName);
+      return nativeGetNote(notePath);
     }
     try {
-      return await readWikiNote(handle, noteName);
+      return await readWikiNote(handle, notePath);
     } catch (err) {
       console.error('Failed to read wiki note:', err);
       return null;
@@ -1842,12 +1844,14 @@ const DayPlanner = () => {
   const saveWikiNote = useCallback(async (noteName, content) => {
     const handle = obsidianVaultHandleRef.current;
     if (!handle) return;
+    // Strip [[Note#Heading]] fragment for write path too
+    const notePath = noteName.split('#')[0].trim();
     if (handle === 'native') {
-      nativeWriteNote(noteName, content);
+      nativeWriteNote(notePath, content);
       return;
     }
     try {
-      await writeWikiNote(handle, noteName, content, obsidianConfig?.newNotesFolder || '');
+      await writeWikiNote(handle, notePath, content, obsidianConfig?.newNotesFolder || '');
     } catch (err) {
       console.error('Failed to write wiki note:', err);
     }

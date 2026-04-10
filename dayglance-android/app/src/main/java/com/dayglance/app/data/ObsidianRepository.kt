@@ -57,6 +57,7 @@ class ObsidianRepository(private val context: Context) {
     private fun indexDirectory(dir: DocumentFile, index: ConcurrentHashMap<String, Uri>) {
         for (file in dir.listFiles()) {
             val name = file.name ?: continue
+            if (name.startsWith('.')) continue // skip hidden files/dirs (.obsidian/, .trash/, etc.)
             if (file.isFile && name.endsWith(".md")) {
                 index[name.removeSuffix(".md").lowercase()] = file.uri
             } else if (file.isDirectory) {

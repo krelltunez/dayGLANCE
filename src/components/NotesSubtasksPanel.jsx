@@ -88,6 +88,12 @@ const NotesSubtasksPanel = ({
     if (linkedNoteStates[noteName]) return; // already loaded or loading
     setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: true, error: null } }));
     onLoadWikiNote?.(noteName).then(result => {
+      if (result === null) {
+        // Note not found in vault (or vault not configured) — show a clear message rather
+        // than an empty "create new note" textarea that would silently fail to save.
+        setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: false, error: 'not_found' } }));
+        return;
+      }
       const text = result?.text ?? '';
       setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text, lastModified: result?.lastModified ?? null, loading: false, error: null } }));
       setLinkedNoteEditing(prev => ({ ...prev, [noteName]: !text }));
@@ -243,7 +249,11 @@ const NotesSubtasksPanel = ({
                     Loading…
                   </div>
                 ) : state.error ? (
-                  <div className={`text-xs opacity-60 italic ${noteMinH}`}>Could not load note: {state.error}</div>
+                  <div className={`text-xs opacity-60 italic ${noteMinH}`}>
+                    {state.error === 'not_found'
+                      ? 'Note not found in vault — check that your vault is configured and the note exists.'
+                      : `Could not load note: ${state.error}`}
+                  </div>
                 ) : isEditingWiki ? (
                   <textarea
                     value={state.text}
