@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Eye, Flag, Inbox, Settings, Sparkles } from 'lucide-react';
+import { Calendar, Eye, Flag, Inbox, Settings } from 'lucide-react';
 import { isNativeAndroid } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -14,9 +14,6 @@ const MobileTabBar = () => {
     goToToday,
   } = useDayPlannerCtx();
   const {
-    todayRoutines, setDashboardSelectedChips,
-    setRoutineAddingToBucket, setRoutineNewChipName,
-    routinesEnabled, handleRoutinesDone,
     goalsProjectsEnabled, goals,
   } = useFeaturesCtx();
 
@@ -25,7 +22,7 @@ const MobileTabBar = () => {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const hasOverdueGoal = activeGoals.some(g => g.targetDate && new Date(g.targetDate + 'T00:00:00') < today && g.status !== 'completed');
 
-  const tabCount = 4 + (routinesEnabled ? 1 : 0) + (goalsProjectsEnabled ? 1 : 0);
+  const tabCount = 4 + (goalsProjectsEnabled ? 1 : 0);
   const showLabels = tabCount <= 5;
   const iconSize = showLabels ? 20 : 22;
 
@@ -38,7 +35,6 @@ const MobileTabBar = () => {
       <div className="flex items-center justify-around h-14">
         <button
           onClick={() => {
-            if (mobileActiveTab === 'routines') handleRoutinesDone();
             setMobileActiveTab('dayglance');
             setMobileSettingsView('main');
           }}
@@ -49,7 +45,6 @@ const MobileTabBar = () => {
         </button>
         <button
           onClick={() => {
-            if (mobileActiveTab === 'routines') handleRoutinesDone();
             if (mobileActiveTab !== 'timeline') goToToday();
             setMobileActiveTab('timeline');
             setMobileSettingsView('main');
@@ -100,7 +95,6 @@ const MobileTabBar = () => {
         {goalsProjectsEnabled && (
         <button
           onClick={() => {
-            if (mobileActiveTab === 'routines') handleRoutinesDone();
             setMobileActiveTab('goals');
             setMobileSettingsView('main');
           }}
@@ -117,24 +111,8 @@ const MobileTabBar = () => {
           {showLabels && <span className="text-[10px] font-medium">Goals</span>}
         </button>
         )}
-        {routinesEnabled && (
         <button
           onClick={() => {
-            setMobileActiveTab('routines');
-            setMobileSettingsView('main');
-            setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
-            setRoutineAddingToBucket(null);
-            setRoutineNewChipName('');
-          }}
-          className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'routines' ? 'text-blue-500' : textSecondary}`}
-        >
-          <Sparkles size={iconSize} />
-          {showLabels && <span className="text-[10px] font-medium">Routines</span>}
-        </button>
-        )}
-        <button
-          onClick={() => {
-            if (mobileActiveTab === 'routines') handleRoutinesDone();
             setMobileActiveTab('settings');
           }}
           className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'settings' ? 'text-blue-500' : textSecondary}`}

@@ -27,7 +27,6 @@ import FrameNudgeCard from './FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import MobileTabBar from './MobileTabBar.jsx';
 import MobileSettingsPanel from './MobileSettingsPanel.jsx';
-import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import MobileTimeGrid from './MobileTimeGrid.jsx';
 import MobileAllDaySection from './MobileAllDaySection.jsx';
@@ -623,15 +622,6 @@ const MobileLayout = () => {
               </div>
             )}
 
-            {mobileActiveTab === 'routines' && (
-              <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
-                    <Sparkles size={20} /> Routines
-                  </h2>
-                </div>
-              </div>
-            )}
             {mobileActiveTab === 'goals' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="px-4 pt-3 pb-1">
@@ -1101,7 +1091,6 @@ const MobileLayout = () => {
 
             {mobileActiveTab === 'inbox' && <InboxArchivedBar />}
 
-            {mobileActiveTab === 'routines' && <MobileRoutinesTab />}
 
             {/* GoalDashboard stays mounted to avoid expensive remount on every tab switch */}
             <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${mobileActiveTab === 'goals' ? '' : 'hidden'}`}>

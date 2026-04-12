@@ -17,6 +17,7 @@ import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
+import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -69,6 +70,9 @@ const MobileSettingsPanel = () => {
   } = useSyncCtx();
   const {
     routinesEnabled, setRoutinesEnabled,
+    todayRoutines, setDashboardSelectedChips,
+    setRoutineAddingToBucket, setRoutineNewChipName,
+    handleRoutinesDone,
     habitsEnabled, setHabitsEnabled,
     activeHabits, habits,
     editingHabit, setEditingHabit,
@@ -149,10 +153,15 @@ const MobileSettingsPanel = () => {
       </button>
       {/* Row 3: Routines | Habits | AI */}
       <button
-        onClick={() => { if (!routinesEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(!routinesEnabled); }}
+        onClick={() => {
+          setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
+          setRoutineAddingToBucket(null);
+          setRoutineNewChipName('');
+          setMobileSettingsView('routines');
+        }}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
-        {routinesEnabled ? <Sparkles size={24} className="text-teal-500" /> : <Sparkles size={24} className={textSecondary} />}
+        <Sparkles size={24} className={mobileSettingsView === 'routines' ? 'text-teal-500' : routinesEnabled ? 'text-teal-500' : textSecondary} />
         <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
       </button>
       <button
@@ -1633,6 +1642,35 @@ const MobileSettingsPanel = () => {
           )}
         </>
       )}
+    </div>
+  )}
+
+  {/* Routines sub-view */}
+  {mobileSettingsView === 'routines' && (
+    <div className="px-4 py-4 space-y-4">
+      <button
+        onClick={() => { handleRoutinesDone(); setMobileSettingsView('main'); }}
+        className={`flex items-center gap-2 ${textSecondary} mb-2`}
+      >
+        <ChevronLeft size={18} />
+        <span className="text-sm font-medium">Settings</span>
+      </button>
+
+      {/* Enable/disable toggle */}
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${borderClass} ${cardBg}`}>
+        <div className="flex items-center gap-3">
+          <Sparkles size={20} className={routinesEnabled ? 'text-teal-500' : textSecondary} />
+          <span className={`text-sm font-medium ${textPrimary}`}>Routines</span>
+        </div>
+        <button
+          onClick={() => { if (!routinesEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(!routinesEnabled); }}
+          className={`w-11 h-6 rounded-full transition-colors ${routinesEnabled ? 'bg-teal-500' : (darkMode ? 'bg-gray-600' : 'bg-stone-300')}`}
+        >
+          <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform mx-0.5 ${routinesEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+      </div>
+
+      {routinesEnabled && <MobileRoutinesTab />}
     </div>
   )}
 </div>
