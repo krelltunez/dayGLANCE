@@ -10,6 +10,8 @@ import { dateToString, extractWikilinks } from '../utils/taskUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
+import HyperGlanceBar from './HyperGlanceBar.jsx';
 
 const MobileTimeGrid = () => {
   const {
@@ -116,6 +118,8 @@ const MobileTimeGrid = () => {
       const isDateToday = dateStr === dateToString(new Date());
       const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter));
       const frameInstances = getFrameInstancesForDate(date);
+      const hgBars = getHGBarsForDate(projects, dateStr);
+      const hasBars = hgBars.length > 0;
 
       return (
         <div
@@ -261,6 +265,17 @@ const MobileTimeGrid = () => {
             </div>
           )}
 
+          {/* HyperGLANCE project bars (left half of column) */}
+          {hasBars && (
+            <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: 0, width: '50%' }}>
+              {hgBars.map(bar => (
+                <HyperGlanceBar key={bar.project.id} {...bar} />
+              ))}
+            </div>
+          )}
+
+          {/* Task + routine layer (shifts to right half when HG bars are present) */}
+          <div className="absolute top-0 bottom-0 pointer-events-none" style={hasBars ? { left: '50%', right: 0 } : { left: 0, right: 0 }}>
           {/* Task blocks */}
           {dayTasks.map(task => {
             const { top, height } = calculateTaskPosition(task);
@@ -669,6 +684,7 @@ const MobileTimeGrid = () => {
               );
             });
           })()}
+          </div>{/* end task+routine layer */}
         </div>
       );
     })}
