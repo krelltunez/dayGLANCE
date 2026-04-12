@@ -4,7 +4,7 @@ import {
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader,
   Mic, Minus, Moon, Plus, RefreshCw, Search,
-  Sparkles, Sun, Target, Trash2, X,
+  Sparkles, Sun, Target, Trash2, X, Zap,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -15,6 +15,7 @@ import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import FrameNudgeCard from './FrameNudgeCard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { getOverdueHGInstances } from '../hooks/useHyperGlance.js';
 
 const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -91,6 +92,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     generateFrameNudge, generateMorningSummary, generateEveningReflection,
     dismissMorningGlance, dismissEveningGlance,
     openRoutinesDashboard,
+    enterHyperGlanceMode,
     getFrameInstancesForDate,
     computeAvailableSlots,
     showVoiceInput, setShowVoiceInput,
@@ -1098,6 +1100,30 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               </span>
             );
           })}
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* Overdue HyperGLANCE projects */}
+  {goalsProjectsEnabled && (() => {
+    const overdue = getOverdueHGInstances(projects);
+    if (overdue.length === 0) return null;
+    return (
+      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-orange-500">Overdue Projects</div>
+        <div className="space-y-1.5">
+          {overdue.map(({ project, instance }) => (
+            <button
+              key={project.id}
+              onClick={() => enterHyperGlanceMode(project.id, instance.date)}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-orange-900/20' : 'bg-orange-50'}`}
+            >
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.hyperglance?.color || '#e11d48' }}></div>
+              <span className={`text-sm font-medium flex-1 min-w-0 truncate ${darkMode ? 'text-orange-200' : 'text-orange-800'}`}>{project.title}</span>
+              <Zap size={12} className="text-orange-500 flex-shrink-0" />
+            </button>
+          ))}
         </div>
       </div>
     );

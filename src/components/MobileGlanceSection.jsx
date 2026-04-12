@@ -4,7 +4,7 @@ import {
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, ExternalLink, FileText, Filter, Flag, Inbox, LayoutGrid,
   Loader, Mic, Minus, Moon, Plus, RefreshCw,
-  Search, Sparkles, Sun, Target, Trash2, X,
+  Search, Sparkles, Sun, Target, Trash2, X, Zap,
 } from 'lucide-react';
 import { renderTitle, renderFormattedText, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -17,6 +17,7 @@ import FrameNudgeCard from './FrameNudgeCard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { getOverdueHGInstances } from '../hooks/useHyperGlance.js';
 
 const MobileGlanceSection = () => {
   const {
@@ -100,6 +101,7 @@ const MobileGlanceSection = () => {
     generateFrameNudge, generateMorningSummary, generateEveningReflection,
     dismissMorningGlance, dismissEveningGlance,
     openRoutinesDashboard,
+    enterHyperGlanceMode,
     getFrameInstancesForDate, computeAvailableSlots,
     showVoiceInput, setShowVoiceInput,
     voiceCanRecord,
@@ -1042,6 +1044,30 @@ const MobileGlanceSection = () => {
               </span>
             );
           })}
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* Overdue HyperGLANCE projects */}
+  {goalsProjectsEnabled && (() => {
+    const overdue = getOverdueHGInstances(projects);
+    if (overdue.length === 0) return null;
+    return (
+      <div className={`mt-3 pt-3 border-t ${borderClass}`}>
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-orange-500">Overdue Projects</div>
+        <div className="space-y-1.5">
+          {overdue.map(({ project, instance }) => (
+            <button
+              key={project.id}
+              onClick={() => enterHyperGlanceMode(project.id, instance.date)}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left active:opacity-70 transition-opacity ${darkMode ? 'bg-orange-900/20' : 'bg-orange-50'}`}
+            >
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.hyperglance?.color || '#e11d48' }}></div>
+              <span className={`text-sm font-medium flex-1 min-w-0 truncate ${darkMode ? 'text-orange-200' : 'text-orange-800'}`}>{project.title}</span>
+              <Zap size={12} className="text-orange-500 flex-shrink-0" />
+            </button>
+          ))}
         </div>
       </div>
     );

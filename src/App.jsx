@@ -101,6 +101,7 @@ import DesktopLayout from './components/DesktopLayout.jsx';
 import MobileLayout from './components/MobileLayout.jsx';
 import ShortcutHelpModal from './components/ShortcutHelpModal.jsx';
 import FocusModeModal from './components/FocusModeModal.jsx';
+import HyperGlanceModeModal from './components/HyperGlanceModeModal.jsx';
 import RoutinesDashboardModal from './components/RoutinesDashboardModal.jsx';
 import FrameAdjustModal from './components/FrameAdjustModal.jsx';
 import FrameScheduleModal from './components/FrameScheduleModal.jsx';
@@ -563,6 +564,21 @@ const DayPlanner = () => {
     exitFocusModeRef,
     focusModeAvailableRef,
   } = useFocusMode();
+
+  // ── HyperGLANCE state ────────────────────────────────────────────────────
+  const [showHyperGlanceMode, setShowHyperGlanceMode] = React.useState(false);
+  const [hyperGlanceProjectId, setHyperGlanceProjectId] = React.useState(null);
+  const [hyperGlanceSessionDate, setHyperGlanceSessionDate] = React.useState(null);
+  const [hgTimerSeconds, setHgTimerSeconds] = React.useState(0);
+  const [hgTimerRunning, setHgTimerRunning] = React.useState(false);
+  const [hgTimerPhase, setHgTimerPhase] = React.useState('work'); // 'work' | 'break'
+  const [hgWorkMinutes, setHgWorkMinutes] = React.useState(25);
+  const [hgBreakMinutes, setHgBreakMinutes] = React.useState(5);
+  const [hgCycleCount, setHgCycleCount] = React.useState(0);
+  const [hgExitConfirm, setHgExitConfirm] = React.useState(false);
+  const [hgShowSettings, setHgShowSettings] = React.useState(true);
+  const hgTimerRef = React.useRef(null);
+
   const {
     trmnlConfig, setTrmnlConfig,
     trmnlSyncStatus, setTrmnlSyncStatus,
@@ -2948,6 +2964,71 @@ const DayPlanner = () => {
     setFocusTimerRunning(true);
   };
   handleFocusTimerEndRef.current = handleFocusTimerEnd;
+
+  // ── HyperGLANCE functions ──────────────────────────────────────────────────
+  const instantiateHGTemplateTasks = (project, sessionDate) => {
+    const templates = project.hyperglance?.templateTasks || [];
+    if (templates.length === 0) return;
+    // Avoid duplicate instantiation for the same session date
+    const alreadyInstantiated = unscheduledTasks.some(
+      t => t.projectId === project.id && t.hyperglanceSessionDate === sessionDate
+    );
+    if (alreadyInstantiated) return;
+    const newTasks = templates.map(tmpl => ({
+      id: `hg-${project.id}-${sessionDate}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: tmpl.title,
+      projectId: project.id,
+      hyperglanceSessionDate: sessionDate,
+      completed: false,
+      createdAt: new Date().toISOString(),
+    }));
+    setUnscheduledTasks(prev => [...prev, ...newTasks]);
+  };
+
+  const enterHyperGlanceMode = (projectId, date) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    instantiateHGTemplateTasks(project, date);
+    setHyperGlanceProjectId(projectId);
+    setHyperGlanceSessionDate(date);
+    setHgTimerSeconds(0);
+    setHgTimerRunning(false);
+    setHgTimerPhase('work');
+    setHgCycleCount(0);
+    setHgExitConfirm(false);
+    setHgShowSettings(true);
+    setShowHyperGlanceMode(true);
+  };
+
+  const exitHyperGlanceMode = () => {
+    // Pause: close the modal but leave the session open (bar stays on timeline)
+    setHgTimerRunning(false);
+    setHgExitConfirm(false);
+    setShowHyperGlanceMode(false);
+  };
+
+  const completeHyperGlanceSession = () => {
+    if (!hyperGlanceProjectId || !hyperGlanceSessionDate) return;
+    setProjects(prev => prev.map(p => {
+      if (p.id !== hyperGlanceProjectId) return p;
+      const hg = p.hyperglance || {};
+      const completions = hg.completions || [];
+      if (completions.some(c => c.date === hyperGlanceSessionDate)) return p;
+      return {
+        ...p,
+        hyperglance: {
+          ...hg,
+          completions: [
+            ...completions,
+            { date: hyperGlanceSessionDate, completedAt: new Date().toISOString() },
+          ],
+        },
+      };
+    }));
+    setHgTimerRunning(false);
+    setHgExitConfirm(false);
+    setShowHyperGlanceMode(false);
+  };
 
   const parseICS = (icsContent) => {
     // Unfold iCal line continuations (RFC 5545: lines starting with space/tab are continuations)
@@ -7095,6 +7176,20 @@ const DayPlanner = () => {
     focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,
     computeFocusBlockTasks,
 
+    // ── HyperGLANCE ───────────────────────────────────────────────────────────
+    showHyperGlanceMode, setShowHyperGlanceMode,
+    hyperGlanceProjectId, setHyperGlanceProjectId,
+    hyperGlanceSessionDate, setHyperGlanceSessionDate,
+    hgTimerSeconds, setHgTimerSeconds,
+    hgTimerRunning, setHgTimerRunning,
+    hgTimerPhase, setHgTimerPhase,
+    hgWorkMinutes, setHgWorkMinutes,
+    hgBreakMinutes, setHgBreakMinutes,
+    hgCycleCount, setHgCycleCount,
+    hgExitConfirm, setHgExitConfirm,
+    hgShowSettings, setHgShowSettings,
+    enterHyperGlanceMode, exitHyperGlanceMode, completeHyperGlanceSession,
+
     // ── Functions – GTD / AI ──────────────────────────────────────────────────
     saveFrame, deleteFrame, skipFrameForDay,
     openFrameAdjust, openFrameSchedule, saveFrameAdjust,
@@ -8118,6 +8213,9 @@ const DayPlanner = () => {
 
       {/* Focus Mode Overlay */}
       {showFocusMode && <FocusModeModal />}
+
+      {/* HyperGLANCE Overlay */}
+      {showHyperGlanceMode && <HyperGlanceModeModal />}
 
       {/* Spotlight Search */}
       {showSpotlight && <SpotlightModal />}
