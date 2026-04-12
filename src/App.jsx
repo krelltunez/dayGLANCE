@@ -1113,7 +1113,7 @@ const DayPlanner = () => {
       cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
 
   // Cloud sync: download on app load or when sync is first enabled.
   // If encryption is enabled, wait until the session key is ready (either
@@ -4142,6 +4142,7 @@ const DayPlanner = () => {
         routineDefinitions,
         todayRoutines: stampTaskTimestamps(todayRoutines, 'day-planner-today-routines'),
         routinesDate,
+        routineCompletions,
         minimizedSections,
         use24HourClock,
         weatherZip,
@@ -4269,6 +4270,7 @@ const DayPlanner = () => {
     if (data.routinesDate === todayStr) {
       if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
       localStorage.setItem('day-planner-routines-date', data.routinesDate);
+      if (data.routineCompletions) localStorage.setItem('day-planner-routine-completions', JSON.stringify(data.routineCompletions));
     }
     // selectedTags and minimizedSections are per-device UI preferences — not synced to state
     if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
@@ -4370,6 +4372,7 @@ const DayPlanner = () => {
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
     if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
+    if (data.routineCompletions && data.routinesDate === dateToString(new Date())) setRoutineCompletions(data.routineCompletions);
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
     if (data.weatherZip !== undefined) setWeatherZip(data.weatherZip);
     if (data.weatherTempUnit !== undefined) setWeatherTempUnit(data.weatherTempUnit);
