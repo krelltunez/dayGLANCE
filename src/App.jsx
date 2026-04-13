@@ -4656,12 +4656,12 @@ const DayPlanner = () => {
           }
           case 'complete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true, lastModified: new Date().toISOString() } : t));
             break;
           }
           case 'uncomplete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, lastModified: new Date().toISOString() } : t));
             break;
           }
           case 'changePriority': {
