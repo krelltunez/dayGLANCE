@@ -32,7 +32,7 @@ const MobileAllDaySection = () => {
   } = useDayPlannerCtx();
 
   const {
-    routinesEnabled, todayRoutines,
+    routinesEnabled, todayRoutines, routineCompletions,
     openRoutinesDashboard,
   } = useFeaturesCtx();
 
@@ -352,7 +352,7 @@ const MobileAllDaySection = () => {
               {routinesEnabled && dateToString(date) === dateToString(new Date()) && todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-')).map((routine) => (
                 <div
                   key={`routine-${routine.id}`}
-                  className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''}`}
+                  className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 select-none ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${mobileDragTaskIdState === routine.id ? 'scale-105 shadow-2xl z-40' : ''} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
                   style={{ touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
                   onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...routine, isRoutineDrag: true, duration: routine.duration || 15 }, 'allday')}
                   onTouchMove={(e) => handleMobileTaskTouchMove(e)}

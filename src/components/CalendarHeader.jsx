@@ -77,7 +77,7 @@ const CalendarHeader = () => {
     focusLog, setFocusLogModalDate,
     habitLogs, activeHabits, habitsEnabled,
     habitDayPopup, setHabitDayPopup,
-    todayRoutines, routinesEnabled,
+    todayRoutines, routinesEnabled, routineCompletions,
     aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
     goalsProjectsEnabled, projects,
     projectFilter, setProjectFilter,
@@ -766,7 +766,7 @@ const CalendarHeader = () => {
                 onTouchMove: (e) => handleMobileTaskTouchMove(e),
                 onTouchEnd: (e) => handleMobileTaskTouchEnd(e, routine.id, 'allday'),
               } : {})}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${isTablet ? 'cursor-default select-none' : 'cursor-move'} inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${isTablet ? 'cursor-default select-none' : 'cursor-move'} inline-block mr-1 mb-1 ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
               style={isTablet ? { touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' } : {}}
             >
               {routine.name}

@@ -82,7 +82,7 @@ const MobileGlanceSection = () => {
     eveningGlanceText, eveningGlanceLoading, eveningGlanceDismissed, eveningGlanceError,
     frameNudgeSuggestion, frameNudgeLoading, frameNudgeError,
     frameNudgeDismissedKey, setFrameNudgeDismissedKey,
-    routinesEnabled, todayRoutines, routineCompletions,
+    routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
     habitsEnabled,
     activeHabits, habitStreaks,
     habitLongPressId, setHabitLongPressId,
@@ -150,7 +150,7 @@ const MobileGlanceSection = () => {
       <div className="mb-4 relative">
         <button
           onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}
-          className={`absolute -top-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
           title="Manage habits"
         >
           <Settings size={11} />
@@ -1031,44 +1031,57 @@ const MobileGlanceSection = () => {
       setMobileActiveTab('settings');
       setMobileSettingsView('routines');
     };
-    return (
-      <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer`} onClick={openRoutinesSettings}>
-        <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
-        {visibleRoutines.length === 0 ? (
+    if (visibleRoutines.length === 0) {
+      return (
+        <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer active:opacity-70 transition-opacity`} onClick={openRoutinesSettings}>
+          <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
           <div className="flex items-center gap-2">
             <span className={`text-xs ${textSecondary} italic`}>None scheduled</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); openRoutinesSettings(); }}
-              className="text-xs text-teal-500 font-medium"
-            >+ Add</button>
+            <span className="text-xs text-teal-500 font-medium">+ Add</span>
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {[...visibleRoutines].sort((a, b) => {
-              if (a.isAllDay && !b.isAllDay) return -1;
-              if (!a.isAllDay && b.isAllDay) return 1;
-              if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-              return 0;
-            }).map(r => {
-              let timeLabel = '';
-              if (!r.isAllDay && r.startTime) {
-                if (use24HourClock) {
-                  timeLabel = r.startTime;
-                } else {
-                  const [h, m] = r.startTime.split(':').map(Number);
-                  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                  const ampm = h < 12 ? 'a' : 'p';
-                  timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
-                }
+        </div>
+      );
+    }
+    return (
+      <div className={`relative mt-3 pt-3 border-t ${borderClass}`}>
+        <button
+          onClick={openRoutinesSettings}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
+          title="Manage routines"
+        >
+          <Settings size={11} />
+        </button>
+        <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+        <div className="flex flex-wrap gap-1.5">
+          {[...realRoutines].sort((a, b) => {
+            if (a.isAllDay && !b.isAllDay) return -1;
+            if (!a.isAllDay && b.isAllDay) return 1;
+            if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+            return 0;
+          }).map(r => {
+            const done = !!routineCompletions[r.id];
+            let timeLabel = '';
+            if (!r.isAllDay && r.startTime) {
+              if (use24HourClock) {
+                timeLabel = r.startTime;
+              } else {
+                const [h, m] = r.startTime.split(':').map(Number);
+                const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                const ampm = h < 12 ? 'a' : 'p';
+                timeLabel = m === 0 ? `${hour12}${ampm}` : `${hour12}:${String(m).padStart(2, '0')}${ampm}`;
               }
-              return (
-                <span key={r.id} className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
-                  {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
-                </span>
-              );
-            })}
-          </div>
-        )}
+            }
+            return (
+              <button
+                key={r.id}
+                onClick={() => toggleRoutineCompletion(r.id)}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${done ? 'line-through opacity-50' : 'active:opacity-70'} transition-opacity`}
+              >
+                {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
     );
   })()}
