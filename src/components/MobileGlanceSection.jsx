@@ -139,11 +139,11 @@ const MobileGlanceSection = () => {
   {/* Habit rings row — pinned to top */}
   {habitsEnabled && (
     activeHabits.length === 0 ? (
-      <div className={`mb-4 rounded-lg border ${borderClass} p-3`}>
+      <div className={`mb-4 rounded-lg border ${borderClass} p-3 cursor-pointer active:opacity-70 transition-opacity`} onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}>
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
         <div className="flex items-center gap-2">
           <span className={`text-xs ${textSecondary} italic`}>None added</span>
-          <button onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }} className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ Add</button>
+          <span className="text-xs text-teal-500 font-medium">+ Add</span>
         </div>
       </div>
     ) : (
