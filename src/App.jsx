@@ -4370,9 +4370,14 @@ const DayPlanner = () => {
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(data.recurringTasks);
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
-    if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
-    if (data.routinesDate !== undefined) setRoutinesDate(data.routinesDate);
-    if (data.routineCompletions && data.routinesDate === dateToString(new Date())) setRoutineCompletions(data.routineCompletions);
+    // Only apply today's routine state if the remote data is from today — matching
+    // the localStorage guard above. If routinesDate is stale/off, applying it would
+    // trigger the auto-clear effect in useRoutines and wipe todayRoutines to [].
+    if (data.routinesDate === dateToString(new Date())) {
+      if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
+      setRoutinesDate(data.routinesDate);
+      if (data.routineCompletions) setRoutineCompletions(data.routineCompletions);
+    }
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
     if (data.weatherZip !== undefined) setWeatherZip(data.weatherZip);
     if (data.weatherTempUnit !== undefined) setWeatherTempUnit(data.weatherTempUnit);
