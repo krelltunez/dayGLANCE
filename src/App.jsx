@@ -7167,7 +7167,7 @@ const DayPlanner = () => {
 
     // ── Functions – routines ──────────────────────────────────────────────────
     openRoutinesDashboard, addRoutineChip, deleteRoutineChip,
-    toggleRoutineChipSelection, handleRoutinesDone, toggleRoutineCompletion,
+    toggleRoutineChipSelection, handleRoutinesDone,
 
     // ── Functions – habits ────────────────────────────────────────────────────
     getTodayHabitCount, incrementHabit, setHabitCount,

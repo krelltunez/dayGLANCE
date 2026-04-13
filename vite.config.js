@@ -152,6 +152,7 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,ico,svg}'],
         globIgnores: ['**/dayglance-dark.svg', '**/dayglance-light.svg', '**/service-worker.js'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB
       },
       manifest: {
         name: 'dayGLANCE',
