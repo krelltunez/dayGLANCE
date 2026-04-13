@@ -26,6 +26,21 @@ Always create a PR after pushing a branch. Use the GitHub MCP tools (`mcp__githu
 
 This check is mandatory — even mid-task, even for "small fixes", even when you just created the PR moments ago. PRs can be merged at any time.
 
+## Keeping `develop` in sync with `main`
+
+`develop` is the long-lived branch for hyperGLANCE. After every PR merges to `main`, sync it:
+
+```bash
+git checkout develop
+git fetch origin main
+git merge origin/main
+git push origin develop
+```
+
+Use **merge, not rebase** — rebasing rewrites history and breaks branches cut from `develop`.
+
+The files most likely to need conflict resolution during syncs are `App.jsx`, `GlanceSidebar.jsx`, and `MobileGlanceSection.jsx` (all touched by hyperGLANCE).
+
 ## GitHub Issues
 
 Do **not** post comments to GitHub issues directly using `mcp__github__add_issue_comment`. Instead, draft the proposed response and present it to the user so they can review and post it themselves.

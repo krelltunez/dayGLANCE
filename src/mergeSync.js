@@ -441,8 +441,14 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   const habitsMerge = mergeHabits(localData.habits || [], remoteData.habits || [], localDeletedHabitIds, remoteDeletedHabitIds);
   const habitLogsMerge = mergeHabitLogs(localData.habitLogs || {}, remoteData.habitLogs || {});
 
-  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged || dailyNotesMerge.localChanged || habitsMerge.localChanged || habitLogsMerge.localChanged;
-  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged || dailyNotesMerge.remoteChanged || habitsMerge.remoteChanged || habitLogsMerge.remoteChanged;
+  // Detect routine completion changes: did the merge add completions that one side was missing?
+  const localCompletionsFiltered = Object.fromEntries(Object.entries(localCompletions).filter(([, d]) => d === mergedRoutinesDate));
+  const remoteCompletionsFiltered = Object.fromEntries(Object.entries(remoteCompletions).filter(([, d]) => d === mergedRoutinesDate));
+  const completionsLocalChanged = Object.keys(mergedCompletions).some(id => !(id in localCompletionsFiltered));
+  const completionsRemoteChanged = Object.keys(mergedCompletions).some(id => !(id in remoteCompletionsFiltered));
+
+  let localChanged = tasksMerge.localChanged || unschedMerge.localChanged || binMerge.localChanged || recurMerge.localChanged || routineMerge.localChanged || todayRoutinesMerge.localChanged || dailyNotesMerge.localChanged || habitsMerge.localChanged || habitLogsMerge.localChanged || completionsLocalChanged;
+  let remoteChanged = tasksMerge.remoteChanged || unschedMerge.remoteChanged || binMerge.remoteChanged || recurMerge.remoteChanged || routineMerge.remoteChanged || todayRoutinesMerge.remoteChanged || dailyNotesMerge.remoteChanged || habitsMerge.remoteChanged || habitLogsMerge.remoteChanged || completionsRemoteChanged;
 
   // Reconcile cross-list conflicts: task active on one device, in recycle bin on other
   const recycledMap = new Map(binMerge.merged.map(t => [String(t.id), t]));
