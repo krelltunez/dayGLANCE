@@ -80,9 +80,10 @@ function devApiProxy() {
         try { validateProxyUrl(targetUrl); }
         catch (err) { return sendJson(res, 400, { error: err.message }); }
 
-        const headers = {
-          'Content-Type': req.headers['content-type'] || 'application/octet-stream',
-        };
+        const headers = {};
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          headers['Content-Type'] = req.headers['content-type'] || 'application/octet-stream';
+        }
         if (req.headers['x-webdav-auth']) headers['Authorization'] = req.headers['x-webdav-auth'];
         if (req.headers['depth'] !== undefined) headers['Depth'] = req.headers['depth'];
 
