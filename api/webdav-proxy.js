@@ -93,9 +93,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const headers = {
-      'Content-Type': req.headers['content-type'] || 'application/octet-stream',
-    };
+    const headers = {};
+
+    // Only set Content-Type for requests that have a body — sending it on GET/HEAD
+    // causes Apache mod_dav to return 404 (unexpected Content-Type on bodyless request).
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      headers['Content-Type'] = req.headers['content-type'] || 'application/octet-stream';
+    }
 
     // Forward X-WebDAV-Auth as Authorization
     if (req.headers['x-webdav-auth']) {
