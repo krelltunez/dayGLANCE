@@ -4,7 +4,7 @@ import {
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader,
   Mic, Minus, Moon, Plus, RefreshCw, Search,
-  Settings, Sparkles, Sun, Target, Trash2, X,
+  Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -199,19 +199,18 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
   </div>
 
   {/* Habit rings row — pinned to top */}
-  {habitsEnabled && activeHabits.length > 0 && (
-    <div className="relative">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Habits</span>
-        <button
-          onClick={() => setShowHabitModal(true)}
-          className={`p-1 rounded ${hoverBg} ${textSecondary} transition-colors`}
-          title="Manage habits"
-        >
-          <Settings size={13} />
-        </button>
+  {habitsEnabled && (
+    activeHabits.length === 0 ? (
+      <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => setShowHabitModal(true)}>
+        <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs ${textSecondary} italic`}>None added</span>
+          <span className="text-xs text-teal-500 font-medium">+ Add</span>
+        </div>
       </div>
-      <div className="flex items-start gap-1 justify-center">
+    ) : (
+      <div className="relative">
+        <div className="flex items-start gap-1 justify-center">
         {activeHabits.slice(0, 5).map((habit, habitIdx) => (
           <div key={habit.id} className="relative">
             <HabitRing
@@ -289,8 +288,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             )}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    )
   )}
 
   {/* Goals due today */}
