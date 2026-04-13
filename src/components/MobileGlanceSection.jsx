@@ -1053,7 +1053,7 @@ const MobileGlanceSection = () => {
         </button>
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
         <div className="flex flex-wrap gap-1.5">
-          {[...realRoutines].sort((a, b) => {
+          {[...visibleRoutines].sort((a, b) => {
             if (a.isAllDay && !b.isAllDay) return -1;
             if (!a.isAllDay && b.isAllDay) return 1;
             if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
