@@ -4,7 +4,7 @@ import {
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, ExternalLink, FileText, Filter, Flag, Inbox, LayoutGrid,
   Loader, Mic, Minus, Moon, Plus, RefreshCw,
-  Search, Sparkles, Sun, Target, Trash2, X,
+  Search, Settings, Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
 import { renderTitle, renderFormattedText, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -139,6 +139,16 @@ const MobileGlanceSection = () => {
   {/* Habit rings row — pinned to top */}
   {habitsEnabled && activeHabits.length > 0 && (
     <div className="mb-4 relative">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Habits</span>
+        <button
+          onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}
+          className={`p-1 rounded ${hoverBg} ${textSecondary} transition-colors`}
+          title="Manage habits"
+        >
+          <Settings size={13} />
+        </button>
+      </div>
       <div className="flex items-start gap-1 justify-center">
         {activeHabits.slice(0, 5).map((habit, habitIdx) => (
           <div key={habit.id} className="relative">

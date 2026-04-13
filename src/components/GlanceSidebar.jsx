@@ -4,7 +4,7 @@ import {
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader,
   Mic, Minus, Moon, Plus, RefreshCw, Search,
-  Sparkles, Sun, Target, Trash2, X,
+  Settings, Sparkles, Sun, Target, Trash2, X,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -79,6 +79,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     habitLongPressId, setHabitLongPressId,
     habitEditingCountId, setHabitEditingCountId,
     habitOverflowOpen, setHabitOverflowOpen,
+    showHabitModal, setShowHabitModal,
     aiConfig,
     gtdFrames,
     showFramesModal, setShowFramesModal,
@@ -200,6 +201,16 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
   {/* Habit rings row — pinned to top */}
   {habitsEnabled && activeHabits.length > 0 && (
     <div className="relative">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Habits</span>
+        <button
+          onClick={() => setShowHabitModal(true)}
+          className={`p-1 rounded ${hoverBg} ${textSecondary} transition-colors`}
+          title="Manage habits"
+        >
+          <Settings size={13} />
+        </button>
+      </div>
       <div className="flex items-start gap-1 justify-center">
         {activeHabits.slice(0, 5).map((habit, habitIdx) => (
           <div key={habit.id} className="relative">
