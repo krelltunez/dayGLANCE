@@ -73,7 +73,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     eveningGlanceText, eveningGlanceLoading, eveningGlanceDismissed, eveningGlanceError,
     frameNudgeSuggestion, frameNudgeLoading, frameNudgeError,
     frameNudgeDismissedKey, setFrameNudgeDismissedKey,
-    routinesEnabled, todayRoutines, routineCompletions,
+    routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
     habitsEnabled,
     activeHabits, habitStreaks,
     habitLongPressId, setHabitLongPressId,
@@ -212,7 +212,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <div className="relative">
         <button
           onClick={() => setShowHabitModal(true)}
-          className={`absolute -top-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
           title="Manage habits"
         >
           <Settings size={11} />
@@ -1088,24 +1088,32 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const visibleRoutines = realRoutines.filter(r => !routineCompletions[r.id]);
     if (realRoutines.length > 0 && visibleRoutines.length === 0) return null;
     return (
-      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity` : `mt-3 pt-3 border-t ${borderClass} cursor-pointer active:opacity-70 transition-opacity`} onClick={() => openRoutinesDashboard()}>
+      <div className={`relative ${isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}`}>
+        <button
+          onClick={() => openRoutinesDashboard()}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          title="Manage routines"
+        >
+          <Settings size={11} />
+        </button>
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
         {visibleRoutines.length === 0 ? (
           <div className="flex items-center gap-2">
             <span className={`text-xs ${textSecondary} italic`}>None scheduled</span>
             <button
-              onClick={(e) => { e.stopPropagation(); openRoutinesDashboard(); }}
+              onClick={() => openRoutinesDashboard()}
               className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors"
             >+ Add</button>
           </div>
         ) : (
           <div className={`flex flex-wrap ${isDesktop ? "gap-1" : "gap-1.5"}`}>
-            {[...visibleRoutines].sort((a, b) => {
+            {[...realRoutines].sort((a, b) => {
               if (a.isAllDay && !b.isAllDay) return -1;
               if (!a.isAllDay && b.isAllDay) return 1;
               if (a.startTime && b.startTime) return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
               return 0;
             }).map(r => {
+              const done = !!routineCompletions[r.id];
               let timeLabel = '';
               if (!r.isAllDay && r.startTime) {
                 if (use24HourClock) {
@@ -1118,9 +1126,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 }
               }
               return (
-                <span key={r.id} className={`rounded-full px-2.5 ${isDesktop ? "py-0.5" : "py-1"} text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'}`}>
+                <button
+                  key={r.id}
+                  onClick={() => toggleRoutineCompletion(r.id)}
+                  className={`rounded-full px-2.5 ${isDesktop ? "py-0.5" : "py-1"} text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${done ? 'line-through opacity-50' : 'hover:opacity-80'} transition-opacity`}
+                >
                   {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
-                </span>
+                </button>
               );
             })}
           </div>
