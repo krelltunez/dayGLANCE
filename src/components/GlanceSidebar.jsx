@@ -212,7 +212,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <div className="relative">
         <button
           onClick={() => setShowHabitModal(true)}
-          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
           title="Manage habits"
         >
           <Settings size={11} />
@@ -1102,7 +1102,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <div className={`relative ${isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}`}>
         <button
           onClick={() => openRoutinesDashboard()}
-          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
           title="Manage routines"
         >
           <Settings size={11} />

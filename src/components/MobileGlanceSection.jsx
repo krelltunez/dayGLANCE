@@ -150,7 +150,7 @@ const MobileGlanceSection = () => {
       <div className="mb-4 relative">
         <button
           onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}
-          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
           title="Manage habits"
         >
           <Settings size={11} />
@@ -1046,7 +1046,7 @@ const MobileGlanceSection = () => {
       <div className={`relative mt-3 pt-3 border-t ${borderClass}`}>
         <button
           onClick={openRoutinesSettings}
-          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${textSecondary} transition-colors z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
           title="Manage routines"
         >
           <Settings size={11} />
