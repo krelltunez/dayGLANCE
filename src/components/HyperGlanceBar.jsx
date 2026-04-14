@@ -3,14 +3,14 @@ import * as Icons from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
-import { ishGSessionReachable } from '../hooks/useHyperGlance.js';
+import { isHGSessionReachable } from '../hooks/useHyperGlance.js';
 
 /**
  * Renders a single hyperGLANCE project bar inside the left half of a
  * timeline day column. When the session is completed it shrinks to a small pill.
  */
 const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
-  const { minutesToPosition, currentTime, use24HourClock } = useDayPlannerCtx();
+  const { minutesToPosition, currentTime, use24HourClock, tasks, unscheduledTasks } = useDayPlannerCtx();
   const { enterHyperGlanceMode } = useFeaturesCtx();
 
   const hg = project.hyperglance;
@@ -28,7 +28,12 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
 
   const barColor = hg.color || '#4f46e5';
   const IconComp = Icons[hg.icon] || Icons.Sparkles;
-  const canEnter = !isCompleted && ishGSessionReachable({ date, isOverdue: false }, hg, currentTime);
+  const canEnter = !isCompleted && isHGSessionReachable({ date, isOverdue: false }, hg, currentTime);
+
+  // Incomplete task count for this project (shown on future bars)
+  const incompleteTaskCount = [...(tasks || []), ...(unscheduledTasks || [])].filter(
+    t => t.projectId === project.id && !t.archived && !t.completed
+  ).length;
 
   const timeLabel = (() => {
     if (!hg.scheduledTime) return '';
@@ -37,6 +42,10 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
     const ampm = startH < 12 ? 'a' : 'p';
     return startM === 0 ? `${hour12}${ampm}` : `${hour12}:${String(startM).padStart(2, '0')}${ampm}`;
   })();
+
+  const taskCountLabel = incompleteTaskCount > 0
+    ? `${incompleteTaskCount} task${incompleteTaskCount !== 1 ? 's' : ''}`
+    : null;
 
   if (isCompleted) {
     return (
@@ -48,6 +57,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
           className="h-full rounded-full flex items-center justify-center gap-1 opacity-60"
           style={{ backgroundColor: barColor }}
         >
+          <IconComp size={9} style={{ color: 'white', flexShrink: 0 }} />
           <Icons.Check size={9} className="text-white flex-shrink-0" />
           <span className="text-white text-[9px] font-medium truncate px-1">{project.title}</span>
         </div>
@@ -104,7 +114,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
                 </button>
               ) : !isOverdue ? (
                 <span className="text-[9px] font-bold opacity-30" style={{ color: barColor }}>
-                  {timeLabel}
+                  {timeLabel}{taskCountLabel ? ` · ${taskCountLabel}` : ''}
                 </span>
               ) : (
                 <button
@@ -125,7 +135,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
               <IconComp size={12} style={{ color: barColor, flexShrink: 0 }} />
               {fullHeight > 30 && timeLabel && (
                 <span className="text-[9px] font-medium opacity-70 ml-0.5 truncate" style={{ color: barColor }}>
-                  {timeLabel}
+                  {timeLabel}{taskCountLabel ? ` · ${taskCountLabel}` : ''}
                 </span>
               )}
             </div>
