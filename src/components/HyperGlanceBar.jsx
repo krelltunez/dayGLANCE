@@ -30,10 +30,11 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
   const IconComp = Icons[hg.icon] || Icons.Sparkles;
   const canEnter = !isCompleted && isHGSessionReachable({ date, isOverdue: false }, hg, currentTime);
 
-  // Incomplete task count for this project (shown on future bars)
-  const incompleteTaskCount = [...(tasks || []), ...(unscheduledTasks || [])].filter(
-    t => t.projectId === project.id && !t.archived && !t.completed
-  ).length;
+  // Task count for future bars: incomplete real tasks + template tasks
+  const incompleteTaskCount =
+    [...(tasks || []), ...(unscheduledTasks || [])].filter(
+      t => t.projectId === project.id && !t.archived && !t.completed
+    ).length + (hg.templateTasks?.length || 0);
 
   const timeLabel = (() => {
     if (!hg.scheduledTime) return '';
