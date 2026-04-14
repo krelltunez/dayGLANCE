@@ -102,7 +102,7 @@ const MobileWelcomeModal = () => {
                 <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Target size={16} className="text-rose-500" />
                 </span>
-                <span><strong className={textPrimary}>Habits</strong> — track daily habits with streaks and visual progress rings</span>
+                <span><strong className={textPrimary}>Habits</strong> — track daily habits with visual progress rings and history</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">

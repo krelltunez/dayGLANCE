@@ -881,7 +881,7 @@ const DayPlanner = () => {
     goals, projects, goalsProjectsEnabled,
   });
 
-  const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour } = useTimelineScroll({
+  const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour } = useTimelineScroll({
     calendarRef, timeGridRef,
     selectedDate,
     isMobile, isTablet,
@@ -1852,7 +1852,7 @@ const DayPlanner = () => {
       return;
     }
     try {
-      await writeWikiNote(handle, notePath, content, obsidianConfig?.newNotesFolder || '');
+      await writeWikiNote(handle, notePath, content, obsidianConfig?.newNotesFolder ?? 'dayGLANCE');
     } catch (err) {
       console.error('Failed to write wiki note:', err);
     }
@@ -6809,7 +6809,7 @@ const DayPlanner = () => {
 
     // ── Functions – navigation ────────────────────────────────────────────────
     changeDate, goToToday, goToDate, changeViewedMonth,
-    scrollToCurrentHour,
+    scrollToCurrentHour, scrollToHour,
 
     // ── Functions – task CRUD ─────────────────────────────────────────────────
     addTask, toggleComplete,
@@ -7838,7 +7838,7 @@ const DayPlanner = () => {
                   >
                     <div className="flex items-center gap-2">
                       <Flame size={18} className="text-orange-500" />
-                      <span className={`font-semibold ${textPrimary}`}>Habit Streaks</span>
+                      <span className={`font-semibold ${textPrimary}`}>Habit Tracker</span>
                     </div>
                     {desktopStatsHabitsCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
                   </button>

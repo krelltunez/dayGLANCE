@@ -63,6 +63,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     moveToRecycleBin,
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
+    goToDate, scrollToHour,
   } = useDayPlannerCtx();
   const {
     habitLongPressTimer,
@@ -1044,8 +1045,19 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const committedH = Math.floor(committedMinutes / 60);
     const committedM = committedMinutes % 60;
     const committedStr = committedH > 0 ? `${committedH}h${committedM > 0 ? ` ${committedM}m` : ''}` : committedM > 0 ? `${committedM}m` : null;
+    const handleGlanceAheadClick = () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      goToDate(tomorrow);
+      if (firstStartTime) {
+        setTimeout(() => scrollToHour(firstStartTime), 150);
+      }
+    };
     return (
-      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
+      <div
+        className={`${isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`} cursor-pointer ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} transition-opacity`}
+        onClick={handleGlanceAheadClick}
+      >
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>
           <span className="flex items-center gap-1.5">
             <span><span className="italic">GLANCE</span><span className="normal-case not-italic">ahead</span></span>

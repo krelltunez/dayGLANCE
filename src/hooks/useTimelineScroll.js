@@ -28,6 +28,20 @@ export default function useTimelineScroll({
     }
   }, []);
 
+  // Scroll timeline to a specific time string (e.g. "08:00")
+  const scrollToHour = useCallback((timeStr, smooth = false) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+    const scrollPosition = Math.max(0, (h + m / 60) * hourHeight);
+    if (calendarRef.current) {
+      if (smooth) {
+        calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+      } else {
+        calendarRef.current.scrollTop = scrollPosition;
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
@@ -89,5 +103,5 @@ export default function useTimelineScroll({
     };
   }, [isMobile, selectedDate, scrollToCurrentHour]);
 
-  return { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour };
+  return { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour };
 }
