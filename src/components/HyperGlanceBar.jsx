@@ -3,7 +3,7 @@ import * as Icons from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
-import { isHGSessionReachable } from '../hooks/useHyperGlance.js';
+import { ishGSessionReachable } from '../hooks/useHyperGlance.js';
 
 /**
  * Renders a single hyperGLANCE project bar inside the left half of a
@@ -28,7 +28,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
 
   const barColor = hg.color || '#4f46e5';
   const IconComp = Icons[hg.icon] || Icons.Sparkles;
-  const canEnter = !isCompleted && isHGSessionReachable({ date, isOverdue: false }, hg, currentTime);
+  const canEnter = !isCompleted && ishGSessionReachable({ date, isOverdue: false }, hg, currentTime);
 
   const timeLabel = (() => {
     if (!hg.scheduledTime) return '';
@@ -113,7 +113,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
                   style={{ backgroundColor: barColor }}
                 >
                   <Zap size={8} />
-                  HG
+                  hG
                 </button>
               )}
             </div>
@@ -149,11 +149,11 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
                 title="Enter hyperGLANCE"
               >
                 <Zap size={8} />
-                HG
+                hG
               </button>
             )}
             {!canEnter && !isOverdue && fullHeight > 50 && (
-              <span className="mb-1.5 text-[9px] font-bold opacity-40" style={{ color: barColor }}>HG</span>
+              <span className="mb-1.5 text-[9px] font-bold opacity-40" style={{ color: barColor }}>hG</span>
             )}
             {isOverdue && !canEnter && fullHeight > 50 && (
               <button
@@ -162,7 +162,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
                 style={{ backgroundColor: barColor }}
               >
                 <Zap size={8} />
-                HG
+                hG
               </button>
             )}
           </>
