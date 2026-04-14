@@ -24,6 +24,7 @@ const useHabits = ({ playUISound }) => {
   const [habitEditingCountId, setHabitEditingCountId] = useState(null); // ID of habit with count input open
   const [habitDayPopup, setHabitDayPopup] = useState(null); // date string for prior-day habit summary popup
   const habitLongPressTimer = useRef(null);
+  const habitLongPressOpenedAt = useRef(null); // timestamp when popover last opened, used to swallow ghost clicks
   const editingHabitRef = useRef(editingHabit);
   editingHabitRef.current = editingHabit;
 
@@ -238,6 +239,7 @@ const useHabits = ({ playUISound }) => {
     habitEditingCountId, setHabitEditingCountId,
     habitDayPopup, setHabitDayPopup,
     habitLongPressTimer,
+    habitLongPressOpenedAt,
     activeHabits,
     habitStreaks,
     getTodayHabitCount,

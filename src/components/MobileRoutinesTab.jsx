@@ -1,19 +1,19 @@
 import React from 'react';
-import { Clock, Plus, Sparkles, Undo2, X } from 'lucide-react';
+import { Clock, Plus, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileRoutinesTab = () => {
-  const { isPhone, isMobile, isTablet, darkMode, textSecondary, hoverBg, colors, formatTime, getDayName } = useDayPlannerCtx();
+  const { isPhone, isMobile, isTablet, darkMode, textSecondary, hoverBg, colors, formatTime, getDayName, cardBg, borderClass, textPrimary } = useDayPlannerCtx();
   const {
     routineDefinitions,
     dashboardSelectedChips, setDashboardSelectedChips,
     routineAddingToBucket, setRoutineAddingToBucket,
     routineNewChipName, setRoutineNewChipName,
     setRoutineTimePickerChipId,
-    setRoutineDeleteConfirm,
+    routineDeleteConfirm, setRoutineDeleteConfirm,
     routineFocusedChipId, setRoutineFocusedChipId,
-    addRoutineChip, toggleRoutineChipSelection,
+    addRoutineChip, deleteRoutineChip, toggleRoutineChipSelection,
   } = useFeaturesCtx();
 
   const today = new Date();
@@ -28,6 +28,7 @@ const MobileRoutinesTab = () => {
   const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => !String(c.id).startsWith('example-')));
 
   return (
+    <>
     <div className={`px-4 py-4 mobile-tab-fade-in`}>
       <div className="space-y-3">
         {/* Today's selected routine */}
@@ -180,6 +181,41 @@ const MobileRoutinesTab = () => {
 
       </div>
     </div>
+
+    {/* Routine Delete Confirmation */}
+    {routineDeleteConfirm && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setRoutineDeleteConfirm(null)}>
+        <div
+          className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+              <Trash2 size={20} className="text-red-600 dark:text-red-400" />
+            </div>
+            <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Routine</h3>
+          </div>
+          <p className={`${textSecondary} mb-6`}>
+            Are you sure you want to delete <strong className={textPrimary}>"{routineDeleteConfirm.chipName}"</strong>? This cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setRoutineDeleteConfirm(null)}
+              className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { deleteRoutineChip(routineDeleteConfirm.bucket, routineDeleteConfirm.chipId); setRoutineDeleteConfirm(null); }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

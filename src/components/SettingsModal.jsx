@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -18,6 +18,7 @@ const SettingsModal = () => {
     darkMode,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     use24HourClock, setUse24HourClock,
+    inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
     soundEnabled, setSoundEnabled,
     setOnboardingProgress,
@@ -333,6 +334,30 @@ const SettingsModal = () => {
                         </div>
                         <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
                       </label>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Inbox */}
+                    <div className="space-y-3">
+                      <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Archive size={16} className={textSecondary} />
+                        Inbox
+                      </div>
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>Auto-archive completed Inbox tasks</label>
+                        <select
+                          value={inboxAutoArchiveDays}
+                          onChange={(e) => setInboxAutoArchiveDays(Number(e.target.value))}
+                          className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                        >
+                          <option value={0}>Never</option>
+                          <option value={7}>After 7 days</option>
+                          <option value={14}>After 14 days</option>
+                          <option value={30}>After 30 days</option>
+                          <option value={60}>After 60 days</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
 

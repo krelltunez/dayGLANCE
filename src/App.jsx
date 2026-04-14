@@ -271,6 +271,11 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
     return saved !== null ? JSON.parse(saved) : false;
   });
+  const [inboxAutoArchiveDays, setInboxAutoArchiveDays] = useState(() => {
+    const saved = localStorage.getItem('day-planner-inbox-auto-archive-days');
+    return saved !== null ? JSON.parse(saved) : 14;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-inbox-auto-archive-days', JSON.stringify(inboxAutoArchiveDays)); }, [inboxAutoArchiveDays]);
   const [weekStartDay, setWeekStartDay] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-start-day');
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
@@ -494,6 +499,7 @@ const DayPlanner = () => {
     habitEditingCountId, setHabitEditingCountId,
     habitDayPopup, setHabitDayPopup,
     habitLongPressTimer,
+    habitLongPressOpenedAt,
     activeHabits,
     habitStreaks,
     getTodayHabitCount,
@@ -1182,6 +1188,21 @@ const DayPlanner = () => {
     }, 10 * 1000); // 10-second debounce after last change
     return () => { if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current); };
   }, [tasks, unscheduledTasks, habits, habitLogs, todayRoutines, routinesEnabled, trmnlConfig?.enabled, dataLoaded]);
+
+  // Auto-archive completed inbox tasks older than the configured threshold
+  useEffect(() => {
+    if (!dataLoaded || inboxAutoArchiveDays === 0) return;
+    const cutoff = Date.now() - inboxAutoArchiveDays * 86400000;
+    setUnscheduledTasks(prev => {
+      const hasChanges = prev.some(t => t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff);
+      if (!hasChanges) return prev;
+      return prev.map(t =>
+        (t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff)
+          ? { ...t, archived: true }
+          : t
+      );
+    });
+  }, [dataLoaded, inboxAutoArchiveDays]);
 
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
@@ -6736,6 +6757,7 @@ const DayPlanner = () => {
 
     // ── Settings / preferences ────────────────────────────────────────────────
     use24HourClock, setUse24HourClock,
+    inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
@@ -7062,6 +7084,7 @@ const DayPlanner = () => {
     habitDayPopup, setHabitDayPopup,
     activeHabits, habitStreaks,
     habitLongPressTimer,
+    habitLongPressOpenedAt,
 
     // ── Focus mode ────────────────────────────────────────────────────────────
     showFocusMode, setShowFocusMode,
