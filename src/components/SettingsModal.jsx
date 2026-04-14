@@ -389,7 +389,7 @@ const SettingsModal = () => {
                           type="url"
                           placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
                           value={syncUrl}
-                          onChange={(e) => setSyncUrl(e.target.value)}
+                          onChange={(e) => setSyncUrl(e.target.value.replace(/^webcal:\/\//i, 'https://'))}
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
@@ -440,7 +440,7 @@ const SettingsModal = () => {
                           type="url"
                           placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/tasks/?export"
                           value={taskCalendarUrl}
-                          onChange={(e) => setTaskCalendarUrl(e.target.value)}
+                          onChange={(e) => setTaskCalendarUrl(e.target.value.replace(/^webcal:\/\//i, 'https://'))}
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
