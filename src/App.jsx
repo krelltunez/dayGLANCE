@@ -521,7 +521,7 @@ const DayPlanner = () => {
     routineFocusedChipId, setRoutineFocusedChipId,
     routineDurationEditId, setRoutineDurationEditId,
     routinesEnabled, setRoutinesEnabled,
-    routineCompletions, toggleRoutineCompletion,
+    routineCompletions, setRoutineCompletions, toggleRoutineCompletion,
     openRoutinesDashboard,
     addRoutineChip,
     deleteRoutineChip,
@@ -6965,7 +6965,7 @@ const DayPlanner = () => {
     routineFocusedChipId, setRoutineFocusedChipId,
     routineDurationEditId, setRoutineDurationEditId,
     routinesEnabled, setRoutinesEnabled,
-    routineCompletions, toggleRoutineCompletion,
+    routineCompletions, setRoutineCompletions, toggleRoutineCompletion,
 
     // ── Habits ────────────────────────────────────────────────────────────────
     habits, setHabits,

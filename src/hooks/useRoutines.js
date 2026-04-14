@@ -181,7 +181,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
     routineFocusedChipId, setRoutineFocusedChipId,
     routineDurationEditId, setRoutineDurationEditId,
     routinesEnabled, setRoutinesEnabled,
-    routineCompletions,
+    routineCompletions, setRoutineCompletions,
     toggleRoutineCompletion,
     openRoutinesDashboard,
     addRoutineChip,
