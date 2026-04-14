@@ -335,7 +335,6 @@ const SettingsModal = () => {
                         <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
                       </label>
                     </div>
-                  </div>
 
                     <hr className={borderClass} />
 
@@ -360,6 +359,7 @@ const SettingsModal = () => {
                         </select>
                       </div>
                     </div>
+                  </div>
 
                   {/* Right column — integrations (side-by-side on desktop, stacked below on tablet) */}
                   <div className={`space-y-6 lg:border-l lg:pl-6 ${borderClass}`}>
