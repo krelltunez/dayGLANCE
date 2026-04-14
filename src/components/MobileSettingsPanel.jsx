@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Activity, BarChart3, Bell, BookOpen, BrainCircuit,
+  Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   CalendarDays, CheckCircle, CheckSquare, ChevronDown, ChevronUp,
   ChevronLeft, ChevronRight, Clock, Cloud, ExternalLink,
   Footprints, FolderOpen, GripVertical, HelpCircle, Key, LayoutGrid,
@@ -28,6 +28,7 @@ const MobileSettingsPanel = () => {
     darkMode, setDarkMode,
     mobileSettingsView, setMobileSettingsView,
     use24HourClock, setUse24HourClock,
+    inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
     collapsedSettings,
     soundEnabled, setSoundEnabled,
@@ -285,6 +286,30 @@ const MobileSettingsPanel = () => {
         <ChevronLeft size={18} />
         <span className="text-sm font-medium">Settings</span>
       </button>
+
+      {/* Inbox */}
+      <div className="space-y-3">
+        <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
+          <Archive size={16} className={textSecondary} />
+          Inbox
+        </div>
+        <div>
+          <label className={`block text-sm ${textSecondary} mb-1`}>Auto-archive completed tasks</label>
+          <select
+            value={inboxAutoArchiveDays}
+            onChange={(e) => setInboxAutoArchiveDays(Number(e.target.value))}
+            className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+          >
+            <option value={0}>Never</option>
+            <option value={7}>After 7 days</option>
+            <option value={14}>After 14 days</option>
+            <option value={30}>After 30 days</option>
+            <option value={60}>After 60 days</option>
+          </select>
+        </div>
+      </div>
+
+      <hr className={borderClass} />
 
       {/* Calendar Sync */}
       <div className="space-y-3">
