@@ -120,6 +120,18 @@ const MobileTimeGrid = () => {
       const frameInstances = getFrameInstancesForDate(date);
       const hgBars = getHGBarsForDate(projects, dateStr);
       const hasBars = hgBars.length > 0;
+      const taskOverlapsHG = (task) => {
+        if (!task.startTime || !hasBars) return false;
+        const [th, tm] = (task.startTime || '0:0').split(':').map(Number);
+        const tStart = th * 60 + tm;
+        const tEnd = tStart + (task.duration || 30);
+        return hgBars.some(bar => {
+          const [bh, bm] = (bar.project.hyperglance.scheduledTime || '0:0').split(':').map(Number);
+          const bStart = bh * 60 + bm;
+          const bEnd = bStart + (bar.project.hyperglance.scheduledDuration || 60);
+          return tStart < bEnd && tEnd > bStart;
+        });
+      };
 
       return (
         <div
@@ -274,8 +286,8 @@ const MobileTimeGrid = () => {
             </div>
           )}
 
-          {/* Task + routine layer (shifts to right half when HG bars are present) */}
-          <div className="absolute top-0 bottom-0 pointer-events-none" style={hasBars ? { left: '50%', right: 0 } : { left: 0, right: 0 }}>
+          {/* Task + routine layer — full width; individual tasks shift right if they overlap an HG bar */}
+          <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: 0, right: 0 }}>
           {/* Task blocks */}
           {dayTasks.map(task => {
             const { top, height } = calculateTaskPosition(task);
@@ -379,9 +391,9 @@ const MobileTimeGrid = () => {
                   top: `${top}px`,
                   height: `${height}px`,
                   minHeight: isMicroHeight ? '27px' : '39px',
-                  left: conflictPos.left,
-                  right: conflictPos.right,
-                  width: conflictPos.width,
+                  ...(taskOverlapsHG(task)
+                    ? { left: '50%', right: 0, width: undefined }
+                    : { left: conflictPos.left, right: conflictPos.right, width: conflictPos.width }),
                   visibility: isMeasured ? 'visible' : 'hidden',
                   transition: mobileDragTaskIdState === task.id ? 'transform 0.15s, box-shadow 0.15s' : undefined,
                 }}

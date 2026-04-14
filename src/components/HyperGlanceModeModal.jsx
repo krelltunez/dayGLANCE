@@ -28,6 +28,7 @@ const HyperGlanceModeModal = () => {
     hgTimerPhase, setHgTimerPhase,
     hgWorkMinutes, setHgWorkMinutes,
     hgBreakMinutes, setHgBreakMinutes,
+    hgLongBreakMinutes, setHgLongBreakMinutes,
     hgCycleCount, setHgCycleCount,
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,
@@ -39,15 +40,15 @@ const HyperGlanceModeModal = () => {
   const timerRef = useRef(null);
   const sessionStartRef = useRef(null);
   const [sessionElapsed, setSessionElapsed] = useState(0);
-  const [expandedTaskId, setExpandedTaskId] = useState(null);
-  const [hgCompleted, setHgCompleted] = useState(false); // session auto-completed
+  // Set of expanded task IDs (allows multiple open at once)
+  const [expandedTaskIds, setExpandedTaskIds] = useState(new Set());
+  const [hgCompleted, setHgCompleted] = useState(false);
 
   const project = projects.find(p => p.id === hyperGlanceProjectId);
   const hg = project?.hyperglance;
   const barColor = hg?.color || '#4f46e5';
   const IconComp = Icons[hg?.icon] || Icons.Sparkles;
 
-  // All project tasks (unscheduled + scheduled), not archived, sorted: incomplete first
   const projectTasks = [...tasks, ...unscheduledTasks]
     .filter(t => t.projectId === hyperGlanceProjectId && !t.archived)
     .sort((a, b) => {
@@ -58,7 +59,6 @@ const HyperGlanceModeModal = () => {
 
   const allDone = projectTasks.length > 0 && projectTasks.every(t => t.completed);
 
-  // Auto-complete when all tasks are checked
   useEffect(() => {
     if (allDone && !hgCompleted && !hgShowSettings) {
       setHgCompleted(true);
@@ -66,16 +66,23 @@ const HyperGlanceModeModal = () => {
     }
   }, [allDone, hgCompleted, hgShowSettings]);
 
-  // Timer countdown
+  // Timer countdown — supports work / shortBreak / longBreak phases
   useEffect(() => {
     if (hgTimerRunning) {
       timerRef.current = setInterval(() => {
         setHgTimerSeconds(prev => {
           if (prev <= 1) {
+            // Phase transition
             if (hgTimerPhase === 'work') {
-              setHgTimerPhase('break');
-              setHgCycleCount(c => c + 1);
-              return hgBreakMinutes * 60;
+              const newCycle = hgCycleCount + 1;
+              setHgCycleCount(newCycle);
+              if (newCycle % 4 === 0) {
+                setHgTimerPhase('longBreak');
+                return hgLongBreakMinutes * 60;
+              } else {
+                setHgTimerPhase('shortBreak');
+                return hgBreakMinutes * 60;
+              }
             } else {
               setHgTimerPhase('work');
               return hgWorkMinutes * 60;
@@ -86,7 +93,7 @@ const HyperGlanceModeModal = () => {
       }, 1000);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [hgTimerRunning, hgTimerPhase, hgWorkMinutes, hgBreakMinutes]);
+  }, [hgTimerRunning, hgTimerPhase, hgWorkMinutes, hgBreakMinutes, hgLongBreakMinutes, hgCycleCount]);
 
   // Session elapsed clock
   useEffect(() => {
@@ -113,10 +120,18 @@ const HyperGlanceModeModal = () => {
   const handleToggleTask = (taskId) => {
     const inScheduled = tasks.find(t => t.id === taskId);
     if (inScheduled) {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, updatedAt: new Date().toISOString() } : t));
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, lastModified: new Date().toISOString() } : t));
     } else {
-      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, updatedAt: new Date().toISOString() } : t));
+      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, lastModified: new Date().toISOString() } : t));
     }
+  };
+
+  const toggleExpanded = (taskId) => {
+    setExpandedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
   };
 
   const formatTimer = (seconds) => {
@@ -127,21 +142,44 @@ const HyperGlanceModeModal = () => {
 
   const formatElapsed = (seconds) => {
     if (seconds < 60) return `${seconds}s`;
-    return `${Math.floor(seconds / 60)}m`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  const phaseLabel = hgTimerPhase === 'work' ? 'Work' : hgTimerPhase === 'longBreak' ? 'Long Break' : 'Break';
+  const phaseBg = hgTimerPhase === 'work' ? 'bg-blue-900 text-blue-300' : hgTimerPhase === 'longBreak' ? 'bg-purple-900 text-purple-300' : 'bg-green-900 text-green-300';
+
+  const skipPhase = () => {
+    if (hgTimerPhase === 'work') {
+      const newCycle = hgCycleCount + 1;
+      setHgCycleCount(newCycle);
+      if (newCycle % 4 === 0) {
+        setHgTimerPhase('longBreak');
+        setHgTimerSeconds(hgLongBreakMinutes * 60);
+      } else {
+        setHgTimerPhase('shortBreak');
+        setHgTimerSeconds(hgBreakMinutes * 60);
+      }
+    } else {
+      setHgTimerPhase('work');
+      setHgTimerSeconds(hgWorkMinutes * 60);
+    }
   };
 
   if (!project) return null;
 
   // ── Settings / pre-session view ────────────────────────────────────────────
   if (hgShowSettings) {
+    const inputCls = 'bg-transparent text-white text-xl font-bold w-full focus:outline-none';
     return (
       <div className="fixed inset-0 z-[200] bg-gray-950 flex flex-col items-center justify-center">
         <div className="w-full max-w-md px-6 py-8 flex flex-col gap-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${barColor}30` }}>
-                <IconComp size={20} style={{ color: barColor }} />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${barColor}30` }}>
+                <IconComp size={24} style={{ color: barColor }} />
               </div>
               <div>
                 <div className="text-white font-bold text-lg leading-tight">{project.title}</div>
@@ -153,31 +191,30 @@ const HyperGlanceModeModal = () => {
             </button>
           </div>
 
-          {/* Timer settings */}
+          {/* Timer settings — 3 columns */}
           <div className="space-y-3">
-            <div className="text-gray-400 text-xs font-semibold uppercase tracking-wide">Timer (Pomodoro)</div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="text-gray-400 text-xs font-semibold uppercase tracking-wide">Pomodoro Timer</div>
+            <div className="grid grid-cols-3 gap-3">
               <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-1">
                 <span className="text-gray-400 text-xs">Work (min)</span>
-                <input
-                  type="number"
-                  min={1} max={120}
-                  value={hgWorkMinutes}
+                <input type="number" min={1} max={120} value={hgWorkMinutes}
                   onChange={e => setHgWorkMinutes(Math.max(1, parseInt(e.target.value) || 25))}
-                  className="bg-transparent text-white text-xl font-bold w-full focus:outline-none"
-                />
+                  className={inputCls} />
               </div>
               <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-1">
                 <span className="text-gray-400 text-xs">Break (min)</span>
-                <input
-                  type="number"
-                  min={1} max={60}
-                  value={hgBreakMinutes}
+                <input type="number" min={1} max={60} value={hgBreakMinutes}
                   onChange={e => setHgBreakMinutes(Math.max(1, parseInt(e.target.value) || 5))}
-                  className="bg-transparent text-white text-xl font-bold w-full focus:outline-none"
-                />
+                  className={inputCls} />
+              </div>
+              <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-1">
+                <span className="text-gray-400 text-xs">Long break (min)</span>
+                <input type="number" min={1} max={60} value={hgLongBreakMinutes}
+                  onChange={e => setHgLongBreakMinutes(Math.max(1, parseInt(e.target.value) || 15))}
+                  className={inputCls} />
               </div>
             </div>
+            <p className="text-gray-600 text-xs">Long break replaces break every 4 cycles.</p>
           </div>
 
           {/* Task preview */}
@@ -203,7 +240,6 @@ const HyperGlanceModeModal = () => {
             </p>
           )}
 
-          {/* Start button */}
           <button
             onClick={handleStart}
             className="w-full py-4 rounded-xl text-white font-bold text-lg flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
@@ -220,22 +256,39 @@ const HyperGlanceModeModal = () => {
   // ── Post-completion view ───────────────────────────────────────────────────
   if (hgCompleted) {
     const elapsed = sessionElapsed;
+    const completedCount = projectTasks.filter(t => t.completed).length;
     return (
       <div className="fixed inset-0 z-[200] bg-gray-950 flex flex-col items-center justify-center">
         <div className="w-full max-w-sm px-6 py-8 flex flex-col items-center gap-6">
-          <Trophy size={48} className="text-yellow-400" />
-          <h1 className="text-2xl font-bold text-white">Session Complete!</h1>
-          <div className="text-gray-400 text-center text-sm">{project.title}</div>
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${barColor}30` }}>
+            <IconComp size={40} style={{ color: barColor }} />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white">hyperGLANCE Session Complete!</h1>
+            <div className="text-gray-400 text-sm mt-1">{project.title}</div>
+          </div>
 
           <div className="w-full space-y-3">
             <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
               <span className="text-gray-400">Tasks completed</span>
-              <span className="text-white font-semibold">{projectTasks.filter(t => t.completed).length} / {projectTasks.length}</span>
+              <span className="text-white font-semibold">{completedCount} / {projectTasks.length}</span>
             </div>
             {elapsed > 0 && (
               <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
                 <span className="text-gray-400">Session time</span>
                 <span className="text-white font-semibold">{formatElapsed(elapsed)}</span>
+              </div>
+            )}
+            {hgCycleCount > 0 && (
+              <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
+                <span className="text-gray-400">Pomodoro cycles</span>
+                <span className="text-white font-semibold">{hgCycleCount}</span>
+              </div>
+            )}
+            {elapsed > 0 && projectTasks.length > 0 && (
+              <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
+                <span className="text-gray-400">Completion rate</span>
+                <span className="text-white font-semibold">{Math.round((completedCount / projectTasks.length) * 100)}%</span>
               </div>
             )}
           </div>
@@ -260,14 +313,14 @@ const HyperGlanceModeModal = () => {
           <X size={40} className="text-gray-400" />
           <h2 className="text-xl font-bold text-white text-center">Leave hyperGLANCE?</h2>
           <p className="text-gray-400 text-sm text-center">
-            Your progress is saved. Choose to pause and return later, or end the session.
+            Your progress is saved. You can return to this session later.
           </p>
           <div className="w-full flex flex-col gap-3">
             <button
               onClick={() => { setHgTimerRunning(false); setHgExitConfirm(false); exitHyperGlanceMode(); }}
               className="w-full py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold transition-colors"
             >
-              Pause — I'll come back
+              Exit — I'll come back
             </button>
             <button
               onClick={() => { setHgExitConfirm(false); completeHyperGlanceSession(); }}
@@ -300,10 +353,8 @@ const HyperGlanceModeModal = () => {
           <span className="text-white font-semibold text-sm truncate max-w-[160px]">{project.title}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-            hgTimerPhase === 'work' ? 'bg-blue-900 text-blue-300' : 'bg-green-900 text-green-300'
-          }`}>
-            {hgTimerPhase === 'work' ? 'Work' : 'Break'} · Cycle {hgCycleCount + 1}
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${phaseBg}`}>
+            {phaseLabel} · Cycle {hgCycleCount + 1}
           </span>
           <button onClick={() => setHgExitConfirm(true)} className="text-gray-500 hover:text-gray-300 p-1">
             <X size={18} />
@@ -327,17 +378,14 @@ const HyperGlanceModeModal = () => {
                 {hgTimerRunning ? <Pause size={20} /> : <Play size={20} />}
               </button>
               <button
-                onClick={() => {
-                  setHgTimerPhase(p => p === 'work' ? 'break' : 'work');
-                  setHgTimerSeconds(hgTimerPhase === 'work' ? hgBreakMinutes * 60 : hgWorkMinutes * 60);
-                }}
+                onClick={skipPhase}
                 className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 transition-colors"
                 title="Skip phase"
               >
                 <SkipForward size={16} />
               </button>
             </div>
-            {/* Cycle dots */}
+            {/* Cycle dots — 4 per row, current in-progress pulses */}
             <div className="flex gap-2">
               {[0, 1, 2, 3].map(i => (
                 <div
@@ -371,7 +419,7 @@ const HyperGlanceModeModal = () => {
 
             {projectTasks.map(task => {
               const isDone = task.completed;
-              const isExpanded = expandedTaskId === task.id;
+              const isExpanded = expandedTaskIds.has(task.id);
               const hasExtra = (task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0);
 
               return (
@@ -393,7 +441,7 @@ const HyperGlanceModeModal = () => {
                     </span>
                     {!isDone && (
                       <button
-                        onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                        onClick={() => toggleExpanded(task.id)}
                         className="text-gray-500 hover:text-gray-300 p-0.5 flex-shrink-0"
                       >
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -401,7 +449,6 @@ const HyperGlanceModeModal = () => {
                     )}
                   </div>
 
-                  {/* Notes & subtasks panel */}
                   {isExpanded && !isDone && (
                     <div className="mt-2 pl-8">
                       <NotesSubtasksPanel
@@ -432,13 +479,13 @@ const HyperGlanceModeModal = () => {
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer — Pause only pauses; End Session triggers exit confirm */}
       <div className="flex-shrink-0 flex gap-3 px-4 py-4 border-t border-gray-800">
         <button
-          onClick={() => { setHgTimerRunning(false); exitHyperGlanceMode(); }}
-          className="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-colors"
+          onClick={() => setHgTimerRunning(prev => !prev)}
+          className="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
         >
-          Pause
+          {hgTimerRunning ? <><Pause size={15} /> Pause</> : <><Play size={15} /> Resume</>}
         </button>
         <button
           onClick={() => setHgExitConfirm(true)}

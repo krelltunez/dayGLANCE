@@ -102,7 +102,7 @@ function findDefaultActiveIdx(sortedGoals) {
 // ─── Goal form (create / edit) ────────────────────────────────────────────────
 
 const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mobile }) => {
-  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } =
+  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, isMobile } =
     useDayPlannerCtx();
 
   const [title, setTitle] = useState(initial?.title || '');
@@ -135,7 +135,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
       <div className="flex flex-col gap-1">
         <label className={`text-xs font-medium ${textSecondary}`}>Title *</label>
         <input
-          autoFocus
+          autoFocus={!initial && !isMobile}
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="e.g. Launch v2.0"
@@ -278,7 +278,7 @@ const HG_ICON_MAP = {
 // ─── Project form (create / edit) ─────────────────────────────────────────────
 
 const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
-  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks } =
+  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile } =
     useDayPlannerCtx();
 
   const [title, setTitle] = useState(initial?.title || '');
@@ -295,7 +295,7 @@ const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }
   const [hgScheduledDays, setHgScheduledDays] = useState(initHG.scheduledDays || []);
   const [hgScheduledDate, setHgScheduledDate] = useState(initHG.scheduledDate || '');
   const [hgScheduledTime, setHgScheduledTime] = useState(initHG.scheduledTime || '09:00');
-  const [hgDuration, setHgDuration] = useState(initHG.scheduledDuration || 60);
+  const [hgDuration, setHgDuration] = useState(Math.max(60, initHG.scheduledDuration || 60));
   const [hgTemplateTasks, setHgTemplateTasks] = useState(initHG.templateTasks || []);
   const [hgNewTask, setHgNewTask] = useState('');
 
@@ -330,10 +330,11 @@ const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }
       scheduledDays: hgIsRecurring ? hgScheduledDays : [],
       scheduledDate: hgIsRecurring ? null : (hgScheduledDate || null),
       scheduledTime: hgScheduledTime,
-      scheduledDuration: Math.max(1, hgDuration),
+      scheduledDuration: Math.max(60, Math.round(hgDuration / 15) * 15),
       templateTasks: hgTemplateTasks,
       completions: initHG.completions || [],
       activeSession: initHG.activeSession || null,
+      createdAt: initHG.createdAt || new Date().toISOString(),
     } : null;
     onSave({ title: title.trim(), description: description.trim(), goalId: goalId || undefined, status, hyperglance });
   };
@@ -354,7 +355,7 @@ const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }
       <div className="flex flex-col gap-1">
         <label className={`text-xs font-medium ${textSecondary}`}>Title *</label>
         <input
-          autoFocus
+          autoFocus={!initial && !isMobile}
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="e.g. Cloud Sync"
@@ -563,27 +564,64 @@ const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }
             <div className="flex gap-3">
               <div className="flex flex-col gap-1.5 flex-1">
                 <label className={`text-xs font-medium ${textSecondary}`}>Start time</label>
-                <input
-                  type="time"
-                  value={hgScheduledTime}
-                  onChange={e => setHgScheduledTime(e.target.value)}
-                  className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
-                  }`}
-                />
+                {(() => {
+                  const [hh, mm] = (hgScheduledTime || '09:00').split(':').map(Number);
+                  const selectCls = `px-2 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'}`;
+                  if (use24HourClock) {
+                    return (
+                      <div className="flex items-center gap-1">
+                        <select className={selectCls} value={hh} onChange={e => setHgScheduledTime(`${String(parseInt(e.target.value)).padStart(2,'0')}:${String(mm).padStart(2,'0')}`)}>
+                          {Array.from({length:24},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
+                        </select>
+                        <span className={textSecondary}>:</span>
+                        <select className={selectCls} value={mm} onChange={e => setHgScheduledTime(`${String(hh).padStart(2,'0')}:${String(parseInt(e.target.value)).padStart(2,'0')}`)}>
+                          {[0,15,30,45].map(v=><option key={v} value={v}>{String(v).padStart(2,'0')}</option>)}
+                        </select>
+                      </div>
+                    );
+                  }
+                  const isPM = hh >= 12;
+                  const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+                  return (
+                    <div className="flex items-center gap-1">
+                      <select className={selectCls} value={h12} onChange={e => {
+                        const v = parseInt(e.target.value);
+                        const newH = isPM ? (v === 12 ? 12 : v + 12) : (v === 12 ? 0 : v);
+                        setHgScheduledTime(`${String(newH).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
+                      }}>
+                        {Array.from({length:12},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
+                      </select>
+                      <span className={textSecondary}>:</span>
+                      <select className={selectCls} value={mm} onChange={e => setHgScheduledTime(`${String(hh).padStart(2,'0')}:${String(parseInt(e.target.value)).padStart(2,'0')}`)}>
+                        {[0,15,30,45].map(v=><option key={v} value={v}>{String(v).padStart(2,'0')}</option>)}
+                      </select>
+                      <select className={selectCls} value={isPM ? 'PM' : 'AM'} onChange={e => {
+                        const newPM = e.target.value === 'PM';
+                        const newH = newPM ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12);
+                        setHgScheduledTime(`${String(newH).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
+                      }}>
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="flex flex-col gap-1.5 w-24">
-                <label className={`text-xs font-medium ${textSecondary}`}>Duration (min)</label>
-                <input
-                  type="number"
-                  min={5}
-                  max={480}
-                  value={hgDuration}
-                  onChange={e => setHgDuration(Math.max(5, parseInt(e.target.value) || 60))}
-                  className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
-                  }`}
-                />
+              <div className="flex flex-col gap-1.5">
+                <label className={`text-xs font-medium ${textSecondary}`}>Duration</label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setHgDuration(d => Math.max(60, d - 15))}
+                    className={`w-8 h-8 rounded-lg border ${borderClass} flex items-center justify-center text-base font-bold ${hoverBg} ${textPrimary} transition-colors`}
+                  >−</button>
+                  <span className={`text-sm font-medium ${textPrimary} w-14 text-center`}>{hgDuration}m</span>
+                  <button
+                    type="button"
+                    onClick={() => setHgDuration(d => Math.min(480, d + 15))}
+                    className={`w-8 h-8 rounded-lg border ${borderClass} flex items-center justify-center text-base font-bold ${hoverBg} ${textPrimary} transition-colors`}
+                  >+</button>
+                </div>
               </div>
             </div>
 

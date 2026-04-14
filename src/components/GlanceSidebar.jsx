@@ -15,7 +15,7 @@ import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import FrameNudgeCard from './FrameNudgeCard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
-import { getOverdueHGInstances } from '../hooks/useHyperGlance.js';
+import { getOverdueHGInstances, getTodayHGInstances } from '../hooks/useHyperGlance.js';
 
 const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -1136,6 +1136,35 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 className={`rounded-full px-2.5 ${isDesktop ? "py-0.5" : "py-1"} text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${done ? 'line-through opacity-50' : 'hover:opacity-80'} transition-opacity`}
               >
                 {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* Today's hyperGLANCE sessions (scheduled today, not yet started/overdue) */}
+  {goalsProjectsEnabled && (() => {
+    const todayHG = getTodayHGInstances(projects);
+    if (todayHG.length === 0) return null;
+    return (
+      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#4f46e5' }}>hyperGLANCE</div>
+        <div className="space-y-1.5">
+          {todayHG.map(({ project, instance }) => {
+            const hg = project.hyperglance;
+            const [sh, sm] = (hg.scheduledTime || '0:0').split(':').map(Number);
+            const barColor = hg.color || '#4f46e5';
+            return (
+              <button
+                key={project.id}
+                onClick={() => enterHyperGlanceMode(project.id, instance.date)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-white/5' : 'bg-stone-50'}`}
+              >
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
+                <span className={`text-sm font-medium flex-1 min-w-0 truncate ${darkMode ? 'text-gray-200' : 'text-stone-800'}`}>{project.title}</span>
+                <Zap size={12} style={{ color: barColor, flexShrink: 0 }} />
               </button>
             );
           })}

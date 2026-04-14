@@ -4,7 +4,7 @@ import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
   AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
   Edit2, ExternalLink, FileText, GripVertical, LogIn, Plus,
-  Square, Target, Trash2, X,
+  Square, Target, Trash2, X, Zap,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
@@ -350,6 +350,12 @@ const ProjectCard = forwardRef(({ project, onFocusClick, onEditClick, compact, d
               }`}>
                 <AlertTriangle size={10} />
                 Stalled
+              </span>
+            )}
+            {project.hyperglance?.enabled && project.status !== 'completed' && (
+              <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-400/20 text-yellow-400 font-semibold flex-shrink-0">
+                <Zap size={9} />
+                HG
               </span>
             )}
             <button

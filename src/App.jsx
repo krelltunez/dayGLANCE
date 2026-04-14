@@ -574,6 +574,7 @@ const DayPlanner = () => {
   const [hgTimerPhase, setHgTimerPhase] = React.useState('work'); // 'work' | 'break'
   const [hgWorkMinutes, setHgWorkMinutes] = React.useState(25);
   const [hgBreakMinutes, setHgBreakMinutes] = React.useState(5);
+  const [hgLongBreakMinutes, setHgLongBreakMinutes] = React.useState(15);
   const [hgCycleCount, setHgCycleCount] = React.useState(0);
   const [hgExitConfirm, setHgExitConfirm] = React.useState(false);
   const [hgShowSettings, setHgShowSettings] = React.useState(true);
@@ -7190,6 +7191,7 @@ const DayPlanner = () => {
     hgTimerPhase, setHgTimerPhase,
     hgWorkMinutes, setHgWorkMinutes,
     hgBreakMinutes, setHgBreakMinutes,
+    hgLongBreakMinutes, setHgLongBreakMinutes,
     hgCycleCount, setHgCycleCount,
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,

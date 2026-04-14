@@ -7,10 +7,10 @@ import { isHGSessionReachable } from '../hooks/useHyperGlance.js';
 
 /**
  * Renders a single hyperGLANCE project bar inside the left half of a
- * timeline day column. When the session is completed it shrinks to a pill.
+ * timeline day column. When the session is completed it shrinks to a small pill.
  */
 const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
-  const { minutesToPosition, timeToMinutes, currentTime, darkMode, formatTime, use24HourClock } = useDayPlannerCtx();
+  const { minutesToPosition, currentTime, use24HourClock } = useDayPlannerCtx();
   const { enterHyperGlanceMode } = useFeaturesCtx();
 
   const hg = project.hyperglance;
@@ -21,14 +21,15 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
 
   const top = Math.round(minutesToPosition(startMinutes));
   const bottom = Math.round(minutesToPosition(endMinutes));
-  const height = Math.max(bottom - top - 1, isCompleted ? 18 : 24);
+  const fullHeight = Math.max(bottom - top - 1, 24);
+
+  // Completed pill: ~15 min tall at the start position
+  const pillHeight = Math.max(Math.round(minutesToPosition(startMinutes + 15) - minutesToPosition(startMinutes)) - 1, 18);
 
   const barColor = hg.color || '#4f46e5';
   const IconComp = Icons[hg.icon] || Icons.Sparkles;
-  const instance = isCompleted ? null : { date, isOverdue };
   const canEnter = !isCompleted && isHGSessionReachable({ date, isOverdue: false }, hg, currentTime);
 
-  // Format start time label
   const timeLabel = (() => {
     if (!hg.scheduledTime) return '';
     if (use24HourClock) return hg.scheduledTime;
@@ -38,14 +39,13 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
   })();
 
   if (isCompleted) {
-    // Render as a small completion pill
     return (
       <div
         className="absolute pointer-events-none"
-        style={{ top: `${top}px`, left: 2, right: 2, height: `${height}px`, zIndex: 6 }}
+        style={{ top: `${top}px`, left: 2, right: 2, height: `${pillHeight}px`, zIndex: 6 }}
       >
         <div
-          className="h-full rounded-full flex items-center justify-center gap-1 opacity-50"
+          className="h-full rounded-full flex items-center justify-center gap-1 opacity-60"
           style={{ backgroundColor: barColor }}
         >
           <Icons.Check size={9} className="text-white flex-shrink-0" />
@@ -55,13 +55,16 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
     );
   }
 
+  // Large bar: icon centered + big when there's room (≥90px ≈ 60+ min session)
+  const isLarge = fullHeight >= 90;
+
   return (
     <div
       className="absolute"
-      style={{ top: `${top}px`, left: 2, right: 2, height: `${height}px`, zIndex: 6 }}
+      style={{ top: `${top}px`, left: 2, right: 2, height: `${fullHeight}px`, zIndex: 6 }}
     >
       <div
-        className="h-full rounded-md flex flex-col items-center justify-start overflow-hidden select-none"
+        className="h-full rounded-md flex flex-col items-center overflow-hidden select-none"
         style={{
           backgroundColor: `${barColor}18`,
           borderLeft: `3px solid ${barColor}`,
@@ -70,55 +73,99 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
           borderBottom: `1px solid ${barColor}30`,
         }}
       >
-        {/* Icon + time label row */}
-        <div className="flex items-center gap-0.5 pt-1 px-1 w-full">
-          <IconComp size={12} style={{ color: barColor, flexShrink: 0 }} />
-          {height > 30 && timeLabel && (
-            <span className="text-[9px] font-medium opacity-70 ml-0.5 truncate" style={{ color: barColor }}>
-              {timeLabel}
-            </span>
-          )}
-        </div>
-
-        {/* Project title */}
-        {height > 38 && (
-          <span
-            className="text-[10px] font-semibold leading-tight text-center px-1 w-full truncate"
-            style={{ color: barColor }}
-          >
-            {project.title}
-          </span>
-        )}
-
-        {/* Overdue badge */}
-        {isOverdue && height > 50 && (
-          <span className="text-[9px] font-semibold text-orange-500 px-1">overdue</span>
-        )}
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* HG enter button — pulsing when session is live */}
-        {canEnter && height > 50 && (
-          <button
-            onClick={() => enterHyperGlanceMode(project.id, date)}
-            className="mb-1.5 flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse pointer-events-auto"
-            style={{ backgroundColor: barColor }}
-            title="Enter hyperGLANCE"
-          >
-            <Zap size={8} />
-            HG
-          </button>
-        )}
-
-        {/* Pre-session: show small HG label (not pulsing) */}
-        {!canEnter && !isOverdue && height > 50 && (
-          <span
-            className="mb-1.5 text-[9px] font-bold opacity-40"
-            style={{ color: barColor }}
-          >
-            HG
-          </span>
+        {isLarge ? (
+          // Large layout: centered icon + title
+          <>
+            <div className="flex-1 flex flex-col items-center justify-center gap-1 w-full px-1 pt-2">
+              <IconComp size={20} style={{ color: barColor }} />
+              {fullHeight > 110 && (
+                <span
+                  className="text-[10px] font-semibold leading-tight text-center w-full truncate px-1"
+                  style={{ color: barColor }}
+                >
+                  {project.title}
+                </span>
+              )}
+              {isOverdue && (
+                <span className="text-[9px] font-semibold text-orange-500">overdue</span>
+              )}
+            </div>
+            {/* CTA at bottom */}
+            <div className="flex-shrink-0 pb-2">
+              {canEnter ? (
+                <button
+                  onClick={() => enterHyperGlanceMode(project.id, date)}
+                  className="flex items-center gap-0.5 px-2 py-1 rounded-full text-white text-[9px] font-bold animate-pulse pointer-events-auto"
+                  style={{ backgroundColor: barColor }}
+                  title="Enter hyperGLANCE"
+                >
+                  <Zap size={8} />
+                  hyperGLANCE
+                </button>
+              ) : !isOverdue ? (
+                <span className="text-[9px] font-bold opacity-30" style={{ color: barColor }}>
+                  {timeLabel}
+                </span>
+              ) : (
+                <button
+                  onClick={() => enterHyperGlanceMode(project.id, date)}
+                  className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold pointer-events-auto opacity-80"
+                  style={{ backgroundColor: barColor }}
+                >
+                  <Zap size={8} />
+                  HG
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          // Compact layout: icon + time + small label
+          <>
+            <div className="flex items-center gap-0.5 pt-1 px-1 w-full">
+              <IconComp size={12} style={{ color: barColor, flexShrink: 0 }} />
+              {fullHeight > 30 && timeLabel && (
+                <span className="text-[9px] font-medium opacity-70 ml-0.5 truncate" style={{ color: barColor }}>
+                  {timeLabel}
+                </span>
+              )}
+            </div>
+            {fullHeight > 38 && (
+              <span
+                className="text-[10px] font-semibold leading-tight text-center px-1 w-full truncate"
+                style={{ color: barColor }}
+              >
+                {project.title}
+              </span>
+            )}
+            {isOverdue && fullHeight > 50 && (
+              <span className="text-[9px] font-semibold text-orange-500 px-1">overdue</span>
+            )}
+            <div className="flex-1" />
+            {canEnter && fullHeight > 50 && (
+              <button
+                onClick={() => enterHyperGlanceMode(project.id, date)}
+                className="mb-1.5 flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse pointer-events-auto"
+                style={{ backgroundColor: barColor }}
+                title="Enter hyperGLANCE"
+              >
+                <Zap size={8} />
+                HG
+              </button>
+            )}
+            {!canEnter && !isOverdue && fullHeight > 50 && (
+              <span className="mb-1.5 text-[9px] font-bold opacity-40" style={{ color: barColor }}>HG</span>
+            )}
+            {isOverdue && !canEnter && fullHeight > 50 && (
+              <button
+                onClick={() => enterHyperGlanceMode(project.id, date)}
+                className="mb-1.5 flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold pointer-events-auto opacity-80"
+                style={{ backgroundColor: barColor }}
+              >
+                <Zap size={8} />
+                HG
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
