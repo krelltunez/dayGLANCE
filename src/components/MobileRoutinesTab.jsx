@@ -28,7 +28,7 @@ const MobileRoutinesTab = () => {
   const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => !String(c.id).startsWith('example-')));
 
   return (
-    <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
+    <div className={`px-4 py-4 mobile-tab-fade-in`}>
       <div className="space-y-3">
         {/* Today's selected routine */}
         <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-stone-300'} p-4`}>

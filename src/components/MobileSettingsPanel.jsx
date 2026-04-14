@@ -277,7 +277,7 @@ const MobileSettingsPanel = () => {
     const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
     const provider = cloudSyncProviders[currentProvider];
     return (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -507,7 +507,7 @@ const MobileSettingsPanel = () => {
 
   {/* Notifications sub-view */}
   {mobileSettingsView === 'notifications' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -691,7 +691,7 @@ const MobileSettingsPanel = () => {
 
   {/* Backups sub-view */}
   {mobileSettingsView === 'backups' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -799,7 +799,7 @@ const MobileSettingsPanel = () => {
 
   {/* AI settings sub-view */}
   {mobileSettingsView === 'ai' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -1024,7 +1024,7 @@ const MobileSettingsPanel = () => {
 
   {/* Obsidian sub-view */}
   {mobileSettingsView === 'obsidian' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -1285,7 +1285,7 @@ const MobileSettingsPanel = () => {
 
   {/* Frames sub-view */}
   {mobileSettingsView === 'frames' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -1413,7 +1413,7 @@ const MobileSettingsPanel = () => {
 
   {/* Habits sub-view */}
   {mobileSettingsView === 'habits' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => { setMobileSettingsView('main'); setEditingHabit(null); }}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
@@ -1647,7 +1647,7 @@ const MobileSettingsPanel = () => {
 
   {/* Routines sub-view */}
   {mobileSettingsView === 'routines' && (
-    <div className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => { handleRoutinesDone(); setMobileSettingsView('main'); }}
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
