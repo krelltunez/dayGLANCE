@@ -6980,6 +6980,7 @@ const DayPlanner = () => {
     habitDayPopup, setHabitDayPopup,
     activeHabits, habitStreaks,
     habitLongPressTimer,
+    habitLongPressOpenedAt,
 
     // ── Focus mode ────────────────────────────────────────────────────────────
     showFocusMode, setShowFocusMode,

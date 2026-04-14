@@ -73,6 +73,7 @@ const MobileGlanceSection = () => {
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     habitLongPressTimer,
+    habitLongPressOpenedAt,
     dashboardSelectedChips, setDashboardSelectedChips,
     routineAddingToBucket, setRoutineAddingToBucket,
     routineNewChipName, setRoutineNewChipName,
@@ -166,16 +167,16 @@ const MobileGlanceSection = () => {
               darkMode={darkMode}
               autoSynced={!!habit.source}
               onClick={habit.source ? undefined : () => incrementHabit(habit.id)}
-              onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
-              onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+              onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); clearTimeout(habitLongPressTimer.current); setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }}
+              onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}
               onMouseUp={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
               onMouseLeave={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-              onTouchStart={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
-              onTouchEnd={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+              onTouchStart={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}
+              onTouchEnd={habit.source ? undefined : (e) => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); if (habitLongPressOpenedAt.current && Date.now() - habitLongPressOpenedAt.current < 300) e.preventDefault(); }}
             />
             {habitLongPressId === habit.id && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
+                <div className="fixed inset-0 z-40" onClick={() => { if (habitLongPressOpenedAt.current && Date.now() - habitLongPressOpenedAt.current < 300) return; setHabitLongPressId(null); setHabitEditingCountId(null); }} />
                 <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(activeHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                   <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                   <div className="flex items-center justify-center gap-3">
