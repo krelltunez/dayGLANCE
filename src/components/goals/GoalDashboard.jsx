@@ -277,7 +277,7 @@ const HG_ICON_MAP = {
 
 // ─── Project form (create / edit) ─────────────────────────────────────────────
 
-const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
+export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile } =
     useDayPlannerCtx();
 
@@ -688,7 +688,7 @@ const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }
 
 // ─── Overlay backdrop for inline forms ────────────────────────────────────────
 
-const FormOverlay = ({ children, onClose, mobile, cardBg }) => {
+export const FormOverlay = ({ children, onClose, mobile, cardBg }) => {
   if (mobile) {
     return (
       <div

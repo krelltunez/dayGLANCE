@@ -45,10 +45,12 @@ export function getActiveHGInstance(project) {
   const createdAtStr = hg.createdAt ? dateToString(new Date(hg.createdAt)) : null;
 
   const completedDates = new Set((hg.completions || []).map(c => c.date));
+  const skippedDates = new Set(hg.skippedDates || []);
 
   if (!hg.isRecurring) {
     if (!hg.scheduledDate) return null;
     if (completedDates.has(hg.scheduledDate)) return null;
+    if (skippedDates.has(hg.scheduledDate)) return null;
     // Don't show as overdue if the date predates when the config was created
     if (createdAtStr && hg.scheduledDate < createdAtStr) return null;
     return {
@@ -71,7 +73,7 @@ export function getActiveHGInstance(project) {
     // Skip dates before the config was first created
     if (createdAtStr && ds < createdAtStr) continue;
 
-    if (scheduledDays.includes(dayName) && !completedDates.has(ds)) {
+    if (scheduledDays.includes(dayName) && !completedDates.has(ds) && !skippedDates.has(ds)) {
       return {
         projectId: project.id,
         date: ds,

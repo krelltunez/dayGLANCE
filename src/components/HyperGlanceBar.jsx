@@ -11,10 +11,11 @@ import { isHGSessionReachable } from '../hooks/useHyperGlance.js';
  */
 const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
   const { minutesToPosition, currentTime, use24HourClock, tasks, unscheduledTasks } = useDayPlannerCtx();
-  const { enterHyperGlanceMode } = useFeaturesCtx();
+  const { enterHyperGlanceMode, setHgContextMenu } = useFeaturesCtx();
 
   const hg = project.hyperglance;
-  const [startH, startM] = (hg.scheduledTime || '0:0').split(':').map(Number);
+  const effectiveTime = hg.scheduledTimeOverrides?.[date] || hg.scheduledTime || '0:0';
+  const [startH, startM] = effectiveTime.split(':').map(Number);
   const startMinutes = startH * 60 + startM;
   const durationMin = hg.scheduledDuration || 60;
   const endMinutes = startMinutes + durationMin;
@@ -29,6 +30,12 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
   const barColor = hg.color || '#4f46e5';
   const IconComp = Icons[hg.icon] || Icons.Sparkles;
   const canEnter = !isCompleted && isHGSessionReachable({ date, isOverdue: false }, hg, currentTime);
+
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setHgContextMenu({ x: e.clientX, y: e.clientY, projectId: project.id, date, isCompleted });
+  };
 
   // Task count for future bars: incomplete real tasks + template tasks
   const incompleteTaskCount =
@@ -51,8 +58,9 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
   if (isCompleted) {
     return (
       <div
-        className="absolute pointer-events-none"
+        className="absolute pointer-events-auto"
         style={{ top: `${top}px`, left: 2, right: 2, height: `${pillHeight}px`, zIndex: 6 }}
+        onContextMenu={handleContextMenu}
       >
         <div
           className="h-full rounded-full flex items-center justify-center gap-1 opacity-60"
@@ -70,8 +78,9 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
 
   return (
     <div
-      className="absolute"
+      className="absolute pointer-events-auto"
       style={{ top: `${top}px`, left: 2, right: 2, height: `${fullHeight}px`, zIndex: 6 }}
+      onContextMenu={handleContextMenu}
     >
       <div
         className="h-full rounded-md flex flex-col items-center overflow-hidden select-none"

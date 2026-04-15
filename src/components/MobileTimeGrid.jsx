@@ -126,7 +126,8 @@ const MobileTimeGrid = () => {
         const tStart = th * 60 + tm;
         const tEnd = tStart + (task.duration || 30);
         return hgBars.some(bar => {
-          const [bh, bm] = (bar.project.hyperglance.scheduledTime || '0:0').split(':').map(Number);
+          const effectiveBarTime = bar.project.hyperglance.scheduledTimeOverrides?.[bar.date] || bar.project.hyperglance.scheduledTime || '0:0';
+          const [bh, bm] = effectiveBarTime.split(':').map(Number);
           const bStart = bh * 60 + bm;
           const bEnd = bStart + (bar.isCompleted ? 15 : (bar.project.hyperglance.scheduledDuration || 60));
           return tStart < bEnd && tEnd > bStart;

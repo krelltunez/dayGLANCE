@@ -102,8 +102,10 @@ import MobileLayout from './components/MobileLayout.jsx';
 import ShortcutHelpModal from './components/ShortcutHelpModal.jsx';
 import FocusModeModal from './components/FocusModeModal.jsx';
 import HyperGlanceModeModal from './components/HyperGlanceModeModal.jsx';
+import HGAdjustModal from './components/HGAdjustModal.jsx';
 import RoutinesDashboardModal from './components/RoutinesDashboardModal.jsx';
 import FrameAdjustModal from './components/FrameAdjustModal.jsx';
+import { ProjectForm, FormOverlay } from './components/goals/GoalDashboard.jsx';
 import FrameScheduleModal from './components/FrameScheduleModal.jsx';
 import FramesModal from './components/FramesModal.jsx';
 import MobileWelcomeModal from './components/MobileWelcomeModal.jsx';
@@ -683,6 +685,10 @@ const DayPlanner = () => {
   } = useGTDFrames();
   const [taskContextMenu, setTaskContextMenu] = useState(null); // { x, y, taskId, isRecurring, isImported, isAllDay, dateStr }
   const [timelineContextMenu, setTimelineContextMenu] = useState(null); // { x, y, dateStr, timeMinutes }
+  const [hgContextMenu, setHgContextMenu] = useState(null); // { x, y, projectId, date, isCompleted }
+  const [hgAdjustModal, setHgAdjustModal] = useState(null); // { projectId, date, time }
+  const [hgAdjustTimeField, setHgAdjustTimeField] = useState(null); // 'start' | null
+  const [pendingEditProjectId, setPendingEditProjectId] = useState(null);
 
   // Incomplete tasks modal
   const [showIncompleteTasks, setShowIncompleteTasks] = useState(null); // null | 'today' | 'allTime'
@@ -3051,6 +3057,62 @@ const DayPlanner = () => {
     setHgExitConfirm(false);
     // Don't close the modal here — the modal handles showing the summary screen
     // and the user dismisses it via the "Done" button (exitHyperGlanceMode).
+  };
+
+  const openHGAdjust = (projectId, date) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    const hg = project.hyperglance || {};
+    const overrides = hg.scheduledTimeOverrides || {};
+    setHgAdjustModal({ projectId, date, time: overrides[date] || hg.scheduledTime || '9:00' });
+    setHgContextMenu(null);
+  };
+
+  const saveHGAdjust = () => {
+    if (!hgAdjustModal) return;
+    const { projectId, date, time } = hgAdjustModal;
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      const hg = p.hyperglance || {};
+      return { ...p, hyperglance: { ...hg, scheduledTimeOverrides: { ...(hg.scheduledTimeOverrides || {}), [date]: time } } };
+    }));
+    setHgAdjustModal(null);
+  };
+
+  const cancelHGSession = (projectId, date) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+      const hg = p.hyperglance || {};
+      if (!hg.isRecurring) {
+        return { ...p, hyperglance: { ...hg, enabled: false } };
+      }
+      const skipped = hg.skippedDates || [];
+      if (skipped.includes(date)) return p;
+      return { ...p, hyperglance: { ...hg, skippedDates: [...skipped, date] } };
+    }));
+    setHgContextMenu(null);
+  };
+
+  const saveEditProjectFromBar = (fields) => {
+    if (!pendingEditProjectId) return;
+    const projectId = pendingEditProjectId;
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+      const wasArchived = project.status === 'archived';
+      const nowArchived = fields.status === 'archived';
+      if (nowArchived && !wasArchived) {
+        const cascadeTask = t => {
+          if (t.projectId !== projectId) return t;
+          if (t.completed) return { ...t, archived: true };
+          const { projectId: _removed, ...rest } = t;
+          return rest;
+        };
+        setTasks(prev => prev.map(cascadeTask));
+        setUnscheduledTasks(prev => prev.map(cascadeTask));
+      }
+      updateProject(projectId, fields);
+    }
+    setPendingEditProjectId(null);
   };
 
   const parseICS = (icsContent) => {
@@ -7220,6 +7282,11 @@ const DayPlanner = () => {
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,
     enterHyperGlanceMode, exitHyperGlanceMode, completeHyperGlanceSession,
+    hgContextMenu, setHgContextMenu,
+    hgAdjustModal, setHgAdjustModal,
+    hgAdjustTimeField, setHgAdjustTimeField,
+    openHGAdjust, saveHGAdjust, cancelHGSession,
+    pendingEditProjectId, setPendingEditProjectId,
 
     // ── Functions – GTD / AI ──────────────────────────────────────────────────
     saveFrame, deleteFrame, skipFrameForDay,
@@ -8599,6 +8666,78 @@ const DayPlanner = () => {
 
       {/* Frame Manually Schedule Modal */}
       {frameScheduleModal && <FrameScheduleModal />}
+
+      {/* HyperGLANCE bar context menu */}
+      {hgContextMenu && (() => {
+        const { x, y, projectId, date, isCompleted } = hgContextMenu;
+        const proj = projects.find(p => p.id === projectId);
+        if (!proj) return null;
+        const itemCount = isCompleted ? 2 : 4;
+        const cmX = Math.min(x, window.innerWidth - 176);
+        const cmY = Math.min(y, window.innerHeight - itemCount * 36 - 16);
+        return (
+          <div className="fixed inset-0 z-[70]" onClick={() => setHgContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setHgContextMenu(null); }}>
+            <div
+              className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[168px]`}
+              style={{ left: `${cmX}px`, top: `${cmY}px` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {!isCompleted && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => { enterHyperGlanceMode(projectId, date); setHgContextMenu(null); }}
+                >
+                  <Zap size={14} />
+                  hyperGLANCE
+                </button>
+              )}
+              <button
+                className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                onClick={() => { setPendingEditProjectId(projectId); setHgContextMenu(null); }}
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
+              <button
+                className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                onClick={() => openHGAdjust(projectId, date)}
+              >
+                <Clock size={14} />
+                Adjust time
+              </button>
+              {!isCompleted && (
+                <button
+                  className={`w-full text-left px-3 py-2 text-sm text-red-500 ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => cancelHGSession(projectId, date)}
+                >
+                  <X size={14} />
+                  Cancel session
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* HyperGLANCE Adjust Session Time Modal */}
+      {hgAdjustModal && <HGAdjustModal />}
+
+      {/* HyperGLANCE Edit Project (triggered from bar context menu) */}
+      {pendingEditProjectId && (() => {
+        const proj = projects.find(p => p.id === pendingEditProjectId);
+        if (!proj) return null;
+        return (
+          <FormOverlay onClose={() => setPendingEditProjectId(null)} mobile={isMobile} cardBg={cardBg}>
+            <ProjectForm
+              initial={proj}
+              goals={goals}
+              onSave={saveEditProjectFromBar}
+              onCancel={() => setPendingEditProjectId(null)}
+              mobile={isMobile}
+            />
+          </FormOverlay>
+        );
+      })()}
 
       {/* Goals & Projects Dashboard */}
       <GoalDashboard />
