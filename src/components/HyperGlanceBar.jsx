@@ -76,7 +76,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
       document.removeEventListener('mouseup', handleMouseUp);
       if (frameResizingRef.current) {
         playUISound('tick');
-        setTimeout(() => { hgResizingRef.current = false; }, 0);
+        setTimeout(() => { frameResizingRef.current = false; }, 0);
       }
     };
 

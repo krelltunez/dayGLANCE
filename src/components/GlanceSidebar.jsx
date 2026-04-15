@@ -1038,6 +1038,81 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     </div>
   ); })()}
 
+  {/* Today's hyperGLANCE sessions (scheduled today, not yet started/overdue) */}
+  {goalsProjectsEnabled && (() => {
+    const todayHG = getTodayHGInstances(projects);
+    if (todayHG.length === 0) return null;
+    return (
+      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
+        <div className="text-xs font-semibold tracking-wide mb-2" style={{ color: '#4f46e5' }}>hyperGLANCE</div>
+        <div className="space-y-1.5">
+          {todayHG.map(({ project, instance }) => {
+            const hg = project.hyperglance;
+            const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '0:0';
+            const [sh, sm] = effectiveTime.split(':').map(Number);
+            const barColor = hg.color || '#4f46e5';
+            const timeLabel = (() => {
+              if (!hg.scheduledTime && !hg.scheduledTimeOverrides?.[instance.date]) return '';
+              if (use24HourClock) return effectiveTime;
+              const h12 = sh === 0 ? 12 : sh > 12 ? sh - 12 : sh;
+              const ampm = sh < 12 ? 'a' : 'p';
+              return sm === 0 ? `${h12}${ampm}` : `${h12}:${String(sm).padStart(2, '0')}${ampm}`;
+            })();
+            return (
+              <button
+                key={project.id}
+                onClick={() => enterHyperGlanceMode(project.id, instance.date)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-white/5' : 'bg-stone-50'}`}
+              >
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
+                <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-gray-200' : 'text-stone-800'}`}>{project.title}</span>
+                {timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{timeLabel}</span>}
+                <Zap size={12} style={{ color: barColor, flexShrink: 0 }} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* Overdue HyperGLANCE projects */}
+  {goalsProjectsEnabled && (() => {
+    const overdue = getOverdueHGInstances(projects);
+    if (overdue.length === 0) return null;
+    return (
+      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-orange-500">Overdue Projects</div>
+        <div className="space-y-1.5">
+          {overdue.map(({ project, instance }) => {
+            const hg = project.hyperglance || {};
+            const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '0:0';
+            const [sh, sm] = effectiveTime.split(':').map(Number);
+            const timeLabel = (() => {
+              if (!hg.scheduledTime && !hg.scheduledTimeOverrides?.[instance.date]) return '';
+              if (use24HourClock) return effectiveTime;
+              const h12 = sh === 0 ? 12 : sh > 12 ? sh - 12 : sh;
+              const ampm = sh < 12 ? 'a' : 'p';
+              return sm === 0 ? `${h12}${ampm}` : `${h12}:${String(sm).padStart(2, '0')}${ampm}`;
+            })();
+            return (
+              <button
+                key={project.id}
+                onClick={() => enterHyperGlanceMode(project.id, instance.date)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-orange-900/20' : 'bg-orange-50'}`}
+              >
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: hg.color || '#e11d48' }}></div>
+                <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-orange-200' : 'text-orange-800'}`}>{project.title}</span>
+                {timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{timeLabel}</span>}
+                <Zap size={12} className="text-orange-500 flex-shrink-0" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  })()}
+
   {/* GLANCEahead — tomorrow preview */}
   {(() => {
     const isDayDone = (todayAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1) || todayAgenda.length === 0;
@@ -1156,80 +1231,6 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     );
   })()}
 
-  {/* Today's hyperGLANCE sessions (scheduled today, not yet started/overdue) */}
-  {goalsProjectsEnabled && (() => {
-    const todayHG = getTodayHGInstances(projects);
-    if (todayHG.length === 0) return null;
-    return (
-      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
-        <div className="text-xs font-semibold tracking-wide mb-2" style={{ color: '#4f46e5' }}>hyperGLANCE</div>
-        <div className="space-y-1.5">
-          {todayHG.map(({ project, instance }) => {
-            const hg = project.hyperglance;
-            const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '0:0';
-            const [sh, sm] = effectiveTime.split(':').map(Number);
-            const barColor = hg.color || '#4f46e5';
-            const timeLabel = (() => {
-              if (!hg.scheduledTime && !hg.scheduledTimeOverrides?.[instance.date]) return '';
-              if (use24HourClock) return effectiveTime;
-              const h12 = sh === 0 ? 12 : sh > 12 ? sh - 12 : sh;
-              const ampm = sh < 12 ? 'a' : 'p';
-              return sm === 0 ? `${h12}${ampm}` : `${h12}:${String(sm).padStart(2, '0')}${ampm}`;
-            })();
-            return (
-              <button
-                key={project.id}
-                onClick={() => enterHyperGlanceMode(project.id, instance.date)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-white/5' : 'bg-stone-50'}`}
-              >
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
-                <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-gray-200' : 'text-stone-800'}`}>{project.title}</span>
-                {timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{timeLabel}</span>}
-                <Zap size={12} style={{ color: barColor, flexShrink: 0 }} />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  })()}
-
-  {/* Overdue HyperGLANCE projects */}
-  {goalsProjectsEnabled && (() => {
-    const overdue = getOverdueHGInstances(projects);
-    if (overdue.length === 0) return null;
-    return (
-      <div className={isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}>
-        <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-orange-500">Overdue Projects</div>
-        <div className="space-y-1.5">
-          {overdue.map(({ project, instance }) => {
-            const hg = project.hyperglance || {};
-            const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '0:0';
-            const [sh, sm] = effectiveTime.split(':').map(Number);
-            const timeLabel = (() => {
-              if (!hg.scheduledTime && !hg.scheduledTimeOverrides?.[instance.date]) return '';
-              if (use24HourClock) return effectiveTime;
-              const h12 = sh === 0 ? 12 : sh > 12 ? sh - 12 : sh;
-              const ampm = sh < 12 ? 'a' : 'p';
-              return sm === 0 ? `${h12}${ampm}` : `${h12}:${String(sm).padStart(2, '0')}${ampm}`;
-            })();
-            return (
-              <button
-                key={project.id}
-                onClick={() => enterHyperGlanceMode(project.id, instance.date)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-orange-900/20' : 'bg-orange-50'}`}
-              >
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: hg.color || '#e11d48' }}></div>
-                <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-orange-200' : 'text-orange-800'}`}>{project.title}</span>
-                {timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{timeLabel}</span>}
-                <Zap size={12} className="text-orange-500 flex-shrink-0" />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  })()}
 
 </div>
   );
