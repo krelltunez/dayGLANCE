@@ -41,7 +41,7 @@ export function getActiveHGInstance(project) {
   const todayStr = dateToString(today);
 
   // Don't surface sessions from before the config was created
-  const createdAtStr = hg.createdAt ? hg.createdAt.slice(0, 10) : null;
+  const createdAtStr = hg.createdAt ? dateToString(new Date(hg.createdAt)) : null;
 
   const completedDates = new Set((hg.completions || []).map(c => c.date));
 
