@@ -480,16 +480,16 @@ const HyperGlanceModeModal = () => {
       </div>
 
       {/* Footer — Pause only pauses; End Session triggers exit confirm */}
-      <div className="flex-shrink-0 flex gap-3 px-4 py-4 border-t border-gray-800">
+      <div className="flex-shrink-0 flex justify-center gap-3 px-4 py-4 border-t border-gray-800">
         <button
           onClick={() => setHgTimerRunning(prev => !prev)}
-          className="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+          className="px-5 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-colors flex items-center gap-2"
         >
           {hgTimerRunning ? <><Pause size={15} /> Pause</> : <><Play size={15} /> Resume</>}
         </button>
         <button
           onClick={() => setHgExitConfirm(true)}
-          className="flex-1 py-3 rounded-xl text-white font-semibold text-sm transition-opacity hover:opacity-90"
+          className="px-5 py-2 rounded-xl text-white font-semibold text-sm transition-opacity hover:opacity-90"
           style={{ backgroundColor: barColor }}
         >
           End Session
