@@ -42,6 +42,8 @@ import GoalCard from './GoalCard.jsx';
 import GoalProgress from './GoalProgress.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
 import ConfirmDialog from '../ConfirmDialog.jsx';
+import DatePicker from '../DatePicker.jsx';
+import ClockTimePicker from '../ClockTimePicker.jsx';
 
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -278,7 +280,7 @@ const HG_ICON_MAP = {
 // ─── Project form (create / edit) ─────────────────────────────────────────────
 
 export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
-  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile } =
+  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile, isTablet } =
     useDayPlannerCtx();
 
   const [title, setTitle] = useState(initial?.title || '');
@@ -298,6 +300,8 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   const [hgDuration, setHgDuration] = useState(Math.max(60, initHG.scheduledDuration || 60));
   const [hgTemplateTasks, setHgTemplateTasks] = useState(initHG.templateTasks || []);
   const [hgNewTask, setHgNewTask] = useState('');
+  const [showHgDatePicker, setShowHgDatePicker] = useState(false);
+  const [showHgTimePicker, setShowHgTimePicker] = useState(false);
 
   const toggleHGDay = (day) => {
     setHgScheduledDays(prev =>
@@ -549,14 +553,22 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
             {!hgIsRecurring && (
               <div className="flex flex-col gap-1.5">
                 <label className={`text-xs font-medium ${textSecondary}`}>Date</label>
-                <input
-                  type="date"
-                  value={hgScheduledDate}
-                  onChange={e => setHgScheduledDate(e.target.value)}
-                  className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
-                  }`}
-                />
+                <button
+                  type="button"
+                  onClick={() => setShowHgDatePicker(true)}
+                  className={`px-3 py-2 text-sm rounded-lg border ${borderClass} text-left ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'}`}
+                >
+                  {hgScheduledDate
+                    ? new Date(hgScheduledDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Select date…'}
+                </button>
+                {showHgDatePicker && (
+                  <DatePicker
+                    value={hgScheduledDate}
+                    onChange={(d) => { setHgScheduledDate(d); setShowHgDatePicker(false); }}
+                    onClose={() => setShowHgDatePicker(false)}
+                  />
+                )}
               </div>
             )}
 
@@ -564,48 +576,27 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
             <div className="flex gap-3">
               <div className="flex flex-col gap-1.5 flex-1">
                 <label className={`text-xs font-medium ${textSecondary}`}>Start time</label>
-                {(() => {
-                  const [hh, mm] = (hgScheduledTime || '09:00').split(':').map(Number);
-                  const selectCls = `px-2 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'}`;
-                  if (use24HourClock) {
-                    return (
-                      <div className="flex items-center gap-1">
-                        <select className={selectCls} value={hh} onChange={e => setHgScheduledTime(`${String(parseInt(e.target.value)).padStart(2,'0')}:${String(mm).padStart(2,'0')}`)}>
-                          {Array.from({length:24},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
-                        </select>
-                        <span className={textSecondary}>:</span>
-                        <select className={selectCls} value={mm} onChange={e => setHgScheduledTime(`${String(hh).padStart(2,'0')}:${String(parseInt(e.target.value)).padStart(2,'0')}`)}>
-                          {[0,15,30,45].map(v=><option key={v} value={v}>{String(v).padStart(2,'0')}</option>)}
-                        </select>
-                      </div>
-                    );
-                  }
-                  const isPM = hh >= 12;
-                  const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
-                  return (
-                    <div className="flex items-center gap-1">
-                      <select className={selectCls} value={h12} onChange={e => {
-                        const v = parseInt(e.target.value);
-                        const newH = isPM ? (v === 12 ? 12 : v + 12) : (v === 12 ? 0 : v);
-                        setHgScheduledTime(`${String(newH).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
-                      }}>
-                        {Array.from({length:12},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
-                      </select>
-                      <span className={textSecondary}>:</span>
-                      <select className={selectCls} value={mm} onChange={e => setHgScheduledTime(`${String(hh).padStart(2,'0')}:${String(parseInt(e.target.value)).padStart(2,'0')}`)}>
-                        {[0,15,30,45].map(v=><option key={v} value={v}>{String(v).padStart(2,'0')}</option>)}
-                      </select>
-                      <select className={selectCls} value={isPM ? 'PM' : 'AM'} onChange={e => {
-                        const newPM = e.target.value === 'PM';
-                        const newH = newPM ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12);
-                        setHgScheduledTime(`${String(newH).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
-                      }}>
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                      </select>
-                    </div>
-                  );
-                })()}
+                <button
+                  type="button"
+                  onClick={() => setShowHgTimePicker(true)}
+                  className={`px-3 py-2 text-sm rounded-lg border ${borderClass} text-left ${darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'}`}
+                >
+                  {(() => {
+                    const [h, m] = (hgScheduledTime || '09:00').split(':').map(Number);
+                    if (use24HourClock) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                    const ampm = h < 12 ? 'a' : 'p';
+                    return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, '0')}${ampm}`;
+                  })()}
+                </button>
+                {showHgTimePicker && (
+                  <ClockTimePicker
+                    value={hgScheduledTime}
+                    onChange={(t) => { setHgScheduledTime(t); setShowHgTimePicker(false); }}
+                    onClose={() => setShowHgTimePicker(false)}
+                    darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+                  />
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={`text-xs font-medium ${textSecondary}`}>Duration</label>
