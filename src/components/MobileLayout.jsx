@@ -159,6 +159,7 @@ const MobileLayout = () => {
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
     mobileDragTaskIdState, setMobileDragTaskIdState,
+    mobileDragIsRoutine,
     mobileDragPreviewTime, setMobileDragPreviewTime,
     mobileDragPreviewDate, setMobileDragPreviewDate,
     mobileDragOverTrash,
@@ -1183,8 +1184,8 @@ const MobileLayout = () => {
             </>
           )}
 
-          {/* Trash FAB — visible during mobile long-press drag */}
-          {mobileDragTaskIdState !== null && (
+          {/* Trash FAB — visible during mobile long-press drag, hidden for routines */}
+          {mobileDragTaskIdState !== null && !mobileDragIsRoutine && (
             <div
               ref={trashFabRef}
               className={`fixed left-4 z-50 w-16 h-16 rounded-full shadow-xl flex items-center justify-center transition-all duration-150 ${mobileDragOverTrash ? 'bg-red-600 scale-110' : 'bg-red-500'}`}

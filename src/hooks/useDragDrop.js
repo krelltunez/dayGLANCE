@@ -60,6 +60,7 @@ export default function useDragDrop({
   const [mobileDragPreviewTime, setMobileDragPreviewTime] = useState(null);
   const [mobileDragPreviewDate, setMobileDragPreviewDate] = useState(null);
   const [mobileDragTaskIdState, setMobileDragTaskIdState] = useState(null);
+  const [mobileDragIsRoutine, setMobileDragIsRoutine] = useState(false);
   const [mobileDragOverTrash, setMobileDragOverTrash] = useState(false);
 
   const autoScrollInterval = useRef(null); // For drag auto-scroll
@@ -1102,6 +1103,7 @@ export default function useDragDrop({
       mobileDragTimer.current = setTimeout(() => {
         mobileDragActive.current = true;
         setMobileDragTaskIdState(task.id);
+        setMobileDragIsRoutine(!!task.isRoutineDrag);
         // Capture initial scroll position and finger position for delta-based drag
         if (calendarRef.current) {
           mobileDragStartScrollTop.current = calendarRef.current.scrollTop;
@@ -1239,6 +1241,7 @@ export default function useDragDrop({
       setMobileDragPreviewTime(null);
       setMobileDragPreviewDate(null);
       setMobileDragTaskIdState(null);
+      setMobileDragIsRoutine(false);
       setMobileDragOverTrash(false);
       return;
     }
@@ -1389,6 +1392,7 @@ export default function useDragDrop({
     setMobileDragPreviewTime(null);
     setMobileDragPreviewDate(null);
     setMobileDragTaskIdState(null);
+    setMobileDragIsRoutine(false);
     setMobileDragOverTrash(false);
   };
 
@@ -1584,6 +1588,7 @@ export default function useDragDrop({
     mobileDragPreviewTime, setMobileDragPreviewTime,
     mobileDragPreviewDate, setMobileDragPreviewDate,
     mobileDragTaskIdState, setMobileDragTaskIdState,
+    mobileDragIsRoutine,
     mobileDragOverTrash,
     trashFabRef,
     // mobile swipe refs
