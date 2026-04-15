@@ -481,10 +481,10 @@ const HyperGlanceModeModal = () => {
                         aiConfig={aiConfig}
                         aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                         onGenerateSubtasks={generateAISubtasks}
-                        wikilinks={!isPhone && extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
-                        onLoadWikiNote={!isPhone && extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
-                        onSaveWikiNote={!isPhone && extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
-                        onOpenInObsidian={!isPhone && extractWikilinks(task.title).length > 0 ? openInObsidian : undefined}
+                        wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                        onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                        onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
+                        onOpenInObsidian={extractWikilinks(task.title).length > 0 ? openInObsidian : undefined}
                       />
                     </div>
                   )}

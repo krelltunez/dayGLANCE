@@ -163,7 +163,7 @@ const FocusModeModal = () => {
                     )}
                   </div>
                   {/* Notes/subtasks panel — full card width */}
-                  {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0) || (!isPhone && extractWikilinks(task.title).length > 0)) && (
+                  {!isDone && ((task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0) || extractWikilinks(task.title).length > 0) && (
                     <NotesSubtasksPanel
                       task={task}
                       isInbox={false}
@@ -178,10 +178,10 @@ const FocusModeModal = () => {
                       aiConfig={aiConfig}
                       aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
                       onGenerateSubtasks={generateAISubtasks}
-                      wikilinks={!isPhone && extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
-                      onLoadWikiNote={!isPhone && extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
-                      onSaveWikiNote={!isPhone && extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
-                      onOpenInObsidian={!isPhone && extractWikilinks(task.title).length > 0 ? openInObsidian : undefined}
+                      wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                      onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                      onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
+                      onOpenInObsidian={extractWikilinks(task.title).length > 0 ? openInObsidian : undefined}
                     />
                   )}
                 </div>
