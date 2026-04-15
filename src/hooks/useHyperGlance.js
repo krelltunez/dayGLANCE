@@ -158,11 +158,3 @@ export function getGlanceHGInstances(projects, nowMinutes) {
       return 0;
     });
 }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = dateToString(today);
-  return projects
-    .filter(p => p.hyperglance?.enabled)
-    .map(p => ({ project: p, instance: getActiveHGInstance(p, nowMinutes) }))
-    .filter(({ instance }) => instance && instance.date === todayStr && !instance.isOverdue);
-}
