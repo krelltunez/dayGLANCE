@@ -689,6 +689,17 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
 // ─── Overlay backdrop for inline forms ────────────────────────────────────────
 
 export const FormOverlay = ({ children, onClose, mobile, cardBg }) => {
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      onClose();
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [onClose]);
+
   if (mobile) {
     return (
       <div
