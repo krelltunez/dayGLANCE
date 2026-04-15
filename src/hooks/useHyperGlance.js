@@ -5,10 +5,10 @@ export const HG_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 
 
 // Curated icon groups for hyperGLANCE project icon picker
 export const HG_ICON_GROUPS = [
-  { group: 'Education', icons: ['BookOpen', 'GraduationCap', 'Brain', 'Calculator', 'FlaskConical', 'Pencil'] },
-  { group: 'Work',      icons: ['Briefcase', 'Code2', 'LineChart', 'Target', 'LayoutDashboard', 'Clipboard'] },
-  { group: 'Health',    icons: ['Dumbbell', 'Heart', 'Activity', 'Apple', 'Moon', 'Bike'] },
-  { group: 'Creative',  icons: ['Music', 'Camera', 'Palette', 'Lightbulb', 'Star', 'Wand2'] },
+  { group: 'Education', icons: ['BookOpen', 'GraduationCap', 'Brain', 'Calculator', 'FlaskConical', 'Pencil', 'Globe', 'Microscope', 'BookMarked'] },
+  { group: 'Work',      icons: ['Briefcase', 'Code2', 'LineChart', 'Target', 'LayoutDashboard', 'Clipboard', 'Rocket', 'Users', 'Mail'] },
+  { group: 'Health',    icons: ['Dumbbell', 'Heart', 'Activity', 'Apple', 'Moon', 'Bike', 'Flame', 'Leaf', 'Trophy'] },
+  { group: 'Creative',  icons: ['Music', 'Camera', 'Palette', 'Lightbulb', 'Star', 'Wand2', 'Headphones', 'Mic', 'Film'] },
 ];
 
 // Preset color palette for project bars

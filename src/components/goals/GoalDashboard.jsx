@@ -27,10 +27,10 @@ import {
   X,
   Zap,
   // hyperGLANCE icon picker icons
-  BookOpen, GraduationCap, Brain, Calculator, FlaskConical, Pencil,
-  Briefcase, Code2, LineChart, Target, LayoutDashboard, Clipboard,
-  Dumbbell, Heart, Activity, Apple, Moon, Bike,
-  Music, Camera, Palette, Lightbulb, Star, Wand2,
+  BookOpen, GraduationCap, Brain, Calculator, FlaskConical, Pencil, Globe, Microscope, BookMarked,
+  Briefcase, Code2, LineChart, Target, LayoutDashboard, Clipboard, Rocket, Users, Mail,
+  Dumbbell, Heart, Activity, Apple, Moon, Bike, Flame, Leaf, Trophy,
+  Music, Camera, Palette, Lightbulb, Star, Wand2, Headphones, Mic, Film,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -269,10 +269,10 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 
 // ─── hyperGLANCE icon lookup map ──────────────────────────────────────────────
 const HG_ICON_MAP = {
-  BookOpen, GraduationCap, Brain, Calculator, FlaskConical, Pencil,
-  Briefcase, Code2, LineChart, Target, LayoutDashboard, Clipboard,
-  Dumbbell, Heart, Activity, Apple, Moon, Bike,
-  Music, Camera, Palette, Lightbulb, Star, Wand2,
+  BookOpen, GraduationCap, Brain, Calculator, FlaskConical, Pencil, Globe, Microscope, BookMarked,
+  Briefcase, Code2, LineChart, Target, LayoutDashboard, Clipboard, Rocket, Users, Mail,
+  Dumbbell, Heart, Activity, Apple, Moon, Bike, Flame, Leaf, Trophy,
+  Music, Camera, Palette, Lightbulb, Star, Wand2, Headphones, Mic, Film,
 };
 
 // ─── Project form (create / edit) ─────────────────────────────────────────────
