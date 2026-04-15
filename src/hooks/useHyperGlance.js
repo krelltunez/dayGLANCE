@@ -141,20 +141,23 @@ export function isHGSessionReachable(instance, hgConfig, currentTime) {
 }
 
 /**
- * Returns all overdue hyperGLANCE instances (missed sessions from past dates).
+ * Returns all hyperGLANCE instances for the GLANCE panel: today's sessions
+ * plus any overdue (missed) sessions, overdue entries sorted first.
  */
-export function getOverdueHGInstances(projects, nowMinutes) {
+export function getGlanceHGInstances(projects, nowMinutes) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = dateToString(today);
   return projects
     .filter(p => p.hyperglance?.enabled)
     .map(p => ({ project: p, instance: getActiveHGInstance(p, nowMinutes) }))
-    .filter(({ instance }) => instance?.isOverdue);
+    .filter(({ instance }) => instance && (instance.isOverdue || instance.date === todayStr))
+    .sort((a, b) => {
+      if (a.instance.isOverdue && !b.instance.isOverdue) return -1;
+      if (!a.instance.isOverdue && b.instance.isOverdue) return 1;
+      return 0;
+    });
 }
-
-/**
- * Returns hyperGLANCE instances scheduled for today that are not yet overdue.
- * Used to surface upcoming sessions in the GLANCE panel alongside tasks.
- */
-export function getTodayHGInstances(projects, nowMinutes) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = dateToString(today);
