@@ -312,7 +312,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       {/* Card body */}
       <div className="flex flex-col gap-2 p-3">
         {/* Header: title + badges + edit + delete */}
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
           {dragHandleProps && (
             <div {...dragHandleProps} className={`flex-shrink-0 mt-0.5 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
               <GripVertical size={14} />
@@ -321,34 +321,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           <span className={`text-sm font-semibold ${textPrimary} leading-tight flex-1 min-w-0`}>
             {project.title}
           </span>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {onMoveToClick && (
-              <button
-                onClick={() => onMoveToClick(project)}
-                className={`p-1 rounded-lg transition-colors ${darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'}`}
-                title="Move to…"
-                aria-label="Move to goal"
-              >
-                <LogIn size={12} />
-              </button>
-            )}
-            {project.status === 'completed' && (
-              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
-                darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
-              }`}>
-                <CheckCircle2 size={10} />
-                Done
-              </span>
-            )}
-            {stalled && project.status !== 'completed' && (
-              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
-                darkMode ? 'bg-yellow-900/50 text-yellow-400' : 'bg-yellow-50 text-yellow-600'
-              }`}>
-                <AlertTriangle size={10} />
-                Stalled
-              </span>
-            )}
-            {project.hyperglance?.enabled && project.status !== 'completed' && (() => {
+          {project.hyperglance?.enabled && project.status !== 'completed' && (() => {
               const instance = getActiveHGInstance(project);
               if (!instance) return null;
               const hg = project.hyperglance;
@@ -391,6 +364,33 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 </span>
               );
             })()}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onMoveToClick && (
+              <button
+                onClick={() => onMoveToClick(project)}
+                className={`p-1 rounded-lg transition-colors ${darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'}`}
+                title="Move to…"
+                aria-label="Move to goal"
+              >
+                <LogIn size={12} />
+              </button>
+            )}
+            {project.status === 'completed' && (
+              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
+                darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
+              }`}>
+                <CheckCircle2 size={10} />
+                Done
+              </span>
+            )}
+            {stalled && project.status !== 'completed' && (
+              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
+                darkMode ? 'bg-yellow-900/50 text-yellow-400' : 'bg-yellow-50 text-yellow-600'
+              }`}>
+                <AlertTriangle size={10} />
+                Stalled
+              </span>
+            )}
             <button
               onClick={() => onEditClick?.()}
               className={`p-1 rounded-lg transition-colors ${
