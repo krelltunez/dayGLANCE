@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import * as Icons from 'lucide-react';
 import { Pencil, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -75,7 +76,38 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
       t => t.projectId === project.id && !t.archived
     );
     const completedTaskCount = allProjectTasks.filter(t => t.completed).length;
-    const totalTaskCount = allProjectTasks.length + (hg.templateTasks?.length || 0);
+    const totalTaskCount = allProjectTasks.length;
+
+    const statsCard = showStats && statsPos && ReactDOM.createPortal(
+      <>
+        <div className="fixed inset-0 z-[69]" onClick={() => setShowStats(false)} />
+        <div
+          className="fixed z-[70] rounded-xl shadow-2xl p-3 min-w-[170px] bg-white dark:bg-gray-900 border"
+          style={{
+            left: Math.min(statsPos.x, window.innerWidth - 190),
+            top: statsPos.y - 8,
+            transform: 'translateY(-100%)',
+            borderColor: `${barColor}50`,
+          }}
+        >
+          <div className="flex items-center gap-1.5 mb-2">
+            <IconComp size={14} style={{ color: barColor }} />
+            <span className="text-sm font-semibold" style={{ color: barColor }}>{project.title}</span>
+          </div>
+          {completedTimeLabel && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Completed at <span className="font-medium text-gray-900 dark:text-white">{completedTimeLabel}</span>
+            </div>
+          )}
+          {totalTaskCount > 0 && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Tasks <span className="font-medium text-gray-900 dark:text-white">{completedTaskCount}/{totalTaskCount}</span>
+            </div>
+          )}
+        </div>
+      </>,
+      document.body
+    );
 
     return (
       <>
@@ -106,36 +138,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
             </button>
           </div>
         </div>
-        {showStats && statsPos && (
-          <>
-            <div className="fixed inset-0 z-[69]" onClick={() => setShowStats(false)} />
-            <div
-              className="fixed z-[70] rounded-xl shadow-2xl p-3 min-w-[170px]"
-              style={{
-                left: Math.min(statsPos.x, window.innerWidth - 190),
-                top: statsPos.y - 8,
-                transform: 'translateY(-100%)',
-                backgroundColor: '#18181b',
-                border: `1px solid ${barColor}50`,
-              }}
-            >
-              <div className="flex items-center gap-1.5 mb-2">
-                <IconComp size={14} style={{ color: barColor }} />
-                <span className="text-sm font-semibold" style={{ color: barColor }}>{project.title}</span>
-              </div>
-              {completedTimeLabel && (
-                <div className="text-xs text-gray-400 mb-1">
-                  Completed at <span className="text-white font-medium">{completedTimeLabel}</span>
-                </div>
-              )}
-              {totalTaskCount > 0 && (
-                <div className="text-xs text-gray-400">
-                  Tasks <span className="text-white font-medium">{completedTaskCount}/{totalTaskCount}</span>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        {statsCard}
       </>
     );
   }
