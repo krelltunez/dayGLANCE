@@ -15,6 +15,7 @@ const HyperGlanceModeModal = () => {
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     aiSubtasksLoadingForTask,
     generateAISubtasks,
+    playFocusSound,
   } = useDayPlannerCtx();
 
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
@@ -39,6 +40,7 @@ const HyperGlanceModeModal = () => {
 
   const timerRef = useRef(null);
   const sessionStartRef = useRef(null);
+  const prevPhaseRef = useRef(null);
   const [sessionElapsed, setSessionElapsed] = useState(0);
   // Set of expanded task IDs (allows multiple open at once)
   const [expandedTaskIds, setExpandedTaskIds] = useState(new Set());
@@ -62,9 +64,22 @@ const HyperGlanceModeModal = () => {
   useEffect(() => {
     if (allDone && !hgCompleted && !hgShowSettings) {
       setHgCompleted(true);
+      playFocusSound('complete');
       completeHyperGlanceSession();
     }
   }, [allDone, hgCompleted, hgShowSettings]);
+
+  // Play sounds on phase transitions
+  useEffect(() => {
+    if (prevPhaseRef.current === null) {
+      prevPhaseRef.current = hgTimerPhase;
+      return;
+    }
+    if (prevPhaseRef.current !== hgTimerPhase) {
+      playFocusSound(hgTimerPhase === 'work' ? 'work' : 'break');
+    }
+    prevPhaseRef.current = hgTimerPhase;
+  }, [hgTimerPhase]);
 
   // Timer countdown — supports work / shortBreak / longBreak phases
   useEffect(() => {
@@ -115,6 +130,7 @@ const HyperGlanceModeModal = () => {
     setHgTimerPhase('work');
     setHgCycleCount(0);
     sessionStartRef.current = Date.now();
+    playFocusSound('work');
   };
 
   const handleToggleTask = (taskId) => {
