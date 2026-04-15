@@ -14,6 +14,13 @@ const HGAdjustModal = () => {
   const endM = endMins % 60;
   const endTimeStr = `${endH}:${String(endM).padStart(2, '0')}`;
 
+  const fmt = (h, m) => {
+    if (use24HourClock) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const ampm = h < 12 ? 'a' : 'p';
+    return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2, '0')}${ampm}`;
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setHgAdjustModal(null)}>
       <div className={`${cardBg} rounded-lg shadow-xl p-5 border ${borderClass} w-72`} onClick={(e) => e.stopPropagation()}>
@@ -27,7 +34,7 @@ const HGAdjustModal = () => {
               onClick={() => setHgAdjustTimeField('start')}
               className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${cardBg} ${textPrimary} text-sm text-left`}
             >
-              {hgAdjustModal.time}
+              {fmt(startH, startM)}
             </button>
           </div>
           <div className="flex-1">
@@ -37,7 +44,7 @@ const HGAdjustModal = () => {
               onClick={() => setHgAdjustTimeField('end')}
               className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${cardBg} ${textPrimary} text-sm text-left`}
             >
-              {endTimeStr}
+              {fmt(endH, endM)}
             </button>
           </div>
         </div>
