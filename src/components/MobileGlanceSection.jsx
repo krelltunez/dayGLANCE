@@ -1105,7 +1105,7 @@ const MobileGlanceSection = () => {
     if (todayHG.length === 0) return null;
     return (
       <div className={`mt-3 pt-3 border-t ${borderClass}`}>
-        <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#4f46e5' }}>hyperGLANCE</div>
+        <div className="text-xs font-semibold tracking-wide mb-2" style={{ color: '#4f46e5' }}>hyperGLANCE</div>
         <div className="space-y-1.5">
           {todayHG.map(({ project, instance }) => {
             const barColor = project.hyperglance?.color || '#4f46e5';

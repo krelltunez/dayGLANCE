@@ -344,7 +344,7 @@ const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }
   return (
     <form
       onSubmit={handleSubmit}
-      className={`${mobile ? '' : `${cardBg} rounded-2xl shadow-2xl max-w-sm`} p-5 w-full flex flex-col gap-4`}
+      className={`${mobile ? '' : `${cardBg} rounded-2xl shadow-2xl max-w-sm max-h-[90vh] overflow-y-auto`} p-5 w-full flex flex-col gap-4`}
       onClick={e => e.stopPropagation()}
     >
       <h3 className={`text-base font-semibold ${textPrimary}`}>

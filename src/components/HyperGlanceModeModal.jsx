@@ -323,7 +323,7 @@ const HyperGlanceModeModal = () => {
               Exit — I'll come back
             </button>
             <button
-              onClick={() => { setHgExitConfirm(false); completeHyperGlanceSession(); }}
+              onClick={() => { setHgExitConfirm(false); setHgCompleted(true); completeHyperGlanceSession(); }}
               className="w-full py-3 rounded-xl text-white font-semibold transition-opacity hover:opacity-90"
               style={{ backgroundColor: barColor }}
             >

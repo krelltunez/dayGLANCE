@@ -3049,7 +3049,8 @@ const DayPlanner = () => {
     }));
     setHgTimerRunning(false);
     setHgExitConfirm(false);
-    setShowHyperGlanceMode(false);
+    // Don't close the modal here — the modal handles showing the summary screen
+    // and the user dismisses it via the "Done" button (exitHyperGlanceMode).
   };
 
   const parseICS = (icsContent) => {
