@@ -64,7 +64,6 @@ const HyperGlanceModeModal = () => {
   useEffect(() => {
     if (allDone && !hgCompleted && !hgShowSettings) {
       setHgCompleted(true);
-      playFocusSound('complete');
       completeHyperGlanceSession();
     }
   }, [allDone, hgCompleted, hgShowSettings]);
@@ -134,11 +133,20 @@ const HyperGlanceModeModal = () => {
   };
 
   const handleToggleTask = (taskId) => {
+    const taskBeingToggled = projectTasks.find(t => t.id === taskId);
     const inScheduled = tasks.find(t => t.id === taskId);
     if (inScheduled) {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, lastModified: new Date().toISOString() } : t));
     } else {
       setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, lastModified: new Date().toISOString() } : t));
+    }
+    // Play completion sound synchronously in the gesture handler — Android's AudioContext
+    // is often suspended by the time a useEffect fires, so the sound would be silently dropped.
+    if (!taskBeingToggled?.completed) {
+      const remainingIncomplete = projectTasks.filter(t => !t.completed && t.id !== taskId);
+      if (remainingIncomplete.length === 0) {
+        playFocusSound('complete');
+      }
     }
   };
 
@@ -339,7 +347,7 @@ const HyperGlanceModeModal = () => {
               Exit — I'll come back
             </button>
             <button
-              onClick={() => { setHgExitConfirm(false); setHgCompleted(true); completeHyperGlanceSession(); }}
+              onClick={() => { setHgExitConfirm(false); setHgCompleted(true); playFocusSound('complete'); completeHyperGlanceSession(); }}
               className="w-full py-3 rounded-xl text-white font-semibold transition-opacity hover:opacity-90"
               style={{ backgroundColor: barColor }}
             >
