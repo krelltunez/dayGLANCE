@@ -74,7 +74,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
           {minutes.map(min => {
             const { x, y } = pos(min * 6, outerR);
             return (
-              <button key={min} onClick={() => setSelectedMinute(min)}
+              <button type="button"key={min} onClick={() => setSelectedMinute(min)}
                 className={`absolute rounded-full flex items-center justify-center font-medium transition-all ${isTablet ? 'text-sm' : 'text-xs'} ${min === selectedMinute ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-200 hover:bg-white/10' : 'text-stone-700 hover:bg-black/8'}`}
                 style={{ width: outerBtn, height: outerBtn, left: x - outerBtn / 2, top: y - outerBtn / 2 }}>
                 {min.toString().padStart(2, '0')}
@@ -106,7 +106,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
             const { x, y } = pos(i * 30, outerR);
             const sel = label === 12 ? selectedHour === 12 : selectedHour === label;
             return (
-              <button key={`o${label}`} onClick={() => { setSelectedHour(label); setMode('minute'); }}
+              <button type="button"key={`o${label}`} onClick={() => { setSelectedHour(label); setMode('minute'); }}
                 className={`absolute rounded-full flex items-center justify-center font-medium transition-all ${isTablet ? 'text-sm' : 'text-xs'} ${sel ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-200 hover:bg-white/10' : 'text-stone-700 hover:bg-black/8'}`}
                 style={{ width: outerBtn, height: outerBtn, left: x - outerBtn / 2, top: y - outerBtn / 2 }}>
                 {label}
@@ -118,7 +118,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
             const { x, y } = pos(i * 30, innerR);
             const sel = selectedHour === label;
             return (
-              <button key={`i${label}`} onClick={() => { setSelectedHour(label); setMode('minute'); }}
+              <button type="button"key={`i${label}`} onClick={() => { setSelectedHour(label); setMode('minute'); }}
                 className={`absolute rounded-full flex items-center justify-center transition-all ${isTablet ? 'text-xs' : 'text-[10px]'} ${sel ? 'bg-blue-600 text-white shadow-md' : darkMode ? 'text-gray-400 hover:bg-white/10' : 'text-stone-500 hover:bg-black/8'}`}
                 style={{ width: innerBtn, height: innerBtn, left: x - innerBtn / 2, top: y - innerBtn / 2 }}>
                 {label.toString().padStart(2, '0')}
@@ -144,7 +144,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
           const { x, y } = pos(i * 30, outerR);
           const sel = hour12 === label;
           return (
-            <button key={label} onClick={() => {
+            <button type="button"key={label} onClick={() => {
               const h24 = isAM ? (label === 12 ? 0 : label) : (label === 12 ? 12 : label + 12);
               setSelectedHour(h24); setMode('minute');
             }}
@@ -163,24 +163,24 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
       <div className={`${cardBg} rounded-3xl shadow-2xl ${isTablet ? 'p-7' : 'p-5'}`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className={`${isTablet ? 'text-base' : 'text-sm'} font-semibold tracking-wide uppercase ${textSecondary}`}>Select Time</h3>
-          <button onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded-full ${hoverBg} transition-colors`}>
+          <button type="button"onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded-full ${hoverBg} transition-colors`}>
             <X size={isTablet ? 20 : 17} className={textSecondary} />
           </button>
         </div>
 
         <div className="flex justify-center mb-5">
           <div className={`flex items-center gap-1 px-4 py-2 rounded-2xl ${darkMode ? 'bg-gray-900/60' : 'bg-stone-100'}`}>
-            <button onClick={() => setMode('hour')}
+            <button type="button"onClick={() => setMode('hour')}
               className={`${isTablet ? 'text-4xl w-16' : 'text-3xl w-12'} font-bold rounded-xl py-1 text-center transition-colors ${mode === 'hour' ? 'bg-blue-600 text-white' : textPrimary}`}>
               {displayHour}
             </button>
             <span className={`${isTablet ? 'text-4xl' : 'text-3xl'} font-bold ${textSecondary} select-none`}>:</span>
-            <button onClick={() => setMode('minute')}
+            <button type="button"onClick={() => setMode('minute')}
               className={`${isTablet ? 'text-4xl w-16' : 'text-3xl w-12'} font-bold rounded-xl py-1 text-center transition-colors ${mode === 'minute' ? 'bg-blue-600 text-white' : textPrimary}`}>
               {selectedMinute.toString().padStart(2, '0')}
             </button>
             {!use24HourClock && (
-              <button onClick={toggleAMPM}
+              <button type="button"onClick={toggleAMPM}
                 className={`${isTablet ? 'text-base px-3 py-2' : 'text-sm px-2.5 py-1.5'} font-semibold rounded-xl ml-1 transition-colors ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-stone-600 hover:bg-stone-200 shadow-sm'}`}>
                 {isAM ? 'AM' : 'PM'}
               </button>
@@ -191,8 +191,8 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
         <div className="flex justify-center mb-5">{renderClock()}</div>
 
         <div className={`flex gap-2`}>
-          <button onClick={onClose} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} rounded-2xl font-medium ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'} transition-colors`}>Cancel</button>
-          <button onClick={handleConfirm} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} bg-blue-600 text-white rounded-2xl font-medium hover:bg-blue-700 transition-colors`}>OK</button>
+          <button type="button"onClick={onClose} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} rounded-2xl font-medium ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'} transition-colors`}>Cancel</button>
+          <button type="button"onClick={handleConfirm} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} bg-blue-600 text-white rounded-2xl font-medium hover:bg-blue-700 transition-colors`}>OK</button>
         </div>
       </div>
     </div>
