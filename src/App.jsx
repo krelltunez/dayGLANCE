@@ -6927,6 +6927,7 @@ const DayPlanner = () => {
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
     mobileDragTaskIdState, setMobileDragTaskIdState,
+    mobileDragIsRoutine,
     mobileDragPreviewTime, setMobileDragPreviewTime,
     mobileDragPreviewDate, setMobileDragPreviewDate,
     timelineScrolledAway, setTimelineScrolledAway,
