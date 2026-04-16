@@ -2984,10 +2984,13 @@ const DayPlanner = () => {
       t => t.projectId === project.id && t.hyperglanceSessionDate === sessionDate
     );
     if (alreadyInstantiated) return;
+    const parentGoal = project.goalId ? goals.find(g => g.id === project.goalId) : null;
+    const taskColor = parentGoal?.color || 'bg-blue-500';
     const newTasks = templates.map(tmpl => ({
       id: `hg-${project.id}-${sessionDate}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: tmpl.name,
       ...(tmpl.notes ? { notes: tmpl.notes } : {}),
+      color: taskColor,
       projectId: project.id,
       hyperglanceSessionDate: sessionDate,
       completed: false,

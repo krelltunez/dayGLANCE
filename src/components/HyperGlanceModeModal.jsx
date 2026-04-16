@@ -497,7 +497,7 @@ const HyperGlanceModeModal = () => {
                     <div className="mt-2 pl-8">
                       <NotesSubtasksPanel
                         task={task}
-                        isInbox={false}
+                        isInbox={unscheduledTasks.some(t => t.id === task.id)}
                         darkMode={true}
                         updateTaskNotes={updateTaskNotes}
                         addSubtask={addSubtask}
