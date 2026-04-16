@@ -2991,6 +2991,17 @@ const DayPlanner = () => {
     setHgExitConfirm(false);
     setHgShowSettings(true);
     setShowHyperGlanceMode(true);
+    // Request fullscreen (web fallback; Android uses native immersive mode below)
+    try { document.documentElement.requestFullscreen?.(); } catch (e) {}
+    // Request wake lock
+    (async () => {
+      try {
+        if (navigator.wakeLock) {
+          wakeLockSentinel.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    })();
+    // Android: hide system bars
     nativeSetImmersiveMode(true);
   };
 
@@ -2999,6 +3010,10 @@ const DayPlanner = () => {
     setHgTimerRunning(false);
     setHgExitConfirm(false);
     setShowHyperGlanceMode(false);
+    // Exit fullscreen and release wake lock
+    try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
+    try { wakeLockSentinel.current?.release(); wakeLockSentinel.current = null; } catch (e) {}
+    // Android: restore system bars
     nativeSetImmersiveMode(false);
   };
 
