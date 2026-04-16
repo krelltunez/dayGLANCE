@@ -90,7 +90,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const completedCount = projectTasks.filter(t => t.completed).length;
   const totalCount = projectTasks.length;
   const progress = calculateProjectProgress(project.id, allTasks);
-  const stalled = !!project.goalId && isProjectStalled(project.id, allTasks, project);
+  const hasHGSession = !!getActiveHGInstance(project, currentTimeMinutes);
+  const stalled = !!project.goalId && !hasHGSession && isProjectStalled(project.id, allTasks, project);
 
   // All project tasks: unscheduled (in array order) then scheduled (by date), completed last
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived);
