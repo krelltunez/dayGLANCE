@@ -127,11 +127,12 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
       return `${h12}:${String(m).padStart(2, '0')}${ampm}`;
     })();
 
-    const allProjectTasks = [...(tasks || []), ...(unscheduledTasks || [])].filter(
-      t => t.projectId === project.id && !t.archived
-    );
-    const completedTaskCount = allProjectTasks.filter(t => t.completed).length;
-    const totalTaskCount = allProjectTasks.length;
+    const formatElapsed = (seconds) => {
+      if (!seconds) return null;
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
 
     const statsCard = showStats && statsPos && ReactDOM.createPortal(
       <>
@@ -153,9 +154,19 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
               Completed at <span className="font-medium text-gray-900 dark:text-white">{completedTimeLabel}</span>
             </div>
           )}
-          {totalTaskCount > 0 && (
+          {(completion?.tasksTotal > 0) && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Tasks <span className="font-medium text-gray-900 dark:text-white">{completion.tasksCompleted}/{completion.tasksTotal}</span>
+            </div>
+          )}
+          {completion?.elapsedSeconds > 0 && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              Duration <span className="font-medium text-gray-900 dark:text-white">{formatElapsed(completion.elapsedSeconds)}</span>
+            </div>
+          )}
+          {completion?.cycleCount > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              Tasks <span className="font-medium text-gray-900 dark:text-white">{completedTaskCount}/{totalTaskCount}</span>
+              Cycles <span className="font-medium text-gray-900 dark:text-white">{completion.cycleCount}</span>
             </div>
           )}
         </div>

@@ -66,7 +66,7 @@ const HyperGlanceModeModal = () => {
   useEffect(() => {
     if (allDone && !hgCompleted && !hgShowSettings) {
       setHgCompleted(true);
-      completeHyperGlanceSession();
+      completeHyperGlanceSession(buildSessionStats());
     }
   }, [allDone, hgCompleted, hgShowSettings, completeHyperGlanceSession]);
 
@@ -173,6 +173,13 @@ const HyperGlanceModeModal = () => {
 
   const phaseLabel = hgTimerPhase === 'work' ? 'Work' : hgTimerPhase === 'longBreak' ? 'Long Break' : 'Break';
   const phaseBg = hgTimerPhase === 'work' ? 'bg-blue-900 text-blue-300' : hgTimerPhase === 'longBreak' ? 'bg-purple-900 text-purple-300' : 'bg-green-900 text-green-300';
+
+  const buildSessionStats = () => ({
+    tasksCompleted: projectTasks.filter(t => t.completed).length,
+    tasksTotal: projectTasks.length,
+    elapsedSeconds: sessionElapsed,
+    cycleCount: hgCycleCount,
+  });
 
   const skipPhase = () => {
     if (hgTimerPhase === 'work') {
@@ -360,7 +367,7 @@ const HyperGlanceModeModal = () => {
               Exit — I'll come back
             </button>
             <button
-              onClick={() => { setHgExitConfirm(false); setHgCompleted(true); playFocusSound('complete'); completeHyperGlanceSession(); }}
+              onClick={() => { setHgExitConfirm(false); setHgCompleted(true); playFocusSound('complete'); completeHyperGlanceSession(buildSessionStats()); }}
               className="w-full py-3 rounded-xl text-white font-semibold transition-opacity hover:opacity-90"
               style={{ backgroundColor: barColor }}
             >
