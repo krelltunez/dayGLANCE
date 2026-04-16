@@ -5267,9 +5267,16 @@ const DayPlanner = () => {
         if (!effectiveTime || effectiveTime === '0:0') return [];
         const [startH, startM] = effectiveTime.split(':').map(Number);
         if (!Number.isFinite(startH) || !Number.isFinite(startM)) return [];
-        return [{ id: project.id, title: project.title, date: instance.date, startMinutes: startH * 60 + startM }];
+        const allProjectTasks = [...tasks, ...unscheduledTasks];
+        const alreadyInstantiated = allProjectTasks.some(
+          t => t.projectId === project.id && t.hyperglanceSessionDate === instance.date
+        );
+        const taskCount = allProjectTasks.filter(
+          t => t.projectId === project.id && !t.archived && !t.completed
+        ).length + (alreadyInstantiated ? 0 : (hg.templateTasks?.length || 0));
+        return [{ id: project.id, title: project.title, date: instance.date, startMinutes: startH * 60 + startM, taskCount }];
       });
-  }, [projects, goalsProjectsEnabled]);
+  }, [projects, goalsProjectsEnabled, tasks, unscheduledTasks]);
 
   const {
     activeReminders, setActiveReminders,

@@ -125,7 +125,7 @@ export default function useReminderEngine({
             firedRemindersRef.current.add(upNextKey);
             hgFires.push({
               title: 'hyperGLANCE',
-              body: `${session.title} · Starts in ${upNextMinutes}m`,
+              body: `${session.title}${session.taskCount > 0 ? ` · ${session.taskCount} task${session.taskCount !== 1 ? 's' : ''}` : ''} · Starts in ${upNextMinutes}m`,
               tag: `hg-upnext-${session.id}`,
             });
           }
@@ -318,7 +318,7 @@ export default function useReminderEngine({
               id: `hg-upnext-${session.id}-${session.date}`,
               taskId: `hg-${session.id}`,
               title: 'hyperGLANCE',
-              body: `${session.title} · Starts in ${upNextMinutes}m`,
+              body: `${session.title}${session.taskCount > 0 ? ` · ${session.taskCount} task${session.taskCount !== 1 ? 's' : ''}` : ''} · Starts in ${upNextMinutes}m`,
               type: 'hg-upnext',
               isCalendarEvent: false,
               triggerAtMillis,
