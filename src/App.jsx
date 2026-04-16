@@ -5942,6 +5942,10 @@ const DayPlanner = () => {
     setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false } : t));
   };
 
+  // Tracks the last Up Next notification payload to avoid re-posting identical content,
+  // which causes a brief flicker on Android (dismiss + repost instead of update-in-place).
+  const lastUpNextRef = React.useRef(null); // { title, bodyText } | 'cancelled'
+
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
   // Runs whenever tasks, habits, routines, or frames change so the widget is always
@@ -6345,10 +6349,10 @@ const DayPlanner = () => {
             : `${endH > 12 ? endH - 12 : (endH || 12)}:${endM} ${endH >= 12 ? 'PM' : 'AM'}`;
           bodyText = `${nextHGItem.title} · In progress · ends at ${endStr}`;
         }
-        window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({
-          title: 'hyperGLANCE',
-          bodyText,
-        }));
+        if (lastUpNextRef.current?.title !== 'hyperGLANCE' || lastUpNextRef.current?.bodyText !== bodyText) {
+          lastUpNextRef.current = { title: 'hyperGLANCE', bodyText };
+          window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({ title: 'hyperGLANCE', bodyText }));
+        }
       } else if (nextTaskItem) {
         const startMin2 = timeToMinutes(nextTaskItem.startTime);
         const endMin2 = startMin2 + nextTaskItem.duration;
@@ -6368,12 +6372,15 @@ const DayPlanner = () => {
             : `${endH > 12 ? endH - 12 : (endH || 12)}:${endM} ${endH >= 12 ? 'PM' : 'AM'}`;
           bodyText = `In progress · ends at ${endStr}`;
         }
-        window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({
-          title: nextTaskItem.title,
-          bodyText,
-        }));
+        if (lastUpNextRef.current?.title !== nextTaskItem.title || lastUpNextRef.current?.bodyText !== bodyText) {
+          lastUpNextRef.current = { title: nextTaskItem.title, bodyText };
+          window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({ title: nextTaskItem.title, bodyText }));
+        }
       } else {
-        window.DayGlanceNative?.cancelUpNextNotification?.();
+        if (lastUpNextRef.current !== 'cancelled') {
+          lastUpNextRef.current = 'cancelled';
+          window.DayGlanceNative?.cancelUpNextNotification?.();
+        }
       }
     } catch (_) {}
   }, [
