@@ -1718,6 +1718,7 @@ const DayPlanner = () => {
     mobileDragPreviewTime, setMobileDragPreviewTime,
     mobileDragPreviewDate, setMobileDragPreviewDate,
     mobileDragTaskIdState, setMobileDragTaskIdState,
+    mobileDragIsRoutine,
     // mobile swipe refs
     swipeTouchStartX,
     swipeTouchStartY,
