@@ -146,17 +146,13 @@ export default function useReminderEngine({
 
       if (hgFires.length > 0) {
         playUISound('reminder');
-        if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        // Android: AlarmManager already fires showTaskNotification (with Snooze) — don't duplicate.
+        if (!isNativeAndroid() && reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           navigator.serviceWorker?.ready.then(reg => {
             for (const { title, body, tag } of hgFires) {
               try { reg.showNotification(title, { body, icon: '/icon-192.png', tag }); } catch {}
             }
           });
-        }
-        if (isNativeAndroid()) {
-          for (const { title, body } of hgFires) {
-            nativeShowNotification(title, body);
-          }
         }
       }
     }

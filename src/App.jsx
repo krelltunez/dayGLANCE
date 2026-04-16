@@ -6282,6 +6282,13 @@ const DayPlanner = () => {
           const hg = project.hyperglance;
           const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '';
           const duration = hg.scheduledDurationOverrides?.[instance.date] || hg.scheduledDuration || 60;
+          const allProjectTasks = [...tasks, ...unscheduledTasks];
+          const alreadyInstantiated = allProjectTasks.some(
+            t => t.projectId === project.id && t.hyperglanceSessionDate === instance.date
+          );
+          const taskCount = allProjectTasks.filter(
+            t => t.projectId === project.id && !t.archived && !t.completed
+          ).length + (alreadyInstantiated ? 0 : (hg.templateTasks?.length || 0));
           return {
             id: project.id,
             title: project.title,
@@ -6290,6 +6297,7 @@ const DayPlanner = () => {
             duration,
             isOverdue: instance.isOverdue,
             date: instance.date,
+            taskCount,
           };
         })
       : [];
@@ -6305,8 +6313,11 @@ const DayPlanner = () => {
     const nextUpNext = (() => {
       const taskMin = nextTaskItem ? timeToMinutes(nextTaskItem.startTime) : Infinity;
       const hgMin = nextHGForUpNext ? nextHGForUpNext.startMin : Infinity;
-      if (nextHGForUpNext && hgMin <= taskMin)
-        return { title: 'hyperGLANCE', startTime: nextHGForUpNext.startTime, duration: nextHGForUpNext.duration, bodyPrefix: `${nextHGForUpNext.title} · ` };
+      if (nextHGForUpNext && hgMin <= taskMin) {
+        const tc = nextHGForUpNext.taskCount;
+        const tcLabel = tc > 0 ? ` · ${tc} task${tc !== 1 ? 's' : ''}` : '';
+        return { title: 'hyperGLANCE', startTime: nextHGForUpNext.startTime, duration: nextHGForUpNext.duration, bodyPrefix: `${nextHGForUpNext.title}${tcLabel} · ` };
+      }
       if (nextTaskItem)
         return { title: nextTaskItem.title, startTime: nextTaskItem.startTime, duration: nextTaskItem.duration, bodyPrefix: '' };
       return null;
