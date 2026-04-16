@@ -300,6 +300,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   const [hgDuration, setHgDuration] = useState(Math.max(60, initHG.scheduledDuration || 60));
   const [hgTemplateTasks, setHgTemplateTasks] = useState(initHG.templateTasks || []);
   const [hgNewTask, setHgNewTask] = useState('');
+  const [editingTemplateTask, setEditingTemplateTask] = useState(null); // { id, name, notes }
   const [showHgDatePicker, setShowHgDatePicker] = useState(false);
   const [showHgTimePicker, setShowHgTimePicker] = useState(false);
 
@@ -316,6 +317,11 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   };
 
   const removeHGTemplateTask = (id) => setHgTemplateTasks(prev => prev.filter(t => t.id !== id));
+  const saveEditingTemplateTask = () => {
+    if (!editingTemplateTask) return;
+    setHgTemplateTasks(prev => prev.map(t => t.id === editingTemplateTask.id ? { ...t, name: editingTemplateTask.name, notes: editingTemplateTask.notes } : t));
+    setEditingTemplateTask(null);
+  };
 
   // "Completed" only available when all project tasks are completed (or none exist)
   const projectTasks = initial
@@ -624,6 +630,10 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
                 {hgTemplateTasks.map(t => (
                   <div key={t.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                     <span className={`flex-1 text-sm ${textPrimary}`}>{t.name}</span>
+                    {t.notes && <span className={`text-xs ${textSecondary} truncate max-w-[120px]`} title={t.notes}>{t.notes}</span>}
+                    <button type="button" onClick={() => setEditingTemplateTask({ id: t.id, name: t.name, notes: t.notes || '' })} className={`p-0.5 rounded ${hoverBg}`}>
+                      <Pencil size={13} className={textSecondary} />
+                    </button>
                     <button type="button" onClick={() => removeHGTemplateTask(t.id)} className={`p-0.5 rounded ${hoverBg}`}>
                       <Trash2 size={13} className="text-red-400" />
                     </button>
@@ -654,6 +664,41 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           </div>
         )}
       </div>
+
+      {/* Template task edit modal */}
+      {editingTemplateTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80]" onClick={() => setEditingTemplateTask(null)}>
+          <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-2xl p-4 w-80 mx-4`} onClick={e => e.stopPropagation()}>
+            <h4 className={`text-sm font-semibold ${textPrimary} mb-3`}>Edit template task</h4>
+            <div className="space-y-3">
+              <div>
+                <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>Name</label>
+                <input
+                  type="text"
+                  value={editingTemplateTask.name}
+                  onChange={e => setEditingTemplateTask(prev => ({ ...prev, name: e.target.value }))}
+                  className={`w-full px-2 py-1.5 text-sm rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-stone-300 text-stone-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>Note <span className="font-normal opacity-60">(carried into each session)</span></label>
+                <textarea
+                  value={editingTemplateTask.notes}
+                  onChange={e => setEditingTemplateTask(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="Optional note…"
+                  className={`w-full px-2 py-1.5 text-sm rounded-lg border resize-none ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-500' : 'bg-white border-stone-300 text-stone-900 placeholder-stone-400'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button type="button" onClick={() => setEditingTemplateTask(null)} className={`px-3 py-1.5 text-sm rounded-lg ${hoverBg} ${textSecondary} transition-colors`}>Cancel</button>
+              <button type="button" onClick={saveEditingTemplateTask} disabled={!editingTemplateTask.name.trim()} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2 justify-end">

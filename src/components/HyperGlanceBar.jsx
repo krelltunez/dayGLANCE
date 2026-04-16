@@ -140,8 +140,10 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
         <div
           className="fixed z-[70] rounded-xl shadow-2xl p-3 min-w-[170px] bg-white dark:bg-gray-900 border"
           style={{
-            left: Math.min(statsPos.x, window.innerWidth - 190),
-            top: Math.min(statsPos.y + 6, window.innerHeight - 120),
+            left: Math.min(Math.max(statsPos.x, 8), window.innerWidth - 190),
+            top: (statsPos.y + 6 + 130 > window.innerHeight)
+              ? Math.max(statsPos.y - 130 - 6, 8)
+              : statsPos.y + 6,
             borderColor: `${barColor}50`,
           }}
         >
