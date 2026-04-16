@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   CalendarDays, CheckCircle, CheckSquare, ChevronDown, ChevronUp,
@@ -98,6 +98,19 @@ const MobileSettingsPanel = () => {
     reminderSettings, setReminderSettings,
     applyReminderPreset, updateCategoryReminder,
   } = useFeaturesCtx();
+
+  // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
+  const mobileSettingsViewRef = useRef(mobileSettingsView);
+  const handleRoutinesDoneRef = useRef(handleRoutinesDone);
+  useEffect(() => { mobileSettingsViewRef.current = mobileSettingsView; }, [mobileSettingsView]);
+  useEffect(() => { handleRoutinesDoneRef.current = handleRoutinesDone; });
+  useEffect(() => {
+    return () => {
+      if (mobileSettingsViewRef.current === 'routines') {
+        handleRoutinesDoneRef.current();
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
 <div className={`relative overflow-hidden mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
