@@ -126,7 +126,7 @@ export default function useReminderEngine({
             hgFires.push({
               title: 'hyperGLANCE',
               body: `${session.title}${session.taskCount > 0 ? ` · ${session.taskCount} task${session.taskCount !== 1 ? 's' : ''}` : ''} · Starts in ${upNextMinutes}m`,
-              tag: `hg-upnext-${session.id}`,
+              tag: `hg-session-${session.id}`,
             });
           }
         }
@@ -139,7 +139,7 @@ export default function useReminderEngine({
           hgFires.push({
             title: 'hyperGLANCE',
             body: `${session.title} · Starting now`,
-            tag: `hg-start-${session.id}`,
+            tag: `hg-session-${session.id}`,
           });
         }
       }
