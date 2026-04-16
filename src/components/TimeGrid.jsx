@@ -141,7 +141,7 @@ const TimeGrid = () => {
       const isDateToday = dateStr === dateToString(new Date());
       const dayTasks = getTasksForDate(date).filter(t => !t.isAllDay && (!projectFilter || t.projectId === projectFilter));
       const frameInstances = getFrameInstancesForDate(date);
-      const hgBars = getHGBarsForDate(projects, dateStr);
+      const hgBars = getHGBarsForDate(projects, dateStr, isDateToday ? new Date().getHours() * 60 + new Date().getMinutes() : undefined);
       const hasBars = hgBars.length > 0;
       // Returns true if a task's time range overlaps with any HG bar's scheduled time range
       const taskOverlapsHG = (task) => {

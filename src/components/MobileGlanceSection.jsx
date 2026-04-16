@@ -1128,7 +1128,7 @@ const MobileGlanceSection = () => {
               >
                 <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
                 <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-gray-200' : 'text-stone-800'}`}>{project.title}</span>
-                {instance.isOverdue && <span className="text-xs font-semibold text-amber-500 flex-shrink-0">Overdue</span>}
+                {instance.isOverdue && <span className="text-xs font-semibold text-amber-500 flex-shrink-0">{new Date(instance.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Overdue</span>}
                 {timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{timeLabel}</span>}
                 <Zap size={12} style={{ color: barColor, flexShrink: 0 }} />
               </button>

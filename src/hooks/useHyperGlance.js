@@ -104,14 +104,15 @@ export function getActiveHGInstance(project, nowMinutes) {
  * - Active (incomplete) instance for that date → full bar
  * - Completed instance for that date → small pill
  */
-export function getHGBarsForDate(projects, dateStr) {
+export function getHGBarsForDate(projects, dateStr, nowMinutes) {
   const bars = [];
 
   for (const project of projects) {
+    if (project.archived) continue;
     const hg = project.hyperglance;
     if (!hg?.enabled) continue;
 
-    const active = getActiveHGInstance(project);
+    const active = getActiveHGInstance(project, nowMinutes);
     const completedOnDate = (hg.completions || []).some(c => c.date === dateStr);
 
     if (active?.date === dateStr) {
@@ -143,19 +144,24 @@ export function isHGSessionReachable(instance, hgConfig, currentTime) {
 
 /**
  * Returns all hyperGLANCE instances for the GLANCE panel: today's sessions
- * plus any overdue (missed) sessions, overdue entries sorted first.
+ * plus any overdue (missed) sessions, overdue entries sorted first, then by time.
  */
 export function getGlanceHGInstances(projects, nowMinutes) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = dateToString(today);
   return projects
-    .filter(p => p.hyperglance?.enabled)
+    .filter(p => !p.archived && p.hyperglance?.enabled)
     .map(p => ({ project: p, instance: getActiveHGInstance(p, nowMinutes) }))
     .filter(({ instance }) => instance && (instance.isOverdue || instance.date === todayStr))
     .sort((a, b) => {
       if (a.instance.isOverdue && !b.instance.isOverdue) return -1;
       if (!a.instance.isOverdue && b.instance.isOverdue) return 1;
-      return 0;
+      // Same overdue status — sort chronologically by effective start time
+      const tA = a.project.hyperglance.scheduledTimeOverrides?.[a.instance.date] || a.project.hyperglance.scheduledTime || '0:0';
+      const tB = b.project.hyperglance.scheduledTimeOverrides?.[b.instance.date] || b.project.hyperglance.scheduledTime || '0:0';
+      const [ah, am] = tA.split(':').map(Number);
+      const [bh, bm] = tB.split(':').map(Number);
+      return (ah * 60 + am) - (bh * 60 + bm);
     });
 }

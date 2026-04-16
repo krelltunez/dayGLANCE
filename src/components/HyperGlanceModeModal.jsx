@@ -68,7 +68,7 @@ const HyperGlanceModeModal = () => {
       setHgCompleted(true);
       completeHyperGlanceSession();
     }
-  }, [allDone, hgCompleted, hgShowSettings]);
+  }, [allDone, hgCompleted, hgShowSettings, completeHyperGlanceSession]);
 
   // Play sounds on phase transitions
   useEffect(() => {
@@ -120,7 +120,7 @@ const HyperGlanceModeModal = () => {
       if (sessionStartRef.current) {
         setSessionElapsed(Math.floor((Date.now() - sessionStartRef.current) / 1000));
       }
-    }, 10000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [hgTimerRunning]);
 

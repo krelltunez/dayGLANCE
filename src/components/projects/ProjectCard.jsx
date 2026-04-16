@@ -34,7 +34,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
     openMobileEditTask,
-    getTodayStr,
+    getTodayStr, currentTimeMinutes,
     darkMode, isMobile, use24HourClock,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
@@ -43,7 +43,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     mobileActiveTab,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
-  const { goals, deleteProject, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard } = useFeaturesCtx();
+  const { goals, deleteProject, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
 
@@ -321,8 +321,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           <span className={`text-sm font-semibold ${textPrimary} leading-tight flex-1 min-w-0`}>
             {project.title}
           </span>
-          {project.hyperglance?.enabled && project.status !== 'completed' && (() => {
-              const instance = getActiveHGInstance(project);
+          {project.hyperglance?.enabled && project.status !== 'completed' && !project.archived && (() => {
+              const instance = getActiveHGInstance(project, currentTimeMinutes);
               if (!instance) return null;
               const hg = project.hyperglance;
               const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime;
@@ -355,13 +355,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               }
               const color = hg.color || '#4f46e5';
               return (
-                <span
+                <button
+                  onClick={() => enterHyperGlanceMode(project.id, instance.date)}
                   className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0${instance.isOverdue ? ' bg-orange-400/20 text-orange-400' : ''}`}
                   style={instance.isOverdue ? {} : { backgroundColor: color + '25', color }}
                 >
                   <Zap size={9} />
                   {dateLabel}{timeStr}
-                </span>
+                </button>
               );
             })()}
           <div className="flex items-center gap-1 flex-shrink-0">

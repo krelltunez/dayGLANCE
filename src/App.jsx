@@ -2987,6 +2987,7 @@ const DayPlanner = () => {
     const newTasks = templates.map(tmpl => ({
       id: `hg-${project.id}-${sessionDate}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: tmpl.name,
+      ...(tmpl.notes ? { notes: tmpl.notes } : {}),
       projectId: project.id,
       hyperglanceSessionDate: sessionDate,
       completed: false,

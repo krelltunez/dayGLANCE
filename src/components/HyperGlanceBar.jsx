@@ -90,11 +90,17 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
     setHgContextMenu({ x: e.clientX, y: e.clientY, projectId: project.id, date, isCompleted });
   };
 
-  // Task count for future bars: incomplete real tasks + template tasks
+  // Task count for future bars: incomplete real tasks + template tasks.
+  // Only add template count if templates haven't been instantiated yet for this
+  // session date — otherwise they're already included in the real task count.
+  const allProjectTasks = [...(tasks || []), ...(unscheduledTasks || [])];
+  const alreadyInstantiated = allProjectTasks.some(
+    t => t.projectId === project.id && t.hyperglanceSessionDate === date
+  );
   const incompleteTaskCount =
-    [...(tasks || []), ...(unscheduledTasks || [])].filter(
+    allProjectTasks.filter(
       t => t.projectId === project.id && !t.archived && !t.completed
-    ).length + (hg.templateTasks?.length || 0);
+    ).length + (alreadyInstantiated ? 0 : (hg.templateTasks?.length || 0));
 
   const timeLabel = (() => {
     if (!hg.scheduledTime) return '';
@@ -134,8 +140,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
           className="fixed z-[70] rounded-xl shadow-2xl p-3 min-w-[170px] bg-white dark:bg-gray-900 border"
           style={{
             left: Math.min(statsPos.x, window.innerWidth - 190),
-            top: statsPos.y - 8,
-            transform: 'translateY(-100%)',
+            top: Math.min(statsPos.y + 6, window.innerHeight - 120),
             borderColor: `${barColor}50`,
           }}
         >
@@ -177,7 +182,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue }) => {
               onClick={(e) => {
                 e.stopPropagation();
                 const rect = e.currentTarget.closest('.absolute')?.getBoundingClientRect();
-                setStatsPos(rect ? { x: rect.left, y: rect.top, width: rect.width } : null);
+                setStatsPos(rect ? { x: rect.left, y: rect.bottom, width: rect.width } : null);
                 setShowStats(s => !s);
               }}
               className="flex-shrink-0 ml-0.5 pointer-events-auto opacity-80 hover:opacity-100"
