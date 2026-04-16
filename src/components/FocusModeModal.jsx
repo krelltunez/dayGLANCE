@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Target, Pause, Play, Check, Trophy } from 'lucide-react';
+import { X, Target, Pause, Play, Check, SkipForward, Trophy } from 'lucide-react';
 import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission } from '../native.js';
 import { stripWikilinks, extractWikilinks } from '../utils/taskUtils.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -11,7 +11,7 @@ const FocusModeModal = () => {
   const { currentTime, isPhone, isTablet, formatTime, minutesToTime, timeToMinutes } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
-    exitFocusMode, startFocusTimer, dismissFocusStats,
+    exitFocusMode, startFocusTimer, dismissFocusStats, skipFocusPhase,
     focusShowSettings, focusShowStats,
     focusWorkMinutes, setFocusWorkMinutes,
     focusBreakMinutes, setFocusBreakMinutes,
@@ -115,13 +115,22 @@ const FocusModeModal = () => {
             {String(Math.floor(focusTimerSeconds / 60)).padStart(2, '0')}:{String(focusTimerSeconds % 60).padStart(2, '0')}
           </div>
 
-          {/* Pause/Resume */}
-          <button
-            onClick={() => setFocusTimerRunning(prev => !prev)}
-            className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-colors"
-          >
-            {focusTimerRunning ? <Pause size={24} /> : <Play size={24} />}
-          </button>
+          {/* Pause/Resume + Skip phase */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setFocusTimerRunning(prev => !prev)}
+              className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-colors"
+            >
+              {focusTimerRunning ? <Pause size={24} /> : <Play size={24} />}
+            </button>
+            <button
+              onClick={skipFocusPhase}
+              className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 transition-colors"
+              title="Skip phase"
+            >
+              <SkipForward size={16} />
+            </button>
+          </div>
 
           {/* Pomodoro cycle dots */}
           <div className="flex gap-3">

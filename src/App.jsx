@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeSetImmersiveMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
+import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -2923,6 +2923,23 @@ const DayPlanner = () => {
     setShowFocusMode(false);
   };
 
+  const skipFocusPhase = () => {
+    if (focusPhase === 'work') {
+      const newCycle = focusCycleCount + 1;
+      setFocusCycleCount(newCycle);
+      if (newCycle % 4 === 0) {
+        setFocusPhase('longBreak');
+        setFocusTimerSeconds(focusLongBreakMinutes * 60);
+      } else {
+        setFocusPhase('shortBreak');
+        setFocusTimerSeconds(focusBreakMinutes * 60);
+      }
+    } else {
+      setFocusPhase('work');
+      setFocusTimerSeconds(focusWorkMinutes * 60);
+    }
+  };
+
   const handleFocusTimerEnd = () => {
     if (focusPhase === 'work') {
       // Distribute work minutes across active (non-completed) block tasks
@@ -3001,8 +3018,8 @@ const DayPlanner = () => {
         }
       } catch (e) {}
     })();
-    // Android: hide system bars
-    nativeSetImmersiveMode(true);
+    // Android: immersive mode + pause notifications + DND (same as Focus Mode)
+    nativeEnterFocusMode();
   };
 
   const exitHyperGlanceMode = () => {
@@ -3013,8 +3030,8 @@ const DayPlanner = () => {
     // Exit fullscreen and release wake lock
     try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch (e) {}
     try { wakeLockSentinel.current?.release(); wakeLockSentinel.current = null; } catch (e) {}
-    // Android: restore system bars
-    nativeSetImmersiveMode(false);
+    // Android: restore system bars + DND + reschedule notifications
+    nativeExitFocusMode();
   };
 
   const completeHyperGlanceSession = () => {
@@ -7275,7 +7292,7 @@ const DayPlanner = () => {
     addStepsHabit, addSleepHabit,
 
     // ── Functions – focus mode ────────────────────────────────────────────────
-    enterFocusMode, exitFocusMode,
+    enterFocusMode, exitFocusMode, skipFocusPhase,
     startFocusTimer, dismissFocusStats, handleFocusTimerEnd,
     focusCompleteTask, focusToggleSubtask, focusAddSubtask,
     focusDeleteSubtask, focusUpdateSubtaskTitle, focusUpdateTaskNotes,

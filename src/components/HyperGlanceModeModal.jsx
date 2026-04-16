@@ -6,12 +6,14 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
+import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission } from '../native.js';
 
 const HyperGlanceModeModal = () => {
   const {
     currentTime, darkMode, isPhone,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
+    toggleComplete,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     aiSubtasksLoadingForTask,
     generateAISubtasks,
@@ -134,13 +136,11 @@ const HyperGlanceModeModal = () => {
 
   const handleToggleTask = (taskId) => {
     const taskBeingToggled = projectTasks.find(t => t.id === taskId);
-    const inScheduled = tasks.find(t => t.id === taskId);
-    if (inScheduled) {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, lastModified: new Date().toISOString() } : t));
-    } else {
-      setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, lastModified: new Date().toISOString() } : t));
-    }
-    // Play completion sound synchronously in the gesture handler — Android's AudioContext
+    const fromInbox = !tasks.find(t => t.id === taskId);
+    // toggleComplete handles tick sound, vibration, undo tracking, onboarding progress,
+    // and updating the right list (scheduled vs unscheduled).
+    toggleComplete(taskId, fromInbox);
+    // Play completion chord synchronously in the gesture handler — Android's AudioContext
     // is often suspended by the time a useEffect fires, so the sound would be silently dropped.
     if (!taskBeingToggled?.completed) {
       const remainingIncomplete = projectTasks.filter(t => !t.completed && t.id !== taskId);
@@ -240,6 +240,19 @@ const HyperGlanceModeModal = () => {
             </div>
             <p className="text-gray-600 text-xs">Long break replaces break every 4 cycles.</p>
           </div>
+
+          {/* Android DND permission prompt */}
+          {isNativeAndroid() && !nativeIsDndPermissionGranted() && (
+            <div className="w-full flex items-center justify-between bg-gray-800/60 border border-gray-700 rounded-lg px-4 py-3 text-sm">
+              <span className="text-gray-300">Enable Do Not Disturb during session?</span>
+              <button
+                onClick={nativeRequestDndPermission}
+                className="ml-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex-shrink-0"
+              >
+                Grant access
+              </button>
+            </div>
+          )}
 
           {/* Task preview */}
           {projectTasks.length > 0 && (

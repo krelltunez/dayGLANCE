@@ -742,9 +742,11 @@ export default function useTaskActions({
       next.add(taskId);
       return next;
     });
-    playFocusSound('complete');
+    // Play completion chord only when all tasks are done — consistent with hyperGLANCE.
+    // (toggleComplete above plays the 'tick' sound on every toggle.)
     const allDone = focusBlockTasks.every(t => t.completed || t.id === taskId || focusCompletedTasks.has(t.id));
     if (allDone) {
+      playFocusSound('complete');
       setTimeout(() => exitFocusModeRef.current?.(true), 500);
     }
   };
