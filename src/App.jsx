@@ -2900,7 +2900,6 @@ const DayPlanner = () => {
         });
       }
     }
-    setFocusProjectId(null);
     if (showStats) {
       setFocusShowStats(true);
     } else {
