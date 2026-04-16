@@ -355,11 +355,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 }
               }
               const color = hg.color || '#4f46e5';
+              const r = parseInt(color.slice(1, 3), 16);
+              const g = parseInt(color.slice(3, 5), 16);
+              const b = parseInt(color.slice(5, 7), 16);
               return (
                 <button
                   onClick={() => enterHyperGlanceMode(project.id, instance.date)}
                   className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0${instance.isOverdue ? ' bg-orange-400/20 text-orange-400' : ''}`}
-                  style={instance.isOverdue ? {} : { backgroundColor: color + '25', color }}
+                  style={instance.isOverdue ? {} : { backgroundColor: `rgba(${r},${g},${b},0.15)`, color }}
                 >
                   <Zap size={9} />
                   {dateLabel}{timeStr}
