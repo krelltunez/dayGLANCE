@@ -6348,61 +6348,6 @@ const DayPlanner = () => {
     try {
       window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
     } catch (_) {}
-
-    // ── Up Next lock screen / drawer notification ─────────────────────────
-    // Consider both the next scheduled task and the next HG session; show whichever is sooner.
-    try {
-      // Find the soonest non-overdue HG session that hasn't ended yet
-      const nextHGItem = hyperGlanceItems
-        .filter(s => !s.isOverdue && s.startTime && s.startTime !== '0:0')
-        .map(s => { const [h, m] = s.startTime.split(':').map(Number); return { ...s, startMin: h * 60 + m }; })
-        .filter(s => nowMinW < s.startMin + s.duration)
-        .sort((a, b) => a.startMin - b.startMin)[0] || null;
-
-      // Pick whichever is sooner; HG wins on tie
-      const taskStartMin = nextTaskItem ? timeToMinutes(nextTaskItem.startTime) : Infinity;
-      const hgStartMin = nextHGItem ? nextHGItem.startMin : Infinity;
-      const showHG = nextHGItem && hgStartMin <= taskStartMin;
-
-      if (showHG) {
-        const endMin2 = nextHGItem.startMin + nextHGItem.duration;
-        let bodyText;
-        if (nowMinW < nextHGItem.startMin) {
-          const diff = nextHGItem.startMin - nowMinW;
-          bodyText = `${nextHGItem.title} · Starts in ${diff >= 60 ? `${Math.floor(diff / 60)}h${diff % 60 > 0 ? ` ${diff % 60}m` : ''}` : `${diff}m`}`;
-        } else {
-          const endH = Math.floor(endMin2 / 60) % 24;
-          const endM = (endMin2 % 60).toString().padStart(2, '0');
-          const endStr = use24HourClock
-            ? `${endH}:${endM}`
-            : `${endH > 12 ? endH - 12 : (endH || 12)}:${endM} ${endH >= 12 ? 'PM' : 'AM'}`;
-          bodyText = `${nextHGItem.title} · In progress · ends at ${endStr}`;
-        }
-        window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({ title: 'hyperGLANCE', bodyText }));
-      } else if (nextTaskItem) {
-        const startMin2 = timeToMinutes(nextTaskItem.startTime);
-        const endMin2 = startMin2 + nextTaskItem.duration;
-        let bodyText;
-        if (nowMinW < startMin2) {
-          const diff = startMin2 - nowMinW;
-          bodyText = diff >= 60
-            ? `Starts in ${Math.floor(diff / 60)}h${diff % 60 > 0 ? ` ${diff % 60}m` : ''}`
-            : `Starts in ${diff}m`;
-        } else if (nextTaskItem.duration === 0) {
-          bodyText = 'Starting now';
-        } else {
-          const endH = Math.floor(endMin2 / 60) % 24;
-          const endM = (endMin2 % 60).toString().padStart(2, '0');
-          const endStr = use24HourClock
-            ? `${endH}:${endM}`
-            : `${endH > 12 ? endH - 12 : (endH || 12)}:${endM} ${endH >= 12 ? 'PM' : 'AM'}`;
-          bodyText = `In progress · ends at ${endStr}`;
-        }
-        window.DayGlanceNative?.updateUpNextNotification?.(JSON.stringify({ title: nextTaskItem.title, bodyText }));
-      } else {
-        window.DayGlanceNative?.cancelUpNextNotification?.();
-      }
-    } catch (_) {}
   }, [
     dataLoaded,
     todayAgenda,
