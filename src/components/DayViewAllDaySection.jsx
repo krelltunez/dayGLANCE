@@ -1,28 +1,85 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Check, Inbox, Pencil, SkipForward, Trash2 } from 'lucide-react';
 import { renderTitleWithoutTags } from '../utils/textFormatting.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
-// ── TaskChip ──────────────────────────────────────────────────────────────────
+// ── AllDayChip — matches multi-view card style ────────────────────────────────
 
-const TaskChip = ({ task, onClick, getTaskCalendarStyle, darkMode }) => {
-  const isCalendarEvent = task.imported && !task.isTaskCalendar;
-  const calStyle = (isCalendarEvent || task.isTaskCalendar) ? getTaskCalendarStyle(task, darkMode) : {};
+const AllDayChip = ({ task, getTaskCalendarStyle, darkMode, openMobileEditTask }) => {
+  const {
+    isTablet,
+    toggleComplete, postponeTask, moveToInbox, moveToRecycleBin,
+  } = useDayPlannerCtx();
+
+  const isImported = task.imported && !task.isTaskCalendar;
+  const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
+  const calStyle = (isImported || task.isTaskCalendar) ? getTaskCalendarStyle(task, darkMode) : {};
+
   return (
-    <button
-      onClick={onClick}
-      className={`${task.isTaskCalendar ? '' : task.color} text-white text-xs font-medium px-2 py-1 rounded-md shadow-sm truncate max-w-[200px] flex-shrink-0 ${task.completed ? 'opacity-50 line-through' : ''}`}
+    <div
+      onClick={() => openMobileEditTask(task, false)}
+      className={`${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm cursor-pointer flex-shrink-0 ${task.completed && !isImported ? 'opacity-50' : ''}`}
       style={calStyle}
       title={task.title}
     >
-      {renderTitleWithoutTags(task.title)}
-    </button>
+      <div className="px-2 py-1 text-white">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {(!task.imported || task.isTaskCalendar) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleComplete(task.id); }}
+              className={`rounded flex-shrink-0 border-2 border-white w-3.5 h-3.5 flex items-center justify-center transition-colors ${task.completed ? 'bg-white/40' : 'bg-white/20'} hover:bg-white/30`}
+            >
+              {task.completed && <Check size={9} strokeWidth={3} />}
+            </button>
+          )}
+          <span className={`text-xs font-semibold truncate flex-1 min-w-0 max-w-[160px] ${task.completed ? 'line-through' : ''}`}>
+            {renderTitleWithoutTags(task.title)}
+          </span>
+          {!isTablet && !isImported && (
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
+                className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
+                title="Postpone"
+              >
+                <SkipForward size={10} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
+                className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
+                title="Edit"
+              >
+                <Pencil size={10} />
+              </button>
+              {isRecurring ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
+                  className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
+                  title="Delete"
+                >
+                  <Trash2 size={10} />
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); moveToInbox(task.id); }}
+                  className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
+                  title="To Inbox"
+                >
+                  <Inbox size={10} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
 // ── GroupChips — one date group with 2-row height cap + "+N more" popover ────
 
-const CHIP_ROW_H = 28; // px: approximate height of one chip row (text-xs + py-1)
+const CHIP_ROW_H = 32; // px: approximate height of one chip row
 const ROW_GAP = 4;     // px: gap-1 = 4px
 const MAX_ROWS = 2;
 const MAX_H = CHIP_ROW_H * MAX_ROWS + ROW_GAP * (MAX_ROWS - 1);
@@ -33,8 +90,6 @@ const GroupChips = ({ tasks, darkMode, textSecondary, borderClass, cardBg, getTa
   const [limit, setLimit] = useState(null); // null = show all
   const [overflowOpen, setOverflowOpen] = useState(false);
 
-  // Measure which chips fit within MAX_ROWS. Re-runs on task count change AND
-  // on container width change (ResizeObserver) so wrapping recalculates on resize.
   useLayoutEffect(() => {
     const el = ghostRef.current;
     if (!el) return;
@@ -87,19 +142,19 @@ const GroupChips = ({ tasks, darkMode, textSecondary, borderClass, cardBg, getTa
         aria-hidden="true"
       >
         {tasks.map(t => (
-          <TaskChip key={t.id} task={t} darkMode={darkMode} getTaskCalendarStyle={getTaskCalendarStyle} />
+          <AllDayChip key={t.id} task={t} darkMode={darkMode} getTaskCalendarStyle={getTaskCalendarStyle} openMobileEditTask={openMobileEditTask} />
         ))}
       </div>
 
       {/* Visible chips */}
-      <div className="flex flex-wrap gap-1" style={{ maxHeight: MAX_H + 12 }}>
+      <div className="flex flex-wrap gap-1">
         {shown.map(t => (
-          <TaskChip
+          <AllDayChip
             key={t.id}
             task={t}
             darkMode={darkMode}
             getTaskCalendarStyle={getTaskCalendarStyle}
-            onClick={() => openMobileEditTask(t, false)}
+            openMobileEditTask={openMobileEditTask}
           />
         ))}
 
@@ -115,12 +170,12 @@ const GroupChips = ({ tasks, darkMode, textSecondary, borderClass, cardBg, getTa
             {overflowOpen && (
               <div className={`absolute top-full left-0 mt-1 z-50 rounded-lg shadow-xl border ${borderClass} ${cardBg} p-2 min-w-[160px] max-w-[260px] flex flex-col gap-1`}>
                 {overflowTasks.map(t => (
-                  <TaskChip
+                  <AllDayChip
                     key={t.id}
                     task={t}
                     darkMode={darkMode}
                     getTaskCalendarStyle={getTaskCalendarStyle}
-                    onClick={() => { setOverflowOpen(false); openMobileEditTask(t, false); }}
+                    openMobileEditTask={() => { setOverflowOpen(false); openMobileEditTask(t, false); }}
                   />
                 ))}
               </div>
@@ -174,19 +229,26 @@ const DayViewAllDaySection = () => {
 
   return (
     <div className={`flex border-b ${borderClass} ${cardBg}`}>
-      {groupsWithTasks.map(group => (
-        <div key={group.dateStr} style={{ flex: group.count }} className="min-w-0">
-          <GroupChips
-            tasks={group.tasks}
-            darkMode={darkMode}
-            textSecondary={textSecondary}
-            borderClass={borderClass}
-            cardBg={cardBg}
-            getTaskCalendarStyle={getTaskCalendarStyle}
-            openMobileEditTask={openMobileEditTask}
-          />
-        </div>
-      ))}
+      {/* ALL DAY gutter label — matches multi-view all-day section */}
+      <div className={`w-16 flex-shrink-0 px-2 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
+        ALL DAY
+      </div>
+      {/* Date groups — each spans `count` columns proportionally */}
+      <div className="flex flex-1 min-w-0">
+        {groupsWithTasks.map((group, idx) => (
+          <div key={group.dateStr} style={{ flex: group.count }} className={`min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}>
+            <GroupChips
+              tasks={group.tasks}
+              darkMode={darkMode}
+              textSecondary={textSecondary}
+              borderClass={borderClass}
+              cardBg={cardBg}
+              getTaskCalendarStyle={getTaskCalendarStyle}
+              openMobileEditTask={openMobileEditTask}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

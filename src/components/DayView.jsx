@@ -4,17 +4,12 @@ import {
   Pencil, RefreshCw, SkipForward, Trash2,
 } from 'lucide-react';
 import { renderTitleWithoutTags } from '../utils/textFormatting.jsx';
+import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useDayViewHourHeight from '../hooks/useDayViewHourHeight.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function hourLabel(hour, use24h) {
-  if (use24h) return `${hour.toString().padStart(2, '0')}:00`;
-  const n = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return <>{n}<span className="text-[10px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>;
-}
 
 function getTaskSlice(task, col, hourHeight, timeToMinutes) {
   const taskStart = timeToMinutes(task.startTime || '0:00');
@@ -94,43 +89,34 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
 
   return (
     <div className={`flex-1 flex flex-col min-w-0 ${colIdx > 0 ? `border-l ${borderClass}` : ''}`}>
-      {/* Gutter + grid */}
-      <div className="flex flex-1 relative">
-        {/* Hour label gutter — matches TimeGrid's w-16 px-3 py-1 text-sm styling */}
-        <div className={`w-16 flex-shrink-0 border-r ${borderClass}`}>
-          {hours.map(hour => (
-            <div
-              key={hour}
-              className={`px-3 py-1 text-sm ${textSecondary} flex items-start`}
-              style={{ height: `${hourHeight}px` }}
-            >
-              {hourLabel(hour, use24HourClock)}
+      <div className="flex-1 relative">
+        {/* Hour rows — each is a full-width flex row matching TimeGrid's structure */}
+        {hours.map((hour, i) => (
+          <div key={hour} className="relative">
+            <div className={`flex border-b ${borderClass} ${i % 2 === 1 ? altRow : ''}`}>
+              <div
+                className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass} flex items-start`}
+                style={{ height: `${hourHeight}px` }}
+              >
+                {formatHourLabel(hour, use24HourClock)}
+              </div>
+              <div className="flex-1" style={{ height: `${hourHeight}px` }} />
             </div>
-          ))}
-        </div>
-
-        {/* Time slot rows */}
-        <div className="flex-1 relative">
-          {hours.map((hour, i) => (
+            {/* Half-hour dashed line — full-width flex matching TimeGrid */}
             <div
-              key={hour}
-              className={`border-b ${borderClass} ${i % 2 === 1 ? altRow : ''}`}
-              style={{ height: `${hourHeight}px` }}
-            />
-          ))}
-
-          {/* Half-hour dashed lines */}
-          {hours.map(hour => (
-            <div
-              key={`half-${hour}`}
               className="absolute left-0 right-0 pointer-events-none"
-              style={{ top: `${(hour - col.startHour) * hourHeight + hourHeight / 2}px` }}
+              style={{ top: `${hourHeight / 2}px` }}
             >
-              <div className={`border-b border-dashed ${borderClass} opacity-50`} />
+              <div className={`flex border-b border-dashed ${borderClass} opacity-50`}>
+                <div className="w-16 flex-shrink-0" />
+                <div className="flex-1" />
+              </div>
             </div>
-          ))}
+          </div>
+        ))}
 
-          {/* Task pills */}
+        {/* Task pill overlay — covers the event area only (right of gutter) */}
+        <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
           {colTasks.map(task => {
             const slice = getTaskSlice(task, col, hourHeight, timeToMinutes);
             if (!slice) return null;
@@ -222,7 +208,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                   {showTitle && height > 42 && (
                     <div className="text-[10px] opacity-80 leading-none mt-0.5 flex-shrink-0">
                       {formatTime(task.startTime)}
-                      {task.duration ? ` \u00b7 ${task.duration}m` : ''}
+                      {task.duration ? ` · ${task.duration}m` : ''}
                     </div>
                   )}
                 </div>

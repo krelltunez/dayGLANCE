@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitleWithoutTags, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
+import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -92,10 +93,7 @@ const TimeGrid = () => {
       {/* Main hour row with solid border */}
       <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50') : ''}`}>
         <div className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass}`}>
-          {use24HourClock
-            ? `${hour.toString().padStart(2, '0')}:00`
-            : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[10px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>
-          }
+          {formatHourLabel(hour, use24HourClock)}
         </div>
         {visibleDates.map((date, idx) => (
           <div
