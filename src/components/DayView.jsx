@@ -115,8 +115,6 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             </div>
           </div>
         ))}
-        {/* Absorbs the floor-rounding remainder so columns fill the full height */}
-        <div className="flex-1" />
 
         {/* Current-time indicator — dot at gutter edge, line across event area */}
         {showNowLine && (
