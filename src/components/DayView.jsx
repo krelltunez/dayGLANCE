@@ -94,7 +94,11 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
       <div className="flex-1 relative flex flex-col">
         {/* Hour rows — each is a full-width flex row matching TimeGrid's structure */}
         {hours.map((hour, i) => (
-          <div key={hour} className="relative" style={{ height: `${hourHeight}px` }}>
+          <div
+            key={hour}
+            className={`relative${i === hours.length - 1 ? ' flex-1' : ''}`}
+            style={i === hours.length - 1 ? { minHeight: `${hourHeight}px` } : { height: `${hourHeight}px` }}
+          >
             <div className={`flex border-b h-full ${borderClass} ${i % 2 === 1 ? altRow : ''}`}>
               <div
                 className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass} flex items-start h-full`}
