@@ -100,7 +100,7 @@ const TimeGrid = () => {
           <div
             key={dateToString(date)}
             data-ctx-menu
-            className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+            className={`flex-1 relative h-40 calendar-slot ${idx > 0 ? `border-l ${borderClass}` : ''} ${dateToString(date) === dateToString(new Date()) ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}
             data-date={dateToString(date)}
             onDragOver={(e) => handleDragOver(e, date)}
             onDrop={(e) => handleDropOnCalendar(e, date)}
