@@ -52,7 +52,9 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
   const taskCalendarStyle = getTaskCalendarStyle(task, darkMode);
   const isRecurringAllDay = typeof task.id === 'string' && task.id.startsWith('recurring-');
   const allDayTaskWidth = taskWidths[task.id];
-  const useFullLayout = allDayTaskWidth === undefined || allDayTaskWidth >= 200;
+  // Day-view chips (fillWidth=false) always use full layout — they have a min-width of 200px
+  // and must never read stale taskWidths measurements from multi view.
+  const useFullLayout = !fillWidth || allDayTaskWidth === undefined || allDayTaskWidth >= 200;
 
   const NotesButton = ({ inMenu = false }) => (
     <button
@@ -161,7 +163,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
   };
 
   return (
-    <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : `relative overflow-hidden${fillWidth ? '' : ' w-fit'}`}>
+    <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : `relative overflow-hidden${fillWidth ? '' : ' w-full'}`}>
       <div
         {...(isTablet && !isImported ? {
           onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
@@ -178,7 +180,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
         )}
         <div className="p-2 text-white">
           <div className="flex items-center justify-between gap-2">
-            <div className={`flex items-center gap-2 min-w-0${fillWidth ? ' flex-1' : ''}`}>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {(!isImported || task.isTaskCalendar) && (
                 <button
                   onClick={() => toggleComplete(task.id)}
@@ -190,7 +192,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
               <Calendar size={14} className="flex-shrink-0" />
               {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
               <div
-                className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''} ${fillWidth ? 'flex-1 min-w-0' : 'max-w-[160px]'}`}
+                className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''} flex-1 min-w-0`}
                 onDoubleClick={!isTablet ? (e) => {
                   if (!isImported) {
                     e.stopPropagation();

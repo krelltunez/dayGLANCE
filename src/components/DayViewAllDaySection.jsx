@@ -67,7 +67,9 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
         aria-hidden="true"
       >
         {tasks.map(t => (
-          <AllDayTaskCard key={t.id} task={t} fillWidth={false} />
+          <div key={t.id} className="flex-1 min-w-[200px] max-w-[300px]">
+            <AllDayTaskCard task={t} fillWidth={false} />
+          </div>
         ))}
       </div>
 
@@ -76,7 +78,7 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
         {shown.map(t => (
           <div
             key={t.id}
-            className={`notes-panel-container relative flex-shrink-0 ${t.completed && (!t.imported || t.isTaskCalendar) ? 'opacity-50' : ''}`}
+            className={`notes-panel-container relative flex-1 min-w-[200px] max-w-[300px] ${t.completed && (!t.imported || t.isTaskCalendar) ? 'opacity-50' : ''}`}
           >
             <AllDayTaskCard task={t} fillWidth={false} />
           </div>
@@ -152,18 +154,20 @@ const DayViewAllDaySection = () => {
 
   return (
     <div className={`flex border-b ${borderClass} ${cardBg}`}>
-      {/* ALL DAY gutter label */}
-      <div className={`w-16 flex-shrink-0 px-2 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
-        ALL DAY
-      </div>
-      {/* Date groups — each spans `count` columns proportionally */}
-      <div className="flex flex-1 min-w-0">
-        {groupsWithTasks.map((group, idx) => (
-          <div
-            key={group.dateStr}
-            style={{ flex: group.count }}
-            className={`min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
-          >
+      {/*
+        Each date group mirrors DayViewColumn exactly: a w-16 gutter + flex-1 chips area.
+        This keeps group boundaries pixel-aligned with column boundaries in the timeline.
+      */}
+      {groupsWithTasks.map((group, idx) => (
+        <div
+          key={group.dateStr}
+          style={{ flex: group.count }}
+          className={`flex min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+        >
+          <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
+            {idx === 0 ? 'ALL DAY' : ''}
+          </div>
+          <div className="flex-1 min-w-0">
             <GroupChips
               tasks={group.tasks}
               darkMode={darkMode}
@@ -171,8 +175,8 @@ const DayViewAllDaySection = () => {
               cardBg={cardBg}
             />
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 };

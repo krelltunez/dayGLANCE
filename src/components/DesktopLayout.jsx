@@ -636,13 +636,13 @@ const DesktopLayout = () => {
               <div className={`flex border-b ${borderClass} flex-shrink-0`}>
                 <button
                   onClick={() => setTabletActiveTab('glance')}
-                  className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+                  className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : `${textSecondary} border-b-2 border-transparent`}`}
                 >
                   <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> GLANCE</span>
                 </button>
                 <button
                   onClick={() => setTabletActiveTab('inbox')}
-                  className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+                  className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : `${textSecondary} border-b-2 border-transparent`}`}
                 >
                   <span className="flex items-center justify-center gap-1.5">
                     <Inbox size={16} /> Inbox
@@ -707,13 +707,13 @@ const DesktopLayout = () => {
             <div className={`flex border-b ${borderClass} flex-shrink-0`}>
               <button
                 onClick={() => setTabletActiveTab('glance')}
-                className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+                className={`flex-1 py-3 text-sm font-semibold text-center transition-colors ${tabletActiveTab === 'glance' ? 'text-blue-500 border-b-2 border-blue-500' : `${textSecondary} border-b-2 border-transparent`}`}
               >
                 <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> GLANCE</span>
               </button>
               <button
                 onClick={() => setTabletActiveTab('inbox')}
-                className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : textSecondary}`}
+                className={`flex-1 py-3 text-sm font-semibold text-center transition-colors relative ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-b-2 border-blue-500' : `${textSecondary} border-b-2 border-transparent`}`}
               >
                 <span className="flex items-center justify-center gap-1.5">
                   <Inbox size={16} /> Inbox

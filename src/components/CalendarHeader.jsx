@@ -189,7 +189,7 @@ const CalendarHeader = () => {
       return (
         <div
           key={group.dateStr}
-          className={`relative min-h-[44px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg}`}
+          className={`relative min-h-[46px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg}`}
           style={{ flex: group.count }}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
