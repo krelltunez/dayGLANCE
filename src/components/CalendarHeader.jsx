@@ -110,7 +110,7 @@ const CalendarHeader = () => {
   {effectiveViewMode === 'multi' ? (
     <>
     {/* Top-left cell: hosts ViewCycler on large screens */}
-    <div className={`w-16 flex-shrink-0 border-r ${borderClass} flex items-center justify-center min-h-[44px]`}>
+    <div className={`w-16 flex-shrink-0 border-r ${borderClass} flex items-center justify-center`} style={{ minHeight: 'var(--header-row-h)' }}>
       {canShowViewCycler && <ViewCycler />}
     </div>
     {visibleDates.map((date, idx) => {
@@ -121,6 +121,7 @@ const CalendarHeader = () => {
       <div
         key={dateStr}
         className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`} ${isDragOverThis ? (darkMode ? 'bg-green-700 ring-2 ring-inset ring-green-400' : 'bg-green-200 ring-2 ring-inset ring-green-500') : ''}`}
+        style={{ minHeight: 'var(--header-row-h)' }}
         onClick={() => {
           setNewTask({
             title: '',
@@ -193,8 +194,8 @@ const CalendarHeader = () => {
       return (
         <div
           key={group.dateStr}
-          className={`relative min-h-[46px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''}`}
-          style={{ gridColumn: `span ${group.count}` }}
+          className={`relative flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+          style={{ gridColumn: `span ${group.count}`, minHeight: 'var(--header-row-h)' }}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
               column boundaries align: both header and DayView start at x=0. */}

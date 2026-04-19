@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --header-row-h: 46px;
+}
+
 * {
   margin: 0;
   padding: 0;
