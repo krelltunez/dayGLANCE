@@ -836,15 +836,20 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer ${isDesktop ? 'hover:bg-white/5' : 'active:bg-white/5'} rounded-lg transition-colors`}
           onClick={() => {
             const el = document.querySelector(`[data-task-id="${task.id}"]`);
-            if (el) {
-              if (effectiveViewMode === 'multi' && calendarRef.current) {
-                const container = calendarRef.current;
-                const elTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-                container.scrollTo({ top: Math.max(0, elTop - container.clientHeight / 2 + el.offsetHeight / 2), behavior: 'smooth' });
+            const needsNav = !el && task.date && effectiveViewMode !== 'multi';
+            if (needsNav) goToDate(task.date);
+            setTimeout(() => {
+              const target = document.querySelector(`[data-task-id="${task.id}"]`);
+              if (target) {
+                if (effectiveViewMode === 'multi' && calendarRef.current) {
+                  const container = calendarRef.current;
+                  const elTop = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+                  container.scrollTo({ top: Math.max(0, elTop - container.clientHeight / 2 + target.offsetHeight / 2), behavior: 'smooth' });
+                }
+                target.classList.add('ring-2', 'ring-blue-400');
+                setTimeout(() => target.classList.remove('ring-2', 'ring-blue-400'), 2000);
               }
-              el.classList.add('ring-2', 'ring-blue-400');
-              setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400'), 2000);
-            }
+            }, needsNav ? 200 : 0);
           }}
         >
           <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass} ${relativeLabel === 'In Progress' ? 'animate-pulse' : ''}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}}></div>
