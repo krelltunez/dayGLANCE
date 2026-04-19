@@ -193,7 +193,7 @@ const CalendarHeader = () => {
       return (
         <div
           key={group.dateStr}
-          className={`relative min-h-[45px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+          className={`relative min-h-[46px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''}`}
           style={{ gridColumn: `span ${group.count}` }}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
