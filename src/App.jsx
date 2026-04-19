@@ -224,8 +224,9 @@ const DayPlanner = () => {
   // Override visible days: tablet uses orientation (static panel always present), mobile always 1, desktop uses width-based hook
   const visibleDays = isTablet ? (isLandscape ? 2 : 1) : isMobile ? 1 : _visibleDays;
   const [viewMode, setViewMode] = useState(() => {
-    // Initialize from defaultView on every cold load; last-used viewMode is
-    // written to day-planner-view-mode during a session but not read back.
+    // URL ?view= param takes priority over defaultView on cold load.
+    const urlView = new URLSearchParams(window.location.search).get('view');
+    if (urlView && ['multi', 'day', 'week'].includes(urlView)) return urlView;
     const def = localStorage.getItem('day-planner-default-view');
     return def ? JSON.parse(def) : 'multi';
   });
@@ -247,6 +248,17 @@ const DayPlanner = () => {
     return saved ? JSON.parse(saved) : false;
   });
   const [selectedDate, setSelectedDate] = useState(() => {
+    const urlDate = new URLSearchParams(window.location.search).get('date');
+    if (urlDate) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(urlDate);
+      if (m) {
+        const parsed = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+        const currentYear = new Date().getFullYear();
+        if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= currentYear - 100 && parsed.getFullYear() <= currentYear + 100) {
+          return parsed;
+        }
+      }
+    }
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     return today;

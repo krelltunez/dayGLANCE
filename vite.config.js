@@ -189,6 +189,9 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        url_handlers: [
+          { origin: 'https://dayglance.app' },
+        ],
       },
     }),
   ],
