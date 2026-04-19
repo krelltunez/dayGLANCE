@@ -45,7 +45,11 @@ export default function useTimelineScroll({
   }, []);
 
   useEffect(() => {
-    if (viewMode !== 'multi') return;
+    if (viewMode !== 'multi') {
+      // Reset any scroll position left over from multi mode so day/week view starts at top.
+      if (calendarRef.current) calendarRef.current.scrollTop = 0;
+      return;
+    }
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
       setTimeout(() => scrollToCurrentHour(false), 100);
