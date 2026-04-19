@@ -94,15 +94,19 @@ const CalendarHeader = () => {
   const formatBoundHour = (h, use24h) => {
     const norm = h % 24;
     if (use24h) return `${norm.toString().padStart(2, '0')}:00`;
-    if (norm === 0) return '12a';
-    if (norm === 12) return '12p';
-    return norm < 12 ? `${norm}a` : `${norm - 12}p`;
+    if (norm === 0) return '12 AM';
+    if (norm === 12) return '12 PM';
+    return norm < 12 ? `${norm} AM` : `${norm - 12} PM`;
   };
 
   return (
     <>
 {/* Date headers row */}
-<div ref={(el) => { if (isTablet) mobileDateHeaderRef.current = el; }} className={`flex border-b ${borderClass} ${cardBg}`}>
+<div
+  ref={(el) => { if (isTablet) mobileDateHeaderRef.current = el; }}
+  className={`border-b ${borderClass} ${cardBg}${effectiveViewMode === 'day' ? '' : ' flex'}`}
+  style={effectiveViewMode === 'day' ? { display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` } : undefined}
+>
   {effectiveViewMode === 'multi' ? (
     <>
     {/* Top-left cell: hosts ViewCycler on large screens */}
@@ -189,8 +193,8 @@ const CalendarHeader = () => {
       return (
         <div
           key={group.dateStr}
-          className={`relative min-h-[46px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg}`}
-          style={{ flex: group.count }}
+          className={`relative min-h-[45px] flex items-center justify-center ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+          style={{ gridColumn: `span ${group.count}` }}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
               column boundaries align: both header and DayView start at x=0. */}

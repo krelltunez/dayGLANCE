@@ -82,19 +82,18 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const altRow = darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50';
 
   return (
-    <div className={`flex-1 flex flex-col min-w-0 ${colIdx > 0 ? `border-l ${borderClass}` : ''}`}>
+    <div className={`flex flex-col min-w-0 h-full ${colIdx > 0 ? `border-l ${borderClass}` : ''}`}>
       <div className="flex-1 relative">
         {/* Hour rows — each is a full-width flex row matching TimeGrid's structure */}
         {hours.map((hour, i) => (
-          <div key={hour} className="relative">
-            <div className={`flex border-b ${borderClass} ${i % 2 === 1 ? altRow : ''}`}>
+          <div key={hour} className="relative" style={{ height: `${hourHeight}px` }}>
+            <div className={`flex border-b h-full ${borderClass} ${i % 2 === 1 ? altRow : ''}`}>
               <div
-                className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass} flex items-start`}
-                style={{ height: `${hourHeight}px` }}
+                className={`w-16 flex-shrink-0 px-3 py-1 text-sm ${textSecondary} border-r ${borderClass} flex items-start h-full`}
               >
                 {formatHourLabel(hour, use24HourClock)}
               </div>
-              <div className="flex-1" style={{ height: `${hourHeight}px` }} />
+              <div className="flex-1 h-full" />
             </div>
             {/* Half-hour dashed line — full-width flex matching TimeGrid */}
             <div
@@ -194,7 +193,7 @@ const DayView = () => {
   const hourHeight = useDayViewHourHeight(calendarRef, stickyHeaderRef);
 
   return (
-    <div className="flex" style={{ height: '100%' }}>
+    <div style={{ height: '100%', display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` }}>
       {dayViewColumns.map((col, colIdx) => (
         <DayViewColumn
           key={`${col.dateStr}-${col.startHour}`}

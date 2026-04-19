@@ -67,7 +67,7 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
         aria-hidden="true"
       >
         {tasks.map(t => (
-          <div key={t.id} className="flex-1 min-w-[200px] max-w-[300px]">
+          <div key={t.id} className="grow shrink-0 basis-[200px] max-w-[300px]">
             <AllDayTaskCard task={t} fillWidth={false} />
           </div>
         ))}
@@ -78,7 +78,7 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
         {shown.map(t => (
           <div
             key={t.id}
-            className={`notes-panel-container relative flex-1 min-w-[200px] max-w-[300px] ${t.completed && (!t.imported || t.isTaskCalendar) ? 'opacity-50' : ''}`}
+            className={`notes-panel-container relative grow shrink-0 basis-[200px] max-w-[300px] ${t.completed && (!t.imported || t.isTaskCalendar) ? 'opacity-50' : ''}`}
           >
             <AllDayTaskCard task={t} fillWidth={false} />
           </div>
@@ -153,15 +153,11 @@ const DayViewAllDaySection = () => {
   if (!groupsWithTasks.some(g => g.tasks.length > 0)) return null;
 
   return (
-    <div className={`flex border-b ${borderClass} ${cardBg}`}>
-      {/*
-        Each date group mirrors DayViewColumn exactly: a w-16 gutter + flex-1 chips area.
-        This keeps group boundaries pixel-aligned with column boundaries in the timeline.
-      */}
+    <div className={`border-b ${borderClass} ${cardBg}`} style={{ display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` }}>
       {groupsWithTasks.map((group, idx) => (
         <div
           key={group.dateStr}
-          style={{ flex: group.count }}
+          style={{ gridColumn: `span ${group.count}` }}
           className={`flex min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
         >
           <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
