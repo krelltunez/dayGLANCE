@@ -183,7 +183,7 @@ const DayViewAllDaySection = () => {
           style={{ gridColumn: `span ${group.count}` }}
           className={`flex min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
         >
-          <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass} flex items-start`}>
+          <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
             {idx === 0 ? 'ALL DAY' : ''}
           </div>
           <div className="flex-1 min-w-0">
