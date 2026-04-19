@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { formatHourLabel } from '../utils/timeFormatting.jsx';
+import { dateToString } from '../utils/taskUtils.js';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -81,6 +82,13 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const hours = Array.from({ length: 8 }, (_, i) => col.startHour + i);
   const altRow = darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50';
 
+  const now = new Date();
+  const colStartMin = col.startHour * 60;
+  const colEndMin = col.endHour * 60;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const showNowLine = col.dateStr === dateToString(now) && nowMinutes >= colStartMin && nowMinutes < colEndMin;
+  const nowY = showNowLine ? (nowMinutes - colStartMin) * hourHeight / 60 : 0;
+
   return (
     <div className={`flex-1 flex flex-col min-w-0 ${colIdx > 0 ? `border-l ${borderClass}` : ''}`}>
       <div className="flex-1 relative">
@@ -107,6 +115,19 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             </div>
           </div>
         ))}
+
+        {/* Current-time indicator — dot at gutter edge, line across event area */}
+        {showNowLine && (
+          <div
+            className="absolute left-16 right-0 pointer-events-none z-10"
+            style={{ top: `${nowY}px` }}
+          >
+            <div className="flex items-center">
+              <div className="w-2 h-2 bg-red-500 rounded-full -ml-1" />
+              <div className="flex-1 h-0.5 bg-red-500" />
+            </div>
+          </div>
+        )}
 
         {/* Task pill overlay — covers the event area only (right of gutter) */}
         <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
