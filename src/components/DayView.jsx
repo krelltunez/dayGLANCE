@@ -1,10 +1,7 @@
 import React from 'react';
-import {
-  Check, ChevronDown, ChevronUp, Inbox,
-  Pencil, RefreshCw, SkipForward, Trash2,
-} from 'lucide-react';
-import { renderTitleWithoutTags } from '../utils/textFormatting.jsx';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { formatHourLabel } from '../utils/timeFormatting.jsx';
+import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useDayViewHourHeight from '../hooks/useDayViewHourHeight.js';
@@ -60,17 +57,14 @@ function columnConflictPos(task, colTasks, timeToMinutes) {
 
 const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const {
-    isTablet,
     darkMode, use24HourClock,
     borderClass, textSecondary,
+    expandedNotesTaskId,
     taskContextMenu, setTaskContextMenu,
-    toggleComplete,
-    moveToRecycleBin, moveToInbox, postponeTask,
     openMobileEditTask,
-    setEditingRecurrenceTaskId,
     getTasksForDate,
     getTaskCalendarStyle,
-    timeToMinutes, formatTime,
+    timeToMinutes,
   } = useDayPlannerCtx();
 
   const { projectFilter } = useFeaturesCtx();
@@ -128,7 +122,6 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             const isCalendarEvent = isImported && !task.isTaskCalendar;
             const taskCalStyle = getTaskCalendarStyle(task, darkMode);
             const isCompleted = task.completed;
-            const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
 
             const radiusTop = clippedTop ? '' : 'rounded-t-lg';
             const radiusBot = clippedBottom ? '' : 'rounded-b-lg';
@@ -137,11 +130,12 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
               <div
                 key={`${task.id}-${col.startHour}`}
                 data-ctx-menu
-                className={`absolute pointer-events-auto shadow-md overflow-hidden
+                className={`absolute pointer-events-auto shadow-md notes-panel-container
                   ${task.isTaskCalendar ? '' : task.color}
                   ${radiusTop} ${radiusBot}
                   ${isCompleted && !isCalendarEvent ? 'opacity-50' : ''}
                   ${isCalendarEvent ? 'cursor-default' : 'cursor-pointer'}
+                  ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : 'overflow-hidden'}
                 `}
                 style={{
                   top: `${top}px`,
@@ -160,100 +154,24 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                   setTaskContextMenu({
                     x: e.clientX, y: e.clientY,
                     taskId: task.id,
-                    isRecurring: !!isRecurring,
+                    isRecurring: typeof task.id === 'string' && task.id.startsWith('recurring-'),
                     isImported: !!isImported,
                     isAllDay: false,
                     dateStr: col.dateStr,
                   });
                 }}
               >
-                {/* Clipped-top indicator */}
                 {clippedTop && (
                   <div className="absolute top-0 left-0 right-0 flex justify-center pointer-events-none">
                     <ChevronUp size={12} className="text-white/70" />
                   </div>
                 )}
-
-                <div className="px-1.5 py-0.5 h-full flex flex-col text-white overflow-hidden">
-                  {/* Completion checkbox + title row */}
-                  {showTitle && (
-                    <div className="flex items-start gap-1 min-w-0">
-                      {(!isImported || task.isTaskCalendar) && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleComplete(task.id); }}
-                          className={`mt-0.5 rounded flex-shrink-0 border-2 border-white w-3.5 h-3.5 flex items-center justify-center transition-colors ${task.completed ? 'bg-white/40' : 'bg-white/20'} hover:bg-white/30`}
-                        >
-                          {task.completed && <Check size={9} strokeWidth={3} />}
-                        </button>
-                      )}
-                      {isRecurring && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }}
-                          className="mt-0.5 flex-shrink-0 opacity-75 hover:opacity-100"
-                        >
-                          <RefreshCw size={10} />
-                        </button>
-                      )}
-                      <div
-                        className={`font-semibold leading-tight truncate flex-1 min-w-0 ${task.completed ? 'line-through' : ''}`}
-                        style={{ fontSize: '13px' }}
-                        title={task.title}
-                      >
-                        {renderTitleWithoutTags(task.title)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Time label (shown when there's enough height) */}
-                  {showTitle && height > 42 && (
-                    <div className="text-[10px] opacity-80 leading-none mt-0.5 flex-shrink-0">
-                      {formatTime(task.startTime)}
-                      {task.duration ? ` · ${task.duration}m` : ''}
-                    </div>
-                  )}
-                </div>
-
-                {/* Clipped-bottom indicator */}
+                {showTitle && (
+                  <TimelineTaskCardContent task={task} height={height} isNarrowWidth={false} />
+                )}
                 {clippedBottom && (
                   <div className="absolute bottom-0 left-0 right-0 flex justify-center pointer-events-none">
                     <ChevronDown size={12} className="text-white/70" />
-                  </div>
-                )}
-
-                {/* Action buttons (non-imported, non-tablet) — top-right corner */}
-                {!isImported && !isTablet && height > 55 && showTitle && (
-                  <div className="absolute top-0.5 right-0.5 flex gap-0.5">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
-                      className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
-                      title="Postpone to tomorrow"
-                    >
-                      <SkipForward size={11} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openMobileEditTask(task, false); }}
-                      className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
-                      title="Edit"
-                    >
-                      <Pencil size={11} />
-                    </button>
-                    {isRecurring ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); moveToRecycleBin(task.id); }}
-                        className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
-                        title="Delete"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); moveToInbox(task.id); }}
-                        className="hover:bg-white/20 rounded p-0.5 transition-colors text-white/80"
-                        title="Move to Inbox"
-                      >
-                        <Inbox size={11} />
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
