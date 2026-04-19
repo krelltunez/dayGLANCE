@@ -146,11 +146,11 @@ const CalendarHeader = () => {
         return (
           <div
             key={dateStr}
-            className={`flex-1 py-1.5 px-1 text-center transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''}
+            className={`flex-1 flex items-center justify-center py-1.5 px-1 text-center transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''}
               ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : ''}`}
             style={{ minHeight: 'var(--header-row-h)' }}
           >
-            <div className={`text-xs font-bold flex items-center justify-center gap-1 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
+            <div className={`font-bold text-sm flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
               <span>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getDay()]}</span>
               <span className={`font-normal ${isDateToday ? 'text-blue-500' : textSecondary}`}>
                 {date.getMonth() + 1}/{date.getDate()}
@@ -160,14 +160,14 @@ const CalendarHeader = () => {
                 className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-40'}`}
                 title="Daily notes"
               >
-                <NotebookPen size={12} />
+                <NotebookPen size={14} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(dateStr); }}
                 className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-40'}`}
                 title="Focus sessions"
               >
-                <Target size={12} />
+                <Target size={14} />
               </button>
             </div>
           </div>
