@@ -12,9 +12,11 @@ const MAX_H = CHIP_ROW_H * MAX_ROWS + ROW_GAP * (MAX_ROWS - 1);
 
 const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
   const ghostRef = useRef(null);
-  const overflowRef = useRef(null);
+  const buttonRef = useRef(null);
+  const popoverRef = useRef(null);
   const [limit, setLimit] = useState(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
 
   useLayoutEffect(() => {
     const el = ghostRef.current;
@@ -44,7 +46,9 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
   useEffect(() => {
     if (!overflowOpen) return;
     const onDown = (e) => {
-      if (!overflowRef.current?.contains(e.target)) setOverflowOpen(false);
+      if (!buttonRef.current?.contains(e.target) && !popoverRef.current?.contains(e.target)) {
+        setOverflowOpen(false);
+      }
     };
     const onKey = (e) => { if (e.key === 'Escape') setOverflowOpen(false); };
     document.addEventListener('mousedown', onDown);
@@ -54,6 +58,18 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
       document.removeEventListener('keydown', onKey);
     };
   }, [overflowOpen]);
+
+  const handleTogglePopover = () => {
+    if (!overflowOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const popoverWidth = 400;
+      const margin = 8;
+      let left = rect.left;
+      if (left + popoverWidth > window.innerWidth - margin) left = window.innerWidth - popoverWidth - margin;
+      setPopoverPos({ top: rect.bottom + 4, left: Math.max(margin, left) });
+    }
+    setOverflowOpen(v => !v);
+  };
 
   const shown = limit !== null ? tasks.slice(0, limit) : tasks;
   const overflowTasks = limit !== null ? tasks.slice(limit) : [];
@@ -84,31 +100,38 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
           </div>
         ))}
 
-        {/* "+N more" overflow chip + popover */}
+        {/* "+N more" overflow chip */}
         {overflowTasks.length > 0 && (
-          <div ref={overflowRef} className="relative flex-shrink-0 self-start">
+          <div className="relative flex-shrink-0 self-start">
             <button
-              onClick={() => setOverflowOpen(v => !v)}
+              ref={buttonRef}
+              onClick={handleTogglePopover}
               className={`text-xs font-medium px-2 py-1 rounded-md ${darkMode ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'} transition-colors`}
             >
               +{overflowTasks.length} more
             </button>
-            {overflowOpen && (
-              <div className={`absolute top-full left-0 mt-1 z-50 rounded-lg shadow-xl border ${borderClass} ${cardBg} p-2 min-w-[200px] max-w-[300px] flex flex-col gap-1`}>
-                {overflowTasks.map(t => (
-                  <div
-                    key={t.id}
-                    className={`notes-panel-container relative ${t.completed && (!t.imported || t.isTaskCalendar) ? 'opacity-50' : ''}`}
-                    onClick={() => setOverflowOpen(false)}
-                  >
-                    <AllDayTaskCard task={t} fillWidth={true} />
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* Overflow popover — fixed to viewport so it doesn't overlap the timeline */}
+      {overflowOpen && overflowTasks.length > 0 && (
+        <div
+          ref={popoverRef}
+          style={{ position: 'fixed', top: popoverPos.top, left: popoverPos.left, width: 400, zIndex: 200 }}
+          className={`rounded-lg shadow-xl border ${borderClass} ${cardBg} p-2 flex flex-col gap-1 max-h-[60vh] overflow-y-auto`}
+        >
+          {overflowTasks.map(t => (
+            <div
+              key={t.id}
+              className={`notes-panel-container relative ${t.completed && (!t.imported || t.isTaskCalendar) ? 'opacity-50' : ''}`}
+              onClick={() => setOverflowOpen(false)}
+            >
+              <AllDayTaskCard task={t} fillWidth={true} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
