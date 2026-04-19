@@ -13,7 +13,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
-const AllDayTaskCard = ({ task }) => {
+const AllDayTaskCard = ({ task, fillWidth = true }) => {
   const {
     isTablet,
     darkMode,
@@ -161,7 +161,7 @@ const AllDayTaskCard = ({ task }) => {
   };
 
   return (
-    <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : 'relative overflow-hidden'}>
+    <div className={isTablet && !isImported ? 'relative flex-1 min-w-0 rounded-lg overflow-hidden' : `relative overflow-hidden${fillWidth ? '' : ' w-fit'}`}>
       <div
         {...(isTablet && !isImported ? {
           onTouchStart: (e) => handleMobileTaskTouchStart(e, task, 'allday'),
@@ -178,7 +178,7 @@ const AllDayTaskCard = ({ task }) => {
         )}
         <div className="p-2 text-white">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className={`flex items-center gap-2 min-w-0${fillWidth ? ' flex-1' : ''}`}>
               {(!isImported || task.isTaskCalendar) && (
                 <button
                   onClick={() => toggleComplete(task.id)}
@@ -190,7 +190,7 @@ const AllDayTaskCard = ({ task }) => {
               <Calendar size={14} className="flex-shrink-0" />
               {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
               <div
-                className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''} flex-1 min-w-0`}
+                className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''} ${fillWidth ? 'flex-1 min-w-0' : 'max-w-[160px]'}`}
                 onDoubleClick={!isTablet ? (e) => {
                   if (!isImported) {
                     e.stopPropagation();
