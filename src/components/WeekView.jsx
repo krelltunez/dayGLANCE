@@ -8,7 +8,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useWeekViewHourHeight from '../hooks/useWeekViewHourHeight.js';
 import { getHGBarsForDate, isHGSessionReachable } from '../hooks/useHyperGlance.js';
-import { hexToRgba } from '../utils/colorUtils.js';
+import { hexToRgba, frameColorBg, frameColorBorder } from '../utils/colorUtils.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
     timeToMinutes,
     setTaskContextMenu,
   } = useDayPlannerCtx();
-  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, goalsProjectsEnabled, projects } = useFeaturesCtx();
+  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, goalsProjectsEnabled, projects, getFrameInstancesForDate, setFrameContextMenu } = useFeaturesCtx();
 
   const [overflowPopover, setOverflowPopover] = useState(null); // { routines, rect }
   const overflowPopoverRef = useRef(null);
@@ -189,6 +189,25 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           </div>
         </div>
       )}
+
+      {/* GTD Frame background zones — behind everything */}
+      {getFrameInstancesForDate(date).map(frame => {
+        const fStartMin = timeToMinutes(frame.start);
+        const fEndMin = timeToMinutes(frame.end);
+        const top = fStartMin * hourHeight / 60;
+        const height = Math.max((fEndMin - fStartMin) * hourHeight / 60, 4);
+        const bg = frameColorBg(frame.color, darkMode);
+        const border = frameColorBorder(frame.color, darkMode);
+        return (
+          <div
+            key={frame.frameId}
+            data-ctx-menu
+            className="absolute left-0 right-0 pointer-events-auto select-none"
+            style={{ top: `${top}px`, height: `${height}px`, background: bg, borderLeft: `3px solid ${border}` }}
+            onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr }); }}
+          />
+        );
+      })}
 
       {/* HyperGLANCE project strips — narrow left edge, display only */}
       {hgBars.length > 0 && (

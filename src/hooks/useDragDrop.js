@@ -915,8 +915,7 @@ export default function useDragDrop({
     const handleMouseMove = (moveEvent) => {
       frameResizingRef.current = true;
       const deltaY = moveEvent.clientY - startY;
-      // Use approximate 80px per hour for desktop
-      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
+      const deltaMinutes = Math.round((deltaY / getHourHeight()) * 60 / 15) * 15;
       let newStart = origStart;
       let newEnd = origEnd;
       if (edge === 'top') {
