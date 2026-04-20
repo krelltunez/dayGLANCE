@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
+import { columnTimeFromEvent } from '../utils/dragUtils.js';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -70,10 +71,41 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     getTasksForDate,
     getTaskCalendarStyle,
     timeToMinutes,
+    formatTime,
     handleRoutineResizeStart, handleTouchRoutineResizeStart,
     handleFrameResizeStart, frameResizingRef,
     setTimelineContextMenu,
+    // Drag + hover + click-to-add
+    draggedTask, dragSource,
+    dragPreviewTime, dragPreviewDate,
+    hoverPreviewTime, hoverPreviewDate,
+    setDragPreviewTime, setDragPreviewDate,
+    setHoverPreviewTime, setHoverPreviewDate,
+    handleDragStart, handleDragEnd, handleDropOnCalendar,
+    handleResizeStart,
+    isResizing,
+    setNewTask, setShowAddTask,
   } = useDayPlannerCtx();
+
+  const colContentRef = useRef(null);
+  const colStartMin = col.startHour * 60;
+  const colEndMin = col.endHour * 60;
+
+  // Compute the snapped 15-minute drop/hover time for the current pointer
+  // event relative to this column's content area. Day-view columns span
+  // col.startHour..col.endHour; this clamps to that range so the preview
+  // can't escape the column's visible window.
+  const timeFromEvent = (e, { taskDuration = 0 } = {}) => columnTimeFromEvent(e, colContentRef.current, {
+    startMinute: colStartMin,
+    hourHeight,
+    minMinute: colStartMin,
+    maxMinute: colEndMin,
+    taskDuration,
+  });
+
+  const isDraggingOverThisCol = draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === col.dateStr;
+  const isHoveringThisCol = hoverPreviewTime && !draggedTask && !isResizing
+    && hoverPreviewDate && dateToString(hoverPreviewDate) === col.dateStr;
 
   const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion, goalsProjectsEnabled, projects, getFrameInstancesForDate, computeAvailableSlots, setFrameContextMenu } = useFeaturesCtx();
 
@@ -112,15 +144,71 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const altRow = darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50';
 
   const now = new Date();
-  const colStartMin = col.startHour * 60;
-  const colEndMin = col.endHour * 60;
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const showNowLine = col.dateStr === dateToString(now) && nowMinutes >= colStartMin && nowMinutes < colEndMin;
   const nowY = showNowLine ? (nowMinutes - colStartMin) * hourHeight / 60 : 0;
 
+  // Column-level handlers. These fire on the inner content div, so they
+  // also pick up drag events that bubble from task cards in the overlay.
+  const onColDragOver = (e) => {
+    if (!draggedTask) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const t = timeFromEvent(e, { taskDuration: draggedTask.duration || 0 });
+    setDragPreviewTime(t);
+    setDragPreviewDate(col.date);
+  };
+
+  const onColDrop = (e) => {
+    if (!draggedTask) return;
+    const t = timeFromEvent(e, { taskDuration: draggedTask.duration || 0 });
+    handleDropOnCalendar(e, col.date, t);
+  };
+
+  // Only show hover preview when the cursor is over an empty hour-row
+  // cell (day-col-slot). Hovering over task cards, frames, or the gutter
+  // should leave the preview cleared.
+  const isOverEmptySlot = (target) => target && target.classList && target.classList.contains('day-col-slot');
+
+  const onColMouseMove = (e) => {
+    if (draggedTask || isResizing || frameResizingRef.current) {
+      if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
+      return;
+    }
+    if (!isOverEmptySlot(e.target)) {
+      if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
+      return;
+    }
+    const t = timeFromEvent(e);
+    setHoverPreviewTime(t);
+    setHoverPreviewDate(col.date);
+  };
+
+  const onColMouseLeave = () => {
+    setHoverPreviewTime(null);
+    setHoverPreviewDate(null);
+  };
+
+  const onColClick = (e) => {
+    if (frameResizingRef.current) return;
+    if (draggedTask) return;
+    if (!isOverEmptySlot(e.target)) return;
+    const t = timeFromEvent(e);
+    setNewTask({ title: '', startTime: t, duration: 30, date: col.dateStr, isAllDay: false });
+    setShowAddTask(true);
+  };
+
   return (
     <div className={`flex-1 flex flex-col min-w-0 ${colIdx > 0 ? `border-l ${borderClass}` : ''} ${showNowLine ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}>
-      <div className="flex-1 relative flex flex-col">
+      <div
+        ref={colContentRef}
+        className="flex-1 relative flex flex-col"
+        onDragOver={onColDragOver}
+        onDrop={onColDrop}
+        onMouseMove={onColMouseMove}
+        onMouseLeave={onColMouseLeave}
+        onClick={onColClick}
+      >
         {/* Hour rows — each is a full-width flex row matching TimeGrid's structure */}
         {hours.map((hour, i) => (
           <div
@@ -135,7 +223,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                 {formatHourLabel(hour, use24HourClock)}
               </div>
               <div
-                className="flex-1 h-full"
+                className="flex-1 h-full day-col-slot cursor-pointer"
                 onContextMenu={(e) => {
                   e.preventDefault();
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -276,16 +364,26 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             const radiusTop = clippedTop ? '' : 'rounded-t-lg';
             const radiusBot = clippedBottom ? '' : 'rounded-b-lg';
 
+            const taskDraggable = (!isImported || task.isTaskCalendar || !!task.nativeEventId) && !isTablet;
+            // Resize handle shows on the pill slice that contains the
+            // task's real end (not clipped by the column's right edge).
+            // When a task spans multiple columns the handle appears only
+            // on its last visible slice, at the real bottom of the task.
+            const canResize = (!isImported || !!task.nativeEventId) && !isTablet && !clippedBottom;
+
             return (
               <div
                 key={`${task.id}-${col.startHour}`}
                 data-task-id={task.id}
                 data-ctx-menu
+                draggable={taskDraggable}
+                onDragStart={taskDraggable ? (e) => handleDragStart(task, 'calendar', e) : undefined}
+                onDragEnd={taskDraggable ? handleDragEnd : undefined}
                 className={`absolute pointer-events-auto shadow-md notes-panel-container
                   ${task.isTaskCalendar ? '' : task.color}
                   ${radiusTop} ${radiusBot}
                   ${isCompleted && !isCalendarEvent ? 'opacity-50' : ''}
-                  ${isCalendarEvent ? 'cursor-default' : 'cursor-pointer'}
+                  ${isCalendarEvent ? 'cursor-default' : (taskDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer')}
                   ${expandedNotesTaskId === task.id ? 'overflow-visible z-30' : 'overflow-hidden'}
                   ${isCurrentTask ? 'current-task-pulse' : ''}
                 `}
@@ -297,7 +395,8 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                     : { left, width }),
                   ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
                 }}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (!isCalendarEvent || task.isTaskCalendar || task.nativeEventId) {
                     openMobileEditTask(task, false);
                   }
@@ -330,6 +429,17 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                 {clippedBottom && (
                   <div className="absolute bottom-0 left-0 right-0 flex justify-center pointer-events-none">
                     <ChevronDown size={12} className="text-white/70" />
+                  </div>
+                )}
+                {canResize && (
+                  <div
+                    onMouseDown={(e) => handleResizeStart(task, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
+                    style={{ marginBottom: '-4px' }}
+                  >
+                    <div className="w-12 h-1 bg-white rounded-full" />
                   </div>
                 )}
               </div>
@@ -388,14 +498,17 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
               return (
                 <div
                   key={`routine-tl-${routine.id}`}
-                  className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                  draggable={!isTablet}
+                  onDragStart={!isTablet ? (e) => handleDragStart({ ...routine }, 'routine', e) : undefined}
+                  onDragEnd={!isTablet ? handleDragEnd : undefined}
+                  className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${!isTablet ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   style={{ top: `${top}px`, height: `${Math.max(height, 27)}px`, left: `calc(${lPct} + 4px)`, width: `calc(${wPct} - 8px)` }}
                 >
                   <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`} />
                   <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`} />
                   <span
                     className={`relative rounded-full px-3 py-1 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
-                    onClick={() => toggleRoutineCompletion(routine.id)}
+                    onClick={(e) => { e.stopPropagation(); toggleRoutineCompletion(routine.id); }}
                   >{routine.name}</span>
                   {!isTablet && (
                     <div
@@ -420,6 +533,52 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             });
           })()}
         </div>
+
+        {/* Blue hover bar on empty slots (matches MULTI view behavior) */}
+        {isHoveringThisCol && (() => {
+          const hoverMin = timeToMinutes(hoverPreviewTime);
+          if (hoverMin < colStartMin || hoverMin > colEndMin) return null;
+          const topPx = (hoverMin - colStartMin) * hourHeight / 60;
+          return (
+            <div
+              className="absolute left-16 right-0 pointer-events-none z-30"
+              style={{ top: `${topPx}px` }}
+            >
+              <div className="absolute left-0 right-12 h-0.5 bg-blue-400/60" />
+              <div className="absolute right-1 bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded -translate-y-1/2">
+                {formatTime(hoverPreviewTime)}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Drag preview bar during an active drag */}
+        {isDraggingOverThisCol && dragPreviewTime && (() => {
+          const dragMin = timeToMinutes(dragPreviewTime);
+          if (dragMin < colStartMin || dragMin > colEndMin) return null;
+          const topPx = (dragMin - colStartMin) * hourHeight / 60;
+          const todayStr = dateToString(new Date());
+          const tomorrowStr = dateToString(new Date(Date.now() + 24 * 60 * 60 * 1000));
+          // Rolling-24 disambiguation: when multiple columns in this day
+          // view span different dates, label the target date so the user
+          // knows which day the drop will land on.
+          const showDateLabel = col.dateStr === todayStr ? ' (today)'
+            : col.dateStr === tomorrowStr ? ' (tomorrow)'
+            : '';
+          return (
+            <div
+              className="absolute left-16 right-0 pointer-events-none z-20"
+              style={{ top: `${topPx}px` }}
+            >
+              <div className="relative">
+                <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
+                  {formatTime(dragPreviewTime)}{showDateLabel}
+                </div>
+                <div className="h-0.5 bg-blue-500" />
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
