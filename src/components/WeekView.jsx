@@ -207,22 +207,96 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           );
         })}
 
-        {/* Routine chips — today's column only, display only */}
-        {routinesEnabled && isToday && todayRoutines.filter(r => !r.isAllDay && r.startTime).map(routine => {
-          const top = timeToMinutes(routine.startTime) * hourHeight / 60;
-          const chipH = Math.max(22, routine.duration * hourHeight / 60);
-          return (
-            <div
-              key={`routine-${routine.id}`}
-              className={`absolute pointer-events-none rounded-sm flex items-center justify-center overflow-hidden ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'} ${routineCompletions[routine.id] ? 'opacity-50' : ''}`}
-              style={{ top: `${top}px`, height: `${chipH}px`, left: '1px', right: '1px', zIndex: 5 }}
-            >
-              <span className={`text-white text-[11px] font-medium px-1 text-center leading-tight ${routineCompletions[routine.id] ? 'line-through' : ''}`}>
-                {routine.name}
-              </span>
-            </div>
-          );
-        })}
+        {/* Routine pills — today's column only, display only, max 2 wide + overflow indicator */}
+        {routinesEnabled && isToday && (() => {
+          const timedRoutines = todayRoutines
+            .filter(r => !r.isAllDay && r.startTime)
+            .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+          if (timedRoutines.length === 0) return null;
+
+          // Greedy 2-col assignment
+          const colTail = [null, null];
+          const assignments = timedRoutines.map(r => {
+            const rStart = timeToMinutes(r.startTime);
+            for (let c = 0; c < 2; c++) {
+              if (!colTail[c] || timeToMinutes(colTail[c].startTime) + colTail[c].duration <= rStart) {
+                colTail[c] = r;
+                return { r, col: c };
+              }
+            }
+            return { r, col: 2 };
+          });
+
+          const rangesOverlap = (a, b) => {
+            const aS = timeToMinutes(a.startTime), aE = aS + a.duration;
+            const bS = timeToMinutes(b.startTime), bE = bS + b.duration;
+            return aS < bE && bS < aE;
+          };
+
+          const overflowRoutines = assignments.filter(a => a.col === 2).map(a => a.r);
+
+          // Merge overlapping overflow routines into indicator spans
+          const overflowSpans = [];
+          overflowRoutines.forEach(r => {
+            const s = timeToMinutes(r.startTime), e = s + r.duration;
+            const last = overflowSpans[overflowSpans.length - 1];
+            if (last && s < last.e) { last.e = Math.max(last.e, e); last.count++; }
+            else overflowSpans.push({ s, e, count: 1 });
+          });
+
+          // Hide col-1 routines that overlap any overflow; fold them into the span count
+          const hiddenCol1 = new Set();
+          assignments.filter(a => a.col === 1).forEach(({ r }) => {
+            if (overflowRoutines.some(o => rangesOverlap(r, o))) {
+              hiddenCol1.add(r.id);
+              overflowSpans.forEach(sp => {
+                const rS = timeToMinutes(r.startTime), rE = rS + r.duration;
+                if (sp.s < rE && sp.e > rS) sp.count++;
+              });
+            }
+          });
+
+          const items = [];
+
+          assignments.filter(({ r, col }) => col < 2 && !hiddenCol1.has(r.id)).forEach(({ r, col }) => {
+            const top = timeToMinutes(r.startTime) * hourHeight / 60;
+            const h = Math.max(22, r.duration * hourHeight / 60);
+            const hasVisiblePartner = assignments.some(({ r: pr, col: pc }) =>
+              pc === (1 - col) && !hiddenCol1.has(pr.id) && rangesOverlap(r, pr)
+            );
+            const hasOverlap = hasVisiblePartner || overflowSpans.some(sp => {
+              const rS = timeToMinutes(r.startTime), rE = rS + r.duration;
+              return sp.s < rE && sp.e > rS;
+            });
+            items.push(
+              <div key={`routine-${r.id}`}
+                className="absolute pointer-events-none flex items-center justify-center"
+                style={{
+                  top: `${top}px`, height: `${h}px`, zIndex: 5,
+                  left: hasOverlap && col === 1 ? 'calc(50% + 1px)' : '1px',
+                  right: hasOverlap && col === 0 ? 'calc(50% + 1px)' : '1px',
+                }}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium truncate max-w-full ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'} ${routineCompletions[r.id] ? 'line-through opacity-75' : ''}`}>
+                  {r.name}
+                </span>
+              </div>
+            );
+          });
+
+          overflowSpans.forEach((sp, i) => {
+            items.push(
+              <div key={`overflow-${i}`}
+                className="absolute pointer-events-none flex items-center justify-center"
+                style={{ top: `${sp.s * hourHeight / 60}px`, height: `${Math.max(22, (sp.e - sp.s) * hourHeight / 60)}px`, left: 'calc(50% + 1px)', right: '1px', zIndex: 6 }}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/60 text-teal-200' : 'bg-teal-500/60 text-white'}`}>
+                  +{sp.count}
+                </span>
+              </div>
+            );
+          });
+
+          return items;
+        })()}
       </div>
     </div>
   );
