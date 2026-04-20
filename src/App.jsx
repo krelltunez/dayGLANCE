@@ -8627,7 +8627,7 @@ const DayPlanner = () => {
 
       {/* Task Context Menu */}
       {taskContextMenu && (() => {
-        const { x, y, taskId, isRecurring, isImported, isAllDay, dateStr: ctxDateStr } = taskContextMenu;
+        const { x, y, taskId, isRecurring, isImported, isAllDay, dateStr: ctxDateStr, supportsInlineNotes } = taskContextMenu;
         const ctxDate = new Date(ctxDateStr + 'T12:00:00');
         const scheduledMatch = getTasksForDate(ctxDate).find(t => t.id === taskId);
         const inboxMatch = !scheduledMatch && unscheduledTasks.find(t => t.id === taskId);
@@ -8691,7 +8691,11 @@ const DayPlanner = () => {
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                   onClick={() => {
-                    setExpandedNotesTaskId(prev => prev === taskId ? null : taskId);
+                    if (supportsInlineNotes === false) {
+                      if (ctxTask) openMobileEditTask(ctxTask, isInbox);
+                    } else {
+                      setExpandedNotesTaskId(prev => prev === taskId ? null : taskId);
+                    }
                     setTaskContextMenu(null);
                   }}
                 >

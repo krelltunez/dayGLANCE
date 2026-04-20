@@ -138,6 +138,22 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
   const hgBars = goalsProjectsEnabled
     ? getHGBarsForDate(projects, dateStr, isToday ? nowMinutes : undefined)
     : [];
+  const hasBars = hgBars.length > 0;
+
+  const taskOverlapsHG = (task) => {
+    if (!task.startTime || !hasBars) return false;
+    const [th, tm] = (task.startTime || '0:0').split(':').map(Number);
+    const tStart = th * 60 + tm;
+    const tEnd = tStart + (task.duration || 30);
+    return hgBars.some(bar => {
+      const hg = bar.project.hyperglance;
+      const effectiveTime = hg.scheduledTimeOverrides?.[bar.date] || hg.scheduledTime || '0:0';
+      const [bh, bm] = effectiveTime.split(':').map(Number);
+      const bStart = bh * 60 + bm;
+      const effectiveDur = bar.isCompleted ? 15 : (hg.scheduledDurationOverrides?.[bar.date] || hg.scheduledDuration || 60);
+      return tStart < bStart + effectiveDur && tEnd > bStart;
+    });
+  };
 
   return (
     <div
@@ -241,9 +257,9 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
               style={{
                 top: `${chipTop}px`,
                 height: `${chipH}px`,
-                left,
-                right: width ? undefined : right,
-                width,
+                ...(hasBars && taskOverlapsHG(task)
+                  ? { left: '25%', right: '1px', width: undefined }
+                  : { left, right: width ? undefined : right, width }),
                 ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
               }}
               onClick={(e) => {
@@ -259,6 +275,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                   isImported: !!isImported,
                   isAllDay: false,
                   dateStr,
+                  supportsInlineNotes: false,
                 });
               }}
             >
@@ -333,7 +350,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
             });
             items.push(
               <div key={`routine-${r.id}`}
-                className="absolute pointer-events-none flex items-center justify-center"
+                className="absolute pointer-events-none flex items-start pt-0.5"
                 style={{
                   top: `${top}px`, height: `${h}px`, zIndex: 5,
                   left: hasOverlap && col === 1 ? 'calc(50% + 1px)' : '1px',
