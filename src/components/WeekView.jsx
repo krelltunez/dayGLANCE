@@ -103,7 +103,7 @@ const fmtDur = (min) => {
   return min < 60 ? `${min}m` : m ? `${h}h${m}m` : `${h}h`;
 };
 
-const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, activePopoverTaskId, isToday }) => {
+const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, endHour, onTaskClick, activePopoverTaskId, isToday }) => {
   const {
     darkMode, borderClass, cardBg,
     getTasksForDate, getTaskCalendarStyle,
@@ -161,11 +161,11 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
       className={`flex-1 flex flex-col min-w-0 relative ${colIdx > 0 ? `border-l ${borderClass}` : ''} ${isToday ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}
     >
       {/* Hour rows */}
-      {Array.from({ length: 24 }, (_, hour) => (
+      {Array.from({ length: endHour }, (_, hour) => (
         <div
           key={hour}
-          className={`relative${hour === 23 ? ' flex-1' : ''}`}
-          style={hour === 23 ? { minHeight: `${hourHeight}px` } : { height: `${hourHeight}px` }}
+          className={`relative${hour === endHour - 1 ? ' flex-1' : ''}`}
+          style={hour === endHour - 1 ? { minHeight: `${hourHeight}px` } : { height: `${hourHeight}px` }}
         >
           <div className={`border-b h-full ${borderClass} ${hour % 2 === 1 ? altRow : ''}`} />
           <div
@@ -419,9 +419,29 @@ const WeekView = () => {
     darkMode, borderClass, textSecondary,
     use24HourClock,
     cardBg,
+    getTasksForDate, timeToMinutes,
   } = useDayPlannerCtx();
+  const { projectFilter, routinesEnabled, todayRoutines } = useFeaturesCtx();
 
-  const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef);
+  // Trim rendered hours to the latest scheduled content + 1 buffer, min 21 (9 PM)
+  const endHour = (() => {
+    let maxMin = 21 * 60;
+    weekViewDates.forEach(date => {
+      getTasksForDate(date).forEach(t => {
+        if (t.isAllDay || !t.startTime) return;
+        if (projectFilter && t.projectId !== projectFilter) return;
+        maxMin = Math.max(maxMin, timeToMinutes(t.startTime) + (t.duration || 0));
+      });
+    });
+    if (routinesEnabled) {
+      todayRoutines.filter(r => r.startTime && !r.isAllDay).forEach(r => {
+        maxMin = Math.max(maxMin, timeToMinutes(r.startTime) + r.duration);
+      });
+    }
+    return Math.min(24, Math.ceil(maxMin / 60));
+  })();
+
+  const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef, endHour);
   const [popoverTask, setPopoverTask] = useState(null);
   const [popoverAnchor, setPopoverAnchor] = useState(null);
 
@@ -449,11 +469,11 @@ const WeekView = () => {
         className={`flex-shrink-0 border-r ${borderClass} flex flex-col`}
         style={{ width: WEEK_GUTTER_W }}
       >
-        {Array.from({ length: 24 }, (_, hour) => (
+        {Array.from({ length: endHour }, (_, hour) => (
           <div
             key={hour}
-            className={`relative flex-shrink-0${hour === 23 ? ' flex-1' : ''}`}
-            style={hour === 23 ? { minHeight: `${hourHeight}px` } : { height: `${hourHeight}px` }}
+            className={`relative flex-shrink-0${hour === endHour - 1 ? ' flex-1' : ''}`}
+            style={hour === endHour - 1 ? { minHeight: `${hourHeight}px` } : { height: `${hourHeight}px` }}
           >
             {hour % 3 === 0 && (
               <span
@@ -479,6 +499,7 @@ const WeekView = () => {
             dateStr={dateStr}
             colIdx={colIdx}
             hourHeight={hourHeight}
+            endHour={endHour}
             onTaskClick={handleTaskClick}
             activePopoverTaskId={popoverTask?.id}
             isToday={dateStr === todayStr}
