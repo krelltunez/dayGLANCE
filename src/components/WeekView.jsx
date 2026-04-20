@@ -101,7 +101,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
     timeToMinutes,
     setTaskContextMenu,
   } = useDayPlannerCtx();
-  const { projectFilter } = useFeaturesCtx();
+  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions } = useFeaturesCtx();
 
   const colTasks = getTasksForDate(date).filter(t => {
     if (t.isAllDay || !t.startTime) return false;
@@ -203,6 +203,23 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                 <span className="truncate min-w-0">{chipText}</span>
                 {chipTag && <span className="shrink-0 italic opacity-75">{chipTag}</span>}
               </div>
+            </div>
+          );
+        })}
+
+        {/* Routine chips — today's column only, display only */}
+        {routinesEnabled && isToday && todayRoutines.filter(r => !r.isAllDay && r.startTime).map(routine => {
+          const top = timeToMinutes(routine.startTime) * hourHeight / 60;
+          const chipH = Math.max(22, routine.duration * hourHeight / 60);
+          return (
+            <div
+              key={`routine-${routine.id}`}
+              className={`absolute pointer-events-none rounded-sm flex items-center justify-center overflow-hidden ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'} ${routineCompletions[routine.id] ? 'opacity-50' : ''}`}
+              style={{ top: `${top}px`, height: `${chipH}px`, left: '1px', right: '1px', zIndex: 5 }}
+            >
+              <span className={`text-white text-[11px] font-medium px-1 text-center leading-tight ${routineCompletions[routine.id] ? 'line-through' : ''}`}>
+                {routine.name}
+              </span>
             </div>
           );
         })}

@@ -58,6 +58,7 @@ function columnConflictPos(task, colTasks, timeToMinutes) {
 
 const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const {
+    isTablet,
     darkMode, use24HourClock,
     borderClass, textSecondary,
     expandedNotesTaskId,
@@ -66,9 +67,10 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     getTasksForDate,
     getTaskCalendarStyle,
     timeToMinutes,
+    handleRoutineResizeStart, handleTouchRoutineResizeStart,
   } = useDayPlannerCtx();
 
-  const { projectFilter } = useFeaturesCtx();
+  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion } = useFeaturesCtx();
 
   const allDayTasks = getTasksForDate(col.date);
   const colTasks = allDayTasks.filter(t => {
@@ -213,6 +215,90 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
               </div>
             );
           })}
+
+          {/* Timeline routine pills (today only) */}
+          {routinesEnabled && col.dateStr === dateToString(new Date()) && (() => {
+            const timedRoutines = todayRoutines.filter(r => !r.isAllDay && r.startTime);
+            if (timedRoutines.length === 0) return null;
+
+            const routineCols = [];
+            const sorted = [...timedRoutines].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+            sorted.forEach(r => {
+              const rStart = timeToMinutes(r.startTime);
+              let placed = false;
+              for (let c = 0; c < routineCols.length; c++) {
+                const last = routineCols[c][routineCols[c].length - 1];
+                if (timeToMinutes(last.startTime) + last.duration <= rStart) {
+                  routineCols[c].push(r); placed = true; break;
+                }
+              }
+              if (!placed) routineCols.push([r]);
+            });
+
+            const colMap = {};
+            routineCols.forEach((rc, ci) => rc.forEach(r => { colMap[r.id] = ci; }));
+
+            const overlapCount = {};
+            timedRoutines.forEach(r => {
+              const rStart = timeToMinutes(r.startTime);
+              const rEnd = rStart + r.duration;
+              const pts = new Set([rStart]);
+              timedRoutines.forEach(o => { const s = timeToMinutes(o.startTime); if (s > rStart && s < rEnd) pts.add(s); });
+              let max = 0;
+              pts.forEach(t => {
+                let cnt = 0;
+                timedRoutines.forEach(o => { const s = timeToMinutes(o.startTime); if (s <= t && s + o.duration > t) cnt++; });
+                max = Math.max(max, cnt);
+              });
+              overlapCount[r.id] = max;
+            });
+
+            const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
+            return timedRoutines.map(routine => {
+              const slice = getTaskSlice(routine, col, hourHeight, timeToMinutes);
+              if (!slice) return null;
+              const { top, height } = slice;
+              const rci = colMap[routine.id];
+              const cols = overlapCount[routine.id];
+              const wPct = cols > 1 ? `${100 / cols}%` : '100%';
+              const lPct = cols > 1 ? `${(rci * 100) / cols}%` : '0%';
+              const isPast = timeToMinutes(routine.startTime) + routine.duration <= nowMinutes;
+
+              return (
+                <div
+                  key={`routine-tl-${routine.id}`}
+                  className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                  style={{ top: `${top}px`, height: `${Math.max(height, 27)}px`, left: `calc(${lPct} + 4px)`, width: `calc(${wPct} - 8px)` }}
+                >
+                  <div className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`} />
+                  <div className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 rounded-full ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'}`} />
+                  <span
+                    className={`relative rounded-full px-3 py-1 text-xs font-medium cursor-pointer ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
+                    onClick={() => toggleRoutineCompletion(routine.id)}
+                  >{routine.name}</span>
+                  {!isTablet && (
+                    <div
+                      className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-center"
+                      onMouseDown={(e) => handleRoutineResizeStart(routine, e)}
+                      style={{ marginBottom: '-4px' }}
+                    >
+                      <div className="w-8 h-1 rounded-full bg-white" />
+                    </div>
+                  )}
+                  {isTablet && (
+                    <div
+                      onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e)}
+                      className="absolute bottom-0 left-1/3 right-1/3 h-3 flex items-center justify-center select-none"
+                      style={{ marginBottom: '-4px', touchAction: 'none', WebkitTouchCallout: 'none' }}
+                    >
+                      <div className="w-12 h-1 bg-white rounded-full" />
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import AllDayTaskCard from './AllDayTaskCard.jsx';
+import { dateToString } from '../utils/taskUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
@@ -153,7 +154,8 @@ const DayViewAllDaySection = () => {
     dayViewColumns,
     getTasksForDate,
   } = useDayPlannerCtx();
-  const { projectFilter } = useFeaturesCtx();
+  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion } = useFeaturesCtx();
+  const todayStr = dateToString(new Date());
 
   // Build date groups (same logic as CalendarHeader day-mode header)
   const dateGroups = [];
@@ -173,7 +175,8 @@ const DayViewAllDaySection = () => {
       .sort((a, b) => allDayOrder(a) - allDayOrder(b)),
   }));
 
-  if (!groupsWithTasks.some(g => g.tasks.length > 0)) return null;
+  const hasAllDayRoutines = routinesEnabled && todayRoutines.some(r => r.isAllDay);
+  if (!groupsWithTasks.some(g => g.tasks.length > 0) && !hasAllDayRoutines) return null;
 
   return (
     <div className={`border-b ${borderClass} ${cardBg}`} style={{ display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` }}>
@@ -193,6 +196,15 @@ const DayViewAllDaySection = () => {
               borderClass={borderClass}
               cardBg={cardBg}
             />
+            {routinesEnabled && group.dateStr === todayStr && todayRoutines.filter(r => r.isAllDay).map(routine => (
+              <span
+                key={`routine-${routine.id}`}
+                className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
+                onClick={() => toggleRoutineCompletion(routine.id)}
+              >
+                {routine.name}
+              </span>
+            ))}
           </div>
         </div>
       ))}

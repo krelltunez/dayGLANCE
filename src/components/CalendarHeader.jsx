@@ -327,7 +327,7 @@ const CalendarHeader = () => {
 {effectiveViewMode === 'day' && <DayViewAllDaySection />}
 
 {/* Week view all-day count chips */}
-{effectiveViewMode === 'week' && weekViewDates.some(d => getTasksForDate(d).some(t => t.isAllDay)) && (
+{effectiveViewMode === 'week' && (weekViewDates.some(d => getTasksForDate(d).some(t => t.isAllDay)) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
   <div className={`flex border-b ${borderClass} ${cardBg}`}>
     <div
       className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
@@ -342,7 +342,7 @@ const CalendarHeader = () => {
       return (
         <div
           key={dateStr}
-          className={`flex-1 flex items-center justify-center py-1 min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}
+          className={`flex-1 flex flex-wrap items-center justify-center gap-1 py-1 min-w-0 overflow-hidden ${idx > 0 ? `border-l ${borderClass}` : ''}
             ${isDateToday ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}
         >
           {allDayTasks.length > 0 && (
@@ -363,6 +363,14 @@ const CalendarHeader = () => {
               {allDayTasks.length} all day
             </button>
           )}
+          {routinesEnabled && isDateToday && todayRoutines.filter(r => r.isAllDay).map(routine => (
+            <div
+              key={`routine-${routine.id}`}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
+            >
+              {routine.name}
+            </div>
+          ))}
         </div>
       );
     })}
