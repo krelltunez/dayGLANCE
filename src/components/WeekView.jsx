@@ -176,7 +176,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
 
       {/* HyperGLANCE project strips — narrow left edge, display only */}
       {hgBars.length > 0 && (
-        <div className="absolute top-0 bottom-0 left-0 pointer-events-none" style={{ width: 14 }}>
+        <div className="absolute top-0 bottom-0 left-0 pointer-events-none" style={{ width: '25%' }}>
           {hgBars.map(bar => {
             const hg = bar.project.hyperglance;
             const effectiveTime = hg.scheduledTimeOverrides?.[bar.date] || hg.scheduledTime || '0:0';
@@ -202,9 +202,9 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                   borderRadius: 3,
                 }}
               >
-                <IconComp size={9} style={{ color: barColor, flexShrink: 0 }} />
+                <IconComp size={12} style={{ color: barColor, flexShrink: 0 }} />
                 {canEnter && barH > 24 && (
-                  <Zap size={8} style={{ color: barColor }} className="animate-pulse flex-shrink-0" />
+                  <Zap size={10} style={{ color: barColor }} className="animate-pulse flex-shrink-0" />
                 )}
               </div>
             );
