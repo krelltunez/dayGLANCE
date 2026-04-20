@@ -453,6 +453,8 @@ const WeekView = () => {
     darkMode, borderClass, textSecondary,
     use24HourClock,
     cardBg,
+    expandedNotesTaskId, setExpandedNotesTaskId,
+    getTasksForDate,
   } = useDayPlannerCtx();
 
   const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef);
@@ -461,10 +463,22 @@ const WeekView = () => {
 
   const todayStr = dateToString(new Date());
 
+  useEffect(() => {
+    if (!expandedNotesTaskId) return;
+    const chipEl = document.querySelector(`[data-task-id="${expandedNotesTaskId}"]`);
+    if (!chipEl) return;
+    const task = weekViewDates.flatMap(d => getTasksForDate(d))
+      .find(t => String(t.id) === String(expandedNotesTaskId));
+    if (!task) return;
+    setPopoverTask(task);
+    setPopoverAnchor(chipEl.getBoundingClientRect());
+  }, [expandedNotesTaskId]);
+
   const handleTaskClick = (task, anchor) => {
     if (popoverTask?.id === task.id) {
       setPopoverTask(null);
       setPopoverAnchor(null);
+      setExpandedNotesTaskId(null);
     } else {
       setPopoverTask(task);
       setPopoverAnchor(anchor);
@@ -474,6 +488,7 @@ const WeekView = () => {
   const handleClosePopover = () => {
     setPopoverTask(null);
     setPopoverAnchor(null);
+    setExpandedNotesTaskId(null);
   };
 
   return (
