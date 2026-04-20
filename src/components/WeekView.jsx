@@ -273,6 +273,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           const isCalendarEvent = isImported && !task.isTaskCalendar;
           const taskCalStyle = getTaskCalendarStyle(task, darkMode);
           const isActive = activePopoverTaskId === task.id;
+          const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
           const [chipText, chipTag] = splitChipTitleTag(task.title);
 
           return (
@@ -310,7 +311,8 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                 });
               }}
             >
-              <div className="flex items-baseline gap-0.5 text-white text-[11px] font-medium leading-tight px-1 py-0.5 min-w-0 overflow-hidden">
+              <div className="flex items-center gap-0.5 text-white text-[11px] font-medium leading-tight px-1 py-0.5 min-w-0 overflow-hidden">
+                {isRecurring && <Icons.RefreshCw size={8} className="shrink-0 opacity-70" />}
                 <span className="truncate min-w-0">{chipText}</span>
                 {chipTag && <span className="shrink-0 italic opacity-75">{chipTag}</span>}
               </div>
