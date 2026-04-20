@@ -122,8 +122,8 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
         {hours.map((hour, i) => (
           <div
             key={hour}
-            className={`relative${i === hours.length - 1 ? ' flex-1' : ''}`}
-            style={i === hours.length - 1 ? { minHeight: `${hourHeight}px` } : { height: `${hourHeight}px` }}
+            className="relative"
+            style={{ height: `${hourHeight}px` }}
           >
             <div className={`flex border-b h-full ${borderClass} ${i % 2 === 1 ? altRow : ''}`}>
               <div

@@ -13,7 +13,7 @@ export default function useDayViewHourHeight(calendarRef, stickyHeaderRef) {
       const totalH = calendarRef.current.clientHeight;
       const stickyH = stickyHeaderRef?.current?.offsetHeight || 0;
       const usable = Math.max(160, totalH - stickyH);
-      setHourHeight(Math.max(20, Math.floor(usable / 8)));
+      setHourHeight(Math.max(20, usable / 8));
     };
 
     // Defer first measurement by one frame so the sticky header ref is populated.
