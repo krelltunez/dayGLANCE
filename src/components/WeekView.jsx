@@ -238,7 +238,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                 }}
               >
                 <IconComp size={12} style={{ color: barColor, flexShrink: 0 }} />
-                {canEnter && barH > 24 && (
+                {canEnter && (
                   <Zap size={10} style={{ color: barColor }} className="animate-pulse flex-shrink-0" />
                 )}
               </div>
