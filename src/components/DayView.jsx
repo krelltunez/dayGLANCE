@@ -8,6 +8,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useDayViewHourHeight from '../hooks/useDayViewHourHeight.js';
 import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
 import HyperGlanceBar from './HyperGlanceBar.jsx';
+import { frameColorBg, frameColorBorder } from '../utils/colorUtils.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,9 +71,10 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     getTaskCalendarStyle,
     timeToMinutes,
     handleRoutineResizeStart, handleTouchRoutineResizeStart,
+    handleFrameResizeStart, frameResizingRef,
   } = useDayPlannerCtx();
 
-  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion, goalsProjectsEnabled, projects } = useFeaturesCtx();
+  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion, goalsProjectsEnabled, projects, getFrameInstancesForDate, computeAvailableSlots, setFrameContextMenu } = useFeaturesCtx();
 
   const isDateToday = col.dateStr === dateToString(new Date());
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
@@ -158,6 +160,58 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             </div>
           </div>
         )}
+
+        {/* GTD Frame background zones — behind tasks */}
+        {(() => {
+          const frameInstances = getFrameInstancesForDate(col.date);
+          if (!frameInstances.length) return null;
+          return (
+            <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
+              {frameInstances.map(frame => {
+                const fStartMin = timeToMinutes(frame.start);
+                const fEndMin = timeToMinutes(frame.end);
+                if (fEndMin <= colStartMin || fStartMin >= colEndMin) return null;
+                const visStart = Math.max(fStartMin, colStartMin);
+                const visEnd = Math.min(fEndMin, colEndMin);
+                const top = (visStart - colStartMin) * hourHeight / 60;
+                const height = (visEnd - visStart) * hourHeight / 60;
+                if (height <= 0) return null;
+                const bg = frameColorBg(frame.color, darkMode);
+                const border = frameColorBorder(frame.color, darkMode);
+                const availableSlots = computeAvailableSlots(frame, col.date);
+                return (
+                  <div key={frame.frameId}>
+                    <div
+                      data-ctx-menu
+                      className="absolute left-0 right-0 rounded-sm pointer-events-auto select-none"
+                      style={{ top: `${top}px`, height: `${height}px`, background: bg, borderLeft: `3px solid ${border}` }}
+                      onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr: col.dateStr }); }}
+                    >
+                      <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none select-none" style={{ color: border }}>{frame.label}</span>
+                      <div className="absolute top-0 left-0 right-0 h-2 cursor-n-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'top', e)} />
+                      <div className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'bottom', e)} />
+                    </div>
+                    {availableSlots.map((slot, si) => {
+                      const sStart = Math.max(timeToMinutes(slot.start), colStartMin);
+                      const sEnd = Math.min(timeToMinutes(slot.end), colEndMin);
+                      if (sEnd <= sStart) return null;
+                      const slotTop = (sStart - colStartMin) * hourHeight / 60;
+                      const slotH = (sEnd - sStart) * hourHeight / 60;
+                      if (slotH < 4) return null;
+                      return (
+                        <div
+                          key={`avail-${frame.frameId}-${si}`}
+                          className="absolute left-1 right-1 rounded pointer-events-none"
+                          style={{ top: `${slotTop}px`, height: `${slotH}px`, border: `1.5px dashed ${border}`, opacity: 0.5 }}
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Task pill overlay — covers the event area only (right of gutter) */}
         <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">

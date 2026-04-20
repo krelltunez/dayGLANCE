@@ -43,6 +43,38 @@ export const hexToRgba = (hex, alpha) => {
   return `rgba(${r},${g},${b},${alpha})`;
 };
 
+// GTD Frame color maps — Tailwind bg class → rgba for background and border
+const _FB = {
+  light: {
+    'bg-indigo-200': 'rgba(165,180,252,0.18)', 'bg-amber-200': 'rgba(253,230,138,0.18)',
+    'bg-green-200':  'rgba(167,243,208,0.18)', 'bg-blue-200':  'rgba(191,219,254,0.18)',
+    'bg-rose-200':   'rgba(254,205,211,0.18)', 'bg-purple-200':'rgba(221,214,254,0.18)',
+    'bg-teal-200':   'rgba(153,246,228,0.18)', 'bg-orange-200':'rgba(254,215,170,0.18)',
+  },
+  dark: {
+    'bg-indigo-200': 'rgba(165,180,252,0.08)', 'bg-amber-200': 'rgba(253,230,138,0.08)',
+    'bg-green-200':  'rgba(167,243,208,0.08)', 'bg-blue-200':  'rgba(191,219,254,0.08)',
+    'bg-rose-200':   'rgba(254,205,211,0.08)', 'bg-purple-200':'rgba(221,214,254,0.08)',
+    'bg-teal-200':   'rgba(153,246,228,0.08)', 'bg-orange-200':'rgba(254,215,170,0.08)',
+  },
+};
+const _FBorder = {
+  light: {
+    'bg-indigo-200': 'rgba(79,70,229,0.75)',   'bg-amber-200': 'rgba(217,119,6,0.75)',
+    'bg-green-200':  'rgba(22,163,74,0.75)',    'bg-blue-200':  'rgba(37,99,235,0.75)',
+    'bg-rose-200':   'rgba(225,29,72,0.75)',    'bg-purple-200':'rgba(147,51,234,0.75)',
+    'bg-teal-200':   'rgba(13,148,136,0.75)',   'bg-orange-200':'rgba(234,88,12,0.75)',
+  },
+  dark: {
+    'bg-indigo-200': 'rgba(165,180,252,0.4)',   'bg-amber-200': 'rgba(253,230,138,0.4)',
+    'bg-green-200':  'rgba(167,243,208,0.4)',   'bg-blue-200':  'rgba(191,219,254,0.4)',
+    'bg-rose-200':   'rgba(254,205,211,0.4)',   'bg-purple-200':'rgba(221,214,254,0.4)',
+    'bg-teal-200':   'rgba(153,246,228,0.4)',   'bg-orange-200':'rgba(254,215,170,0.4)',
+  },
+};
+export const frameColorBg     = (color, darkMode) => (darkMode ? _FB.dark : _FB.light)[color]       || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)');
+export const frameColorBorder = (color, darkMode) => (darkMode ? _FBorder.dark : _FBorder.light)[color] || (darkMode ? 'rgba(165,180,252,0.4)'  : 'rgba(79,70,229,0.75)');
+
 /** Converts a task's .color field (Tailwind class or native hex) to a hex string. */
 export const taskColorToHex = (color, nativeCalendarColor) => {
   if (nativeCalendarColor) return nativeCalendarColor;
