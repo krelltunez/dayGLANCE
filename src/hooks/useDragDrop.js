@@ -345,7 +345,7 @@ export default function useDragDrop({
     }
   };
 
-  const handleDropOnCalendar = (e, targetDate = null) => {
+  const handleDropOnCalendar = (e, targetDate = null, overrideTime = null) => {
     e.preventDefault();
     if (!draggedTask) return;
 
@@ -358,13 +358,13 @@ export default function useDragDrop({
         setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
         return;
       }
-      const startTime = getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration: draggedTask.duration });
+      const startTime = overrideTime || getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration: draggedTask.duration });
       setTodayRoutines(prev => prev.map(r => r.id === draggedTask.id ? { ...r, startTime, isAllDay: false, lastModified: new Date().toISOString() } : r));
       setDraggedTask(null); setDragSource(null); setDragPreviewTime(null); setDragPreviewDate(null);
       return;
     }
 
-    const requestedStartTime = getTimeFromCursorPosition(e, {
+    const requestedStartTime = overrideTime || getTimeFromCursorPosition(e, {
       maxMinutes: 24 * 60,
       taskDuration: draggedTask.duration
     });
