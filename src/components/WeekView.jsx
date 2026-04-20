@@ -108,9 +108,9 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
     darkMode, borderClass, cardBg,
     getTasksForDate, getTaskCalendarStyle,
     timeToMinutes,
-    setTaskContextMenu,
+    setTaskContextMenu, setTimelineContextMenu,
   } = useDayPlannerCtx();
-  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, goalsProjectsEnabled, projects, getFrameInstancesForDate, setFrameContextMenu } = useFeaturesCtx();
+  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, goalsProjectsEnabled, projects, getFrameInstancesForDate, setFrameContextMenu, setHgContextMenu } = useFeaturesCtx();
 
   const [overflowPopover, setOverflowPopover] = useState(null); // { routines, rect }
   const overflowPopoverRef = useRef(null);
@@ -166,6 +166,13 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           key={hour}
           className="relative"
           style={{ height: `${hourHeight}px` }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const fraction = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+            const minutes = hour * 60 + Math.round(fraction * 60 / 15) * 15;
+            setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr, timeMinutes: minutes });
+          }}
         >
           <div className={`border-b h-full ${borderClass} ${hour % 2 === 1 ? altRow : ''}`} />
           <div
@@ -226,7 +233,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
             return (
               <div
                 key={bar.project.id}
-                className="absolute overflow-hidden flex flex-col items-center pt-0.5 gap-0.5"
+                className="absolute overflow-hidden flex flex-col items-center pt-0.5 gap-0.5 pointer-events-auto"
                 style={{
                   top: `${barTop}px`,
                   height: `${barH}px`,
@@ -235,6 +242,11 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                   backgroundColor: hexToRgba(barColor, 0.09),
                   borderLeft: `3px solid ${barColor}`,
                   borderRadius: 3,
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setHgContextMenu({ x: e.clientX, y: e.clientY, projectId: bar.project.id, date: bar.date, isCompleted: bar.isCompleted });
                 }}
               >
                 <IconComp size={12} style={{ color: barColor, flexShrink: 0 }} />

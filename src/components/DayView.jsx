@@ -72,6 +72,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     timeToMinutes,
     handleRoutineResizeStart, handleTouchRoutineResizeStart,
     handleFrameResizeStart, frameResizingRef,
+    setTimelineContextMenu,
   } = useDayPlannerCtx();
 
   const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion, goalsProjectsEnabled, projects, getFrameInstancesForDate, computeAvailableSlots, setFrameContextMenu } = useFeaturesCtx();
@@ -133,7 +134,16 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
               >
                 {formatHourLabel(hour, use24HourClock)}
               </div>
-              <div className="flex-1 h-full" />
+              <div
+                className="flex-1 h-full"
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const fraction = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                  const minutes = hour * 60 + Math.round(fraction * 60 / 15) * 15;
+                  setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr: col.dateStr, timeMinutes: minutes });
+                }}
+              />
             </div>
             {/* Half-hour dashed line — full-width flex matching TimeGrid */}
             <div
