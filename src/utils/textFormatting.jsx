@@ -204,6 +204,15 @@ export const renderTitle = (title) => {
   });
 };
 
+// Split a title into display text and trailing hashtag for week view chip rendering.
+// Returns [text, tag] where tag is null if no trailing hashtag exists.
+export const splitChipTitleTag = (title) => {
+  const stripped = title.replace(/\[\[[^\]]+\]\]/g, '').trim();
+  const match = stripped.match(/^(.*?)\s+(#\p{L}[\p{L}\p{N}_]*)$/su);
+  if (match) return [match[1], match[2]];
+  return [stripped, null];
+};
+
 export const highlightMatch = (text, query) => {
   if (!query) return text;
   const idx = text.toLowerCase().indexOf(query.toLowerCase());

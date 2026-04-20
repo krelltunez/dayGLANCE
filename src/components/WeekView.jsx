@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
-import { renderTitle } from '../utils/textFormatting.jsx';
+import { splitChipTitleTag } from '../utils/textFormatting.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -163,6 +163,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           const isCalendarEvent = isImported && !task.isTaskCalendar;
           const taskCalStyle = getTaskCalendarStyle(task, darkMode);
           const isActive = activePopoverTaskId === task.id;
+          const [chipText, chipTag] = splitChipTitleTag(task.title);
 
           return (
             <div
@@ -198,9 +199,10 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
                 });
               }}
             >
-              <span className="block text-white text-[11px] font-medium leading-tight px-1 py-0.5 truncate">
-                {renderTitle(task.title)}
-              </span>
+              <div className="flex items-baseline gap-0.5 text-white text-[11px] font-medium leading-tight px-1 py-0.5 min-w-0 overflow-hidden">
+                <span className="truncate min-w-0">{chipText}</span>
+                {chipTag && <span className="shrink-0 italic opacity-75">{chipTag}</span>}
+              </div>
             </div>
           );
         })}
