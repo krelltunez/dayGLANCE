@@ -382,7 +382,7 @@ const CalendarHeader = () => {
     onMouseDown={(e) => e.stopPropagation()}
   >
     {weekAllDayPopover.tasks.map(task => (
-      <AllDayTaskCard key={task.id} task={task} fillWidth={true} />
+      <AllDayTaskCard key={task.id} task={task} fillWidth={false} />
     ))}
   </div>
 )}
