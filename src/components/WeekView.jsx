@@ -339,8 +339,11 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           const items = [];
 
           assignments.filter(({ r, col }) => col < 2 && !hiddenCol1.has(r.id)).forEach(({ r, col }) => {
-            const top = timeToMinutes(r.startTime) * hourHeight / 60;
+            const rawTop = timeToMinutes(r.startTime) * hourHeight / 60;
             const h = Math.max(22, r.duration * hourHeight / 60);
+            // Clamp top so the chip never straddles the next hour line
+            const nextHourPx = (Math.floor(timeToMinutes(r.startTime) / 60) + 1) * hourHeight;
+            const top = Math.min(rawTop, nextHourPx - h);
             const hasVisiblePartner = assignments.some(({ r: pr, col: pc }) =>
               pc === (1 - col) && !hiddenCol1.has(pr.id) && rangesOverlap(r, pr)
             );
@@ -368,7 +371,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
             items.push(
               <div key={`overflow-${i}`}
                 className="absolute pointer-events-auto flex items-center justify-center cursor-pointer"
-                style={{ top: `${sp.s * hourHeight / 60}px`, height: `${Math.max(22, (sp.e - sp.s) * hourHeight / 60)}px`, left: 'calc(50% + 1px)', right: '1px', zIndex: 6 }}
+                style={{ top: `${Math.min(sp.s * hourHeight / 60, (Math.floor(sp.s / 60) + 1) * hourHeight - Math.max(22, (sp.e - sp.s) * hourHeight / 60))}px`, height: `${Math.max(22, (sp.e - sp.s) * hourHeight / 60)}px`, left: 'calc(50% + 1px)', right: '1px', zIndex: 6 }}
                 onClick={(e) => { e.stopPropagation(); setOverflowPopover({ routines: sp.routines, rect: e.currentTarget.getBoundingClientRect() }); }}>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/60 text-teal-200' : 'bg-teal-500/60 text-white'}`}>
                   +{sp.routines.length}
