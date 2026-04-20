@@ -207,17 +207,17 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           );
         })}
 
-        {/* Routine chips — today's column only, display only */}
+        {/* Routine pills — today's column only, display only */}
         {routinesEnabled && isToday && todayRoutines.filter(r => !r.isAllDay && r.startTime).map(routine => {
           const top = timeToMinutes(routine.startTime) * hourHeight / 60;
           const chipH = Math.max(22, routine.duration * hourHeight / 60);
           return (
             <div
               key={`routine-${routine.id}`}
-              className={`absolute pointer-events-none rounded-sm flex items-center justify-center overflow-hidden ${darkMode ? 'bg-teal-700/80' : 'bg-teal-600/80'} ${routineCompletions[routine.id] ? 'opacity-50' : ''}`}
+              className="absolute pointer-events-none flex items-center justify-center"
               style={{ top: `${top}px`, height: `${chipH}px`, left: '1px', right: '1px', zIndex: 5 }}
             >
-              <span className={`text-white text-[11px] font-medium px-1 text-center leading-tight ${routineCompletions[routine.id] ? 'line-through' : ''}`}>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}>
                 {routine.name}
               </span>
             </div>
