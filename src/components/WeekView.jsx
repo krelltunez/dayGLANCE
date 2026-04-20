@@ -33,7 +33,7 @@ function weekColConflictPos(task, colTasks, timeToMinutes) {
 // ── Task popover ──────────────────────────────────────────────────────────────
 
 const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
-  const { cardBg, borderClass, darkMode, getTaskCalendarStyle } = useDayPlannerCtx();
+  const { cardBg, borderClass, darkMode, getTaskCalendarStyle, expandedNotesTaskId } = useDayPlannerCtx();
   const popoverRef = useRef(null);
   const POPOVER_W = 300;
   const POPOVER_H = 220;
@@ -65,7 +65,8 @@ const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
   return (
     <div
       ref={popoverRef}
-      className={`fixed z-50 shadow-2xl rounded-xl border overflow-hidden notes-panel-container
+      className={`fixed z-50 shadow-2xl rounded-xl border notes-panel-container
+        ${expandedNotesTaskId === task.id ? 'overflow-visible' : 'overflow-hidden'}
         ${task.isTaskCalendar ? '' : task.color}
         ${isCalendarEvent ? '' : ''}
       `}

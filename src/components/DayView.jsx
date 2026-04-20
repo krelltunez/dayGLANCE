@@ -89,10 +89,8 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const showNowLine = col.dateStr === dateToString(now) && nowMinutes >= colStartMin && nowMinutes < colEndMin;
   const nowY = showNowLine ? (nowMinutes - colStartMin) * hourHeight / 60 : 0;
 
-  const isToday = col.dateStr === dateToString(new Date());
-
   return (
-    <div className={`flex-1 flex flex-col min-w-0 ${colIdx > 0 ? `border-l ${borderClass}` : ''} ${isToday ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}>
+    <div className={`flex-1 flex flex-col min-w-0 ${colIdx > 0 ? `border-l ${borderClass}` : ''} ${showNowLine ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}>
       <div className="flex-1 relative flex flex-col">
         {/* Hour rows — each is a full-width flex row matching TimeGrid's structure */}
         {hours.map((hour, i) => (

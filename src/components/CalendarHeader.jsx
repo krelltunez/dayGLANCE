@@ -150,7 +150,7 @@ const CalendarHeader = () => {
               ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : ''}`}
             style={{ minHeight: 'var(--header-row-h)' }}
           >
-            <div className={`font-bold text-sm flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
+            <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
               <span>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getDay()]}</span>
               <span className={`font-normal ${isDateToday ? 'text-blue-500' : textSecondary}`}>
                 {date.getMonth() + 1}/{date.getDate()}
@@ -271,7 +271,7 @@ const CalendarHeader = () => {
               <ViewCycler />
             </div>
           )}
-          <div className={`font-bold text-sm flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary} ${idx === 0 && canShowViewCycler ? 'pl-16' : ''}`}>
+          <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary} ${idx === 0 && canShowViewCycler ? 'pl-16' : ''}`}>
             {formatShortDate(group.date)}
             {timeRange && (
               <span className={`font-normal text-xs ${textSecondary}`}>· {timeRange}</span>
