@@ -103,6 +103,40 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     return () => el.removeEventListener('mousemove', handler);
   }, []);
 
+  // DIAGNOSTIC: capturing document listener — fires BEFORE any element handler, regardless of
+  // stopPropagation or covering elements. Also listens for dragover to detect stuck drag mode.
+  useEffect(() => {
+    const colEl = colContentRef.current;
+    const onDocMM = (e) => {
+      if (!colEl) return;
+      const r = colEl.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      const actual = document.elementFromPoint(e.clientX, e.clientY);
+      console.log('[DAY doc-capture mm]', {
+        eventTarget: (e.target?.className || '').toString().slice(0, 80),
+        elementFromPoint: (actual?.className || '').toString().slice(0, 80),
+        sameAsTarget: actual === e.target,
+        insideColContent: colEl.contains(e.target),
+        insideColContentEFP: colEl.contains(actual),
+      });
+    };
+    const onDocDO = (e) => {
+      if (!colEl) return;
+      const r = colEl.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      console.log('[DAY doc-capture DRAGOVER — browser may be stuck in drag mode]', {
+        target: (e.target?.className || '').toString().slice(0, 80),
+        insideColContent: colEl.contains(e.target),
+      });
+    };
+    document.addEventListener('mousemove', onDocMM, { capture: true });
+    document.addEventListener('dragover', onDocDO, { capture: true });
+    return () => {
+      document.removeEventListener('mousemove', onDocMM, { capture: true });
+      document.removeEventListener('dragover', onDocDO, { capture: true });
+    };
+  }, []);
+
   // Compute the snapped 15-minute drop/hover time for the current pointer
   // event relative to this column's content area. Day-view columns span
   // col.startHour..col.endHour; this clamps to that range so the preview
