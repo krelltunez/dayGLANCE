@@ -378,7 +378,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                 draggable={taskDraggable}
                 onDragStart={taskDraggable ? (e) => handleDragStart(task, 'calendar', e) : undefined}
                 onDragEnd={taskDraggable ? handleDragEnd : undefined}
-                className={`absolute pointer-events-auto shadow-md notes-panel-container
+                className={`absolute pointer-events-auto shadow-md notes-panel-container text-white
                   ${task.isTaskCalendar ? '' : task.color}
                   ${radiusTop} ${radiusBot}
                   ${isCompleted && !isCalendarEvent ? 'opacity-50' : ''}

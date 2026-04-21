@@ -8598,7 +8598,6 @@ const DayPlanner = () => {
             className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[160px]`}
             style={{ left: `${fmX}px`, top: `${fmY}px` }}
           >
-          >
             <button
               className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
               onClick={() => openFrameAdjust(frameContextMenu.frameId, frameContextMenu.dateStr)}
@@ -8658,7 +8657,6 @@ const DayPlanner = () => {
             <div
               className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[180px]`}
               style={{ left: `${clampedX}px`, top: `${clampedY}px` }}
-            >
             >
               {!isImported && (
                 <button
@@ -8781,7 +8779,6 @@ const DayPlanner = () => {
               className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[200px]`}
               style={{ left: `${tlX}px`, top: `${tlY}px` }}
             >
-            >
               <button
                 className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
                 onClick={() => {
@@ -8858,7 +8855,6 @@ const DayPlanner = () => {
             <div
               className={`absolute ${cardBg} rounded-lg shadow-xl border ${borderClass} py-1 min-w-[168px]`}
               style={{ left: `${cmX}px`, top: `${cmY}px` }}
-            >
             >
               {!isCompleted && (
                 <button
