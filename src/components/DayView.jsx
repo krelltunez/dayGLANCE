@@ -67,6 +67,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     borderClass, textSecondary,
     expandedNotesTaskId,
     taskContextMenu, setTaskContextMenu,
+    openMobileEditTask,
     getTasksForDate,
     getTaskCalendarStyle,
     timeToMinutes,
@@ -75,7 +76,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     handleFrameResizeStart, frameResizingRef,
     setTimelineContextMenu,
     // Drag + hover + click-to-add
-    draggedTask,
+    draggedTask, dragSource,
     dragPreviewTime, dragPreviewDate,
     hoverPreviewTime, hoverPreviewDate,
     setDragPreviewTime, setDragPreviewDate,
@@ -164,14 +165,14 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     handleDropOnCalendar(e, col.date, t);
   };
 
-  // Show hover preview only when NOT over an explicit pointer-events-auto
-  // overlay element (task card, frame zone, routine pill, HG bar). Those
-  // elements carry the Tailwind `pointer-events-auto` class; wrapper divs
-  // and the bare day-col-slot cell do not.
-  const isOverEmptySlot = (target) => target && !target.closest('.pointer-events-auto');
+  // Only show hover preview when the cursor is over an empty hour-row
+  // cell (day-col-slot). Hovering over task cards, frames, or the gutter
+  // should leave the preview cleared.
+  const isOverEmptySlot = (target) => target && target.classList && target.classList.contains('day-col-slot');
 
   const onColMouseMove = (e) => {
     if (draggedTask || isResizing || frameResizingRef.current) {
+      console.log('[DAY hover blocked]', { draggedTask: !!draggedTask, draggedTaskId: draggedTask?.id, isResizing, frameResizing: frameResizingRef.current, target: e.target?.className });
       if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
       return;
     }
@@ -395,6 +396,13 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                     : { left, width }),
                   ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
                 }}
+                onClick={(e) => {
+                  console.log('[DAY card click]', { taskId: task.id, target: e.target?.className, isCalendarEvent });
+                  e.stopPropagation();
+                  if (!isCalendarEvent || task.isTaskCalendar || task.nativeEventId) {
+                    openMobileEditTask(task, false);
+                  }
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setTaskContextMenu({
@@ -416,7 +424,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                   <TimelineTaskCardContent
                     task={task}
                     height={height}
-                    isNarrowWidth={true}
+                    isNarrowWidth={false}
                     flipNotesPanel={(8 * hourHeight) - (top + height) < 200}
                   />
                 )}
