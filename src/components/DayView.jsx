@@ -67,7 +67,6 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     borderClass, textSecondary,
     expandedNotesTaskId,
     taskContextMenu, setTaskContextMenu,
-    openMobileEditTask,
     getTasksForDate,
     getTaskCalendarStyle,
     timeToMinutes,
@@ -171,9 +170,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const isOverEmptySlot = (target) => target && target.classList && target.classList.contains('day-col-slot');
 
   const onColMouseMove = (e) => {
-    console.log('[DAY mousemove]', { tag: e.target?.tagName, cls: e.target?.className?.slice?.(0, 80), draggedTask: !!draggedTask, isResizing, frameResizing: frameResizingRef.current, isSlot: isOverEmptySlot(e.target) });
     if (draggedTask || isResizing || frameResizingRef.current) {
-      console.log('[DAY hover blocked]', { draggedTask: !!draggedTask, draggedTaskId: draggedTask?.id, isResizing, frameResizing: frameResizingRef.current, target: e.target?.className });
       if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
       return;
     }
@@ -397,13 +394,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                     : { left, width }),
                   ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
                 }}
-                onClick={(e) => {
-                  console.log('[DAY card click]', { taskId: task.id, target: e.target?.className, isCalendarEvent });
-                  e.stopPropagation();
-                  if (!isCalendarEvent || task.isTaskCalendar || task.nativeEventId) {
-                    openMobileEditTask(task, false);
-                  }
-                }}
+                onClick={(e) => e.stopPropagation()}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setTaskContextMenu({
