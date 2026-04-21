@@ -432,7 +432,10 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
             });
             items.push(
               <div key={`routine-${r.id}`}
-                className="absolute pointer-events-none flex items-start pt-0.5"
+                draggable={!isTablet}
+                onDragStart={!isTablet ? (e) => handleDragStart({ ...r }, 'routine', e) : undefined}
+                onDragEnd={!isTablet ? handleDragEnd : undefined}
+                className={`absolute pointer-events-auto flex items-start pt-0.5 ${!isTablet ? 'cursor-grab active:cursor-grabbing' : ''}`}
                 style={{
                   top: `${top}px`, height: `${h}px`, zIndex: 5,
                   left: hasOverlap && col === 1 ? 'calc(50% + 1px)' : '1px',

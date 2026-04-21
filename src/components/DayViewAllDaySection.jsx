@@ -153,6 +153,9 @@ const DayViewAllDaySection = () => {
     borderClass, textSecondary, cardBg,
     dayViewColumns,
     getTasksForDate,
+    isTablet,
+    handleDragStart, handleDragEnd, handleDropOnDateHeader,
+    dragOverAllDay, setDragOverAllDay, setDragPreviewTime,
   } = useDayPlannerCtx();
   const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion } = useFeaturesCtx();
   const todayStr = dateToString(new Date());
@@ -189,7 +192,13 @@ const DayViewAllDaySection = () => {
           <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
             {idx === 0 ? 'ALL DAY' : ''}
           </div>
-          <div className="flex-1 min-w-0">
+          <div
+            className={`flex-1 min-w-0 py-1 ${dragOverAllDay === group.dateStr ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverAllDay(null); }}
+            onDrop={(e) => handleDropOnDateHeader(e, group.date)}
+          >
             <GroupChips
               tasks={group.tasks}
               darkMode={darkMode}
@@ -199,7 +208,10 @@ const DayViewAllDaySection = () => {
             {routinesEnabled && group.dateStr === todayStr && todayRoutines.filter(r => r.isAllDay).map(routine => (
               <span
                 key={`routine-${routine.id}`}
-                className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 cursor-pointer ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
+                draggable={!isTablet}
+                onDragStart={!isTablet ? (e) => handleDragStart({ ...routine, duration: routine.duration || 15 }, 'routine', e) : undefined}
+                onDragEnd={!isTablet ? handleDragEnd : undefined}
+                className={`rounded-full px-3 py-1 text-xs font-medium inline-block mr-1 mb-1 ${!isTablet ? 'cursor-move' : 'cursor-pointer'} ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${routineCompletions[routine.id] ? 'line-through opacity-75' : ''}`}
                 onClick={() => toggleRoutineCompletion(routine.id)}
               >
                 {routine.name}

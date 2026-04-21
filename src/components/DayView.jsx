@@ -81,7 +81,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     setDragPreviewTime, setDragPreviewDate,
     setHoverPreviewTime, setHoverPreviewDate,
     handleDragStart, handleDragEnd, handleDropOnCalendar,
-    handleResizeStart,
+    handleResizeStart, handleTouchResizeStart,
     isResizing,
     setNewTask, setShowAddTask,
   } = useDayPlannerCtx();
@@ -428,10 +428,11 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                 {canResize && (
                   <div
                     onMouseDown={(e) => handleResizeStart(task, e)}
+                    onTouchStart={(e) => handleTouchResizeStart(task, e)}
                     onClick={(e) => e.stopPropagation()}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
-                    style={{ marginBottom: '-4px' }}
+                    style={{ marginBottom: '-4px', touchAction: 'none' }}
                   >
                     <div className="w-12 h-1 bg-white rounded-full" />
                   </div>
@@ -495,6 +496,8 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                   draggable={!isTablet}
                   onDragStart={!isTablet ? (e) => handleDragStart({ ...routine }, 'routine', e) : undefined}
                   onDragEnd={!isTablet ? handleDragEnd : undefined}
+                  onDragOver={!isTablet ? onColDragOver : undefined}
+                  onDrop={!isTablet ? onColDrop : undefined}
                   className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${!isTablet ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   style={{ top: `${top}px`, height: `${Math.max(height, 27)}px`, left: `calc(${lPct} + 4px)`, width: `calc(${wPct} - 8px)` }}
                 >
