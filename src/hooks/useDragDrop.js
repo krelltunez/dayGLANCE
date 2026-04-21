@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { nativeUpdateEvent } from '../native.js';
@@ -252,6 +252,40 @@ export default function useDragDrop({
       autoScrollInterval.current = null;
     }
   };
+
+  // Safeguard: clear drag state on any dragend event at the document level.
+  // The onDragEnd prop only fires on the source element — if it unmounts before
+  // dragend (e.g. a cross-column drop changes the element key), React never
+  // calls the handler and draggedTask stays stuck, blocking hover preview.
+  useEffect(() => {
+    const onDocDragEnd = () => {
+      setDraggedTask(null);
+      setDragSource(null);
+      setDragPreviewTime(null);
+      setDragPreviewDate(null);
+      setDragOverAllDay(null);
+      setDragOverInbox(false);
+      setDragOverRecycleBin(false);
+      if (autoScrollInterval.current) {
+        clearInterval(autoScrollInterval.current);
+        autoScrollInterval.current = null;
+      }
+    };
+    document.addEventListener('dragend', onDocDragEnd);
+    return () => document.removeEventListener('dragend', onDocDragEnd);
+  }, []);
+
+  // On window blur (alt-tab, focus loss), clear resize stuck states. The per-operation
+  // document mouseup listeners won't fire if the mouse button was released outside the
+  // browser window, leaving isResizing or frameResizingRef stuck and blocking hover.
+  useEffect(() => {
+    const onBlur = () => {
+      setIsResizing(false);
+      frameResizingRef.current = false;
+    };
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+  }, []);
 
   const updateDragAutoScroll = (e) => {
     if (!calendarRef.current) return;
