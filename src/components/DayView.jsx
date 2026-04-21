@@ -67,7 +67,6 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     borderClass, textSecondary,
     expandedNotesTaskId,
     taskContextMenu, setTaskContextMenu,
-    openMobileEditTask,
     getTasksForDate,
     getTaskCalendarStyle,
     timeToMinutes,
@@ -76,7 +75,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     handleFrameResizeStart, frameResizingRef,
     setTimelineContextMenu,
     // Drag + hover + click-to-add
-    draggedTask, dragSource,
+    draggedTask,
     dragPreviewTime, dragPreviewDate,
     hoverPreviewTime, hoverPreviewDate,
     setDragPreviewTime, setDragPreviewDate,
@@ -165,10 +164,11 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     handleDropOnCalendar(e, col.date, t);
   };
 
-  // Only show hover preview when the cursor is over an empty hour-row
-  // cell (day-col-slot). Hovering over task cards, frames, or the gutter
-  // should leave the preview cleared.
-  const isOverEmptySlot = (target) => target && target.classList && target.classList.contains('day-col-slot');
+  // Show hover preview only when NOT over an explicit pointer-events-auto
+  // overlay element (task card, frame zone, routine pill, HG bar). Those
+  // elements carry the Tailwind `pointer-events-auto` class; wrapper divs
+  // and the bare day-col-slot cell do not.
+  const isOverEmptySlot = (target) => target && !target.closest('.pointer-events-auto');
 
   const onColMouseMove = (e) => {
     if (draggedTask || isResizing || frameResizingRef.current) {
@@ -394,12 +394,6 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                     ? { left: '50%', right: 0, width: undefined }
                     : { left, width }),
                   ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isCalendarEvent || task.isTaskCalendar || task.nativeEventId) {
-                    openMobileEditTask(task, false);
-                  }
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
