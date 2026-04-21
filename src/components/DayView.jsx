@@ -495,6 +495,8 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                   draggable={!isTablet}
                   onDragStart={!isTablet ? (e) => handleDragStart({ ...routine }, 'routine', e) : undefined}
                   onDragEnd={!isTablet ? handleDragEnd : undefined}
+                  onDragOver={!isTablet ? onColDragOver : undefined}
+                  onDrop={!isTablet ? onColDrop : undefined}
                   className={`absolute pointer-events-auto flex items-center justify-center ${isPast ? 'opacity-50' : ''} ${!isTablet ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   style={{ top: `${top}px`, height: `${Math.max(height, 27)}px`, left: `calc(${lPct} + 4px)`, width: `calc(${wPct} - 8px)` }}
                 >
