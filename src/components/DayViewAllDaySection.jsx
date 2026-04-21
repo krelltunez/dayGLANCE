@@ -76,11 +76,11 @@ const GroupChips = ({ tasks, darkMode, borderClass, cardBg }) => {
   const overflowTasks = limit !== null ? tasks.slice(limit) : [];
 
   return (
-    <div className="relative p-2">
+    <div className="relative">
       {/* Ghost render for overflow measurement — invisible, no pointer events */}
       <div
         ref={ghostRef}
-        className="absolute top-2 left-2 right-2 flex flex-wrap gap-1 opacity-0 pointer-events-none"
+        className="absolute inset-0 flex flex-wrap gap-1 opacity-0 pointer-events-none"
         aria-hidden="true"
       >
         {tasks.map(t => (
@@ -187,13 +187,13 @@ const DayViewAllDaySection = () => {
         <div
           key={group.dateStr}
           style={{ gridColumn: `span ${group.count}` }}
-          className={`flex min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+          className={`flex items-center min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
         >
           <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
             {idx === 0 ? 'ALL DAY' : ''}
           </div>
           <div
-            className={`flex-1 min-w-0 py-1 ${dragOverAllDay === group.dateStr ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
+            className={`flex-1 min-w-0 p-2 space-y-1 ${dragOverAllDay === group.dateStr ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
             onDragOver={(e) => e.preventDefault()}
             onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverAllDay(null); }}
