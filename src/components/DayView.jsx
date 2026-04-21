@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
@@ -90,6 +90,19 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const colStartMin = col.startHour * 60;
   const colEndMin = col.endHour * 60;
 
+  // DIAGNOSTIC: native listener bypasses React delegation — tells us if DOM events reach colContentRef
+  useEffect(() => {
+    const el = colContentRef.current;
+    if (!el) return;
+    const handler = (e) => console.log('[DAY native mm]', {
+      tag: e.target?.tagName,
+      cls: (e.target?.className || '').toString().slice(0, 100),
+      isSlot: e.target?.classList?.contains('day-col-slot'),
+    });
+    el.addEventListener('mousemove', handler);
+    return () => el.removeEventListener('mousemove', handler);
+  }, []);
+
   // Compute the snapped 15-minute drop/hover time for the current pointer
   // event relative to this column's content area. Day-view columns span
   // col.startHour..col.endHour; this clamps to that range so the preview
@@ -170,6 +183,12 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const isOverEmptySlot = (target) => target && target.classList && target.classList.contains('day-col-slot');
 
   const onColMouseMove = (e) => {
+    console.log('[DAY react mm]', {
+      tag: e.target?.tagName,
+      cls: (e.target?.className || '').toString().slice(0, 100),
+      isSlot: e.target?.classList?.contains('day-col-slot'),
+      dragging: !!draggedTask, resizing: isResizing, frameResizing: frameResizingRef.current,
+    });
     if (draggedTask || isResizing || frameResizingRef.current) {
       if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
       return;
