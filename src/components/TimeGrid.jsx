@@ -81,6 +81,20 @@ const TimeGrid = () => {
 <div
   ref={timeGridRef}
   className="relative"
+  onMouseMove={(e) => {
+    // Belt-and-suspenders fallback: catch hover events that bubble up from
+    // calendar-slot cells (including border seams that individual onMouseMove
+    // handlers miss). Defer to element-specific handlers for interactive
+    // overlay elements (task cards, routine pills, frame zones).
+    if (e.target.closest('.pointer-events-auto')) return;
+    const slotEl = e.target.closest('.calendar-slot[data-date]');
+    if (!slotEl) return;
+    const dateStr = slotEl.getAttribute('data-date');
+    const targetDate = visibleDates.find(d => dateToString(d) === dateStr);
+    if (!targetDate) return;
+    handleCalendarMouseMove(e, targetDate, true);
+  }}
+  onMouseLeave={handleCalendarMouseLeave}
   onDragLeave={(e) => {
     // Clear preview when leaving the calendar grid entirely
     if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -444,7 +458,7 @@ const TimeGrid = () => {
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => handleDragOver(e, date)}
                 onDrop={(e) => handleDropOnCalendar(e, date)}
-                className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''} ${isCurrentTask ? 'current-task-pulse' : ''}`}
+                className={`absolute notes-panel-container ${task.isTaskCalendar || isTablet ? '' : task.color} ${isTablet ? '' : 'rounded-lg shadow-md'} pointer-events-auto ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'} ${(task.completed && (!isImported || task.isTaskCalendar)) || isPastEvent ? 'opacity-50' : ''} ${isTablet ? '' : expandedNotesTaskId === task.id ? 'overflow-visible z-30' : ''} ${task.isExample ? 'border-2 border-dashed border-white/50' : ''} ${isCurrentTask ? 'current-task-pulse' : ''}`}
                 style={{
                   top: `${top}px`,
                   height: `${height}px`,
@@ -601,7 +615,7 @@ const TimeGrid = () => {
                   onDragEnd={!isTablet ? handleDragEnd : undefined}
                   onDragOver={(e) => handleDragOver(e, date)}
                   onDrop={(e) => handleDropOnCalendar(e, date)}
-                  className={`absolute pointer-events-auto ${isTablet ? 'cursor-default select-none' : 'cursor-move'} flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
+                  className={`absolute pointer-events-auto ${isTablet ? 'cursor-default select-none' : 'cursor-grab active:cursor-grabbing'} flex items-center justify-center ${isPast ? 'opacity-50' : ''}`}
                   style={{
                     top: `${top}px`,
                     height: `${Math.max(height, 27)}px`,
