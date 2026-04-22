@@ -114,6 +114,28 @@ const CalendarHeader = () => {
     };
   }, [weekAllDayPopover]);
 
+  // Week view: deadline tasks popover state
+  const weekDeadlineBtnRefs = useRef({});
+  const [weekDeadlinePopover, setWeekDeadlinePopover] = useState(null); // { dateStr, tasks, anchor }
+  const weekDeadlinePopoverRef = useRef(null);
+
+  useEffect(() => {
+    if (!weekDeadlinePopover) return;
+    const onDown = (e) => {
+      const btnEl = weekDeadlineBtnRefs.current[weekDeadlinePopover.dateStr];
+      if (!weekDeadlinePopoverRef.current?.contains(e.target) && !btnEl?.contains(e.target)) {
+        setWeekDeadlinePopover(null);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setWeekDeadlinePopover(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [weekDeadlinePopover]);
+
   // Helpers for day-mode date-group header labels
   const formatBoundHour = (h, use24h) => {
     const norm = h % 24;
@@ -338,7 +360,7 @@ const CalendarHeader = () => {
 {effectiveViewMode === 'day' && <DayViewAllDaySection />}
 
 {/* Week view all-day count chips */}
-{effectiveViewMode === 'week' && (weekViewDates.some(d => getTasksForDate(d).some(t => t.isAllDay)) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
+{effectiveViewMode === 'week' && (weekViewDates.some(d => getTasksForDate(d).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(d)).length > 0) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
   <div className={`flex border-b ${borderClass} ${cardBg}`}>
     <div
       className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
@@ -349,6 +371,7 @@ const CalendarHeader = () => {
     {weekViewDates.map((date, idx) => {
       const dateStr = dateToString(date);
       const allDayTasks = getTasksForDate(date).filter(t => t.isAllDay && (!projectFilter || t.projectId === projectFilter));
+      const weekDeadlineTasks = getDeadlineTasksForDate(dateStr).filter(t => !projectFilter || t.projectId === projectFilter);
       const isDateToday = dateStr === dateToString(new Date());
       return (
         <div
@@ -372,6 +395,24 @@ const CalendarHeader = () => {
                 ${darkMode ? 'bg-blue-700/60 text-blue-200 hover:bg-blue-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
             >
               {allDayTasks.length} all day
+            </button>
+          )}
+          {weekDeadlineTasks.length > 0 && (
+            <button
+              ref={el => { weekDeadlineBtnRefs.current[dateStr] = el; }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (weekDeadlinePopover?.dateStr === dateStr) {
+                  setWeekDeadlinePopover(null);
+                } else {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setWeekDeadlinePopover({ dateStr, tasks: weekDeadlineTasks, anchor: rect });
+                }
+              }}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors
+                ${darkMode ? 'bg-red-800/60 text-red-200 hover:bg-red-800' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+            >
+              {weekDeadlineTasks.length} deadline{weekDeadlineTasks.length > 1 ? 's' : ''}
             </button>
           )}
           {routinesEnabled && isDateToday && todayRoutines.filter(r => r.isAllDay).map(routine => (
@@ -405,6 +446,88 @@ const CalendarHeader = () => {
   >
     {weekAllDayPopover.tasks.map(task => (
       <AllDayTaskCard key={task.id} task={task} fillWidth={false} />
+    ))}
+  </div>
+)}
+{/* Week deadline tasks popover */}
+{weekDeadlinePopover && (
+  <div
+    ref={weekDeadlinePopoverRef}
+    className={`fixed z-50 shadow-xl rounded-xl border p-2 space-y-1 ${cardBg} ${borderClass}`}
+    style={{
+      left: Math.max(8, Math.min(weekDeadlinePopover.anchor.left, window.innerWidth - 296)),
+      top: weekDeadlinePopover.anchor.bottom + 4,
+      width: 280,
+    }}
+    onClick={(e) => e.stopPropagation()}
+    onMouseDown={(e) => e.stopPropagation()}
+  >
+    {weekDeadlinePopover.tasks.map(task => (
+      <div key={task.id} className={`notes-panel-container relative ${task.completed ? 'opacity-50' : 'opacity-90'}`}>
+        <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'}`}>
+          <div
+            data-task-id={task.id}
+            data-ctx-menu
+            draggable
+            onDragStart={(e) => handleDragStart(task, 'inbox', e)}
+            onDragEnd={handleDragEnd}
+            onContextMenu={(e) => { e.preventDefault(); setTaskContextMenu({ x: e.clientX, y: e.clientY, taskId: task.id, isRecurring: false, isImported: false, isAllDay: true, dateStr: weekDeadlinePopover.dateStr }); }}
+            className={`${task.color} rounded-lg shadow-sm cursor-move relative border-2 border-dashed border-white/60`}
+          >
+            {task.isExample && (
+              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">Example</span>
+            )}
+            <div className="p-2 text-white">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <button onClick={() => toggleComplete(task.id, true)} className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}>
+                    {task.completed && <Check size={10} strokeWidth={3} />}
+                  </button>
+                  <AlertCircle size={14} className="flex-shrink-0" />
+                  <div className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`} title={task.title}>{renderTitle(task.title)}</div>
+                </div>
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onMouseDown={() => { if (isLinkOnlyTask(task)) { longPressTriggeredRef.current = false; longPressTimerRef.current = setTimeout(() => { longPressTriggeredRef.current = true; setExpandedNotesTaskId(prev => prev === task.id ? null : task.id); }, 500); } }}
+                    onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                    onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                    onClick={(e) => { e.stopPropagation(); if (isLinkOnlyTask(task)) { if (!longPressTriggeredRef.current) window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer'); longPressTriggeredRef.current = false; } else { setExpandedNotesTaskId(prev => prev === task.id ? null : task.id); } }}
+                    className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
+                    title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : 'Notes & subtasks'}
+                  >
+                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors" title="Postpone to tomorrow">
+                    <SkipForward size={14} />
+                  </button>
+                  <div className="deadline-picker-container relative">
+                    <button onClick={(e) => { e.stopPropagation(); setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors bg-white/20" title={`Deadline: ${formatDeadlineDate(task.deadline)}`}>
+                      <Calendar size={14} />
+                    </button>
+                    {showDeadlinePicker === task.id && <DeadlinePickerPopover taskId={task.id} currentDeadline={task.deadline} onClose={() => setShowDeadlinePicker(null)} />}
+                  </div>
+                  <button onClick={() => openMobileEditTask(task, true)} className="hover:bg-white/20 rounded p-1 transition-colors" title="Edit">
+                    <Pencil size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+            {expandedNotesTaskId === task.id && (
+              <div className="notes-panel-container">
+                <NotesSubtasksPanel
+                  task={task} isInbox={true} darkMode={darkMode}
+                  updateTaskNotes={updateTaskNotes} addSubtask={addSubtask} toggleSubtask={toggleSubtask} deleteSubtask={deleteSubtask} updateSubtaskTitle={updateSubtaskTitle}
+                  aiConfig={aiConfig} aiSubtasksLoadingForTask={aiSubtasksLoadingForTask} onGenerateSubtasks={generateAISubtasks}
+                  wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                  onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                  onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
+                  onOpenInObsidian={extractWikilinks(task.title).length > 0 ? openInObsidian : undefined}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     ))}
   </div>
 )}
