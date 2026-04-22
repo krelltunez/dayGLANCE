@@ -258,11 +258,17 @@ const CalendarHeader = () => {
       const isDateToday = group.dateStr === dateToString(new Date());
       const fullDay = group.startHour === 0 && group.endHour === 24;
       const timeRange = fullDay ? null : `${formatBoundHour(group.startHour, use24HourClock)} \u2013 ${formatBoundHour(group.endHour, use24HourClock)}`;
+      const isDragOverThis = dragOverAllDay === group.dateStr;
       return (
         <div
           key={group.dateStr}
-          className={`relative flex flex-col items-center justify-center py-2 ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+          className={`relative flex flex-col items-center justify-center py-2 cursor-pointer transition-colors ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : cardBg} ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis ? (darkMode ? 'bg-green-700 ring-2 ring-inset ring-green-400' : 'bg-green-200 ring-2 ring-inset ring-green-500') : ''}`}
           style={{ gridColumn: `span ${group.count}`, minHeight: 'var(--header-row-h)' }}
+          onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
+          onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverAllDay(null); }}
+          onDrop={(e) => handleDropOnDateHeader(e, group.date)}
+          title={draggedTask ? 'Drop to make all-day task' : ''}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
               column boundaries align: both header and DayView start at x=0. */}

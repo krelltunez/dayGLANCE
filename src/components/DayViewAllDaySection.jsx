@@ -1,8 +1,17 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  AlertCircle, BookOpen, Calendar, Check, CheckSquare,
+  ExternalLink, FileText, GripVertical, Inbox,
+  Pencil, Settings, SkipForward, Trash2,
+} from 'lucide-react';
 import AllDayTaskCard from './AllDayTaskCard.jsx';
-import { dateToString } from '../utils/taskUtils.js';
+import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
+import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
+import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
+import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 
 const CHIP_ROW_H = 40; // approximate AllDayTaskCard height in px
 const ROW_GAP = 4;     // gap-1 = 4px
@@ -152,15 +161,26 @@ const DayViewAllDaySection = () => {
     darkMode,
     borderClass, textSecondary, cardBg,
     dayViewColumns,
-    getTasksForDate,
+    getTasksForDate, getDeadlineTasksForDate,
     isTablet,
-    handleDragStart, handleDragEnd, handleDropOnDateHeader,
+    handleDragStart, handleDragEnd, handleDropOnDateHeader, updateDragAutoScroll,
     dragOverAllDay, setDragOverAllDay, setDragPreviewTime,
     mobileDragPreviewTime,
     autoScrollInterval,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
+    showDeadlinePicker, setShowDeadlinePicker,
+    postponeDeadlineTask, toggleComplete,
+    expandedNotesTaskId, setExpandedNotesTaskId,
+    updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
+    setTaskContextMenu,
+    longPressTimerRef, longPressTriggeredRef,
+    openMobileEditTask,
   } = useDayPlannerCtx();
-  const { projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion } = useFeaturesCtx();
+  const {
+    projectFilter, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
+    aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
+  } = useFeaturesCtx();
+  const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const todayStr = dateToString(new Date());
 
   // Build date groups (same logic as CalendarHeader day-mode header)
@@ -179,10 +199,11 @@ const DayViewAllDaySection = () => {
     tasks: getTasksForDate(group.date)
       .filter(t => t.isAllDay && (!projectFilter || t.projectId === projectFilter))
       .sort((a, b) => allDayOrder(a) - allDayOrder(b)),
+    deadlineTasks: getDeadlineTasksForDate(group.dateStr).filter(t => !projectFilter || t.projectId === projectFilter),
   }));
 
   const hasAllDayRoutines = routinesEnabled && todayRoutines.some(r => r.isAllDay);
-  if (!groupsWithTasks.some(g => g.tasks.length > 0) && !hasAllDayRoutines) return null;
+  if (!groupsWithTasks.some(g => g.tasks.length > 0 || g.deadlineTasks.length > 0) && !hasAllDayRoutines) return null;
 
   return (
     <div className={`border-b ${borderClass} ${cardBg}`} style={{ display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` }}>
@@ -212,6 +233,186 @@ const DayViewAllDaySection = () => {
                 />
               </div>
             )}
+
+            {/* Deadline tasks from inbox */}
+            {group.deadlineTasks.map((task) => (
+              <div
+                key={`deadline-${task.id}`}
+                className="notes-panel-container relative mb-1"
+                style={isTablet ? { marginLeft: '12px' } : {}}
+              >
+                {/* Tablet swipe strips */}
+                {isTablet && (
+                  <>
+                    <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
+                      <Inbox size={14} className="mr-1" />Inbox
+                    </div>
+                    <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
+                      Edit<Settings size={14} className="ml-1" />
+                    </div>
+                  </>
+                )}
+                <div {...(isTablet ? { 'data-swipe-container': '', className: `flex items-start ${task.completed ? 'opacity-50' : 'opacity-90'}` } : { className: task.completed ? 'opacity-50' : 'opacity-90' })}>
+                  {/* Tablet drag tab */}
+                  {isTablet && (
+                    <div
+                      data-drag-handle
+                      className={`relative flex-shrink-0 ${task.color} rounded-l-lg flex items-center pl-px cursor-grab active:opacity-70 text-white/70`}
+                      style={{ marginLeft: '-12px', marginRight: '-8px', marginTop: '3px', width: '20px', height: '24px', touchAction: 'none', zIndex: 10 }}
+                      onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
+                      onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                      onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
+                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                      <div className="absolute top-0 left-0 h-full rounded-l-lg border-l-2 border-t-2 border-b-2 border-dashed border-white/60 pointer-events-none" style={{ width: '12px' }} />
+                      <div className="absolute top-0 border-t-2 border-dashed border-white/60 pointer-events-none" style={{ left: '12px', width: '2px' }} />
+                      <GripVertical size={14} />
+                    </div>
+                  )}
+                  <div className={`relative rounded-lg ${showDeadlinePicker === task.id ? '' : 'overflow-hidden'} ${isTablet ? 'flex-1 min-w-0' : ''}`}>
+                    <div
+                      data-task-id={task.id}
+                      data-ctx-menu
+                      draggable
+                      onDragStart={(e) => handleDragStart(task, 'inbox', e)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => { e.preventDefault(); updateDragAutoScroll(e); }}
+                      onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
+                      onDrop={(e) => handleDropOnDateHeader(e, group.date)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setTaskContextMenu({
+                          x: e.clientX, y: e.clientY,
+                          taskId: task.id,
+                          isRecurring: false,
+                          isImported: false,
+                          isAllDay: true,
+                          dateStr: group.dateStr,
+                        });
+                      }}
+                      onTouchStart={(e) => handleMobileTaskTouchStart(e, { ...task, isDeadlineDrag: true }, 'deadline')}
+                      onTouchMove={(e) => handleMobileTaskTouchMove(e)}
+                      onTouchEnd={(e) => handleMobileTaskTouchEnd(e, task.id, 'deadline')}
+                      className={`${task.color} rounded-lg shadow-sm cursor-move relative border-2 border-dashed border-white/60`}
+                      style={{ touchAction: 'pan-y' }}
+                    >
+                      {task.isExample && (
+                        <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
+                          Example
+                        </span>
+                      )}
+                      <div className="p-2 text-white">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <button
+                              onClick={() => toggleComplete(task.id, true)}
+                              className={`rounded flex-shrink-0 ${task.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-4 h-4 flex items-center justify-center hover:bg-white/30 transition-colors`}
+                            >
+                              {task.completed && <Check size={10} strokeWidth={3} />}
+                            </button>
+                            <AlertCircle size={14} className="flex-shrink-0" />
+                            <div
+                              className={`font-semibold text-sm truncate ${task.completed ? 'line-through' : ''}`}
+                              title={task.title}
+                            >
+                              {renderTitle(task.title)}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                              onMouseDown={() => {
+                                if (isLinkOnlyTask(task)) {
+                                  longPressTriggeredRef.current = false;
+                                  longPressTimerRef.current = setTimeout(() => {
+                                    longPressTriggeredRef.current = true;
+                                    setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                  }, 500);
+                                }
+                              }}
+                              onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                              onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isLinkOnlyTask(task)) {
+                                  if (!longPressTriggeredRef.current) {
+                                    window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                  }
+                                  longPressTriggeredRef.current = false;
+                                } else {
+                                  setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
+                                }
+                              }}
+                              className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
+                              title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : 'Notes & subtasks'}
+                            >
+                              {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
+                              className="hover:bg-white/20 rounded p-1 transition-colors"
+                              title="Postpone to tomorrow"
+                            >
+                              <SkipForward size={14} />
+                            </button>
+                            <div className="deadline-picker-container relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
+                                }}
+                                className="hover:bg-white/20 rounded p-1 transition-colors bg-white/20"
+                                title={`Deadline: ${formatDeadlineDate(task.deadline)}`}
+                              >
+                                <Calendar size={14} />
+                              </button>
+                              {showDeadlinePicker === task.id && (
+                                <DeadlinePickerPopover
+                                  taskId={task.id}
+                                  currentDeadline={task.deadline}
+                                  onClose={() => setShowDeadlinePicker(null)}
+                                />
+                              )}
+                            </div>
+                            {!isTablet && (
+                              <button
+                                onClick={() => openMobileEditTask(task, true)}
+                                className="hover:bg-white/20 rounded p-1 transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {expandedNotesTaskId === task.id && (
+                        <div className="notes-panel-container">
+                          <NotesSubtasksPanel
+                            task={task}
+                            isInbox={true}
+                            darkMode={darkMode}
+                            updateTaskNotes={updateTaskNotes}
+                            addSubtask={addSubtask}
+                            toggleSubtask={toggleSubtask}
+                            deleteSubtask={deleteSubtask}
+                            updateSubtaskTitle={updateSubtaskTitle}
+                            aiConfig={aiConfig}
+                            aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                            onGenerateSubtasks={generateAISubtasks}
+                            wikilinks={extractWikilinks(task.title).length > 0 ? extractWikilinks(task.title) : undefined}
+                            onLoadWikiNote={extractWikilinks(task.title).length > 0 ? loadWikiNote : undefined}
+                            onSaveWikiNote={extractWikilinks(task.title).length > 0 ? saveWikiNote : undefined}
+                            onOpenInObsidian={extractWikilinks(task.title).length > 0 ? openInObsidian : undefined}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Routine pills (today only) */}
             {routinesEnabled && group.dateStr === todayStr && todayRoutines.filter(r => r.isAllDay).map(routine => (
               <div
                 key={`routine-${routine.id}`}
