@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Target } from 'lucide-react';
+import { Check, RefreshCw, Target, X } from 'lucide-react';
 import { HABIT_ICONS, HABIT_COLORS } from '../constants/habits.js';
 
 const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false }) => {
@@ -81,6 +81,15 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
         {autoSynced && (
           <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
             <RefreshCw size={7} className="text-white" />
+          </div>
+        )}
+        {/* Goal-met (doMore) or limit-exceeded badge — bottom-right corner */}
+        {(showCheck || showX) && (
+          <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${showCheck ? 'bg-green-500' : 'bg-red-500'}`}>
+            {showCheck
+              ? <Check size={8} className="text-white" strokeWidth={3} />
+              : <X size={8} className="text-white" strokeWidth={3} />
+            }
           </div>
         )}
       </div>
