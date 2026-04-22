@@ -326,7 +326,7 @@ const CalendarHeader = () => {
           </div>
           {habitsEnabled && !isDateToday && group.dateStr < dateToString(new Date()) && habitLogs[group.dateStr] && activeHabits.length > 0 && (
             <div className="flex items-center justify-center gap-0.5 mt-0.5 cursor-pointer" onClick={(e) => { e.stopPropagation(); setHabitDayPopup(group.dateStr); }}>
-              {activeHabits.slice(0, 6).map(habit => (
+              {activeHabits.filter(h => (h.scheduledDays ?? [0,1,2,3,4,5,6]).includes(new Date(group.dateStr + 'T12:00:00').getDay())).slice(0, 6).map(habit => (
                 <MiniHabitRing key={habit.id} habit={habit} count={habitLogs[group.dateStr]?.[habit.id] || 0} darkMode={darkMode} />
               ))}
             </div>
