@@ -126,7 +126,13 @@ export default function useDataPersistence({
 
       // Load habit tracking data
       const habitsData = localStorage.getItem('day-planner-habits');
-      if (habitsData) setHabits(JSON.parse(habitsData));
+      if (habitsData) {
+        const parsedHabits = JSON.parse(habitsData).map(h =>
+          h.scheduledDays ? h : { ...h, scheduledDays: [0, 1, 2, 3, 4, 5, 6] }
+        );
+        localStorage.setItem('day-planner-habits', JSON.stringify(parsedHabits));
+        setHabits(parsedHabits);
+      }
       const habitLogsData = localStorage.getItem('day-planner-habit-logs');
       if (habitLogsData) setHabitLogs(JSON.parse(habitLogsData));
       const habitsEnabledData = localStorage.getItem('day-planner-habits-enabled');

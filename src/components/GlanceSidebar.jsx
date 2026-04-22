@@ -203,8 +203,10 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
   </div>
 
   {/* Habit rings row — pinned to top */}
-  {habitsEnabled && (
-    activeHabits.length === 0 ? (
+  {habitsEnabled && (() => {
+    const todayDow = new Date().getDay();
+    const todayHabits = activeHabits.filter(h => (h.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6]).includes(todayDow));
+    if (activeHabits.length === 0) return (
       <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => setShowHabitModal(true)}>
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
         <div className="flex items-center gap-2">
@@ -212,7 +214,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           <span className="text-xs text-teal-500 font-medium">+ Add</span>
         </div>
       </div>
-    ) : (
+    );
+    if (todayHabits.length === 0) return null;
+    return (
       <div className="relative">
         <button
           onClick={() => setShowHabitModal(true)}
@@ -222,7 +226,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           <Settings size={11} />
         </button>
         <div className="flex items-start gap-1 justify-center">
-        {activeHabits.slice(0, 5).map((habit, habitIdx) => (
+        {todayHabits.slice(0, 5).map((habit, habitIdx) => (
           <div key={habit.id} className="relative">
             <HabitRing
               size={44}
@@ -240,7 +244,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             {habitLongPressId === habit.id && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => { setHabitLongPressId(null); setHabitEditingCountId(null); }} />
-                <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(activeHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
+                <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(todayHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                   <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                   <div className="flex items-center justify-center gap-3">
                     <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
@@ -266,19 +270,19 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             )}
           </div>
         ))}
-        {activeHabits.length > 5 && (
+        {todayHabits.length > 5 && (
           <div className="relative">
             <button
               onClick={() => setHabitOverflowOpen(prev => !prev)}
               className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
             >
-              +{activeHabits.length - 5}
+              +{todayHabits.length - 5}
             </button>
             {habitOverflowOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
                 <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
-                  {activeHabits.slice(5).map(habit => {
+                  {todayHabits.slice(5).map(habit => {
                     const count = getTodayHabitCount(habit.id);
                     const IconComp = HABIT_ICONS[habit.icon] || Target;
                     const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
@@ -301,8 +305,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         )}
         </div>
       </div>
-    )
-  )}
+    );
+  })()}
 
   {/* Goals due today */}
   {goalsProjectsEnabled && (() => {

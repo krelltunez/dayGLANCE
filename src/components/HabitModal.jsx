@@ -105,6 +105,44 @@ const HabitModal = () => {
                     </div>
                   </div>
 
+                  {/* Scheduled days -- hidden for auto-synced habits */}
+                  {editingHabit.source !== 'healthConnect' && (() => {
+                    const DOW_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                    const days = editingHabit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
+                    return (
+                      <div>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Active days</label>
+                        <div className="flex gap-1.5">
+                          {DOW_LABELS.map((label, idx) => {
+                            const active = days.includes(idx);
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  if (active && days.length === 1) return; // keep at least one
+                                  setEditingHabit(prev => ({
+                                    ...prev,
+                                    scheduledDays: active
+                                      ? days.filter(d => d !== idx)
+                                      : [...days, idx].sort((a, b) => a - b),
+                                  }));
+                                }}
+                                className="w-9 h-9 rounded-lg text-sm font-semibold transition-colors flex-shrink-0"
+                                style={active
+                                  ? { backgroundColor: '#fe8b00', color: '#fff' }
+                                  : { backgroundColor: darkMode ? '#374151' : '#f1f0ef', color: darkMode ? '#9ca3af' : '#78716c' }
+                                }
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Icon picker */}
                   <div>
                     <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Icon</label>
@@ -212,6 +250,16 @@ const HabitModal = () => {
                           <div className={`text-xs ${textSecondary}`}>
                             {habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}
                           </div>
+                          {(() => {
+                            const days = habit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
+                            if (days.length === 7) return null;
+                            const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                            return (
+                              <div className={`text-xs ${textSecondary} opacity-70`}>
+                                {days.map(d => names[d]).join(', ')}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div className="flex items-center gap-1">
                           {idx > 0 && (
@@ -240,7 +288,7 @@ const HabitModal = () => {
               {/* Add button */}
               {activeHabits.length < 8 && (
                 <button
-                  onClick={() => setEditingHabit({ name: '', icon: 'Droplets', color: 'blue', type: 'doMore', target: 8, unit: '' })}
+                  onClick={() => setEditingHabit({ name: '', icon: 'Droplets', color: 'blue', type: 'doMore', target: 8, unit: '', scheduledDays: [0, 1, 2, 3, 4, 5, 6] })}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-blue-500/30 text-blue-500 text-sm font-medium hover:bg-blue-500/5 transition-colors"
                 >
                   <Plus size={16} />

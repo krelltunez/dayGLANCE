@@ -50,7 +50,11 @@ const useHabits = ({ playUISound }) => {
     return () => document.removeEventListener('keydown', handler);
   }, [showHabitModal]);
 
-  const activeHabits = useMemo(() => habits.filter(h => !h.archived), [habits]);
+  const activeHabits = useMemo(() =>
+    habits.filter(h => !h.archived).map(h =>
+      h.scheduledDays ? h : { ...h, scheduledDays: [0, 1, 2, 3, 4, 5, 6] }
+    ),
+  [habits]);
 
   // Compute habit streaks: { habitId: { current, best } }
   const habitStreaks = useMemo(() => {
@@ -58,6 +62,7 @@ const useHabits = ({ playUISound }) => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     for (const habit of activeHabits) {
+      const scheduledDays = habit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
       let current = 0;
       let best = 0;
       let streak = 0;
@@ -66,6 +71,8 @@ const useHabits = ({ playUISound }) => {
       for (let i = 0; i < 365; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
+        // Skip days not in the habit's schedule -- they neither extend nor break
+        if (!scheduledDays.includes(d.getDay())) continue;
         const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const count = habitLogs[ds]?.[habit.id] || 0;
         // Don't count days before the habit was created
@@ -209,6 +216,7 @@ const useHabits = ({ playUISound }) => {
       target: 10000,
       unit: 'steps',
       source: 'healthConnect',
+      scheduledDays: [0, 1, 2, 3, 4, 5, 6],
     });
   };
 
@@ -224,6 +232,7 @@ const useHabits = ({ playUISound }) => {
       target: 480,
       unit: 'min',
       source: 'healthConnect',
+      scheduledDays: [0, 1, 2, 3, 4, 5, 6],
     });
   };
 
