@@ -421,7 +421,7 @@ const CalendarHeader = () => {
       return (
         <div
           key={dateStr}
-          className={`flex-1 min-w-0 p-2 space-y-1 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis || (isTablet && mobileDragPreviewTime === 'all-day') ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
+          className={`flex-1 min-w-0 p-2 ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDragOverThis || (isTablet && mobileDragPreviewTime === 'all-day') ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}
           onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
           onDragEnter={(e) => {
             e.preventDefault();
@@ -465,7 +465,7 @@ const CalendarHeader = () => {
                   setDragPreviewTime(null);
                 }}
                 onDrop={(e) => handleDropOnDateHeader(e, date)}
-                className={`notes-panel-container relative ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''}`}
+                className={`notes-panel-container relative mb-1 ${task.completed && (!isImported || task.isTaskCalendar) ? 'opacity-50' : ''}`}
                 style={isTablet && !isImported ? { marginLeft: '12px' } : {}}
               >
                 {/* Tablet swipe strips — outside data-swipe-container so they stay behind as content slides */}
@@ -512,7 +512,7 @@ const CalendarHeader = () => {
           {deadlineTasks.map((task) => (
             <div
               key={`deadline-${task.id}`}
-              className="notes-panel-container relative"
+              className="notes-panel-container relative mb-1"
               style={isTablet ? { marginLeft: '12px' } : {}}
             >
               {/* Swipe action strips — outside data-swipe-container so they stay behind as content slides */}

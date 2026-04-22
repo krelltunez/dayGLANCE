@@ -193,18 +193,18 @@ const DayViewAllDaySection = () => {
             {idx === 0 ? 'ALL DAY' : ''}
           </div>
           <div
-            className={`flex-1 min-w-0 p-2 space-y-1 ${dragOverAllDay === group.dateStr ? (darkMode ? 'bg-green-700/50 ring-2 ring-inset ring-green-400' : 'bg-green-100 ring-2 ring-inset ring-green-500') : ''}`}
+            className={`flex-1 min-w-0 p-2 ${dragOverAllDay === group.dateStr ? (darkMode ? 'bg-green-700/50 ring-2 ring-inset ring-green-400' : 'bg-green-100 ring-2 ring-inset ring-green-500') : ''}`}
             onDragOver={(e) => e.preventDefault()}
             onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverAllDay(null); }}
             onDrop={(e) => handleDropOnDateHeader(e, group.date)}
           >
-            <GroupChips
+            {group.tasks.length > 0 && <GroupChips
               tasks={group.tasks}
               darkMode={darkMode}
               borderClass={borderClass}
               cardBg={cardBg}
-            />
+            />}
             {routinesEnabled && group.dateStr === todayStr && todayRoutines.filter(r => r.isAllDay).map(routine => (
               <span
                 key={`routine-${routine.id}`}
