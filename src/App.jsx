@@ -2262,6 +2262,7 @@ const DayPlanner = () => {
   }, [aiConfig]);
 
   const enterFocusModeRef = useRef(null);
+  const openRoutinesDashboardRef = useRef(null);
 
   const { longPressTriggeredRef, longPressTimerRef } = useMobileInteractions({
     isMobile, performUndo, performRedo,
@@ -2301,7 +2302,7 @@ const DayPlanner = () => {
     showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal,
     selectedDate, hoverPreviewTime, hoverPreviewDate,
     setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
-    routinesEnabled, setRoutinesEnabled, setShowRoutinesDashboard,
+    routinesEnabled, setRoutinesEnabled, openRoutinesDashboardRef,
     focusModeAvailableRef, enterFocusModeRef,
     setDarkMode,
     showMonthView, goToToday, setViewedMonth,
@@ -2897,6 +2898,7 @@ const DayPlanner = () => {
     nativeEnterFocusMode();
   };
   enterFocusModeRef.current = enterFocusMode;
+  openRoutinesDashboardRef.current = openRoutinesDashboard;
 
   const startFocusTimer = () => {
     setFocusShowSettings(false);

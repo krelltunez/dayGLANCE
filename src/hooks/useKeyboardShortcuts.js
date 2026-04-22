@@ -31,7 +31,7 @@ export default function useKeyboardShortcuts({
   selectedDate, hoverPreviewTime, hoverPreviewDate,
   setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
   // routines ('r')
-  routinesEnabled, setRoutinesEnabled, setShowRoutinesDashboard,
+  routinesEnabled, setRoutinesEnabled, openRoutinesDashboardRef,
   // focus mode ('f') — passed as a ref to avoid TDZ
   focusModeAvailableRef, enterFocusModeRef,
   // dark mode ('d')
@@ -148,7 +148,7 @@ export default function useKeyboardShortcuts({
         if (isMobile) {
           setMobileActiveTab('routines');
         } else {
-          setShowRoutinesDashboard(true);
+          openRoutinesDashboardRef.current?.();
         }
       }
 

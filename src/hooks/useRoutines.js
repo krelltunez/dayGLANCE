@@ -116,7 +116,8 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
     if (isSelected) {
       setDashboardSelectedChips(prev => prev.filter(c => c.id !== chip.id));
     } else {
-      setDashboardSelectedChips(prev => [...prev, { id: chip.id, name: chip.name, bucket, startTime: null }]);
+      const existingRoutine = todayRoutines.find(r => r.id === chip.id);
+      setDashboardSelectedChips(prev => [...prev, { id: chip.id, name: chip.name, bucket, startTime: existingRoutine?.startTime || null }]);
     }
   };
 
@@ -130,7 +131,11 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
     const newTodayRoutines = dashboardSelectedChips.map(chip => {
       const existing = existingMap[chip.id];
       if (existing) {
-        return { ...existing, name: chip.name, bucket: chip.bucket, startTime: chip.startTime, isAllDay: !chip.startTime, lastModified: now };
+        // chip.startTime reflects any time set in the modal; fall back to the
+        // existing DnD-placed time so that opening and closing the modal without
+        // touching the time picker never unschedules a placed routine.
+        const startTime = chip.startTime !== null ? chip.startTime : (existing.startTime || null);
+        return { ...existing, name: chip.name, bucket: chip.bucket, startTime, isAllDay: !startTime, lastModified: now };
       }
       return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || null, duration: 15, isAllDay: !chip.startTime, lastModified: now };
     });

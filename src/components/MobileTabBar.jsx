@@ -14,7 +14,7 @@ const MobileTabBar = () => {
     goToToday,
   } = useDayPlannerCtx();
   const {
-    goalsProjectsEnabled, goals,
+    goalsProjectsEnabled, goals, handleRoutinesDone,
   } = useFeaturesCtx();
 
   const activeGoals = goalsProjectsEnabled ? (goals || []).filter(g => g.status !== 'archived') : [];
