@@ -295,7 +295,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   const [hgScheduledDays, setHgScheduledDays] = useState(initHG.scheduledDays || []);
   const [hgScheduledDate, setHgScheduledDate] = useState(initHG.scheduledDate || '');
   const [hgScheduledTime, setHgScheduledTime] = useState(initHG.scheduledTime || '09:00');
-  const [hgDuration, setHgDuration] = useState(Math.max(60, initHG.scheduledDuration || 60));
+  const [hgDuration, setHgDuration] = useState(initHG.scheduledDuration || 60);
   const [hgTemplateTasks, setHgTemplateTasks] = useState(initHG.templateTasks || []);
   const [hgNewTask, setHgNewTask] = useState('');
   const [editingTemplateTask, setEditingTemplateTask] = useState(null); // { id, name, notes }
@@ -338,7 +338,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
       scheduledDays: hgIsRecurring ? hgScheduledDays : [],
       scheduledDate: hgIsRecurring ? null : (hgScheduledDate || null),
       scheduledTime: hgScheduledTime,
-      scheduledDuration: Math.max(60, Math.round(hgDuration / 15) * 15),
+      scheduledDuration: Math.max(15, Math.round(hgDuration / 15) * 15),
       templateTasks: hgTemplateTasks,
       completions: initHG.completions || [],
       createdAt: initHG.createdAt || new Date().toISOString(),
@@ -606,7 +606,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setHgDuration(d => Math.max(60, d - 15))}
+                    onClick={() => setHgDuration(d => Math.max(15, d - 15))}
                     className={`w-8 h-8 rounded-lg border ${borderClass} flex items-center justify-center text-base font-bold ${hoverBg} ${textPrimary} transition-colors`}
                   >−</button>
                   <span className={`text-sm font-medium ${textPrimary} w-14 text-center`}>{hgDuration}m</span>
