@@ -187,7 +187,7 @@ const DayViewAllDaySection = () => {
         <div
           key={group.dateStr}
           style={{ gridColumn: `span ${group.count}` }}
-          className={`flex items-center min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
+          className={`flex min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
         >
           <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
             {idx === 0 ? 'ALL DAY' : ''}
