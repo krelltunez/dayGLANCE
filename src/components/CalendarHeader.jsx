@@ -273,7 +273,7 @@ const CalendarHeader = () => {
           {/* ViewCycler floats in the absolute-left of the first date group so
               column boundaries align: both header and DayView start at x=0. */}
           {idx === 0 && canShowViewCycler && (
-            <div className={`absolute left-0 top-0 w-16 h-full border-r ${borderClass}`}>
+            <div className={`absolute left-0 top-0 w-16 h-full border-r ${borderClass} ${cardBg}`}>
               <ViewCycler />
             </div>
           )}
