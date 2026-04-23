@@ -47,8 +47,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
-            android:configChanges="screenSize|keyboardHidden"
+            android:screenOrientation="unspecified"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:windowSoftInputMode="adjustNothing"
             android:launchMode="singleTop"
             android:theme="@style/Theme.DayGlance.Starting">
