@@ -6,7 +6,7 @@ import {
   SingletonAction,
   WillAppearEvent,
 } from "@elgato/streamdeck";
-import { DayGlanceState, onState, send } from "../client";
+import { DayGlanceState, onState, send, MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP } from "../client";
 
 type Settings = { sessionDurationMinutes: number };
 
@@ -44,9 +44,9 @@ export class FocusAction extends SingletonAction<Settings> {
 
   private toggle(): void {
     if (!this.lastState?.focus.active) {
-      send({ type: "focus:start" });
+      send({ type: MSG_DAY_FOCUS_START });
     } else {
-      send({ type: "focus:stop" });
+      send({ type: MSG_DAY_FOCUS_STOP });
     }
   }
 
