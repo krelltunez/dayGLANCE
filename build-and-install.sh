@@ -55,9 +55,11 @@ fi
 cd "$ANDROID_DIR"
 ./gradlew "$GRADLE_TASK"
 
-# Gradle on macOS hides build outputs — start from outputs/ so chflags -R
-# can recurse into the hidden apk/release/ or bundle/release/ subdirectory.
+# Gradle on macOS hides build outputs via two mechanisms: the HFS+ hidden
+# flag (chflags) and the com.apple.FinderInfo xattr (xattr). Both must be
+# cleared — chflags alone is not sufficient.
 chflags -R nohidden "$ANDROID_DIR/app/build/outputs" 2>/dev/null || true
+xattr -cr "$ANDROID_DIR/app/build/outputs" 2>/dev/null || true
 
 if $AAB; then
   echo "==> AAB ready: $AAB_PATH"
