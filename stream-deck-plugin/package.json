@@ -9,12 +9,14 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@elgato/streamdeck": "^1.0.0"
+    "@elgato/streamdeck": "^1.0.0",
+    "ws": "^8.0.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
     "@rollup/plugin-typescript": "^11.0.0",
+    "@types/ws": "^8.0.0",
     "rollup": "^4.0.0",
     "tslib": "^2.6.0",
     "typescript": "^5.4.0"

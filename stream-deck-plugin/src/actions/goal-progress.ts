@@ -5,27 +5,33 @@ import {
   SingletonAction,
   WillAppearEvent,
 } from "@elgato/streamdeck";
+import { DayGlanceState, onState } from "../client";
 
 @action({ UUID: "app.dayglance.streamdeck.goal-progress" })
 export class GoalProgressAction extends SingletonAction {
-  private goalIndex = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private actionRef: any = null;
+  private unsubscribe: (() => void) | null = null;
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
-    await this.refresh(ev.action);
+    this.actionRef = ev.action;
+    this.unsubscribe?.();
+    this.unsubscribe = onState((s) => void this.render(s));
   }
 
-  override async onDialRotate(ev: DialRotateEvent): Promise<void> {
-    this.goalIndex = Math.max(0, this.goalIndex + ev.payload.ticks);
-    await this.refresh(ev.action);
+  override async onDialRotate(_ev: DialRotateEvent): Promise<void> {
+    // TODO: cycle through goals when goal data is added to state
   }
 
-  override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-    await this.refresh(ev.action);
+  override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
+    // TODO: interact with goal when goal data is added to state
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async refresh(actionRef: any): Promise<void> {
-    // TODO: render goal at this.goalIndex from WS state (arc + progress %)
-    await actionRef.setTitle("Goals");
+  private async render(state: DayGlanceState): Promise<void> {
+    if (!this.actionRef) return;
+    // Showing today's task completion until goal data is in the state shape
+    const { completed, total } = state.today;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    await this.actionRef.setTitle(`Today\n${pct}%`);
   }
 }

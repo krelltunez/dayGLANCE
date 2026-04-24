@@ -6,95 +6,63 @@ import {
   SingletonAction,
   WillAppearEvent,
 } from "@elgato/streamdeck";
+import { DayGlanceState, onState, send } from "../client";
 
-type Settings = {
-  sessionDurationMinutes: number;
-};
-
-type Phase = "idle" | "work" | "break";
+type Settings = { sessionDurationMinutes: number };
 
 @action({ UUID: "app.dayglance.streamdeck.focus" })
 export class FocusAction extends SingletonAction<Settings> {
-  private phase: Phase = "idle";
-  private remainingSeconds = 0;
-  private sessionCount = 0;
-  private tickInterval: ReturnType<typeof setInterval> | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private actionRef: any = null;
+  private unsubscribe: (() => void) | null = null;
+  private lastState: DayGlanceState | null = null;
 
   override async onWillAppear(ev: WillAppearEvent<Settings>): Promise<void> {
-    const settings = await ev.action.getSettings();
-    await ev.action.setTitle(this.buildTitle());
-    // TODO: poll dayGLANCE backend for current focus state and sync
-    void settings;
+    this.actionRef = ev.action;
+    this.unsubscribe?.();
+    this.unsubscribe = onState((s) => {
+      this.lastState = s;
+      void this.render(s);
+    });
   }
 
   override async onDialRotate(ev: DialRotateEvent<Settings>): Promise<void> {
-    if (this.phase !== "idle") return;
+    if (this.lastState?.focus.active) return;
     const settings = await ev.action.getSettings();
-    const delta = ev.payload.ticks;
-    const newDuration = Math.max(5, (settings.sessionDurationMinutes ?? 25) + delta);
-    await ev.action.setSettings({ ...settings, sessionDurationMinutes: newDuration });
+    const newDuration = Math.max(5, (settings.sessionDurationMinutes ?? 25) + ev.payload.ticks);
+    await ev.action.setSettings({ sessionDurationMinutes: newDuration });
     await ev.action.setTitle(`${newDuration}m`);
   }
 
-  override async onDialUp(ev: DialUpEvent<Settings>): Promise<void> {
-    await this.toggleSession(ev.action);
+  override async onDialUp(_ev: DialUpEvent<Settings>): Promise<void> {
+    this.toggle();
   }
 
-  override async onKeyDown(ev: KeyDownEvent<Settings>): Promise<void> {
-    await this.toggleSession(ev.action);
+  override async onKeyDown(_ev: KeyDownEvent<Settings>): Promise<void> {
+    this.toggle();
   }
 
-  private async toggleSession(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actionRef: any
-  ): Promise<void> {
-    if (this.phase === "idle") {
-      const settings: Settings = await actionRef.getSettings();
-      this.phase = "work";
-      this.remainingSeconds = (settings.sessionDurationMinutes ?? 25) * 60;
-      this.startTick(actionRef);
-      // TODO: POST to dayGLANCE backend to start focus mode
+  private toggle(): void {
+    if (!this.lastState?.focus.active) {
+      send({ type: "focus:start" });
     } else {
-      this.stopTick();
-      this.phase = "idle";
-      await actionRef.setState(0);
-      await actionRef.setTitle("Focus");
-      // TODO: POST to dayGLANCE backend to end focus mode
+      send({ type: "focus:stop" });
     }
   }
 
-  private startTick(actionRef: unknown): void {
-    this.tickInterval = setInterval(async () => {
-      this.remainingSeconds--;
-      if (this.remainingSeconds <= 0) {
-        this.stopTick();
-        if (this.phase === "work") {
-          this.sessionCount++;
-          this.phase = "break";
-          this.remainingSeconds = 5 * 60;
-          this.startTick(actionRef);
-        } else {
-          this.phase = "idle";
-        }
-      }
-      // @ts-expect-error actionRef typed as unknown for simplicity
-      await actionRef.setTitle(this.buildTitle());
-    }, 1000);
-  }
-
-  private stopTick(): void {
-    if (this.tickInterval !== undefined) {
-      clearInterval(this.tickInterval);
-      this.tickInterval = undefined;
+  private async render(state: DayGlanceState): Promise<void> {
+    if (!this.actionRef) return;
+    const { active, phase, secondsRemaining, running } = state.focus;
+    if (!active) {
+      await this.actionRef.setTitle("Focus");
+      await this.actionRef.setState(0);
+    } else {
+      const m = Math.floor(secondsRemaining / 60);
+      const s = secondsRemaining % 60;
+      const label = phase === "work" ? "Work" : "Break";
+      const timer = running ? `${m}:${s.toString().padStart(2, "0")}` : "Paused";
+      await this.actionRef.setTitle(`${label}\n${timer}`);
+      await this.actionRef.setState(1);
     }
-  }
-
-  private buildTitle(): string {
-    if (this.phase === "idle") return "Focus";
-    const m = Math.floor(this.remainingSeconds / 60);
-    const s = this.remainingSeconds % 60;
-    const tomatoes = "🍅".repeat(this.sessionCount);
-    const label = this.phase === "work" ? "Work" : "Break";
-    return `${label}\n${m}:${s.toString().padStart(2, "0")}\n${tomatoes}`;
   }
 }
