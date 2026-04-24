@@ -1,6 +1,9 @@
 import { app, BrowserWindow, shell } from 'electron';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createWsServer } from './ws-server';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localhost:5173';
