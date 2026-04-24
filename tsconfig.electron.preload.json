@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ES2022",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "ignoreDeprecations": "6.0",
     "outDir": "dist-electron",
@@ -10,8 +10,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
-    "types": ["node", "electron", "ws"]
+    "types": ["node", "electron"]
   },
-  "include": ["electron"],
-  "exclude": ["electron/preload.ts"]
+  "include": ["electron/preload.ts"]
 }
