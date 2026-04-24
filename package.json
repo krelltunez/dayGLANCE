@@ -3,24 +3,34 @@
   "private": true,
   "version": "2.6.1",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:android": "./node_modules/.bin/vite build --config vite.config.android.js",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:electron": "tsc -p tsconfig.electron.json && concurrently -n renderer,main,electron -c cyan,yellow,green \"vite\" \"tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",
+    "build:electron": "vite build --config vite.config.electron.js && tsc -p tsconfig.electron.json && electron-builder"
   },
   "dependencies": {
     "lucide-react": "^0.564.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "ws": "^8.18.0"
   },
   "overrides": {
     "serialize-javascript": ">=7.0.3"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
+    "@types/ws": "^8.5.0",
+    "concurrently": "^8.2.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.0",
+    "electronmon": "^2.0.3",
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.27",

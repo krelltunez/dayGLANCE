@@ -1,0 +1,25 @@
+{
+  "appId": "app.dayglance",
+  "productName": "dayGLANCE",
+  "directories": {
+    "buildResources": "public",
+    "output": "dist-app"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "target": [
+      { "target": "dmg", "arch": ["x64", "arm64"] },
+      { "target": "zip", "arch": ["x64", "arm64"] }
+    ]
+  },
+  "win": {
+    "target": [{ "target": "nsis" }]
+  },
+  "linux": {
+    "target": [{ "target": "AppImage" }]
+  }
+}
