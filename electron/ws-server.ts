@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { BrowserWindow, ipcMain } from 'electron';
+import type { OutboundMessage } from './protocol.js';
 
 const WS_PORT = 7892;
 
@@ -24,7 +25,7 @@ export function createWsServer(win: BrowserWindow): WebSocketServer {
   });
 
   // Broadcast state updates from the renderer to all connected clients
-  ipcMain.on('ws:push-state', (_event, state: unknown) => {
+  ipcMain.on('ws:push-state', (_event, state: OutboundMessage) => {
     const payload = JSON.stringify(state);
     for (const client of clients) {
       if (client.readyState === WebSocket.OPEN) {

@@ -5,6 +5,10 @@ import { createWsServer } from './ws-server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Pin userData explicitly — the implicit default derives from productName,
+// so a rename or build-config drift would silently orphan existing user data.
+app.setPath('userData', path.join(app.getPath('appData'), 'dayGLANCE'));
+
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localhost:5173';
 

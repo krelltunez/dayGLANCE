@@ -1,0 +1,116 @@
+{
+  "Name": "dayGLANCE",
+  "Version": "0.0.1",
+  "Author": "dayGLANCE",
+  "Description": "Agenda, focus, tasks, and goals on your Stream Deck+.",
+  "Category": "dayGLANCE",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "Icon": "imgs/plugin/icon",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.5"
+  },
+  "OS": [
+    { "Platform": "mac", "MinimumVersion": "12" },
+    { "Platform": "windows", "MinimumVersion": "10" }
+  ],
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "Actions": [
+    {
+      "Name": "Agenda",
+      "UUID": "app.dayglance.streamdeck.agenda",
+      "Icon": "imgs/actions/agenda/icon",
+      "Tooltip": "Scrollable agenda strip — shows current and next events.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Scroll agenda forward / back",
+          "Push": "Open event detail"
+        }
+      },
+      "States": [
+        { "Image": "imgs/actions/agenda/key", "TitleAlignment": "bottom" }
+      ]
+    },
+    {
+      "Name": "Focus / Pomodoro",
+      "UUID": "app.dayglance.streamdeck.focus",
+      "Icon": "imgs/actions/focus/icon",
+      "Tooltip": "Start, stop, or adjust the Pomodoro timer. Stays in sync with dayGLANCE focus mode.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "layouts/focus.json",
+        "TriggerDescription": {
+          "Rotate": "Adjust session duration",
+          "Push": "Start / stop session",
+          "TouchTap": "Switch work / break"
+        }
+      },
+      "States": [
+        { "Image": "imgs/actions/focus/key-idle" },
+        { "Image": "imgs/actions/focus/key-active" }
+      ]
+    },
+    {
+      "Name": "Next Task",
+      "UUID": "app.dayglance.streamdeck.next-task",
+      "Icon": "imgs/actions/next-task/icon",
+      "Tooltip": "Shows your next due task. Press to complete, long-press to snooze.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Browse tasks",
+          "Push": "Complete task"
+        }
+      },
+      "States": [
+        { "Image": "imgs/actions/next-task/key", "TitleAlignment": "bottom" }
+      ]
+    },
+    {
+      "Name": "Goal Progress",
+      "UUID": "app.dayglance.streamdeck.goal-progress",
+      "Icon": "imgs/actions/goal-progress/icon",
+      "Tooltip": "Cycles through active goals with arc progress indicator.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "layouts/goal-progress.json",
+        "TriggerDescription": {
+          "Rotate": "Cycle goals",
+          "Push": "Toggle goal detail"
+        }
+      },
+      "States": [
+        { "Image": "imgs/actions/goal-progress/key", "TitleAlignment": "bottom" }
+      ]
+    },
+    {
+      "Name": "Quick Glance",
+      "UUID": "app.dayglance.streamdeck.quick-glance",
+      "Icon": "imgs/actions/quick-glance/icon",
+      "Tooltip": "Rotates between date, weather, and next event.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Cycle display mode",
+          "Push": "Pin current mode"
+        }
+      },
+      "States": [
+        { "Image": "imgs/actions/quick-glance/key", "TitleAlignment": "bottom" }
+      ]
+    }
+  ]
+}
