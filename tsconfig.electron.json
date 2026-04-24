@@ -8,7 +8,8 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["node", "electron", "ws"]
   },
   "include": ["electron"]
 }
