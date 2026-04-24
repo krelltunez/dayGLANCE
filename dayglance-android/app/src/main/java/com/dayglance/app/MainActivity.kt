@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
@@ -96,6 +97,13 @@ class MainActivity : AppCompatActivity() {
         splashScreen.setKeepOnScreenCondition { !webViewReady || !appReady }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Lock phones to portrait; tablets (smallestScreenWidthDp >= 600) rotate freely.
+        // The manifest uses screenOrientation="unspecified" so this runtime check is the
+        // only thing preventing landscape on phones.
+        if (resources.configuration.smallestScreenWidthDp < 600) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
 
         // Store shortcut intent so JS can pick it up via getPendingAction()
         // after the WebView finishes loading.
