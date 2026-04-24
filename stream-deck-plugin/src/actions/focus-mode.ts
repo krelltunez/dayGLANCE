@@ -8,8 +8,6 @@ import {
 } from "@elgato/streamdeck";
 
 type Settings = {
-  instanceUrl: string;
-  apiToken: string;
   sessionDurationMinutes: number;
 };
 

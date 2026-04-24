@@ -23,48 +23,44 @@
       padding: 12px;
     }
 
-    .field { margin-bottom: 12px; }
-
-    label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-dim);
-      margin-bottom: 4px;
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0 6px;
     }
 
-    input {
-      width: 100%;
-      padding: 7px 9px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .dot.connected    { background: #4caf50; }
+    .dot.disconnected { background: var(--text-dim); }
+    .dot.error        { background: #f44336; }
+
+    .status-label {
       font-size: 13px;
-      outline: none;
-      transition: border-color 0.15s;
+      color: var(--text);
     }
-
-    input:focus { border-color: var(--brand); }
-    input::placeholder { color: var(--text-dim); }
 
     .hint {
       font-size: 11px;
       color: var(--text-dim);
-      margin-top: 4px;
+      margin-top: 2px;
     }
 
-    .row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-top: 16px;
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 12px 0;
     }
 
     button {
-      flex: 1;
       padding: 7px 12px;
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -75,114 +71,58 @@
       transition: border-color 0.15s, color 0.15s;
     }
 
-    button:hover { border-color: var(--brand); color: var(--brand); }
+    button:hover  { border-color: var(--brand); color: var(--brand); }
     button:active { opacity: 0.8; }
-
-    #status {
-      font-size: 11px;
-      color: var(--text-dim);
-      text-align: right;
-      min-height: 16px;
-      margin-top: 8px;
-    }
-
-    #status.ok  { color: #4caf50; }
-    #status.err { color: #f44336; }
   </style>
 </head>
 <body>
-  <div class="field">
-    <label>Instance URL</label>
-    <input id="instanceUrl" type="url" placeholder="https://dayglance.app" spellcheck="false" />
-    <p class="hint">Your dayGLANCE instance (no trailing slash)</p>
+  <div class="status-row">
+    <div class="dot disconnected" id="dot"></div>
+    <span class="status-label" id="statusLabel">Connecting…</span>
   </div>
+  <p class="hint">ws://localhost:7892 &nbsp;·&nbsp; open dayGLANCE Desktop to connect</p>
 
-  <div class="field">
-    <label>API Token</label>
-    <input id="apiToken" type="password" placeholder="••••••••••••••••" spellcheck="false" />
-    <p class="hint">Found in dayGLANCE → Settings → API</p>
-  </div>
+  <hr class="divider" />
 
-  <div class="row">
-    <button id="testBtn">Test connection</button>
-  </div>
-
-  <p id="status"></p>
+  <button id="reconnectBtn">Reconnect</button>
 
   <script>
-    let websocket = null;
-    let uuid = null;
+    const WS_URL = "ws://localhost:7892";
+    const RETRY_MS = 4000;
 
-    // Called by Stream Deck software
-    function connectElgatoStreamDeckSocket(port, pluginUUID, registerEvent, info) {
-      uuid = pluginUUID;
-      websocket = new WebSocket(`ws://127.0.0.1:${port}`);
+    // Stream Deck ↔ plugin socket
+    let sdWs = null;
 
-      websocket.onopen = () => {
-        send({ event: registerEvent, uuid });
-        send({ event: "getSettings", context: uuid });
-      };
-
-      websocket.onmessage = ({ data }) => {
-        const msg = JSON.parse(data);
-        if (msg.event === "didReceiveSettings") {
-          const s = msg.payload?.settings ?? {};
-          document.getElementById("instanceUrl").value = s.instanceUrl ?? "";
-          document.getElementById("apiToken").value   = s.apiToken   ?? "";
-        }
-      };
+    function connectElgatoStreamDeckSocket(port, pluginUUID, registerEvent) {
+      sdWs = new WebSocket(`ws://127.0.0.1:${port}`);
+      sdWs.onopen = () => sdWs.send(JSON.stringify({ event: registerEvent, uuid: pluginUUID }));
     }
 
-    function send(obj) {
-      if (websocket?.readyState === WebSocket.OPEN) {
-        websocket.send(JSON.stringify(obj));
-      }
+    // dayGLANCE Desktop status probe
+    let dgWs = null;
+    let retryTimer = null;
+
+    function setStatus(state) {
+      const dot   = document.getElementById("dot");
+      const label = document.getElementById("statusLabel");
+      dot.className = "dot " + state;
+      label.textContent = state === "connected" ? "Connected" : "dayGLANCE Desktop not running";
     }
 
-    function saveSettings() {
-      send({
-        event: "setSettings",
-        context: uuid,
-        payload: {
-          instanceUrl: document.getElementById("instanceUrl").value.trim().replace(/\/$/, ""),
-          apiToken:    document.getElementById("apiToken").value.trim(),
-        },
-      });
+    function probe() {
+      clearTimeout(retryTimer);
+      if (dgWs) { dgWs.onopen = dgWs.onclose = dgWs.onerror = null; dgWs.close(); }
+
+      dgWs = new WebSocket(WS_URL);
+
+      dgWs.onopen  = () => setStatus("connected");
+      dgWs.onclose = () => { setStatus("disconnected"); retryTimer = setTimeout(probe, RETRY_MS); };
+      dgWs.onerror = () => { /* onclose fires after onerror */ };
     }
 
-    function setStatus(text, cls = "") {
-      const el = document.getElementById("status");
-      el.textContent = text;
-      el.className = cls;
-    }
+    document.getElementById("reconnectBtn").addEventListener("click", probe);
 
-    document.getElementById("instanceUrl").addEventListener("input", saveSettings);
-    document.getElementById("apiToken").addEventListener("input", saveSettings);
-
-    document.getElementById("testBtn").addEventListener("click", async () => {
-      const url   = document.getElementById("instanceUrl").value.trim().replace(/\/$/, "");
-      const token = document.getElementById("apiToken").value.trim();
-
-      if (!url || !token) {
-        setStatus("Enter instance URL and token first.", "err");
-        return;
-      }
-
-      setStatus("Testing…");
-
-      try {
-        const res = await fetch(`${url}/api/health`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          setStatus("Connected.", "ok");
-        } else {
-          setStatus(`Error ${res.status}`, "err");
-        }
-      } catch (e) {
-        setStatus("Could not reach instance.", "err");
-      }
-    });
+    probe();
   </script>
 </body>
 </html>
