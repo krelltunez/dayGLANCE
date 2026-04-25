@@ -73,18 +73,32 @@ export class AgendaAction extends SingletonAction {
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const tasks = state.scheduledTasks ?? [];
     let image: string;
+    let feedTitle: string;
+    let feedValue: string;
+    let feedIndicator: number;
+
     if (this.viewIndex === 0 || tasks.length === 0) {
       const { completed, total } = state.today;
       const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
       image = renderKey({ value: `${completed}/${total}`, sub: `${pct}% done` });
+      feedTitle = "Today";
+      feedValue = `${completed}/${total}`;
+      feedIndicator = pct;
     } else {
       const task = tasks[this.viewIndex - 1];
       const title = truncate(stripTags(task.title), 12);
-      const time = task.startTime ? formatTime(task.startTime) : "";
-      image = renderKey({ value: title, sub: time, barColor: task.colorHex, strikethrough: task.completed });
+      const sub = task.completed ? "Completed" : (task.startTime ? formatTime(task.startTime) : "");
+      image = renderKey({ value: title, sub, barColor: task.colorHex, strikethrough: task.completed });
+      feedTitle = title;
+      feedValue = sub;
+      feedIndicator = task.completed ? 100 : 0;
     }
+
     await act.setImage(image);
     await act.setTitle("");
+    if (act.controller === "Encoder") {
+      await act.setFeedback({ title: feedTitle, value: feedValue, indicator: feedIndicator });
+    }
   }
 }
 

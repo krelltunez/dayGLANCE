@@ -28,7 +28,7 @@
       "PropertyInspectorPath": "ui/property-inspector.html",
       "Controllers": ["Encoder", "Keypad"],
       "Encoder": {
-        "layout": "$B1",
+        "layout": "layouts/agenda.json",
         "TriggerDescription": {
           "Rotate": "Cycle through tasks / overview",
           "Push": "Complete current task"
