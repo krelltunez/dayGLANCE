@@ -42,6 +42,7 @@ export type FocusState = {
   breakMinutes: number;
   longBreakMinutes: number;
   cycleCount: number;      // total completed work cycles since session start
+  nextFocusTask: { id: string; title: string } | null;  // first incomplete task in the focus block
 };
 
 export type Habit = {

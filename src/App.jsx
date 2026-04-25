@@ -6139,6 +6139,8 @@ const DayPlanner = () => {
     focusBreakMinutes,
     focusLongBreakMinutes,
     focusShowSettings,
+    focusBlockTasks,
+    focusCompletedTasks,
     enterFocusModeRef,
     exitFocusModeRef,
     startFocusTimerRef,

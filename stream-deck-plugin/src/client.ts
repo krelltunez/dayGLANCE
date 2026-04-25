@@ -24,7 +24,7 @@ type CommandPayload =
   | { type: typeof MSG_DAY_FOCUS_TIMER_START }
   | { type: typeof MSG_DAY_FOCUS_STOP }
   | { type: typeof MSG_DAY_FOCUS_SKIP }
-  | { type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number }
+  | { type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
   | { type: typeof MSG_DAY_TASK_COMPLETE; id: string }
   | { type: typeof MSG_DAY_HABIT_INCREMENT; id: string }
   | { type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };
