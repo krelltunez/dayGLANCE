@@ -41,35 +41,20 @@ Use **merge, not rebase** — rebasing rewrites history and breaks branches cut 
 
 The files most likely to need conflict resolution during syncs are `App.jsx`, `GlanceSidebar.jsx`, and `MobileGlanceSection.jsx` (all touched by hyperGLANCE).
 
-## Electron desktop app — `electron-develop`
+## Electron desktop app + Stream Deck plugin — `electron-develop`
 
-`electron-develop` is the long-lived integration branch for the Mac/Windows desktop app:
+`electron-develop` is the long-lived integration branch for the Mac/Windows desktop app and the Stream Deck plugin. Both ship together and share `electron/protocol.ts` as the canonical WS protocol contract.
 
 - Feature branches are cut from `electron-develop` (not `main`).
 - PRs target `electron-develop` (not `main`).
-- `main` does **not** receive Electron changes until the desktop app ships.
+- `main` does **not** receive these changes until the desktop app ships.
 
 ```bash
 git fetch origin electron-develop
 git checkout -b <feature-branch> origin/electron-develop
 ```
 
-The Electron main process lives in `electron/` (compiled to `dist-electron/`). The renderer is the existing Vite/React app. The WebSocket server (`electron/ws-server.ts`) runs on `ws://localhost:7892` and is the shared integration point for the Stream Deck plugin and future intent-based integrations.
-
-## Stream Deck plugin — `stream-deck-develop`
-
-`stream-deck-develop` is the long-lived integration branch for the Stream Deck plugin:
-
-- Feature branches are cut from `stream-deck-develop` (not `main`).
-- PRs target `stream-deck-develop` (not `main`).
-- `main` does **not** receive Stream Deck changes until the plugin ships.
-
-```bash
-git fetch origin stream-deck-develop
-git checkout -b <feature-branch> origin/stream-deck-develop
-```
-
-After a feature PR merges into `stream-deck-develop`, do **not** sync to `main` — leave that for the release.
+The Electron main process lives in `electron/` (compiled to `dist-electron/`). The renderer is the existing Vite/React app. The WebSocket server (`electron/ws-server.ts`) runs on `ws://localhost:7892` and is the integration point for the Stream Deck plugin. The plugin lives in `stream-deck-plugin/` and is built separately with Rollup.
 
 ## GitHub Issues
 
