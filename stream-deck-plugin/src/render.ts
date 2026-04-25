@@ -21,7 +21,7 @@ export function renderKey(opts: KeyOpts): string {
   // Approximate half-width: ~0.55× font-size per char for bold sans-serif, capped at key margin
   const strikeHalfW = Math.min((value.length * fs * 0.55) / 2, 62);
   const strikeY = parseInt(valueY) - Math.round(fs * 0.33);
-  const strikeW = Math.max(1.5, fs * 0.07);
+  const strikeW = Math.max(3, fs * 0.1);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="#111"/>
