@@ -3,6 +3,7 @@ import {
   DialRotateEvent,
   DialUpEvent,
   KeyDownEvent,
+  KeyUpEvent,
   SingletonAction,
   TouchTapEvent,
   WillAppearEvent,
@@ -20,6 +21,7 @@ export class AgendaAction extends SingletonAction {
   private visibleCount = 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private encoderRefs = new Set<any>();
+  private keyLongPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
     this.visibleCount++;
@@ -62,7 +64,18 @@ export class AgendaAction extends SingletonAction {
   }
 
   override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
-    await this.completeCurrentTask();
+    this.keyLongPressTimer = setTimeout(async () => {
+      this.keyLongPressTimer = null;
+      await this.completeCurrentTask();
+    }, 500);
+  }
+
+  override async onKeyUp(_ev: KeyUpEvent): Promise<void> {
+    if (this.keyLongPressTimer !== null) {
+      clearTimeout(this.keyLongPressTimer);
+      this.keyLongPressTimer = null;
+      await this.cycleView(1);
+    }
   }
 
   override async onTouchTap(ev: TouchTapEvent): Promise<void> {
@@ -71,10 +84,15 @@ export class AgendaAction extends SingletonAction {
       await this.completeCurrentTask();
       return;
     }
+    const delta = ev.payload.tapPos[0] < 100 ? -1 : 1;
+    await this.cycleView(delta);
+  }
+
+  private async cycleView(delta: number): Promise<void> {
+    if (!this.lastState) return;
     const count = this.lastState.scheduledTasks?.length ?? 0;
     if (count === 0) return;
     const total = count + 1;
-    const delta = ev.payload.tapPos[0] < 100 ? -1 : 1;
     this.viewIndex = ((this.viewIndex + delta) % total + total) % total;
     await this.renderAll(this.lastState);
   }
