@@ -1,0 +1,54 @@
+// Canonical protocol contract for the dayGLANCE Desktop ↔ client WebSocket API.
+// All message type string constants and wire-format types live here.
+// Clients (Stream Deck plugin, future integrations) import from this file.
+// Do not define these strings anywhere else in the codebase.
+
+export const PROTOCOL_VERSION = 1 as const;
+
+// ── Outbound message type constants (server → clients) ───────────────────
+export const MSG_DAY_STATE = 'day:state' as const;
+
+// ── Inbound command type constants (clients → server) ────────────────────
+export const MSG_DAY_FOCUS_START   = 'day:focus:start'   as const;
+export const MSG_DAY_FOCUS_STOP    = 'day:focus:stop'    as const;
+export const MSG_DAY_FOCUS_SKIP    = 'day:focus:skip'    as const;
+export const MSG_DAY_TASK_COMPLETE = 'day:task:complete' as const;
+
+// ── Shared data types ─────────────────────────────────────────────────────
+export type Task = {
+  id: string;
+  title: string;
+  startTime: string | null;
+  duration: number;
+  colorHex: string;
+  tags: string[];
+};
+
+export type FocusState = {
+  active: boolean;
+  phase: string;
+  secondsRemaining: number;
+  running: boolean;
+  workMinutes: number;
+  breakMinutes: number;
+};
+
+export type DayGlanceState = {
+  currentTask: Task | null;
+  nextTask: Task | null;
+  today: { total: number; completed: number; date: string };
+  focus: FocusState;
+};
+
+// ── Outbound message (server → clients) ──────────────────────────────────
+export type OutboundMessage = {
+  v: typeof PROTOCOL_VERSION;
+  type: typeof MSG_DAY_STATE;
+} & DayGlanceState;
+
+// ── Inbound commands (clients → server) ──────────────────────────────────
+export type InboundCommand =
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_START }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_STOP }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SKIP }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_TASK_COMPLETE; id: string };

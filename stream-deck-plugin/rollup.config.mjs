@@ -12,7 +12,12 @@ export default {
   plugins: [
     resolve({ browser: false }),
     commonjs(),
-    typescript({ tsconfig: "./tsconfig.json" }),
+    typescript({
+      tsconfig: "./tsconfig.json",
+      // rootDir must span both src/ and ../../electron/ to allow the cross-package
+      // protocol import without a TypeScript rootDir violation during bundling.
+      rootDir: "../..",
+    }),
   ],
   external: [],
 };

@@ -1,35 +1,25 @@
 import WebSocket from "ws";
+import {
+  PROTOCOL_VERSION,
+  MSG_DAY_STATE,
+  MSG_DAY_FOCUS_START,
+  MSG_DAY_FOCUS_STOP,
+  MSG_DAY_FOCUS_SKIP,
+  MSG_DAY_TASK_COMPLETE,
+  type DayGlanceState,
+  type InboundCommand,
+} from "../../electron/protocol";
 
-export type Task = {
-  id: string;
-  title: string;
-  startTime: string | null;
-  duration: number;
-  colorHex: string;
-  tags: string[];
-};
+// Re-export everything action files need — keeps their imports pointing at ../client only
+export type { DayGlanceState, Task, FocusState } from "../../electron/protocol";
+export { MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_TASK_COMPLETE } from "../../electron/protocol";
 
-export type FocusState = {
-  active: boolean;
-  phase: string;
-  secondsRemaining: number;
-  running: boolean;
-  workMinutes: number;
-  breakMinutes: number;
-};
-
-export type DayGlanceState = {
-  currentTask: Task | null;
-  nextTask: Task | null;
-  today: { total: number; completed: number; date: string };
-  focus: FocusState;
-};
-
-export type Command =
-  | { type: "focus:start" }
-  | { type: "focus:stop" }
-  | { type: "focus:skip" }
-  | { type: "task:complete"; id: string };
+// CommandPayload is the caller-facing API — send() stamps v internally
+type CommandPayload =
+  | { type: typeof MSG_DAY_FOCUS_START }
+  | { type: typeof MSG_DAY_FOCUS_STOP }
+  | { type: typeof MSG_DAY_FOCUS_SKIP }
+  | { type: typeof MSG_DAY_TASK_COMPLETE; id: string };
 
 type StateListener = (state: DayGlanceState) => void;
 
@@ -48,7 +38,7 @@ function connect(): void {
   ws.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString());
-      if (msg.type === "state") {
+      if (msg.type === MSG_DAY_STATE) {
         lastState = msg as DayGlanceState;
         for (const listener of listeners) listener(lastState);
       }
@@ -66,9 +56,10 @@ function connect(): void {
   });
 }
 
-export function send(command: Command): void {
+export function send(command: CommandPayload): void {
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(command));
+    const wire: InboundCommand = { v: PROTOCOL_VERSION, ...command } as InboundCommand;
+    ws.send(JSON.stringify(wire));
   }
 }
 

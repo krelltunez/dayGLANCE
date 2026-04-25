@@ -5,7 +5,7 @@ import {
   SingletonAction,
   WillAppearEvent,
 } from "@elgato/streamdeck";
-import { DayGlanceState, onState, send } from "../client";
+import { DayGlanceState, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
 
 @action({ UUID: "app.dayglance.streamdeck.next-task" })
 export class NextTaskAction extends SingletonAction {
@@ -33,7 +33,7 @@ export class NextTaskAction extends SingletonAction {
     const task = this.showNext
       ? this.lastState?.nextTask
       : (this.lastState?.currentTask ?? this.lastState?.nextTask);
-    if (task) send({ type: "task:complete", id: task.id });
+    if (task) send({ type: MSG_DAY_TASK_COMPLETE, id: task.id });
   }
 
   private async render(state: DayGlanceState): Promise<void> {
