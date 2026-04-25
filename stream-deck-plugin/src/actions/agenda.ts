@@ -8,7 +8,7 @@ import {
   WillDisappearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
-import { renderKey, stripTags, truncate } from "../render";
+import { renderKey, renderStrip, stripTags, truncate } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.agenda" })
 export class AgendaAction extends SingletonAction {
@@ -17,9 +17,15 @@ export class AgendaAction extends SingletonAction {
   // 0 = overview (X/Y + Z%), 1..N = task at index (viewIndex - 1)
   private viewIndex: number = 0;
   private visibleCount = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private encoderRefs = new Set<any>();
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
     this.visibleCount++;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((ev.payload as any).controller === "Encoder") {
+      this.encoderRefs.add(ev.action);
+    }
     if (!this.unsubscribe) {
       this.viewIndex = 0;
       this.unsubscribe = onState((s) => {
@@ -32,7 +38,8 @@ export class AgendaAction extends SingletonAction {
     if (this.lastState) await this.renderOne(ev.action, this.lastState);
   }
 
-  override async onWillDisappear(_ev: WillDisappearEvent): Promise<void> {
+  override async onWillDisappear(ev: WillDisappearEvent): Promise<void> {
+    this.encoderRefs.delete(ev.action);
     this.visibleCount = Math.max(0, this.visibleCount - 1);
     if (this.visibleCount === 0) {
       this.unsubscribe?.();
@@ -72,32 +79,26 @@ export class AgendaAction extends SingletonAction {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const tasks = state.scheduledTasks ?? [];
-    let image: string;
-    let feedTitle: string;
-    let feedValue: string;
-    let feedIndicator: number;
+    const isEncoder = this.encoderRefs.has(act);
+
+    let renderOpts: Parameters<typeof renderKey>[0];
 
     if (this.viewIndex === 0 || tasks.length === 0) {
       const { completed, total } = state.today;
       const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-      image = renderKey({ value: `${completed}/${total}`, sub: `${pct}% done` });
-      feedTitle = "Today";
-      feedValue = `${completed}/${total}`;
-      feedIndicator = pct;
+      renderOpts = { value: `${completed}/${total}`, sub: `${pct}% done` };
     } else {
       const task = tasks[this.viewIndex - 1];
       const title = truncate(stripTags(task.title), 12);
       const sub = task.completed ? "Completed" : (task.startTime ? formatTime(task.startTime) : "");
-      image = renderKey({ value: title, sub, barColor: task.colorHex, strikethrough: task.completed });
-      feedTitle = title;
-      feedValue = sub;
-      feedIndicator = task.completed ? 100 : 0;
+      renderOpts = { value: title, sub, barColor: task.colorHex, strikethrough: task.completed };
     }
 
-    await act.setImage(image);
-    await act.setTitle("");
-    if (act.controller === "Encoder") {
-      await act.setFeedback({ title: feedTitle, value: feedValue, indicator: feedIndicator });
+    await act.setImage(renderKey(renderOpts));
+    if (isEncoder) {
+      await act.setFeedback({ canvas: renderStrip(renderOpts) });
+    } else {
+      await act.setTitle("");
     }
   }
 }
