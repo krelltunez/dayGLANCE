@@ -1,12 +1,13 @@
 import {
   action,
+  DialRotateEvent,
   DialUpEvent,
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
   WillDisappearEvent,
 } from "@elgato/streamdeck";
-import { DayGlanceState, onState } from "../client";
+import { DayGlanceState, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
 import { renderKey, stripTags, truncate } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.agenda" })
@@ -39,20 +40,27 @@ export class AgendaAction extends SingletonAction {
     }
   }
 
-  override async onDialUp(_ev: DialUpEvent): Promise<void> {
-    await this.cycle();
-  }
-
-  override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
-    await this.cycle();
-  }
-
-  private async cycle(): Promise<void> {
+  override async onDialRotate(ev: DialRotateEvent): Promise<void> {
     if (!this.lastState) return;
     const count = this.lastState.scheduledTasks?.length ?? 0;
     if (count === 0) return;
-    this.viewIndex = (this.viewIndex + 1) % (count + 1);
+    const total = count + 1;
+    this.viewIndex = ((this.viewIndex + ev.payload.ticks) % total + total) % total;
     await this.renderAll(this.lastState);
+  }
+
+  override async onDialUp(_ev: DialUpEvent): Promise<void> {
+    await this.completeCurrentTask();
+  }
+
+  override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
+    await this.completeCurrentTask();
+  }
+
+  private async completeCurrentTask(): Promise<void> {
+    if (!this.lastState || this.viewIndex === 0) return;
+    const task = this.lastState.scheduledTasks?.[this.viewIndex - 1];
+    if (task) send({ type: MSG_DAY_TASK_COMPLETE, id: task.id });
   }
 
   private async renderAll(state: DayGlanceState): Promise<void> {

@@ -30,8 +30,8 @@
       "Encoder": {
         "layout": "$B1",
         "TriggerDescription": {
-          "Rotate": "Scroll agenda forward / back",
-          "Push": "Cycle through tasks / back to overview"
+          "Rotate": "Cycle through tasks / overview",
+          "Push": "Complete current task"
         }
       },
       "States": [
