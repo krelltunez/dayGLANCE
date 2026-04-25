@@ -58,6 +58,14 @@ export type Routine = {
   completed: boolean;
 };
 
+export type Goal = {
+  id: string;
+  title: string;
+  progress: number;   // 0-100 integer
+  colorHex: string;
+  daysLeft: number | null;  // null if no target date
+};
+
 export type DayGlanceState = {
   currentTask: Task | null;
   nextTask: Task | null;
@@ -67,6 +75,7 @@ export type DayGlanceState = {
   habits: Habit[];
   nextRoutine: Routine | null;
   use24Hour: boolean;
+  goals: Goal[];
 };
 
 // ── Outbound message (server → clients) ──────────────────────────────────

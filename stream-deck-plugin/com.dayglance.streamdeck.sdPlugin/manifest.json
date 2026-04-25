@@ -93,8 +93,8 @@
       "Encoder": {
         "layout": "layouts/goal-progress.json",
         "TriggerDescription": {
-          "Rotate": "Cycle goals",
-          "Push": "Toggle goal detail"
+          "Rotate": "Cycle through goals / overview",
+          "TouchTap": "Tap left/right to cycle goals"
         }
       },
       "States": [

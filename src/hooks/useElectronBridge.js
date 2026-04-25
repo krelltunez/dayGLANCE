@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { taskColorToHex } from '../utils/colorUtils.js';
+import { taskColorToHex, TAILWIND_TO_HEX } from '../utils/colorUtils.js';
 import { dateToString } from '../utils/taskUtils.js';
+import { calculateGoalProgress } from '../utils/goalProgress.js';
 import {
   PROTOCOL_VERSION,
   MSG_DAY_STATE,
@@ -66,6 +67,11 @@ export default function useElectronBridge({
   toggleRoutineCompletion,
   // Settings
   use24HourClock,
+  // Goals
+  goals,
+  projects,
+  unscheduledTasks,
+  goalsProjectsEnabled,
 }) {
   const skipFocusPhaseRef = useRef(skipFocusPhase);
   const toggleCompleteRef = useRef(toggleComplete);
@@ -173,6 +179,20 @@ export default function useElectronBridge({
       .filter(r => r.startTime && !r.isAllDay && !routineCompletions?.[r.id])
       .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0] ?? null;
 
+    // ── Goals ─────────────────────────────────────────────────────────────
+    const allTasksForGoals = [...tasks, ...(unscheduledTasks || [])];
+    const todayMs = new Date(dateToString(currentTime) + 'T00:00:00').getTime();
+    const goalsPayload = goalsProjectsEnabled ? (goals || [])
+      .filter(g => g.status === 'active')
+      .map(g => {
+        const progress = Math.round(calculateGoalProgress(g.id, projects || [], allTasksForGoals) * 100);
+        const colorHex = TAILWIND_TO_HEX[g.color] || '#3b82f6';
+        const daysLeft = g.targetDate
+          ? Math.round((new Date(g.targetDate + 'T00:00:00').getTime() - todayMs) / 86400000)
+          : null;
+        return { id: g.id, title: g.title, progress, colorHex, daysLeft };
+      }) : [];
+
     window.electronAPI.pushState({
       v: PROTOCOL_VERSION,
       type: MSG_DAY_STATE,
@@ -206,6 +226,7 @@ export default function useElectronBridge({
         completed: false,
       } : null,
       use24Hour: !!use24HourClock,
+      goals: goalsPayload,
     });
   }, [
     todayAgenda, currentTime, tasks, expandedRecurringTasks, todayHGSessions, focusModeAvailable,
@@ -213,5 +234,6 @@ export default function useElectronBridge({
     focusWorkMinutes, focusBreakMinutes,
     activeHabits, getTodayHabitCount, habitsEnabled,
     todayRoutines, routineCompletions, use24HourClock,
+    goals, projects, unscheduledTasks, goalsProjectsEnabled,
   ]);
 }

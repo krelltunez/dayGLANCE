@@ -74,6 +74,85 @@ function fontSize(text: string): number {
   return 18;
 }
 
+// ── Goal arc rendering ────────────────────────────────────────────────────
+
+interface GoalOpts {
+  title: string;
+  progress: number;   // 0-100
+  colorHex: string;
+  overview?: boolean;
+  goalCount?: number;
+  avgProgress?: number;
+}
+
+function arcPath(cx: number, cy: number, r: number, pct: number): string {
+  if (pct <= 0) return "";
+  if (pct >= 100) {
+    // Full circle via two half-arcs (single A command breaks at 360°)
+    return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r}`;
+  }
+  const angle = (pct / 100) * 360;
+  const rad = (angle - 90) * (Math.PI / 180);
+  const ex = (cx + r * Math.cos(rad)).toFixed(2);
+  const ey = (cy + r * Math.sin(rad)).toFixed(2);
+  const largeArc = angle > 180 ? 1 : 0;
+  return `M ${cx} ${cy - r} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}`;
+}
+
+export function renderGoalKey(opts: GoalOpts): string {
+  const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0 } = opts;
+  const pct = overview ? avgProgress : Math.round(progress);
+  const arc = arcPath(72, 74, 44, pct);
+  const arcEl = arc
+    ? `<path d="${arc}" fill="none" stroke="${colorHex}" stroke-width="7" stroke-linecap="round"/>`
+    : "";
+
+  let centerEl: string;
+  let bottomEl: string;
+  if (overview) {
+    centerEl = `
+  <text x="72" y="71" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${goalCount}</text>
+  <text x="72" y="88" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.45" text-anchor="middle">goals</text>`;
+    bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.45" text-anchor="middle">${pct}% avg</text>`;
+  } else {
+    centerEl = `<text x="72" y="82" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+    bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${escape(truncate(title, 15))}</text>`;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <rect width="${W}" height="${H}" fill="#111"/>
+  <rect width="${W}" height="5" fill="${colorHex}"/>
+  <text x="72" y="22" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.38" text-anchor="middle" letter-spacing="0.5">day<tspan font-style="italic">GLANCE</tspan></text>
+  <circle cx="72" cy="74" r="44" fill="none" stroke="#2a2a2a" stroke-width="7"/>
+  ${arcEl}${centerEl}
+  ${bottomEl}
+</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+
+export function renderGoalStrip(opts: GoalOpts): string {
+  const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0 } = opts;
+  const pct = overview ? avgProgress : Math.round(progress);
+  const arc = arcPath(48, 50, 30, pct);
+  const arcEl = arc
+    ? `<path d="${arc}" fill="none" stroke="${colorHex}" stroke-width="6" stroke-linecap="round"/>`
+    : "";
+  const mainText = overview ? `${goalCount} Goal${goalCount !== 1 ? "s" : ""}` : escape(truncate(title, 11));
+  const subText = overview ? `${pct}% avg` : `${pct}% done`;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
+  <rect width="${SW}" height="${SH}" fill="#111"/>
+  <rect width="${SW}" height="4" fill="${colorHex}"/>
+  <text x="${SW - 8}" y="18" font-family="${FONT}" font-size="11" fill="white" fill-opacity="0.3" text-anchor="end">day<tspan font-style="italic">GLANCE</tspan></text>
+  <circle cx="48" cy="50" r="30" fill="none" stroke="#2a2a2a" stroke-width="6"/>
+  ${arcEl}
+  <text x="48" y="55" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.9" text-anchor="middle" font-weight="700">${pct}%</text>
+  <text x="92" y="44" font-family="${FONT}" font-size="20" fill="white" fill-opacity="0.9" font-weight="700">${mainText}</text>
+  <text x="92" y="68" font-family="${FONT}" font-size="15" fill="white" fill-opacity="0.5">${subText}</text>
+</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+
 /** Strips #hashtags and [[wikilinks]] from a task title. */
 export function stripTags(s: string): string {
   return s
