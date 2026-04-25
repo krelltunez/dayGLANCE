@@ -1,28 +1,7 @@
 {
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
   "id": "focus-layout",
   "items": [
-    {
-      "key": "title",
-      "type": "text",
-      "rect": [16, 8, 200, 24],
-      "alignment": "left",
-      "font": { "size": 14, "weight": 600 }
-    },
-    {
-      "key": "value",
-      "type": "text",
-      "rect": [16, 36, 200, 40],
-      "alignment": "left",
-      "font": { "size": 28, "weight": 700 },
-      "color": "#fe8b00"
-    },
-    {
-      "key": "indicator",
-      "type": "progressBar",
-      "rect": [16, 82, 700, 10],
-      "bar_bg_c": "2C2C2C",
-      "bar_fill_c": "fe8b00",
-      "bar_border_c": "2C2C2C"
-    }
+    { "key": "canvas", "type": "pixmap", "rect": [0, 0, 200, 100] }
   ]
 }

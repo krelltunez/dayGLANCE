@@ -52,7 +52,8 @@
         "TriggerDescription": {
           "Rotate": "Adjust session duration",
           "Push": "Start / stop session",
-          "TouchTap": "Switch work / break"
+          "TouchTap": "Switch work / break phase",
+          "LongTouch": "Start / stop session"
         }
       },
       "States": [
@@ -68,10 +69,12 @@
       "PropertyInspectorPath": "ui/property-inspector.html",
       "Controllers": ["Encoder", "Keypad"],
       "Encoder": {
-        "layout": "$B1",
+        "layout": "layouts/next-task.json",
         "TriggerDescription": {
-          "Rotate": "Browse tasks",
-          "Push": "Complete task"
+          "Rotate": "Browse current / next task",
+          "Push": "Complete task",
+          "TouchTap": "Tap left/right to browse tasks",
+          "LongTouch": "Complete task"
         }
       },
       "States": [
@@ -104,10 +107,12 @@
       "PropertyInspectorPath": "ui/property-inspector.html",
       "Controllers": ["Encoder", "Keypad"],
       "Encoder": {
-        "layout": "$B1",
+        "layout": "layouts/quick-glance.json",
         "TriggerDescription": {
           "Rotate": "Cycle display mode",
-          "Push": "Pin current mode"
+          "Push": "Pin current mode",
+          "TouchTap": "Tap left/right to cycle modes",
+          "LongTouch": "Pin / unpin current mode"
         }
       },
       "States": [
