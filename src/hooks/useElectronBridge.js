@@ -67,6 +67,7 @@ export default function useElectronBridge({
   setFocusWorkMinutes,
   setFocusBreakMinutes,
   setFocusLongBreakMinutes,
+  focusCompleteTask,
   toggleComplete,
   // Habits
   activeHabits,
@@ -86,6 +87,7 @@ export default function useElectronBridge({
   goalsProjectsEnabled,
 }) {
   const skipFocusPhaseRef = useRef(skipFocusPhase);
+  const focusCompleteTaskRef = useRef(focusCompleteTask);
   const toggleCompleteRef = useRef(toggleComplete);
   const incrementHabitRef = useRef(incrementHabit);
   const toggleRoutineCompletionRef = useRef(toggleRoutineCompletion);
@@ -93,6 +95,7 @@ export default function useElectronBridge({
   const setFocusBreakMinutesRef = useRef(setFocusBreakMinutes);
   const setFocusLongBreakMinutesRef = useRef(setFocusLongBreakMinutes);
   skipFocusPhaseRef.current = skipFocusPhase;
+  focusCompleteTaskRef.current = focusCompleteTask;
   toggleCompleteRef.current = toggleComplete;
   incrementHabitRef.current = incrementHabit;
   toggleRoutineCompletionRef.current = toggleRoutineCompletion;
@@ -124,7 +127,7 @@ export default function useElectronBridge({
           if (cmd.longBreakMinutes !== undefined) setFocusLongBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.longBreakMinutes)));
           break;
         case MSG_DAY_TASK_COMPLETE:
-          if (cmd.id) toggleCompleteRef.current?.(cmd.id);
+          if (cmd.id) focusCompleteTaskRef.current?.(cmd.id);
           break;
         case MSG_DAY_HABIT_INCREMENT:
           if (cmd.id) incrementHabitRef.current?.(cmd.id);

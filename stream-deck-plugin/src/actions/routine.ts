@@ -48,7 +48,7 @@ export class RoutineAction extends SingletonAction {
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const routine = state.nextRoutine;
     if (!routine) {
-      await act.setImage(renderKey({ value: "✓", sub: "all done", barColor: "#22c55e" }));
+      await act.setImage(renderKey({ value: "✓", sub: "routines done", barColor: "#22c55e" }));
     } else {
       await act.setImage(renderKey({ value: truncate(routine.name, 14), sub: routine.startTime ?? "routine" }));
     }

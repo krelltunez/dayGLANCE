@@ -6148,6 +6148,7 @@ const DayPlanner = () => {
     setFocusLongBreakMinutes,
     setFocusWorkMinutes,
     setFocusBreakMinutes,
+    focusCompleteTask,
     toggleComplete,
     activeHabits,
     getTodayHabitCount,
