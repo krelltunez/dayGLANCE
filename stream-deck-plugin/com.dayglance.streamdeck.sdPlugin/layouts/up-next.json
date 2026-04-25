@@ -1,0 +1,7 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+  "id": "up-next-layout",
+  "items": [
+    { "key": "canvas", "type": "pixmap", "rect": [0, 0, 200, 100] }
+  ]
+}

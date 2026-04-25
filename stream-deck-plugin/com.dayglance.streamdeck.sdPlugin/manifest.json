@@ -62,19 +62,17 @@
       ]
     },
     {
-      "Name": "Next Task",
-      "UUID": "app.dayglance.streamdeck.next-task",
+      "Name": "Up Next",
+      "UUID": "app.dayglance.streamdeck.up-next",
       "Icon": "imgs/actions/next-task/icon",
-      "Tooltip": "Shows your next due task. Press to complete, long-press to snooze.",
+      "Tooltip": "Shows the current or next scheduled task with a live countdown. Auto-advances when the time passes.",
       "PropertyInspectorPath": "ui/property-inspector.html",
       "Controllers": ["Encoder", "Keypad"],
       "Encoder": {
-        "layout": "layouts/next-task.json",
+        "layout": "layouts/up-next.json",
         "TriggerDescription": {
-          "Rotate": "Browse current / next task",
-          "Push": "Complete task",
-          "TouchTap": "Tap left/right to browse tasks",
-          "LongTouch": "Complete task"
+          "Push": "Complete current task",
+          "LongTouch": "Complete current task"
         }
       },
       "States": [
