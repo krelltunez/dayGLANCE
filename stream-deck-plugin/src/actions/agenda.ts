@@ -80,8 +80,8 @@ export class AgendaAction extends SingletonAction {
     } else {
       const task = tasks[this.viewIndex - 1];
       const title = truncate(stripTags(task.title), 12);
-      const time = task.startTime ? formatTime(task.startTime) : "";
-      image = renderKey({ value: title, sub: time, barColor: task.colorHex, strikethrough: task.completed });
+      const sub = task.completed ? "Completed" : (task.startTime ? formatTime(task.startTime) : "");
+      image = renderKey({ value: title, sub, barColor: task.colorHex, strikethrough: task.completed });
     }
     await act.setImage(image);
     await act.setTitle("");
