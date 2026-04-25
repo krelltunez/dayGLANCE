@@ -42,6 +42,7 @@ export default function useElectronBridge({
   todayAgenda,
   currentTime,
   tasks,
+  expandedRecurringTasks,
   focusModeAvailable,
   showFocusMode,
   focusPhase,
@@ -129,8 +130,19 @@ export default function useElectronBridge({
     } : null;
 
     const todayStr = dateToString(currentTime);
-    const todayTasks = tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay);
-    const allDayTasks = tasks.filter(t => t.date === todayStr && t.isAllDay);
+    const todayRecurring = (expandedRecurringTasks || []).filter(t => t.date === todayStr);
+    // Include recurring instances in counts (stable denominator — all tasks regardless of completion/time)
+    const todayTasks = [
+      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay),
+      ...todayRecurring.filter(t => t.startTime && !t.isAllDay),
+    ];
+    const allDayTasks = [
+      ...tasks.filter(t => t.date === todayStr && t.isAllDay),
+      ...todayRecurring.filter(t => t.isAllDay),
+    ];
+    // todayAgenda is pre-built with recurring tasks merged and sorted — use it for display
+    const agendaAllDay = todayAgenda.filter(t => t._agendaType === 'allday');
+    const agendaScheduled = todayAgenda.filter(t => t._agendaType === 'scheduled');
 
     // ── Habits ────────────────────────────────────────────────────────────
     const habits = habitsEnabled ? (activeHabits ?? []).map(h => {
@@ -161,10 +173,8 @@ export default function useElectronBridge({
       currentTask: mapTask(inProgress),
       nextTask: mapTask(nextUpcoming),
       scheduledTasks: [
-        ...allDayTasks.map(mapTask),
-        ...[...todayTasks]
-          .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
-          .map(mapTask),
+        ...agendaAllDay.map(mapTask),
+        ...agendaScheduled.map(mapTask),
       ],
       today: {
         total: todayTasks.length + allDayTasks.length,
@@ -189,7 +199,7 @@ export default function useElectronBridge({
       } : null,
     });
   }, [
-    todayAgenda, currentTime, tasks, focusModeAvailable,
+    todayAgenda, currentTime, tasks, expandedRecurringTasks, focusModeAvailable,
     showFocusMode, focusPhase, focusTimerSeconds, focusTimerRunning,
     focusWorkMinutes, focusBreakMinutes,
     activeHabits, getTodayHabitCount, habitsEnabled,
