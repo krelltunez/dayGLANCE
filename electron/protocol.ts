@@ -25,6 +25,7 @@ export type Task = {
   colorHex: string;
   tags: string[];
   completed: boolean;
+  isAllDay?: boolean;
 };
 
 export type FocusState = {

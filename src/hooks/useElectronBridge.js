@@ -120,15 +120,17 @@ export default function useElectronBridge({
     const mapTask = (t) => t ? {
       id: t.id,
       title: t.title,
-      startTime: t.startTime,
+      startTime: t.startTime ?? null,
       duration: t.duration || 0,
       colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
       tags: t.tags || [],
       completed: !!t.completed,
+      isAllDay: !!t.isAllDay,
     } : null;
 
     const todayStr = dateToString(currentTime);
     const todayTasks = tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay);
+    const allDayTasks = tasks.filter(t => t.date === todayStr && t.isAllDay);
 
     // ── Habits ────────────────────────────────────────────────────────────
     const habits = habitsEnabled ? (activeHabits ?? []).map(h => {
@@ -158,9 +160,12 @@ export default function useElectronBridge({
       type: MSG_DAY_STATE,
       currentTask: mapTask(inProgress),
       nextTask: mapTask(nextUpcoming),
-      scheduledTasks: [...todayTasks]
-        .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
-        .map(mapTask),
+      scheduledTasks: [
+        ...allDayTasks.map(mapTask),
+        ...[...todayTasks]
+          .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+          .map(mapTask),
+      ],
       today: {
         total: todayTasks.length,
         completed: todayTasks.filter(t => t.completed).length,

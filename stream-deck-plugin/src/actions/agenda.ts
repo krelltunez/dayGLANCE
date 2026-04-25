@@ -106,7 +106,8 @@ export class AgendaAction extends SingletonAction {
       const task = tasks[this.viewIndex - 1];
       const title = truncate(stripTags(task.title), 12);
       const sub = task.completed ? "Completed"
-        : task.startTime ? (isOverdue(task.startTime) ? "Overdue" : formatTime(task.startTime))
+        : task.isAllDay ? "All Day"
+        : task.startTime ? statusLabel(task.startTime, task.duration)
         : "";
       renderOpts = { value: title, sub, barColor: task.colorHex, strikethrough: task.completed };
     }
@@ -125,8 +126,20 @@ function formatTime(t: string): string {
   return `${parseInt(h, 10)}:${m}`;
 }
 
-function isOverdue(startTime: string): boolean {
-  const [h, m] = startTime.split(":").map(Number);
+function nowMin(): number {
   const now = new Date();
-  return h * 60 + m < now.getHours() * 60 + now.getMinutes();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function statusLabel(startTime: string, duration: number): string {
+  const start = toMin(startTime);
+  const now = nowMin();
+  if (start > now) return formatTime(startTime);
+  if (duration > 0 && start + duration > now) return "In Progress";
+  return "Overdue";
 }
