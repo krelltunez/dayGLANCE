@@ -17,9 +17,16 @@ export class AgendaAction extends SingletonAction {
   // 0 = overview (X/Y + Z%), 1..N = task at index (viewIndex - 1)
   private viewIndex: number = 0;
   private visibleCount = 0;
+  // Tracks which action instances are encoders (ev.payload.controller is the reliable source)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private encoderRefs = new Set<any>();
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
     this.visibleCount++;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((ev.payload as any).controller === "Encoder") {
+      this.encoderRefs.add(ev.action);
+    }
     if (!this.unsubscribe) {
       this.viewIndex = 0;
       this.unsubscribe = onState((s) => {
@@ -32,7 +39,8 @@ export class AgendaAction extends SingletonAction {
     if (this.lastState) await this.renderOne(ev.action, this.lastState);
   }
 
-  override async onWillDisappear(_ev: WillDisappearEvent): Promise<void> {
+  override async onWillDisappear(ev: WillDisappearEvent): Promise<void> {
+    this.encoderRefs.delete(ev.action);
     this.visibleCount = Math.max(0, this.visibleCount - 1);
     if (this.visibleCount === 0) {
       this.unsubscribe?.();
@@ -96,7 +104,7 @@ export class AgendaAction extends SingletonAction {
 
     await act.setImage(image);
     await act.setTitle("");
-    if (act.controller === "Encoder") {
+    if (this.encoderRefs.has(act)) {
       await act.setFeedback({ title: feedTitle, value: feedValue, indicator: feedIndicator });
     }
   }
