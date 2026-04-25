@@ -46,7 +46,9 @@ export class FocusAction extends SingletonAction<Settings> {
   }
 
   private toggle(): void {
-    if (!this.lastState?.focus.active) {
+    const { available, active } = this.lastState?.focus ?? { available: false, active: false };
+    if (!available && !active) return;
+    if (!active) {
       send({ type: MSG_DAY_FOCUS_START });
     } else {
       send({ type: MSG_DAY_FOCUS_STOP });
@@ -55,9 +57,9 @@ export class FocusAction extends SingletonAction<Settings> {
 
   private async render(state: DayGlanceState): Promise<void> {
     if (!this.actionRef) return;
-    const { active, phase, secondsRemaining, running } = state.focus;
+    const { available, active, phase, secondsRemaining, running } = state.focus;
     if (!active) {
-      await this.actionRef.setImage(renderKey({ value: "Focus", sub: "press to start" }));
+      await this.actionRef.setImage(renderKey({ value: "Focus", sub: available ? "press to start" : "unavailable", dim: !available }));
     } else {
       const m = Math.floor(secondsRemaining / 60);
       const s = secondsRemaining % 60;

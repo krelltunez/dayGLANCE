@@ -6072,6 +6072,7 @@ const DayPlanner = () => {
     todayAgenda,
     currentTime,
     tasks,
+    focusModeAvailable,
     showFocusMode,
     focusPhase,
     focusTimerSeconds,

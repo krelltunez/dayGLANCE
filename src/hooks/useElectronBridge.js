@@ -32,6 +32,7 @@ export default function useElectronBridge({
   todayAgenda,
   currentTime,
   tasks,
+  focusModeAvailable,
   showFocusMode,
   focusPhase,
   focusTimerSeconds,
@@ -110,6 +111,7 @@ export default function useElectronBridge({
         date: todayStr,
       },
       focus: {
+        available: focusModeAvailable,
         active: showFocusMode,
         phase: focusPhase,
         secondsRemaining: focusTimerSeconds,
@@ -118,5 +120,5 @@ export default function useElectronBridge({
         breakMinutes: focusBreakMinutes,
       },
     });
-  }, [todayAgenda, currentTime, tasks, showFocusMode, focusPhase, focusTimerSeconds, focusTimerRunning, focusWorkMinutes, focusBreakMinutes]);
+  }, [todayAgenda, currentTime, tasks, focusModeAvailable, showFocusMode, focusPhase, focusTimerSeconds, focusTimerRunning, focusWorkMinutes, focusBreakMinutes]);
 }

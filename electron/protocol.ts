@@ -25,6 +25,7 @@ export type Task = {
 };
 
 export type FocusState = {
+  available: boolean;
   active: boolean;
   phase: string;
   secondsRemaining: number;
