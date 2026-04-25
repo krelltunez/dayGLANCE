@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { taskColorToHex, TAILWIND_TO_HEX } from '../utils/colorUtils.js';
 import { dateToString } from '../utils/taskUtils.js';
 import { calculateGoalProgress } from '../utils/goalProgress.js';
+import { calculateProjectProgress } from '../utils/projectProgress.js';
 import {
   PROTOCOL_VERSION,
   MSG_DAY_STATE,
@@ -193,6 +194,20 @@ export default function useElectronBridge({
         return { id: g.id, title: g.title, progress, colorHex, daysLeft };
       }) : [];
 
+    // ── Projects ──────────────────────────────────────────────────────────
+    const mapProject = (p) => {
+      const progress = Math.round(calculateProjectProgress(p.id, allTasksForGoals) * 100);
+      const colorHex = TAILWIND_TO_HEX[p.color] || '#3b82f6';
+      const parentGoal = p.goalId ? (goals || []).find(g => g.id === p.goalId) : null;
+      return { id: p.id, title: p.title, progress, colorHex, goalTitle: parentGoal?.title ?? null };
+    };
+    const sortByProgressAsc = (a, b) => a.progress - b.progress;
+    const activeProjects = goalsProjectsEnabled ? (projects || []).filter(p => p.status === 'active') : [];
+    const projectsPayload = [
+      ...activeProjects.filter(p => p.goalId).map(mapProject).sort(sortByProgressAsc),
+      ...activeProjects.filter(p => !p.goalId).map(mapProject).sort(sortByProgressAsc),
+    ];
+
     window.electronAPI.pushState({
       v: PROTOCOL_VERSION,
       type: MSG_DAY_STATE,
@@ -227,6 +242,7 @@ export default function useElectronBridge({
       } : null,
       use24Hour: !!use24HourClock,
       goals: goalsPayload,
+      projects: projectsPayload,
     });
   }, [
     todayAgenda, currentTime, tasks, expandedRecurringTasks, todayHGSessions, focusModeAvailable,

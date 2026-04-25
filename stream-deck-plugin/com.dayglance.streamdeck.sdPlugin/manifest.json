@@ -102,6 +102,24 @@
       ]
     },
     {
+      "Name": "Project Progress",
+      "UUID": "app.dayglance.streamdeck.project-progress",
+      "Icon": "imgs/actions/goal-progress/icon",
+      "Tooltip": "Cycles through active projects with arc progress indicator. Goal-linked projects first, then standalone.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Encoder", "Keypad"],
+      "Encoder": {
+        "layout": "layouts/project-progress.json",
+        "TriggerDescription": {
+          "Rotate": "Cycle through projects / overview",
+          "TouchTap": "Tap left/right to cycle projects"
+        }
+      },
+      "States": [
+        { "Image": "imgs/actions/goal-progress/key", "TitleAlignment": "bottom" }
+      ]
+    },
+    {
       "Name": "Quick Glance",
       "UUID": "app.dayglance.streamdeck.quick-glance",
       "Icon": "imgs/actions/quick-glance/icon",
