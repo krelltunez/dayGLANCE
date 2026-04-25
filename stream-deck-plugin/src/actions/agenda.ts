@@ -1,5 +1,6 @@
 import {
   action,
+  DialUpEvent,
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
@@ -29,7 +30,15 @@ export class AgendaAction extends SingletonAction {
     if (this.lastState) await this.render(this.lastState);
   }
 
+  override async onDialUp(_ev: DialUpEvent): Promise<void> {
+    await this.cycle();
+  }
+
   override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
+    await this.cycle();
+  }
+
+  private async cycle(): Promise<void> {
     if (!this.lastState) return;
     const count = this.lastState.scheduledTasks?.length ?? 0;
     if (count === 0) return;
