@@ -2900,7 +2900,6 @@ const DayPlanner = () => {
     nativeEnterFocusMode();
   };
   enterFocusModeRef.current = enterFocusMode;
-  startFocusTimerRef.current = startFocusTimer;
   openRoutinesDashboardRef.current = openRoutinesDashboard;
 
   const startFocusTimer = () => {
@@ -2914,6 +2913,7 @@ const DayPlanner = () => {
       setOnboardingProgress(prev => ({ ...prev, hasUsedFocusMode: true }));
     }
   };
+  startFocusTimerRef.current = startFocusTimer;
 
   const exitFocusMode = (showStats = true) => {
     setFocusTimerRunning(false);
