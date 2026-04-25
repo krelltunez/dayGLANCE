@@ -1,0 +1,3 @@
+node_modules/
+com.dayglance.streamdeck.sdPlugin/bin/
+*.js.map

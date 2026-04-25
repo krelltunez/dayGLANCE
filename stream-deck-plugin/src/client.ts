@@ -1,0 +1,74 @@
+import WebSocket from "ws";
+import {
+  PROTOCOL_VERSION,
+  MSG_DAY_STATE,
+  MSG_DAY_FOCUS_START,
+  MSG_DAY_FOCUS_STOP,
+  MSG_DAY_FOCUS_SKIP,
+  MSG_DAY_TASK_COMPLETE,
+  type DayGlanceState,
+  type InboundCommand,
+} from "../../electron/protocol";
+
+// Re-export everything action files need — keeps their imports pointing at ../client only
+export type { DayGlanceState, Task, FocusState } from "../../electron/protocol";
+export { MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_TASK_COMPLETE } from "../../electron/protocol";
+
+// CommandPayload is the caller-facing API — send() stamps v internally
+type CommandPayload =
+  | { type: typeof MSG_DAY_FOCUS_START }
+  | { type: typeof MSG_DAY_FOCUS_STOP }
+  | { type: typeof MSG_DAY_FOCUS_SKIP }
+  | { type: typeof MSG_DAY_TASK_COMPLETE; id: string };
+
+type StateListener = (state: DayGlanceState) => void;
+
+const WS_URL = "ws://localhost:7892";
+const RETRY_MS = 3000;
+
+let ws: WebSocket | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let lastState: DayGlanceState | null = null;
+const listeners = new Set<StateListener>();
+
+function connect(): void {
+  clearTimeout(retryTimer);
+  ws = new WebSocket(WS_URL);
+
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === MSG_DAY_STATE) {
+        lastState = msg as DayGlanceState;
+        for (const listener of listeners) listener(lastState);
+      }
+    } catch {
+      // drop malformed frames
+    }
+  });
+
+  ws.on("close", () => {
+    retryTimer = setTimeout(connect, RETRY_MS);
+  });
+
+  ws.on("error", () => {
+    // "close" fires after "error" — retry is handled there
+  });
+}
+
+export function send(command: CommandPayload): void {
+  if (ws?.readyState === WebSocket.OPEN) {
+    const wire: InboundCommand = { v: PROTOCOL_VERSION, ...command } as InboundCommand;
+    ws.send(JSON.stringify(wire));
+  }
+}
+
+/** Subscribe to state updates. Returns an unsubscribe function.
+ *  Immediately invokes listener with the last known state if available. */
+export function onState(listener: StateListener): () => void {
+  listeners.add(listener);
+  if (lastState) listener(lastState);
+  return () => listeners.delete(listener);
+}
+
+connect();

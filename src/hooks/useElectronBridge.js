@@ -1,6 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { taskColorToHex } from '../utils/colorUtils.js';
 import { dateToString } from '../utils/taskUtils.js';
+import {
+  PROTOCOL_VERSION,
+  MSG_DAY_STATE,
+  MSG_DAY_FOCUS_START,
+  MSG_DAY_FOCUS_STOP,
+  MSG_DAY_FOCUS_SKIP,
+  MSG_DAY_TASK_COMPLETE,
+} from '../../electron/protocol';
 
 const timeToMinutes = (time) => {
   if (!time) return 0;
@@ -13,13 +21,13 @@ const timeToMinutes = (time) => {
 // commands from connected clients (e.g. Stream Deck plugin) back to the app.
 //
 // Message types pushed to clients:
-//   { type: 'state', currentTask, nextTask, today, focus }
+//   { v: PROTOCOL_VERSION, type: MSG_DAY_STATE, currentTask, nextTask, today, focus }
 //
 // Commands received from clients:
-//   { type: 'focus:start' }
-//   { type: 'focus:stop' }
-//   { type: 'focus:skip' }
-//   { type: 'task:complete', id: string }
+//   { v: PROTOCOL_VERSION, type: MSG_DAY_FOCUS_START }
+//   { v: PROTOCOL_VERSION, type: MSG_DAY_FOCUS_STOP }
+//   { v: PROTOCOL_VERSION, type: MSG_DAY_FOCUS_SKIP }
+//   { v: PROTOCOL_VERSION, type: MSG_DAY_TASK_COMPLETE, id: string }
 export default function useElectronBridge({
   todayAgenda,
   currentTime,
@@ -46,16 +54,16 @@ export default function useElectronBridge({
     const unsubscribe = window.electronAPI.onCommand((cmd) => {
       if (!cmd?.type) return;
       switch (cmd.type) {
-        case 'focus:start':
+        case MSG_DAY_FOCUS_START:
           enterFocusModeRef.current?.();
           break;
-        case 'focus:stop':
+        case MSG_DAY_FOCUS_STOP:
           exitFocusModeRef.current?.();
           break;
-        case 'focus:skip':
+        case MSG_DAY_FOCUS_SKIP:
           skipFocusPhaseRef.current?.();
           break;
-        case 'task:complete':
+        case MSG_DAY_TASK_COMPLETE:
           if (cmd.id) toggleCompleteRef.current?.(cmd.id);
           break;
       }
@@ -92,7 +100,8 @@ export default function useElectronBridge({
     const todayTasks = tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay);
 
     window.electronAPI.pushState({
-      type: 'state',
+      v: PROTOCOL_VERSION,
+      type: MSG_DAY_STATE,
       currentTask: mapTask(inProgress),
       nextTask: mapTask(nextUpcoming),
       today: {
