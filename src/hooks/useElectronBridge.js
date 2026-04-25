@@ -14,6 +14,7 @@ import {
   MSG_DAY_TASK_COMPLETE,
   MSG_DAY_HABIT_INCREMENT,
   MSG_DAY_ROUTINE_COMPLETE,
+  MSG_DAY_FOCUS_DISMISS_STATS,
 } from '../../electron/protocol';
 
 const timeToMinutes = (time) => {
@@ -58,11 +59,13 @@ export default function useElectronBridge({
   focusBreakMinutes,
   focusLongBreakMinutes,
   focusShowSettings,
+  focusShowStats,
   focusBlockTasks,
   focusCompletedTasks,
   enterFocusModeRef,
   exitFocusModeRef,
   startFocusTimerRef,
+  dismissFocusStats,
   skipFocusPhase,
   setFocusWorkMinutes,
   setFocusBreakMinutes,
@@ -87,6 +90,7 @@ export default function useElectronBridge({
   goalsProjectsEnabled,
 }) {
   const skipFocusPhaseRef = useRef(skipFocusPhase);
+  const dismissFocusStatsRef = useRef(dismissFocusStats);
   const focusCompleteTaskRef = useRef(focusCompleteTask);
   const toggleCompleteRef = useRef(toggleComplete);
   const incrementHabitRef = useRef(incrementHabit);
@@ -95,6 +99,7 @@ export default function useElectronBridge({
   const setFocusBreakMinutesRef = useRef(setFocusBreakMinutes);
   const setFocusLongBreakMinutesRef = useRef(setFocusLongBreakMinutes);
   skipFocusPhaseRef.current = skipFocusPhase;
+  dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
   toggleCompleteRef.current = toggleComplete;
   incrementHabitRef.current = incrementHabit;
@@ -125,6 +130,9 @@ export default function useElectronBridge({
           if (cmd.workMinutes !== undefined) setFocusWorkMinutesRef.current?.(Math.max(1, Math.min(120, cmd.workMinutes)));
           if (cmd.breakMinutes !== undefined) setFocusBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.breakMinutes)));
           if (cmd.longBreakMinutes !== undefined) setFocusLongBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.longBreakMinutes)));
+          break;
+        case MSG_DAY_FOCUS_DISMISS_STATS:
+          dismissFocusStatsRef.current?.();
           break;
         case MSG_DAY_TASK_COMPLETE:
           if (cmd.id) focusCompleteTaskRef.current?.(cmd.id);
@@ -256,6 +264,7 @@ export default function useElectronBridge({
         available: focusModeAvailable,
         active: showFocusMode,
         setup: !!focusShowSettings,
+        showStats: !!focusShowStats,
         phase: focusPhase,
         secondsRemaining: focusTimerSeconds,
         running: focusTimerRunning,
@@ -281,7 +290,7 @@ export default function useElectronBridge({
     });
   }, [
     todayAgenda, currentTime, tasks, expandedRecurringTasks, todayHGSessions, focusModeAvailable,
-    showFocusMode, focusShowSettings, focusPhase, focusTimerSeconds, focusTimerRunning,
+    showFocusMode, focusShowSettings, focusShowStats, focusPhase, focusTimerSeconds, focusTimerRunning,
     focusCycleCount, focusWorkMinutes, focusBreakMinutes, focusLongBreakMinutes,
     focusBlockTasks, focusCompletedTasks,
     activeHabits, getTodayHabitCount, habitsEnabled,

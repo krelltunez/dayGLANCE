@@ -12,7 +12,7 @@ import {
 import {
   DayGlanceState, onState, send,
   MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_TIMER_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP,
-  MSG_DAY_FOCUS_SET_DURATION, MSG_DAY_TASK_COMPLETE,
+  MSG_DAY_FOCUS_SET_DURATION, MSG_DAY_FOCUS_DISMISS_STATS, MSG_DAY_TASK_COMPLETE,
 } from "../client";
 import { renderKey, renderStrip, renderFocusSlot, renderFocusSlotKey, renderFocusSetupSlot } from "../render";
 
@@ -73,7 +73,9 @@ export class FocusAction extends SingletonAction {
     const focus = this.lastState?.focus;
     if (!focus) return;
 
-    if (!focus.active) {
+    if (focus.showStats) {
+      send({ type: MSG_DAY_FOCUS_DISMISS_STATS });
+    } else if (!focus.active) {
       // Idle: open the session start screen in the app
       send({ type: MSG_DAY_FOCUS_START });
     } else if (focus.setup) {
@@ -116,7 +118,9 @@ export class FocusAction extends SingletonAction {
   override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
     const focus = this.lastState?.focus;
     if (!focus) return;
-    if (!focus.active) {
+    if (focus.showStats) {
+      send({ type: MSG_DAY_FOCUS_DISMISS_STATS });
+    } else if (!focus.active) {
       send({ type: MSG_DAY_FOCUS_START });
     } else if (focus.setup) {
       send({ type: MSG_DAY_FOCUS_TIMER_START });
@@ -132,7 +136,9 @@ export class FocusAction extends SingletonAction {
     }
     const focus = this.lastState?.focus;
     if (!focus) return;
-    if (!focus.active) {
+    if (focus.showStats) {
+      send({ type: MSG_DAY_FOCUS_DISMISS_STATS });
+    } else if (!focus.active) {
       send({ type: MSG_DAY_FOCUS_START });
     } else if (focus.setup) {
       send({ type: MSG_DAY_FOCUS_TIMER_START });

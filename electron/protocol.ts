@@ -9,11 +9,12 @@ export const PROTOCOL_VERSION = 1 as const;
 export const MSG_DAY_STATE = 'day:state' as const;
 
 // ── Inbound command type constants (clients → server) ────────────────────
-export const MSG_DAY_FOCUS_START        = 'day:focus:start'        as const;
-export const MSG_DAY_FOCUS_TIMER_START  = 'day:focus:timer-start'  as const;
-export const MSG_DAY_FOCUS_STOP         = 'day:focus:stop'         as const;
-export const MSG_DAY_FOCUS_SKIP         = 'day:focus:skip'         as const;
-export const MSG_DAY_FOCUS_SET_DURATION = 'day:focus:set-duration' as const;
+export const MSG_DAY_FOCUS_START          = 'day:focus:start'          as const;
+export const MSG_DAY_FOCUS_TIMER_START    = 'day:focus:timer-start'    as const;
+export const MSG_DAY_FOCUS_STOP           = 'day:focus:stop'           as const;
+export const MSG_DAY_FOCUS_SKIP           = 'day:focus:skip'           as const;
+export const MSG_DAY_FOCUS_SET_DURATION   = 'day:focus:set-duration'   as const;
+export const MSG_DAY_FOCUS_DISMISS_STATS  = 'day:focus:dismiss-stats'  as const;
 export const MSG_DAY_TASK_COMPLETE    = 'day:task:complete'    as const;
 export const MSG_DAY_HABIT_INCREMENT  = 'day:habit:increment'  as const;
 export const MSG_DAY_ROUTINE_COMPLETE = 'day:routine:complete' as const;
@@ -35,6 +36,7 @@ export type FocusState = {
   available: boolean;
   active: boolean;
   setup: boolean;          // true while the settings screen is open (before timer starts)
+  showStats: boolean;      // true while the post-session stats screen is visible
   phase: string;
   secondsRemaining: number;
   running: boolean;
@@ -106,6 +108,7 @@ export type InboundCommand =
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_STOP }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SKIP }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_DISMISS_STATS }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_TASK_COMPLETE; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HABIT_INCREMENT; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };
