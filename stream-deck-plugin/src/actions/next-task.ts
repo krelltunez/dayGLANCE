@@ -6,6 +6,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
+import { renderKey } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.next-task" })
 export class NextTaskAction extends SingletonAction {
@@ -13,7 +14,7 @@ export class NextTaskAction extends SingletonAction {
   private actionRef: any = null;
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;
-  private showNext = false; // false = currentTask, true = nextTask
+  private showNext = false;
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
     this.actionRef = ev.action;
@@ -25,7 +26,7 @@ export class NextTaskAction extends SingletonAction {
   }
 
   override async onDialRotate(ev: DialRotateEvent): Promise<void> {
-    this.showNext = ev.payload.ticks > 0 ? true : false;
+    this.showNext = ev.payload.ticks > 0;
     if (this.lastState) void this.render(this.lastState);
   }
 
@@ -41,7 +42,13 @@ export class NextTaskAction extends SingletonAction {
     const task = this.showNext
       ? state.nextTask
       : (state.currentTask ?? state.nextTask);
-    await this.actionRef.setTitle(task ? truncate(task.title, 20) : "No tasks");
+    const label = this.showNext ? "next task" : "current task";
+    if (task) {
+      await this.actionRef.setImage(renderKey({ value: truncate(task.title, 18), sub: label }));
+    } else {
+      await this.actionRef.setImage(renderKey({ value: "No tasks", dim: true }));
+    }
+    await this.actionRef.setTitle("");
   }
 }
 

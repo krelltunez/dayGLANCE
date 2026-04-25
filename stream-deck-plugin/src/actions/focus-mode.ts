@@ -7,6 +7,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState, send, MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP } from "../client";
+import { renderKey } from "../render";
 
 type Settings = { sessionDurationMinutes: number };
 
@@ -31,7 +32,8 @@ export class FocusAction extends SingletonAction<Settings> {
     const settings = await ev.action.getSettings();
     const newDuration = Math.max(5, (settings.sessionDurationMinutes ?? 25) + ev.payload.ticks);
     await ev.action.setSettings({ sessionDurationMinutes: newDuration });
-    await ev.action.setTitle(`${newDuration}m`);
+    await this.actionRef.setImage(renderKey({ value: `${newDuration}m`, sub: "focus", barColor: "#3b82f6" }));
+    await this.actionRef.setTitle("");
   }
 
   override async onDialUp(_ev: DialUpEvent<Settings>): Promise<void> {
@@ -54,15 +56,15 @@ export class FocusAction extends SingletonAction<Settings> {
     if (!this.actionRef) return;
     const { active, phase, secondsRemaining, running } = state.focus;
     if (!active) {
-      await this.actionRef.setTitle("Focus");
-      await this.actionRef.setState(0);
+      await this.actionRef.setImage(renderKey({ value: "Focus", sub: "press to start", dim: true }));
     } else {
       const m = Math.floor(secondsRemaining / 60);
       const s = secondsRemaining % 60;
-      const label = phase === "work" ? "Work" : "Break";
-      const timer = running ? `${m}:${s.toString().padStart(2, "0")}` : "Paused";
-      await this.actionRef.setTitle(`${label}\n${timer}`);
-      await this.actionRef.setState(1);
+      const time = `${m}:${s.toString().padStart(2, "0")}`;
+      const sub = running ? (phase === "work" ? "work" : "break") : "paused";
+      const barColor = phase === "work" ? "#f97316" : "#22c55e";
+      await this.actionRef.setImage(renderKey({ value: time, sub, barColor }));
     }
+    await this.actionRef.setTitle("");
   }
 }

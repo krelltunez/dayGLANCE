@@ -6,6 +6,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState } from "../client";
+import { renderKey } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.goal-progress" })
 export class GoalProgressAction extends SingletonAction {
@@ -29,9 +30,9 @@ export class GoalProgressAction extends SingletonAction {
 
   private async render(state: DayGlanceState): Promise<void> {
     if (!this.actionRef) return;
-    // Showing today's task completion until goal data is in the state shape
     const { completed, total } = state.today;
     const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-    await this.actionRef.setTitle(`Today\n${pct}%`);
+    await this.actionRef.setImage(renderKey({ value: `${pct}%`, sub: "Today" }));
+    await this.actionRef.setTitle("");
   }
 }

@@ -6,6 +6,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState } from "../client";
+import { renderKey } from "../render";
 
 type DisplayMode = "date" | "next-event" | "focus";
 const MODES: DisplayMode[] = ["date", "next-event", "focus"];
@@ -41,32 +42,40 @@ export class QuickGlanceAction extends SingletonAction {
   private async render(state: DayGlanceState): Promise<void> {
     if (!this.actionRef) return;
     const mode = MODES[this.modeIndex];
-    let title: string;
 
     if (mode === "date") {
-      title = formatDate(state.today.date);
+      const { weekday, month, day } = formatDate(state.today.date);
+      await this.actionRef.setImage(renderKey({ value: `${month} ${day}`, sub: weekday }));
     } else if (mode === "next-event") {
       const task = state.currentTask ?? state.nextTask;
-      title = task ? truncate(task.title, 20) : "No events";
+      if (task) {
+        await this.actionRef.setImage(renderKey({ value: truncate(task.title, 18), sub: "next up" }));
+      } else {
+        await this.actionRef.setImage(renderKey({ value: "Clear", sub: "no events", dim: true }));
+      }
     } else {
       const { active, phase, secondsRemaining } = state.focus;
       if (!active) {
-        title = "Focus\noff";
+        await this.actionRef.setImage(renderKey({ value: "Focus", sub: "off", dim: true }));
       } else {
         const m = Math.floor(secondsRemaining / 60);
         const s = secondsRemaining % 60;
-        title = `${phase}\n${m}:${s.toString().padStart(2, "0")}`;
+        const barColor = phase === "work" ? "#f97316" : "#22c55e";
+        await this.actionRef.setImage(renderKey({ value: `${m}:${s.toString().padStart(2, "0")}`, sub: phase, barColor }));
       }
     }
-
-    await this.actionRef.setTitle(title);
+    await this.actionRef.setTitle("");
   }
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string): { weekday: string; month: string; day: string } {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return {
+    weekday: date.toLocaleDateString("en-US", { weekday: "long" }),
+    month: date.toLocaleDateString("en-US", { month: "short" }),
+    day: String(d),
+  };
 }
 
 function truncate(s: string, max: number): string {

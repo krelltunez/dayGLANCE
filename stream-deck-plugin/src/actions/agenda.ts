@@ -5,6 +5,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState } from "../client";
+import { renderKey } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.agenda" })
 export class AgendaAction extends SingletonAction {
@@ -26,6 +27,7 @@ export class AgendaAction extends SingletonAction {
     if (!this.actionRef) return;
     const { completed, total } = state.today;
     const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-    await this.actionRef.setTitle(`${completed}/${total}\n${pct}%`);
+    await this.actionRef.setImage(renderKey({ value: `${completed}/${total}`, sub: `${pct}% done` }));
+    await this.actionRef.setTitle("");
   }
 }
