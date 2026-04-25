@@ -45,14 +45,7 @@ function connect(): void {
       const msg = JSON.parse(data.toString());
       if (msg.type === MSG_DAY_STATE) {
         lastState = msg as DayGlanceState;
-        console.log("[dayGLANCE] state received, listeners:", listeners.size, "currentTask:", lastState.currentTask?.title ?? "none");
-        for (const listener of listeners) {
-          try {
-            listener(lastState);
-          } catch (e) {
-            console.error("[dayGLANCE] listener error:", e);
-          }
-        }
+        for (const listener of listeners) listener(lastState);
       }
     } catch {
       // drop malformed frames
