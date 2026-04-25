@@ -38,7 +38,11 @@
       },
       "States": [
         { "Image": "imgs/actions/agenda/key", "TitleAlignment": "bottom" }
-      ]
+      ],
+      "KeyDescription": {
+        "Short": "Cycle to next task",
+        "Long": "Complete current task"
+      }
     },
     {
       "Name": "Focus / Pomodoro",
