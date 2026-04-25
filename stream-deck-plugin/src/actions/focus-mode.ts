@@ -9,7 +9,7 @@ import {
   WillDisappearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState, send, MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_FOCUS_SET_DURATION } from "../client";
-import { renderKey, renderStrip, renderFocusStrip } from "../render";
+import { renderKey, renderStrip, renderFocusSlot, renderFocusSlotKey } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.focus" })
 export class FocusAction extends SingletonAction {
@@ -18,12 +18,18 @@ export class FocusAction extends SingletonAction {
   private visibleCount = 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private encoderRefs = new Set<any>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private slotIndexMap = new Map<any, number>();
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
     this.visibleCount++;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((ev.payload as any).controller === "Encoder") {
       this.encoderRefs.add(ev.action);
+      // Column position (0–3) determines which Pomodoro cycle this slot represents
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const col: number = (ev.payload as any).coordinates?.column ?? 0;
+      this.slotIndexMap.set(ev.action, col % 4);
     }
     if (!this.unsubscribe) {
       this.unsubscribe = onState((s) => {
@@ -36,6 +42,7 @@ export class FocusAction extends SingletonAction {
 
   override async onWillDisappear(ev: WillDisappearEvent): Promise<void> {
     this.encoderRefs.delete(ev.action);
+    this.slotIndexMap.delete(ev.action);
     this.visibleCount = Math.max(0, this.visibleCount - 1);
     if (this.visibleCount === 0) {
       this.unsubscribe?.();
@@ -118,8 +125,26 @@ export class FocusAction extends SingletonAction {
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const isEncoder = this.encoderRefs.has(act);
     const { available, active, phase, secondsRemaining, running, workMinutes, cycleCount } = state.focus;
-    let renderOpts: Parameters<typeof renderKey>[0];
+    const cycles = cycleCount ?? 0;
 
+    if (isEncoder) {
+      const slotIndex = this.slotIndexMap.get(act) ?? 0;
+      if (active) {
+        await act.setImage(renderFocusSlotKey(slotIndex, phase, secondsRemaining, cycles));
+        await act.setFeedback({ canvas: renderFocusSlot(slotIndex, phase, secondsRemaining, cycles) });
+      } else {
+        // Idle: slot 0 shows work duration hint; other slots show their pending number
+        const idleOpts = slotIndex === 0
+          ? { value: `${workMinutes}m`, sub: available ? "press to start" : "unavailable", dim: !available, barColor: "#f97316" }
+          : { value: `${slotIndex + 1}`, sub: `cycle ${slotIndex + 1}`, dim: true, barColor: "#f97316" };
+        await act.setImage(renderKey(idleOpts));
+        await act.setFeedback({ canvas: renderStrip(idleOpts) });
+      }
+      return;
+    }
+
+    // Non-encoder key button — standard start/stop view
+    let renderOpts: Parameters<typeof renderKey>[0];
     if (!active) {
       renderOpts = {
         value: `${workMinutes}m`,
@@ -135,16 +160,7 @@ export class FocusAction extends SingletonAction {
       const barColor = phase === "work" ? "#f97316" : "#22c55e";
       renderOpts = { value: time, sub, barColor };
     }
-
     await act.setImage(renderKey(renderOpts));
-    if (isEncoder) {
-      if (active) {
-        await act.setFeedback({ canvas: renderFocusStrip(phase, secondsRemaining, cycleCount ?? 0) });
-      } else {
-        await act.setFeedback({ canvas: renderStrip(renderOpts) });
-      }
-    } else {
-      await act.setTitle("");
-    }
+    await act.setTitle("");
   }
 }

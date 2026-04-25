@@ -74,70 +74,103 @@ function fontSize(text: string): number {
   return 18;
 }
 
-// ── Pomodoro 4-section strip ──────────────────────────────────────────────
+// ── Pomodoro per-slot rendering ───────────────────────────────────────────
+// Each encoder slot (column 0–3) represents one Pomodoro work cycle.
+// Place the Focus action on all 4 encoder slots; each auto-detects its index.
 
-/**
- * Renders the 200×100 touch strip as 4 equal sections (50px each), one per
- * Pomodoro work cycle. Completed cycles show a tomato; the current phase
- * (work or break) shows a live countdown; pending cycles show a dim number.
- */
-export function renderFocusStrip(
+function focusSlotState(
+  slotIndex: number,
+  phase: string,
+  cycleCount: number,
+): "completed" | "activeWork" | "activeBreak" | "pending" {
+  const completedInSet = cycleCount % 4;
+  const allDone = cycleCount > 0 && completedInSet === 0 && phase === "longBreak";
+  if (allDone || slotIndex < completedInSet) return "completed";
+  if (slotIndex === completedInSet && phase === "work") return "activeWork";
+  if (slotIndex === completedInSet && (phase === "shortBreak" || phase === "longBreak")) return "activeBreak";
+  return "pending";
+}
+
+/** 200×100 touch strip for one Pomodoro cycle slot. */
+export function renderFocusSlot(
+  slotIndex: number,
   phase: string,
   secondsRemaining: number,
   cycleCount: number,
 ): string {
-  // How many work cycles are done within the current set of 4
-  const completedInSet = cycleCount % 4;
-  // All 4 done = long-break after completing cycle 4 (or 8, 12…)
-  const allDone = cycleCount > 0 && completedInSet === 0 && phase === "longBreak";
-
+  const state = focusSlotState(slotIndex, phase, cycleCount);
   const m = Math.floor(secondsRemaining / 60);
   const s = secondsRemaining % 60;
   const timeStr = `${m}:${s.toString().padStart(2, "0")}`;
+  const isLong = phase === "longBreak";
+  const cx = SW / 2;
 
-  let cells = "";
-  for (let i = 0; i < 4; i++) {
-    const cx = i * 50 + 25;
-    const lx = i * 50;
-
-    if (allDone || i < completedInSet) {
-      // ── Completed — tomato ──
-      cells += `
-  <rect x="${lx}" y="0" width="50" height="100" fill="#180a0a"/>
-  <circle cx="${cx}" cy="56" r="20" fill="#dc2626"/>
-  <rect x="${cx - 2}" y="31" width="4" height="10" fill="#16a34a" rx="2"/>
-  <path d="M${cx - 2} 37 Q${cx - 9} 29 ${cx - 5} 25 Q${cx - 1} 33 ${cx - 2} 37Z" fill="#16a34a"/>`;
-    } else if (i === completedInSet && phase === "work") {
-      // ── Active work cycle ──
-      cells += `
-  <rect x="${lx}" y="0" width="50" height="100" fill="#1c0e00"/>
-  <rect x="${lx}" y="0" width="50" height="4" fill="#f97316"/>
-  <text x="${cx}" y="53" font-family="${FONT}" font-size="15" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${timeStr}</text>
-  <text x="${cx}" y="70" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.4" text-anchor="middle">work</text>`;
-    } else if (i === completedInSet && (phase === "shortBreak" || phase === "longBreak")) {
-      // ── Active break (shown in the upcoming slot) ──
-      cells += `
-  <rect x="${lx}" y="0" width="50" height="100" fill="#0a180c"/>
-  <rect x="${lx}" y="0" width="50" height="4" fill="#22c55e"/>
-  <text x="${cx}" y="53" font-family="${FONT}" font-size="15" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${timeStr}</text>
-  <text x="${cx}" y="70" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.4" text-anchor="middle">break</text>`;
-    } else {
-      // ── Pending ──
-      cells += `
-  <rect x="${lx}" y="0" width="50" height="100" fill="#111"/>
-  <circle cx="${cx}" cy="52" r="18" fill="none" stroke="#252525" stroke-width="2"/>
-  <text x="${cx}" y="58" font-family="${FONT}" font-size="16" fill="#2a2a2a" text-anchor="middle" font-weight="700">${i + 1}</text>`;
-    }
+  let body: string;
+  if (state === "completed") {
+    body = `<rect width="${SW}" height="${SH}" fill="#180a0a"/>
+  <circle cx="${cx}" cy="60" r="34" fill="#dc2626"/>
+  <rect x="${cx - 3}" y="22" width="5" height="14" fill="#16a34a" rx="2"/>
+  <path d="M${cx - 3} 33 Q${cx - 14} 21 ${cx - 8} 15 Q${cx - 1} 28 ${cx - 3} 33Z" fill="#16a34a"/>`;
+  } else if (state === "activeWork") {
+    body = `<rect width="${SW}" height="${SH}" fill="#1c0e00"/>
+  <rect width="${SW}" height="5" fill="#f97316"/>
+  <text x="${cx}" y="56" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${timeStr}</text>
+  <text x="${cx}" y="80" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.4" text-anchor="middle">work · cycle ${slotIndex + 1}</text>`;
+  } else if (state === "activeBreak") {
+    body = `<rect width="${SW}" height="${SH}" fill="#0a180c"/>
+  <rect width="${SW}" height="5" fill="#22c55e"/>
+  <text x="${cx}" y="56" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${timeStr}</text>
+  <text x="${cx}" y="80" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.4" text-anchor="middle">${isLong ? "long break" : "break"} · cycle ${slotIndex + 1}</text>`;
+  } else {
+    body = `<rect width="${SW}" height="${SH}" fill="#111"/>
+  <circle cx="${cx}" cy="52" r="28" fill="none" stroke="#2a2a2a" stroke-width="2"/>
+  <text x="${cx}" y="62" font-family="${FONT}" font-size="30" fill="#2a2a2a" text-anchor="middle" font-weight="700">${slotIndex + 1}</text>`;
   }
 
-  // Thin dividers between sections
-  const dividers = [50, 100, 150].map(dx =>
-    `<line x1="${dx}" y1="0" x2="${dx}" y2="100" stroke="#222" stroke-width="1"/>`
-  ).join("\n  ");
-
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
-  ${cells}
-  ${dividers}
+  ${body}
+</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+
+/** 144×144 key image for one Pomodoro cycle slot. */
+export function renderFocusSlotKey(
+  slotIndex: number,
+  phase: string,
+  secondsRemaining: number,
+  cycleCount: number,
+): string {
+  const state = focusSlotState(slotIndex, phase, cycleCount);
+  const m = Math.floor(secondsRemaining / 60);
+  const s = secondsRemaining % 60;
+  const timeStr = `${m}:${s.toString().padStart(2, "0")}`;
+  const isLong = phase === "longBreak";
+  const header = `<text x="72" y="22" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.38" text-anchor="middle" letter-spacing="0.5">day<tspan font-style="italic">GLANCE</tspan></text>`;
+
+  let bg = "#111";
+  let body: string;
+  if (state === "completed") {
+    bg = "#180a0a";
+    body = `<circle cx="72" cy="84" r="40" fill="#dc2626"/>
+  <rect x="69" y="38" width="5" height="15" fill="#16a34a" rx="2"/>
+  <path d="M69 50 Q56 36 63 29 Q71 45 69 50Z" fill="#16a34a"/>`;
+  } else if (state === "activeWork") {
+    body = `<rect width="${W}" height="5" fill="#f97316"/>
+  <text x="72" y="82" font-family="${FONT}" font-size="30" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${timeStr}</text>
+  <text x="72" y="108" font-family="${FONT}" font-size="15" fill="white" fill-opacity="0.45" text-anchor="middle">work</text>`;
+  } else if (state === "activeBreak") {
+    body = `<rect width="${W}" height="5" fill="#22c55e"/>
+  <text x="72" y="82" font-family="${FONT}" font-size="30" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${timeStr}</text>
+  <text x="72" y="108" font-family="${FONT}" font-size="15" fill="white" fill-opacity="0.45" text-anchor="middle">${isLong ? "long break" : "break"}</text>`;
+  } else {
+    body = `<circle cx="72" cy="82" r="36" fill="none" stroke="#252525" stroke-width="2"/>
+  <text x="72" y="93" font-family="${FONT}" font-size="34" fill="#2a2a2a" text-anchor="middle" font-weight="700">${slotIndex + 1}</text>`;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <rect width="${W}" height="${H}" fill="${bg}"/>
+  ${header}
+  ${body}
 </svg>`;
   return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
