@@ -6111,6 +6111,7 @@ const DayPlanner = () => {
     todayAgenda,
     currentTime,
     tasks,
+    expandedRecurringTasks,
     focusModeAvailable,
     showFocusMode,
     focusPhase,
