@@ -12,7 +12,7 @@ import {
 import {
   DayGlanceState, onState, send,
   MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_TIMER_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP,
-  MSG_DAY_FOCUS_SET_DURATION,
+  MSG_DAY_FOCUS_SET_DURATION, MSG_DAY_TASK_COMPLETE,
 } from "../client";
 import { renderKey, renderStrip, renderFocusSlot, renderFocusSlotKey, renderFocusSetupSlot } from "../render";
 
@@ -30,7 +30,7 @@ export class FocusAction extends SingletonAction {
   private encoderRefs = new Set<any>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private slotIndexMap = new Map<any, number>();
-  private adjusting: "work" | "break" = "work";
+  private adjusting: "work" | "break" | "longBreak" = "work";
   private dialPressedAt: number | null = null;
   private readonly LONG_PRESS_MS = 400;
 
@@ -78,31 +78,38 @@ export class FocusAction extends SingletonAction {
       send({ type: MSG_DAY_FOCUS_START });
     } else if (focus.setup) {
       if (held) {
-        // Long press on setup screen: toggle work/break dial selection
-        this.adjusting = this.adjusting === "work" ? "break" : "work";
+        // Long press on setup screen: cycle through work → break → long break
+        this.adjusting = this.adjusting === "work" ? "break" : this.adjusting === "break" ? "longBreak" : "work";
         if (this.lastState) await this.renderAll(this.lastState);
       } else {
         // Short press on setup screen: start the timer
         send({ type: MSG_DAY_FOCUS_TIMER_START });
       }
     } else {
-      // Session in progress: advance to next phase
-      send({ type: MSG_DAY_FOCUS_SKIP });
+      // Session in progress
+      if (held) {
+        // Long press: complete the next focus task
+        const nextTask = this.lastState?.focus.nextFocusTask;
+        if (nextTask) send({ type: MSG_DAY_TASK_COMPLETE, id: nextTask.id });
+      } else {
+        // Short press: advance to next phase
+        send({ type: MSG_DAY_FOCUS_SKIP });
+      }
     }
   }
 
   override async onDialRotate(ev: DialRotateEvent): Promise<void> {
     if (!this.lastState) return;
-    const { active, setup, workMinutes, breakMinutes } = this.lastState.focus;
+    const { active, setup, workMinutes, breakMinutes, longBreakMinutes } = this.lastState.focus;
     // Dial only adjusts durations while the setup screen is showing
     if (!active || !setup) return;
 
     if (this.adjusting === "work") {
-      const newWork = Math.max(1, Math.min(120, workMinutes + ev.payload.ticks));
-      send({ type: MSG_DAY_FOCUS_SET_DURATION, workMinutes: newWork });
+      send({ type: MSG_DAY_FOCUS_SET_DURATION, workMinutes: Math.max(1, Math.min(120, workMinutes + ev.payload.ticks)) });
+    } else if (this.adjusting === "break") {
+      send({ type: MSG_DAY_FOCUS_SET_DURATION, breakMinutes: Math.max(1, Math.min(60, breakMinutes + ev.payload.ticks)) });
     } else {
-      const newBreak = Math.max(1, Math.min(60, breakMinutes + ev.payload.ticks));
-      send({ type: MSG_DAY_FOCUS_SET_DURATION, breakMinutes: newBreak });
+      send({ type: MSG_DAY_FOCUS_SET_DURATION, longBreakMinutes: Math.max(1, Math.min(60, longBreakMinutes + ev.payload.ticks)) });
     }
   }
 
@@ -143,7 +150,7 @@ export class FocusAction extends SingletonAction {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const isEncoder = this.encoderRefs.has(act);
-    const { available, active, setup, phase, secondsRemaining, running, workMinutes, breakMinutes, cycleCount } = state.focus;
+    const { available, active, setup, phase, secondsRemaining, running, workMinutes, breakMinutes, longBreakMinutes, cycleCount } = state.focus;
     const cycles = cycleCount ?? 0;
 
     if (isEncoder) {
@@ -161,12 +168,12 @@ export class FocusAction extends SingletonAction {
           : renderFocusSlot(slotIndex, "work", 0, 0);
         await act.setFeedback({ canvas: idleStrip });
       } else if (setup) {
-        // Setup screen open: slots 0+1 show work/break; slots 2-3 show pending
-        const barColor = this.adjusting === "work" ? "#f97316" : "#22c55e";
-        const value = this.adjusting === "work" ? `${workMinutes}m` : `${breakMinutes}m`;
-        const sub = this.adjusting === "work" ? "work" : "break";
+        // Setup screen open: slots 0-2 show durations; slot 3 = pending ring
+        const barColor = this.adjusting === "longBreak" ? "#16a34a" : this.adjusting === "break" ? "#22c55e" : "#f97316";
+        const value = this.adjusting === "work" ? `${workMinutes}m` : this.adjusting === "break" ? `${breakMinutes}m` : `${longBreakMinutes}m`;
+        const sub = this.adjusting === "work" ? "work" : this.adjusting === "break" ? "break" : "long break";
         await act.setImage(renderKey({ value, sub, barColor }));
-        await act.setFeedback({ canvas: renderFocusSetupSlot(slotIndex, workMinutes, breakMinutes, this.adjusting) });
+        await act.setFeedback({ canvas: renderFocusSetupSlot(slotIndex, workMinutes, breakMinutes, longBreakMinutes, this.adjusting) });
       } else {
         // Session active: per-slot Pomodoro view
         await act.setImage(renderFocusSlotKey(slotIndex, phase, secondsRemaining, cycles));
@@ -179,8 +186,8 @@ export class FocusAction extends SingletonAction {
     if (!active) {
       await act.setImage(renderKey({ value: "Focus", sub: available ? "press to start" : "unavailable", dim: !available, barColor: "#f97316" }));
     } else if (setup) {
-      const barColor = this.adjusting === "work" ? "#f97316" : "#22c55e";
-      const value = this.adjusting === "work" ? `${workMinutes}m` : `${breakMinutes}m`;
+      const barColor = this.adjusting === "longBreak" ? "#16a34a" : this.adjusting === "break" ? "#22c55e" : "#f97316";
+      const value = this.adjusting === "work" ? `${workMinutes}m` : this.adjusting === "break" ? `${breakMinutes}m` : `${longBreakMinutes}m`;
       await act.setImage(renderKey({ value, sub: "press to start", barColor }));
     } else {
       const m = Math.floor(secondsRemaining / 60);

@@ -34,13 +34,15 @@ export type Task = {
 export type FocusState = {
   available: boolean;
   active: boolean;
-  setup: boolean;       // true while the settings screen is open (before timer starts)
+  setup: boolean;          // true while the settings screen is open (before timer starts)
   phase: string;
   secondsRemaining: number;
   running: boolean;
   workMinutes: number;
   breakMinutes: number;
-  cycleCount: number;   // total completed work cycles since session start
+  longBreakMinutes: number;
+  cycleCount: number;      // total completed work cycles since session start
+  nextFocusTask: { id: string; title: string } | null;  // first incomplete task in the focus block
 };
 
 export type Habit = {
@@ -103,7 +105,7 @@ export type InboundCommand =
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_TIMER_START }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_STOP }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SKIP }
-  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_TASK_COMPLETE; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HABIT_INCREMENT; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };

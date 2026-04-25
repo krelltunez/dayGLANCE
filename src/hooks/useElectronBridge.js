@@ -56,13 +56,17 @@ export default function useElectronBridge({
   focusCycleCount,
   focusWorkMinutes,
   focusBreakMinutes,
+  focusLongBreakMinutes,
   focusShowSettings,
+  focusBlockTasks,
+  focusCompletedTasks,
   enterFocusModeRef,
   exitFocusModeRef,
   startFocusTimerRef,
   skipFocusPhase,
   setFocusWorkMinutes,
   setFocusBreakMinutes,
+  setFocusLongBreakMinutes,
   toggleComplete,
   // Habits
   activeHabits,
@@ -87,12 +91,14 @@ export default function useElectronBridge({
   const toggleRoutineCompletionRef = useRef(toggleRoutineCompletion);
   const setFocusWorkMinutesRef = useRef(setFocusWorkMinutes);
   const setFocusBreakMinutesRef = useRef(setFocusBreakMinutes);
+  const setFocusLongBreakMinutesRef = useRef(setFocusLongBreakMinutes);
   skipFocusPhaseRef.current = skipFocusPhase;
   toggleCompleteRef.current = toggleComplete;
   incrementHabitRef.current = incrementHabit;
   toggleRoutineCompletionRef.current = toggleRoutineCompletion;
   setFocusWorkMinutesRef.current = setFocusWorkMinutes;
   setFocusBreakMinutesRef.current = setFocusBreakMinutes;
+  setFocusLongBreakMinutesRef.current = setFocusLongBreakMinutes;
 
   // Subscribe to commands from WebSocket clients once on mount.
   useEffect(() => {
@@ -115,6 +121,7 @@ export default function useElectronBridge({
         case MSG_DAY_FOCUS_SET_DURATION:
           if (cmd.workMinutes !== undefined) setFocusWorkMinutesRef.current?.(Math.max(1, Math.min(120, cmd.workMinutes)));
           if (cmd.breakMinutes !== undefined) setFocusBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.breakMinutes)));
+          if (cmd.longBreakMinutes !== undefined) setFocusLongBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.longBreakMinutes)));
           break;
         case MSG_DAY_TASK_COMPLETE:
           if (cmd.id) toggleCompleteRef.current?.(cmd.id);
@@ -251,7 +258,12 @@ export default function useElectronBridge({
         running: focusTimerRunning,
         workMinutes: focusWorkMinutes,
         breakMinutes: focusBreakMinutes,
+        longBreakMinutes: focusLongBreakMinutes,
         cycleCount: focusCycleCount || 0,
+        nextFocusTask: (() => {
+          const t = (focusBlockTasks || []).find(t => !t.completed && !focusCompletedTasks?.has(t.id));
+          return t ? { id: t.id, title: t.title } : null;
+        })(),
       },
       habits,
       nextRoutine: nextRoutineRaw ? {
@@ -267,7 +279,8 @@ export default function useElectronBridge({
   }, [
     todayAgenda, currentTime, tasks, expandedRecurringTasks, todayHGSessions, focusModeAvailable,
     showFocusMode, focusShowSettings, focusPhase, focusTimerSeconds, focusTimerRunning,
-    focusCycleCount, focusWorkMinutes, focusBreakMinutes,
+    focusCycleCount, focusWorkMinutes, focusBreakMinutes, focusLongBreakMinutes,
+    focusBlockTasks, focusCompletedTasks,
     activeHabits, getTodayHabitCount, habitsEnabled,
     todayRoutines, routineCompletions, use24HourClock,
     goals, projects, unscheduledTasks, goalsProjectsEnabled,

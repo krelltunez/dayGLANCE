@@ -184,15 +184,16 @@ export function renderFocusSlotKey(
 }
 
 // ── Focus setup-screen rendering ──────────────────────────────────────────
-// Shown on encoder slots when no session is active.
-// Slot 0 = work duration, slot 1 = break duration, slots 2–3 = pending rings.
+// Shown on encoder slots when the session start screen is open.
+// Slot 0 = work, slot 1 = short break, slot 2 = long break, slot 3 = pending ring.
 
 /** 200×100 touch strip for the pre-session setup state. */
 export function renderFocusSetupSlot(
   slotIndex: number,
   workMinutes: number,
   breakMinutes: number,
-  adjusting: "work" | "break",
+  longBreakMinutes: number,
+  adjusting: "work" | "break" | "longBreak",
 ): string {
   const cx = SW / 2;
   let body: string;
@@ -217,6 +218,16 @@ export function renderFocusSetupSlot(
       : `<rect width="${SW}" height="${SH}" fill="#0d0d0d"/>
   <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.2" text-anchor="middle" font-weight="700">${breakMinutes}m</text>
   <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.16" text-anchor="middle">break</text>`;
+  } else if (slotIndex === 2) {
+    const sel = adjusting === "longBreak";
+    body = sel
+      ? `<rect width="${SW}" height="${SH}" fill="#0a150d"/>
+  <rect width="${SW}" height="5" fill="#16a34a"/>
+  <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${longBreakMinutes}m</text>
+  <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="#16a34a" fill-opacity="0.85" text-anchor="middle">LONG BREAK</text>`
+      : `<rect width="${SW}" height="${SH}" fill="#0d0d0d"/>
+  <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.2" text-anchor="middle" font-weight="700">${longBreakMinutes}m</text>
+  <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.16" text-anchor="middle">long break</text>`;
   } else {
     body = `<rect width="${SW}" height="${SH}" fill="#111"/>
   <circle cx="${cx}" cy="52" r="28" fill="none" stroke="#2a2a2a" stroke-width="2"/>
