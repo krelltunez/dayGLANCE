@@ -6122,6 +6122,13 @@ const DayPlanner = () => {
     exitFocusModeRef,
     skipFocusPhase,
     toggleComplete,
+    activeHabits,
+    getTodayHabitCount,
+    habitsEnabled,
+    incrementHabit,
+    todayRoutines,
+    routineCompletions,
+    toggleRoutineCompletion,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────

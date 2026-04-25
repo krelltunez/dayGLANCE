@@ -6,7 +6,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
-import { renderKey } from "../render";
+import { renderKey, stripTags, truncate } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.next-task" })
 export class NextTaskAction extends SingletonAction {
@@ -45,14 +45,10 @@ export class NextTaskAction extends SingletonAction {
       : (state.currentTask ?? state.nextTask);
     const label = this.showNext ? "next task" : "current task";
     if (task) {
-      await this.actionRef.setImage(renderKey({ value: truncate(task.title, 18), sub: label }));
+      await this.actionRef.setImage(renderKey({ value: truncate(stripTags(task.title), 18), sub: label }));
     } else {
       await this.actionRef.setImage(renderKey({ value: "No tasks", dim: true }));
     }
     await this.actionRef.setTitle("");
   }
-}
-
-function truncate(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 1) + "…";
 }

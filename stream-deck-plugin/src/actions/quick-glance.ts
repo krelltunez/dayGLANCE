@@ -6,7 +6,7 @@ import {
   WillAppearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState } from "../client";
-import { renderKey } from "../render";
+import { renderKey, stripTags, truncate } from "../render";
 
 type DisplayMode = "date" | "next-event" | "focus";
 const MODES: DisplayMode[] = ["date", "next-event", "focus"];
@@ -50,7 +50,7 @@ export class QuickGlanceAction extends SingletonAction {
     } else if (mode === "next-event") {
       const task = state.currentTask ?? state.nextTask;
       if (task) {
-        await this.actionRef.setImage(renderKey({ value: truncate(task.title, 18), sub: "next up" }));
+        await this.actionRef.setImage(renderKey({ value: truncate(stripTags(task.title), 18), sub: "next up" }));
       } else {
         await this.actionRef.setImage(renderKey({ value: "Clear", sub: "no events", dim: true }));
       }
@@ -79,6 +79,3 @@ function formatDate(iso: string): { weekday: string; month: string; day: string 
   };
 }
 
-function truncate(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 1) + "…";
-}

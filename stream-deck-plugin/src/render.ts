@@ -35,6 +35,19 @@ function fontSize(text: string): number {
   return 18;
 }
 
+/** Strips #hashtags and [[wikilinks]] from a task title. */
+export function stripTags(s: string): string {
+  return s
+    .replace(/\[\[[^\]]+\]\]/g, "")
+    .replace(/#\w[\w\d_]*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + "…";
+}
+
 function escape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

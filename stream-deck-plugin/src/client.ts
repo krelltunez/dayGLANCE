@@ -6,20 +6,24 @@ import {
   MSG_DAY_FOCUS_STOP,
   MSG_DAY_FOCUS_SKIP,
   MSG_DAY_TASK_COMPLETE,
+  MSG_DAY_HABIT_INCREMENT,
+  MSG_DAY_ROUTINE_COMPLETE,
   type DayGlanceState,
   type InboundCommand,
 } from "../../electron/protocol";
 
 // Re-export everything action files need — keeps their imports pointing at ../client only
 export type { DayGlanceState, Task, FocusState } from "../../electron/protocol";
-export { MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_TASK_COMPLETE } from "../../electron/protocol";
+export { MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_TASK_COMPLETE, MSG_DAY_HABIT_INCREMENT, MSG_DAY_ROUTINE_COMPLETE } from "../../electron/protocol";
 
 // CommandPayload is the caller-facing API — send() stamps v internally
 type CommandPayload =
   | { type: typeof MSG_DAY_FOCUS_START }
   | { type: typeof MSG_DAY_FOCUS_STOP }
   | { type: typeof MSG_DAY_FOCUS_SKIP }
-  | { type: typeof MSG_DAY_TASK_COMPLETE; id: string };
+  | { type: typeof MSG_DAY_TASK_COMPLETE; id: string }
+  | { type: typeof MSG_DAY_HABIT_INCREMENT; id: string }
+  | { type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };
 
 type StateListener = (state: DayGlanceState) => void;
 
@@ -45,14 +49,7 @@ function connect(): void {
       const msg = JSON.parse(data.toString());
       if (msg.type === MSG_DAY_STATE) {
         lastState = msg as DayGlanceState;
-        console.log("[dayGLANCE] state received, listeners:", listeners.size, "currentTask:", lastState.currentTask?.title ?? "none");
-        for (const listener of listeners) {
-          try {
-            listener(lastState);
-          } catch (e) {
-            console.error("[dayGLANCE] listener error:", e);
-          }
-        }
+        for (const listener of listeners) listener(lastState);
       }
     } catch {
       // drop malformed frames

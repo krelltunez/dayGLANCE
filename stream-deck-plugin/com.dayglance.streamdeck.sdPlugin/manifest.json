@@ -111,6 +111,28 @@
       "States": [
         { "Image": "imgs/actions/quick-glance/key", "TitleAlignment": "bottom" }
       ]
+    },
+    {
+      "Name": "Habit",
+      "UUID": "app.dayglance.streamdeck.habit",
+      "Icon": "imgs/actions/agenda/icon",
+      "Tooltip": "Shows today's count for a selected habit. Press to log one increment.",
+      "PropertyInspectorPath": "ui/habit-pi.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        { "Image": "imgs/actions/agenda/key", "TitleAlignment": "bottom" }
+      ]
+    },
+    {
+      "Name": "Next Routine",
+      "UUID": "app.dayglance.streamdeck.routine",
+      "Icon": "imgs/actions/next-task/icon",
+      "Tooltip": "Shows the next uncompleted routine for today. Press to mark it done.",
+      "PropertyInspectorPath": "ui/property-inspector.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        { "Image": "imgs/actions/next-task/key", "TitleAlignment": "bottom" }
+      ]
     }
   ]
 }
