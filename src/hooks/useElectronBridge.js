@@ -157,6 +157,9 @@ export default function useElectronBridge({
       type: MSG_DAY_STATE,
       currentTask: mapTask(inProgress),
       nextTask: mapTask(nextUpcoming),
+      scheduledTasks: [...todayTasks]
+        .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+        .map(mapTask),
       today: {
         total: todayTasks.length,
         completed: todayTasks.filter(t => t.completed).length,

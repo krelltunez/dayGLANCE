@@ -31,7 +31,7 @@
         "layout": "$B1",
         "TriggerDescription": {
           "Rotate": "Scroll agenda forward / back",
-          "Push": "Open event detail"
+          "Push": "Cycle through tasks / back to overview"
         }
       },
       "States": [

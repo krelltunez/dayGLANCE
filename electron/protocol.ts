@@ -58,6 +58,7 @@ export type Routine = {
 export type DayGlanceState = {
   currentTask: Task | null;
   nextTask: Task | null;
+  scheduledTasks: Task[];
   today: { total: number; completed: number; date: string };
   focus: FocusState;
   habits: Habit[];
