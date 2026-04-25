@@ -6065,6 +6065,45 @@ const DayPlanner = () => {
     setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false } : t));
   };
 
+  // Focus mode availability: current task or back-to-back block >= 45 min remaining
+  const focusModeAvailable = useMemo(() => {
+    const now = currentTime;
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const todayTasks = getTasksForDate(now);
+
+    const timelineTasks = todayTasks
+      .filter(t => !t.isAllDay && !t.completed && t.startTime)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+    const inProgress = timelineTasks.filter(t => {
+      const start = timeToMinutes(t.startTime);
+      const end = start + t.duration;
+      return start <= nowMin && end > nowMin;
+    });
+
+    if (inProgress.length === 0) return false;
+
+    let blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
+    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
+
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (const t of timelineTasks) {
+        const tStart = timeToMinutes(t.startTime);
+        const tEnd = tStart + t.duration;
+        if (tStart <= blockEnd && tEnd > blockEnd) {
+          blockEnd = tEnd;
+          extended = true;
+        }
+      }
+    }
+
+    const remainingMinutes = blockEnd - nowMin;
+    return remainingMinutes >= 45;
+  }, [currentTime, tasks, expandedRecurringTasks]);
+  focusModeAvailableRef.current = focusModeAvailable;
+
   // ── Electron desktop bridge ──────────────────────────────────────────────
   // Pushes lightweight state snapshots to the Electron WebSocket server and
   // routes commands from connected clients (Stream Deck, etc.) back into the app.
@@ -6851,51 +6890,6 @@ const DayPlanner = () => {
     } catch {}
     setAiSubtasksLoadingForTask(null);
   }, [aiConfig, pushUndo, updateRecurringTemplate]);
-
-  // Focus mode availability: current task or back-to-back block >= 45 min remaining
-  const focusModeAvailable = useMemo(() => {
-    const now = currentTime;
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const todayDateStr = dateToString(now);
-    const todayTasks = getTasksForDate(now);
-
-    // Get all non-completed timeline tasks happening now or in the future, sorted by start
-    const timelineTasks = todayTasks
-      .filter(t => !t.isAllDay && !t.completed && t.startTime)
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-
-    // Find contiguous block that includes the current time
-    // First, find tasks currently in progress
-    const inProgress = timelineTasks.filter(t => {
-      const start = timeToMinutes(t.startTime);
-      const end = start + t.duration;
-      return start <= nowMin && end > nowMin;
-    });
-
-    if (inProgress.length === 0) return false;
-
-    // Find the earliest start and then extend forward through back-to-back tasks
-    let blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
-    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
-
-    // Extend block forward with back-to-back or overlapping tasks
-    let extended = true;
-    while (extended) {
-      extended = false;
-      for (const t of timelineTasks) {
-        const tStart = timeToMinutes(t.startTime);
-        const tEnd = tStart + t.duration;
-        if (tStart <= blockEnd && tEnd > blockEnd) {
-          blockEnd = tEnd;
-          extended = true;
-        }
-      }
-    }
-
-    const remainingMinutes = blockEnd - nowMin;
-    return remainingMinutes >= 45;
-  }, [currentTime, tasks, expandedRecurringTasks]);
-  focusModeAvailableRef.current = focusModeAvailable;
 
   // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
   const computeFocusBlockTasks = () => {
