@@ -1,5 +1,6 @@
 import {
   action,
+  DialDownEvent,
   DialRotateEvent,
   DialUpEvent,
   KeyDownEvent,
@@ -9,7 +10,7 @@ import {
   WillDisappearEvent,
 } from "@elgato/streamdeck";
 import { DayGlanceState, onState, send, MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_FOCUS_SET_DURATION } from "../client";
-import { renderKey, renderStrip, renderFocusSlot, renderFocusSlotKey } from "../render";
+import { renderKey, renderFocusSlot, renderFocusSlotKey, renderFocusSetupSlot } from "../render";
 
 @action({ UUID: "app.dayglance.streamdeck.focus" })
 export class FocusAction extends SingletonAction {
@@ -20,13 +21,15 @@ export class FocusAction extends SingletonAction {
   private encoderRefs = new Set<any>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private slotIndexMap = new Map<any, number>();
+  private adjusting: "work" | "break" = "work";
+  private dialPressedAt: number | null = null;
+  private readonly LONG_PRESS_MS = 400;
 
   override async onWillAppear(ev: WillAppearEvent): Promise<void> {
     this.visibleCount++;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((ev.payload as any).controller === "Encoder") {
       this.encoderRefs.add(ev.action);
-      // Column position (0–3) determines which Pomodoro cycle this slot represents
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const col: number = (ev.payload as any).coordinates?.column ?? 0;
       this.slotIndexMap.set(ev.action, col % 4);
@@ -50,68 +53,62 @@ export class FocusAction extends SingletonAction {
     }
   }
 
-  override async onDialRotate(ev: DialRotateEvent): Promise<void> {
-    if (!this.lastState) return;
-    const { active, phase, workMinutes, breakMinutes } = this.lastState.focus;
-
-    if (!active) {
-      // Before session: adjust work duration
-      const newWork = Math.max(1, Math.min(120, workMinutes + ev.payload.ticks));
-      send({ type: MSG_DAY_FOCUS_SET_DURATION, workMinutes: newWork });
-      await this.renderPreview(`${newWork}m`, "work session", "#f97316");
-    } else if (phase === "work") {
-      // During work: adjust upcoming break duration
-      const newBreak = Math.max(1, Math.min(60, breakMinutes + ev.payload.ticks));
-      send({ type: MSG_DAY_FOCUS_SET_DURATION, breakMinutes: newBreak });
-      await this.renderPreview(`${newBreak}m`, "next break", "#22c55e");
-    } else {
-      // During break: adjust work duration for next session
-      const newWork = Math.max(1, Math.min(120, workMinutes + ev.payload.ticks));
-      send({ type: MSG_DAY_FOCUS_SET_DURATION, workMinutes: newWork });
-      await this.renderPreview(`${newWork}m`, "next session", "#f97316");
-    }
+  override async onDialDown(_ev: DialDownEvent): Promise<void> {
+    this.dialPressedAt = Date.now();
   }
 
   override async onDialUp(_ev: DialUpEvent): Promise<void> {
-    this.toggle();
+    const held = this.dialPressedAt !== null && (Date.now() - this.dialPressedAt) >= this.LONG_PRESS_MS;
+    this.dialPressedAt = null;
+
+    const { active, available } = this.lastState?.focus ?? { active: false, available: false };
+    if (active) {
+      // Any knob press during a session: advance to next phase
+      send({ type: MSG_DAY_FOCUS_SKIP });
+    } else if (held) {
+      // Long press when idle: toggle which duration the dial adjusts
+      this.adjusting = this.adjusting === "work" ? "break" : "work";
+      if (this.lastState) await this.renderAll(this.lastState);
+    } else if (available) {
+      // Short press when idle: start session
+      send({ type: MSG_DAY_FOCUS_START });
+    }
+  }
+
+  override async onDialRotate(ev: DialRotateEvent): Promise<void> {
+    if (!this.lastState) return;
+    const { active, workMinutes, breakMinutes } = this.lastState.focus;
+    if (active) return; // dial does nothing during a session
+
+    if (this.adjusting === "work") {
+      const newWork = Math.max(1, Math.min(120, workMinutes + ev.payload.ticks));
+      send({ type: MSG_DAY_FOCUS_SET_DURATION, workMinutes: newWork });
+    } else {
+      const newBreak = Math.max(1, Math.min(60, breakMinutes + ev.payload.ticks));
+      send({ type: MSG_DAY_FOCUS_SET_DURATION, breakMinutes: newBreak });
+    }
+    // State subscription will re-render once the app echoes the update back
   }
 
   override async onKeyDown(_ev: KeyDownEvent): Promise<void> {
-    this.toggle();
-  }
-
-  override async onTouchTap(ev: TouchTapEvent): Promise<void> {
-    if (ev.payload.hold) {
-      this.toggle();
-      return;
-    }
-    // Tap: skip phase if active, start if not
-    if (this.lastState?.focus.active) {
-      send({ type: MSG_DAY_FOCUS_SKIP });
-    } else {
-      this.toggle();
-    }
-  }
-
-  private toggle(): void {
-    const { available, active } = this.lastState?.focus ?? { available: false, active: false };
+    const { active, available } = this.lastState?.focus ?? { active: false, available: false };
     if (active) {
-      send({ type: MSG_DAY_FOCUS_STOP });
+      send({ type: MSG_DAY_FOCUS_SKIP });
     } else if (available) {
       send({ type: MSG_DAY_FOCUS_START });
     }
   }
 
-  private async renderPreview(value: string, sub: string, barColor: string): Promise<void> {
-    const opts = { value, sub, barColor };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const act of this.actions as unknown as any[]) {
-      await act.setImage(renderKey(opts));
-      if (this.encoderRefs.has(act)) {
-        await act.setFeedback({ canvas: renderStrip(opts) });
-      } else {
-        await act.setTitle("");
-      }
+  override async onTouchTap(ev: TouchTapEvent): Promise<void> {
+    if (ev.payload.hold) {
+      if (this.lastState?.focus.active) send({ type: MSG_DAY_FOCUS_STOP });
+      return;
+    }
+    const { active, available } = this.lastState?.focus ?? { active: false, available: false };
+    if (active) {
+      send({ type: MSG_DAY_FOCUS_SKIP });
+    } else if (available) {
+      send({ type: MSG_DAY_FOCUS_START });
     }
   }
 
@@ -124,7 +121,7 @@ export class FocusAction extends SingletonAction {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const isEncoder = this.encoderRefs.has(act);
-    const { available, active, phase, secondsRemaining, running, workMinutes, cycleCount } = state.focus;
+    const { available, active, phase, secondsRemaining, running, workMinutes, breakMinutes, cycleCount } = state.focus;
     const cycles = cycleCount ?? 0;
 
     if (isEncoder) {
@@ -133,34 +130,29 @@ export class FocusAction extends SingletonAction {
         await act.setImage(renderFocusSlotKey(slotIndex, phase, secondsRemaining, cycles));
         await act.setFeedback({ canvas: renderFocusSlot(slotIndex, phase, secondsRemaining, cycles) });
       } else {
-        // Idle: slot 0 shows work duration hint; other slots show their pending number
-        const idleOpts = slotIndex === 0
-          ? { value: `${workMinutes}m`, sub: available ? "press to start" : "unavailable", dim: !available, barColor: "#f97316" }
-          : { value: `${slotIndex + 1}`, sub: `cycle ${slotIndex + 1}`, dim: true, barColor: "#f97316" };
-        await act.setImage(renderKey(idleOpts));
-        await act.setFeedback({ canvas: renderStrip(idleOpts) });
+        // Setup screen: slots 0+1 show work/break durations; slots 2-3 show pending rings
+        const barColor = this.adjusting === "work" ? "#f97316" : "#22c55e";
+        const value = this.adjusting === "work" ? `${workMinutes}m` : `${breakMinutes}m`;
+        const sub = this.adjusting === "work" ? "work" : "break";
+        await act.setImage(renderKey({ value, sub, dim: !available, barColor }));
+        await act.setFeedback({ canvas: renderFocusSetupSlot(slotIndex, workMinutes, breakMinutes, this.adjusting) });
       }
       return;
     }
 
-    // Non-encoder key button — standard start/stop view
-    let renderOpts: Parameters<typeof renderKey>[0];
+    // Non-encoder key button
     if (!active) {
-      renderOpts = {
-        value: `${workMinutes}m`,
-        sub: available ? "press to start" : "unavailable",
-        dim: !available,
-        barColor: "#f97316",
-      };
+      const barColor = this.adjusting === "work" ? "#f97316" : "#22c55e";
+      const value = this.adjusting === "work" ? `${workMinutes}m` : `${breakMinutes}m`;
+      await act.setImage(renderKey({ value, sub: available ? "press to start" : "unavailable", dim: !available, barColor }));
     } else {
       const m = Math.floor(secondsRemaining / 60);
       const s = secondsRemaining % 60;
       const time = `${m}:${s.toString().padStart(2, "0")}`;
       const sub = running ? (phase === "work" ? "work" : "break") : "paused";
       const barColor = phase === "work" ? "#f97316" : "#22c55e";
-      renderOpts = { value: time, sub, barColor };
+      await act.setImage(renderKey({ value: time, sub, barColor }));
     }
-    await act.setImage(renderKey(renderOpts));
     await act.setTitle("");
   }
 }

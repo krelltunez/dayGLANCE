@@ -75,7 +75,7 @@ function fontSize(text: string): number {
 }
 
 // ── Pomodoro per-slot rendering ───────────────────────────────────────────
-// Each encoder slot (column 0–3) represents one Pomodoro work cycle.
+// Each encoder slot (column 0–3) represents one Pomodoro work+break cycle.
 // Place the Focus action on all 4 encoder slots; each auto-detects its index.
 
 function focusSlotState(
@@ -84,10 +84,18 @@ function focusSlotState(
   cycleCount: number,
 ): "completed" | "activeWork" | "activeBreak" | "pending" {
   const completedInSet = cycleCount % 4;
-  const allDone = cycleCount > 0 && completedInSet === 0 && phase === "longBreak";
-  if (allDone || slotIndex < completedInSet) return "completed";
-  if (slotIndex === completedInSet && phase === "work") return "activeWork";
-  if (slotIndex === completedInSet && (phase === "shortBreak" || phase === "longBreak")) return "activeBreak";
+
+  if (phase === "work") {
+    if (slotIndex < completedInSet) return "completed";
+    if (slotIndex === completedInSet) return "activeWork";
+    return "pending";
+  }
+
+  // Break phase: cycleCount already incremented after work finished.
+  // The break belongs to the cycle whose work just ended (one slot back).
+  const breakSlot = completedInSet === 0 ? 3 : completedInSet - 1;
+  if (slotIndex < breakSlot) return "completed";
+  if (slotIndex === breakSlot) return "activeBreak";
   return "pending";
 }
 
@@ -108,9 +116,9 @@ export function renderFocusSlot(
   let body: string;
   if (state === "completed") {
     body = `<rect width="${SW}" height="${SH}" fill="#180a0a"/>
-  <circle cx="${cx}" cy="60" r="34" fill="#dc2626"/>
-  <rect x="${cx - 3}" y="22" width="5" height="14" fill="#16a34a" rx="2"/>
-  <path d="M${cx - 3} 33 Q${cx - 14} 21 ${cx - 8} 15 Q${cx - 1} 28 ${cx - 3} 33Z" fill="#16a34a"/>`;
+  <circle cx="${cx}" cy="48" r="30" fill="#dc2626"/>
+  <rect x="${cx - 3}" y="14" width="5" height="12" fill="#16a34a" rx="2"/>
+  <path d="M${cx - 3} 23 Q${cx - 14} 12 ${cx - 8} 7 Q${cx - 1} 19 ${cx - 3} 23Z" fill="#16a34a"/>`;
   } else if (state === "activeWork") {
     body = `<rect width="${SW}" height="${SH}" fill="#1c0e00"/>
   <rect width="${SW}" height="5" fill="#f97316"/>
@@ -170,6 +178,52 @@ export function renderFocusSlotKey(
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
   ${header}
+  ${body}
+</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+
+// ── Focus setup-screen rendering ──────────────────────────────────────────
+// Shown on encoder slots when no session is active.
+// Slot 0 = work duration, slot 1 = break duration, slots 2–3 = pending rings.
+
+/** 200×100 touch strip for the pre-session setup state. */
+export function renderFocusSetupSlot(
+  slotIndex: number,
+  workMinutes: number,
+  breakMinutes: number,
+  adjusting: "work" | "break",
+): string {
+  const cx = SW / 2;
+  let body: string;
+
+  if (slotIndex === 0) {
+    const sel = adjusting === "work";
+    body = sel
+      ? `<rect width="${SW}" height="${SH}" fill="#1c0e00"/>
+  <rect width="${SW}" height="5" fill="#f97316"/>
+  <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${workMinutes}m</text>
+  <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="#f97316" fill-opacity="0.85" text-anchor="middle">WORK</text>`
+      : `<rect width="${SW}" height="${SH}" fill="#0d0d0d"/>
+  <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.2" text-anchor="middle" font-weight="700">${workMinutes}m</text>
+  <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.16" text-anchor="middle">work</text>`;
+  } else if (slotIndex === 1) {
+    const sel = adjusting === "break";
+    body = sel
+      ? `<rect width="${SW}" height="${SH}" fill="#0a180c"/>
+  <rect width="${SW}" height="5" fill="#22c55e"/>
+  <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${breakMinutes}m</text>
+  <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="#22c55e" fill-opacity="0.85" text-anchor="middle">BREAK</text>`
+      : `<rect width="${SW}" height="${SH}" fill="#0d0d0d"/>
+  <text x="${cx}" y="52" font-family="${FONT}" font-size="38" fill="white" fill-opacity="0.2" text-anchor="middle" font-weight="700">${breakMinutes}m</text>
+  <text x="${cx}" y="76" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.16" text-anchor="middle">break</text>`;
+  } else {
+    body = `<rect width="${SW}" height="${SH}" fill="#111"/>
+  <circle cx="${cx}" cy="52" r="28" fill="none" stroke="#2a2a2a" stroke-width="2"/>
+  <text x="${cx}" y="62" font-family="${FONT}" font-size="30" fill="#2a2a2a" text-anchor="middle" font-weight="700">${slotIndex + 1}</text>`;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   ${body}
 </svg>`;
   return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
