@@ -57,7 +57,7 @@ export class FocusAction extends SingletonAction<Settings> {
     if (!this.actionRef) return;
     const { active, phase, secondsRemaining, running } = state.focus;
     if (!active) {
-      await this.actionRef.setImage(renderKey({ value: "Focus", sub: "press to start", dim: true }));
+      await this.actionRef.setImage(renderKey({ value: "Focus", sub: "press to start" }));
     } else {
       const m = Math.floor(secondsRemaining / 60);
       const s = secondsRemaining % 60;
