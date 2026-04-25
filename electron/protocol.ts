@@ -24,6 +24,7 @@ export type Task = {
   duration: number;
   colorHex: string;
   tags: string[];
+  completed: boolean;
 };
 
 export type FocusState = {

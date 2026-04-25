@@ -64,17 +64,23 @@ export class AgendaAction extends SingletonAction {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const tasks = state.scheduledTasks ?? [];
+    let image: string;
     if (this.viewIndex === 0 || tasks.length === 0) {
       const { completed, total } = state.today;
       const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-      await act.setImage(renderKey({ value: `${completed}/${total}`, sub: `${pct}% done` }));
+      image = renderKey({ value: `${completed}/${total}`, sub: `${pct}% done` });
     } else {
       const task = tasks[this.viewIndex - 1];
       const title = truncate(stripTags(task.title), 12);
       const time = task.startTime ? formatTime(task.startTime) : "";
-      await act.setImage(renderKey({ value: title, sub: time, barColor: task.colorHex }));
+      image = renderKey({ value: title, sub: time, barColor: task.colorHex, strikethrough: task.completed });
     }
-    await act.setTitle("");
+    if (act.controller === "Encoder") {
+      await act.setFeedback({ icon: image });
+    } else {
+      await act.setImage(image);
+      await act.setTitle("");
+    }
   }
 }
 

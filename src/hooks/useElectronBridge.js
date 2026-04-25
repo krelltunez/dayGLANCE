@@ -124,6 +124,7 @@ export default function useElectronBridge({
       duration: t.duration || 0,
       colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
       tags: t.tags || [],
+      completed: !!t.completed,
     } : null;
 
     const todayStr = dateToString(currentTime);
