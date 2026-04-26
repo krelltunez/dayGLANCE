@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { taskColorToHex, TAILWIND_TO_HEX } from '../utils/colorUtils.js';
 import { dateToString } from '../utils/taskUtils.js';
 import { calculateGoalProgress } from '../utils/goalProgress.js';
@@ -118,6 +118,8 @@ export default function useElectronBridge({
   unscheduledTasks,
   goalsProjectsEnabled,
 }) {
+  const [pushTrigger, setPushTrigger] = useState(0);
+
   const skipFocusPhaseRef = useRef(skipFocusPhase);
   const dismissFocusStatsRef = useRef(dismissFocusStats);
   const focusCompleteTaskRef = useRef(focusCompleteTask);
@@ -218,6 +220,13 @@ export default function useElectronBridge({
     });
     return unsubscribe;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When a Stream Deck plugin client connects before state has been pushed,
+  // the server sends ws:request-state — re-trigger the push effect.
+  useEffect(() => {
+    if (!window.electronAPI?.onRequestState) return;
+    return window.electronAPI.onRequestState(() => setPushTrigger(n => n + 1));
+  }, []);
 
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
@@ -400,5 +409,6 @@ export default function useElectronBridge({
     activeHabits, getTodayHabitCount, habitsEnabled,
     todayRoutines, routineCompletions, use24HourClock,
     goals, projects, unscheduledTasks, goalsProjectsEnabled,
+    pushTrigger,
   ]);
 }

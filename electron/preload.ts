@@ -12,4 +12,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ws:command', handler);
     return () => ipcRenderer.removeListener('ws:command', handler);
   },
+
+  // Main process asks renderer to re-push state (e.g. a plugin client just connected)
+  onRequestState: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('ws:request-state', handler);
+    return () => ipcRenderer.removeListener('ws:request-state', handler);
+  },
 });
