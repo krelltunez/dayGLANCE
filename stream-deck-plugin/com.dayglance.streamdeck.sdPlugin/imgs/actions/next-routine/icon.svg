@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- completed step (filled) -->
+  <circle cx="5" cy="12" r="2" fill="#FFFFFF"/>
+  <!-- current/next step (outlined) -->
+  <circle cx="12" cy="12" r="2.5"/>
+  <!-- arrow forward to the next step -->
+  <polyline points="17.5,9 21,12 17.5,15"/>
+</svg>

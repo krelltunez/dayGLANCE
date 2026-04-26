@@ -68,7 +68,7 @@ import useCloudSync from './hooks/useCloudSync.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
-import { getGlanceHGInstances } from './hooks/useHyperGlance.js';
+import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -79,6 +79,7 @@ import useConflictDetection from './hooks/useConflictDetection.js';
 import useNewTaskInput from './hooks/useNewTaskInput.js';
 import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 import useTaskActions from './hooks/useTaskActions.js';
+import useElectronBridge from './hooks/useElectronBridge.js';
 import useRecycleBin from './hooks/useRecycleBin.js';
 import useReminderEngine from './hooks/useReminderEngine.js';
 import useReminders from './hooks/useReminders.js';
@@ -319,6 +320,11 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
   });
   useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
+  const [weekTimelineStartHour, setWeekTimelineStartHour] = useState(() => {
+    const saved = localStorage.getItem('day-planner-week-timeline-start-hour');
+    return saved !== null ? JSON.parse(saved) : 0;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-week-timeline-start-hour', JSON.stringify(weekTimelineStartHour)); }, [weekTimelineStartHour]);
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
   const [weatherEnabled, setWeatherEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-weather-enabled');
@@ -621,6 +627,7 @@ const DayPlanner = () => {
   const [hgCycleCount, setHgCycleCount] = React.useState(0);
   const [hgExitConfirm, setHgExitConfirm] = React.useState(false);
   const [hgShowSettings, setHgShowSettings] = React.useState(true);
+  const [hgCompleted, setHgCompleted] = React.useState(false);
   const hgTimerRef = React.useRef(null);
 
   const {
@@ -2262,6 +2269,7 @@ const DayPlanner = () => {
   }, [aiConfig]);
 
   const enterFocusModeRef = useRef(null);
+  const startFocusTimerRef = useRef(null);
   const openRoutinesDashboardRef = useRef(null);
 
   const { longPressTriggeredRef, longPressTimerRef } = useMobileInteractions({
@@ -2911,6 +2919,7 @@ const DayPlanner = () => {
       setOnboardingProgress(prev => ({ ...prev, hasUsedFocusMode: true }));
     }
   };
+  startFocusTimerRef.current = startFocusTimer;
 
   const exitFocusMode = (showStats = true) => {
     setFocusTimerRunning(false);
@@ -3066,6 +3075,7 @@ const DayPlanner = () => {
     setHgCycleCount(0);
     setHgExitConfirm(false);
     setHgShowSettings(true);
+    setHgCompleted(false);
     setShowHyperGlanceMode(true);
     // Request fullscreen (web fallback; Android uses native immersive mode below)
     try { document.documentElement.requestFullscreen?.(); } catch (e) {}
@@ -3115,6 +3125,33 @@ const DayPlanner = () => {
     setHgExitConfirm(false);
     // Don't close the modal here — the modal handles showing the summary screen
     // and the user dismisses it via the "Done" button (exitHyperGlanceMode).
+  };
+
+  const startHyperGlanceTimer = () => {
+    setHgShowSettings(false);
+    setHgTimerSeconds(hgWorkMinutes * 60);
+    setHgTimerRunning(true);
+    setHgTimerPhase('work');
+    setHgCycleCount(0);
+  };
+
+  const skipHyperGlancePhase = () => {
+    setHgCycleCount(prev => {
+      const newCycle = hgTimerPhase === 'work' ? prev + 1 : prev;
+      if (hgTimerPhase === 'work') {
+        if (newCycle % 4 === 0) {
+          setHgTimerPhase('longBreak');
+          setHgTimerSeconds(hgLongBreakMinutes * 60);
+        } else {
+          setHgTimerPhase('shortBreak');
+          setHgTimerSeconds(hgBreakMinutes * 60);
+        }
+      } else {
+        setHgTimerPhase('work');
+        setHgTimerSeconds(hgWorkMinutes * 60);
+      }
+      return newCycle;
+    });
   };
 
   const openHGAdjust = (projectId, date) => {
@@ -5983,6 +6020,7 @@ const DayPlanner = () => {
     recordDeletedTaskTombstone,
     scheduleTaskAtNextSlot,
     manuallyScheduleTask,
+    hgCompleteTask,
     focusCompleteTask,
     focusUpdateTaskNotes,
     focusAddSubtask,
@@ -6063,6 +6101,128 @@ const DayPlanner = () => {
   const restoreArchivedInboxTask = (id) => {
     setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false } : t));
   };
+
+  // Focus mode availability: current task or back-to-back block >= 45 min remaining
+  const focusModeAvailable = useMemo(() => {
+    const now = currentTime;
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const todayTasks = getTasksForDate(now);
+
+    const timelineTasks = todayTasks
+      .filter(t => !t.isAllDay && !t.completed && t.startTime)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+    const inProgress = timelineTasks.filter(t => {
+      const start = timeToMinutes(t.startTime);
+      const end = start + t.duration;
+      return start <= nowMin && end > nowMin;
+    });
+
+    if (inProgress.length === 0) return false;
+
+    let blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
+    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
+
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (const t of timelineTasks) {
+        const tStart = timeToMinutes(t.startTime);
+        const tEnd = tStart + t.duration;
+        if (tStart <= blockEnd && tEnd > blockEnd) {
+          blockEnd = tEnd;
+          extended = true;
+        }
+      }
+    }
+
+    const remainingMinutes = blockEnd - nowMin;
+    return remainingMinutes >= 45;
+  }, [currentTime, tasks, expandedRecurringTasks]);
+  focusModeAvailableRef.current = focusModeAvailable;
+
+  // ── Electron desktop bridge ──────────────────────────────────────────────
+  // Pushes lightweight state snapshots to the Electron WebSocket server and
+  // routes commands from connected clients (Stream Deck, etc.) back into the app.
+  const todayHGSessions = useMemo(() => {
+    if (!goalsProjectsEnabled) return [];
+    const todayStr = getTodayStr();
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+    return getGlanceHGInstances(projects, nowMin)
+      .map(({ project, instance }) => {
+        const hg = project.hyperglance;
+        const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '';
+        const duration = hg.scheduledDurationOverrides?.[instance.date] || hg.scheduledDuration || 60;
+        const reachable = isHGSessionReachable(instance, hg, currentTime);
+        return { id: project.id, title: project.title, colorHex: hg.color || '#4f46e5', startTime: effectiveTime, duration, isOverdue: instance.isOverdue, date: instance.date, reachable, isHGSession: true };
+      })
+      .filter(s => !s.isOverdue && s.date === todayStr && s.startTime);
+  }, [goalsProjectsEnabled, projects, currentTime]);
+
+  useElectronBridge({
+    todayAgenda,
+    currentTime,
+    tasks,
+    expandedRecurringTasks,
+    todayHGSessions,
+    focusModeAvailable,
+    showFocusMode,
+    focusPhase,
+    focusTimerSeconds,
+    focusTimerRunning,
+    focusCycleCount,
+    focusWorkMinutes,
+    focusBreakMinutes,
+    focusLongBreakMinutes,
+    focusShowSettings,
+    focusShowStats,
+    focusBlockTasks,
+    focusCompletedTasks,
+    enterFocusModeRef,
+    exitFocusModeRef,
+    startFocusTimerRef,
+    dismissFocusStats,
+    skipFocusPhase,
+    setFocusLongBreakMinutes,
+    setFocusWorkMinutes,
+    setFocusBreakMinutes,
+    focusCompleteTask,
+    hgCompleteTask,
+    toggleComplete,
+    // HyperGLANCE
+    showHyperGlanceMode,
+    hyperGlanceProjectId,
+    hyperGlanceSessionDate,
+    hgTimerSeconds,
+    hgTimerRunning,
+    hgTimerPhase,
+    hgWorkMinutes,
+    hgBreakMinutes,
+    hgLongBreakMinutes,
+    hgCycleCount,
+    hgShowSettings,
+    hgCompleted,
+    startHyperGlanceTimer,
+    skipHyperGlancePhase,
+    setHgWorkMinutes,
+    setHgBreakMinutes,
+    setHgLongBreakMinutes,
+    enterHyperGlanceMode,
+    exitHyperGlanceMode,
+    setHgCompleted,
+    activeHabits,
+    getTodayHabitCount,
+    habitsEnabled,
+    incrementHabit,
+    todayRoutines,
+    routineCompletions,
+    toggleRoutineCompletion,
+    use24HourClock,
+    goals,
+    projects,
+    unscheduledTasks,
+    goalsProjectsEnabled,
+  });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
@@ -6831,51 +6991,6 @@ const DayPlanner = () => {
     setAiSubtasksLoadingForTask(null);
   }, [aiConfig, pushUndo, updateRecurringTemplate]);
 
-  // Focus mode availability: current task or back-to-back block >= 45 min remaining
-  const focusModeAvailable = useMemo(() => {
-    const now = currentTime;
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const todayDateStr = dateToString(now);
-    const todayTasks = getTasksForDate(now);
-
-    // Get all non-completed timeline tasks happening now or in the future, sorted by start
-    const timelineTasks = todayTasks
-      .filter(t => !t.isAllDay && !t.completed && t.startTime)
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-
-    // Find contiguous block that includes the current time
-    // First, find tasks currently in progress
-    const inProgress = timelineTasks.filter(t => {
-      const start = timeToMinutes(t.startTime);
-      const end = start + t.duration;
-      return start <= nowMin && end > nowMin;
-    });
-
-    if (inProgress.length === 0) return false;
-
-    // Find the earliest start and then extend forward through back-to-back tasks
-    let blockStart = Math.min(...inProgress.map(t => timeToMinutes(t.startTime)));
-    let blockEnd = Math.max(...inProgress.map(t => timeToMinutes(t.startTime) + t.duration));
-
-    // Extend block forward with back-to-back or overlapping tasks
-    let extended = true;
-    while (extended) {
-      extended = false;
-      for (const t of timelineTasks) {
-        const tStart = timeToMinutes(t.startTime);
-        const tEnd = tStart + t.duration;
-        if (tStart <= blockEnd && tEnd > blockEnd) {
-          blockEnd = tEnd;
-          extended = true;
-        }
-      }
-    }
-
-    const remainingMinutes = blockEnd - nowMin;
-    return remainingMinutes >= 45;
-  }, [currentTime, tasks, expandedRecurringTasks]);
-  focusModeAvailableRef.current = focusModeAvailable;
-
   // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
   const computeFocusBlockTasks = () => {
     const now = new Date();
@@ -7007,6 +7122,7 @@ const DayPlanner = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    weekTimelineStartHour, setWeekTimelineStartHour,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
     collapsedSettings, setCollapsedSettings,
@@ -7467,7 +7583,9 @@ const DayPlanner = () => {
     hgCycleCount, setHgCycleCount,
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,
+    hgCompleted, setHgCompleted,
     enterHyperGlanceMode, exitHyperGlanceMode, completeHyperGlanceSession,
+    startHyperGlanceTimer, skipHyperGlancePhase,
     hgContextMenu, setHgContextMenu,
     hgAdjustModal, setHgAdjustModal,
     hgAdjustTimeField, setHgAdjustTimeField,

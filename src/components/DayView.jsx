@@ -164,17 +164,25 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     handleDropOnCalendar(e, col.date, t);
   };
 
-  // Only show hover preview when the cursor is over an empty hour-row
-  // cell (day-col-slot). Hovering over task cards, frames, or the gutter
-  // should leave the preview cleared.
-  const isOverEmptySlot = (target) => target && target.classList && target.classList.contains('day-col-slot');
+  // Block hover/click only when the cursor is directly over a task card.
+  // Frames need pointer-events for context menus and resize handles, so
+  // checking for the exact day-col-slot class is too strict — it kills hover
+  // over any frame area. Walk up from e.target instead.
+  const isOverTaskCard = (target) => {
+    let el = target;
+    while (el && el !== colContentRef.current) {
+      if (el.dataset?.taskId) return true;
+      el = el.parentElement;
+    }
+    return false;
+  };
 
   const onColMouseMove = (e) => {
     if (draggedTask || isResizing || frameResizingRef.current) {
       if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
       return;
     }
-    if (!isOverEmptySlot(e.target)) {
+    if (isOverTaskCard(e.target)) {
       if (hoverPreviewTime) { setHoverPreviewTime(null); setHoverPreviewDate(null); }
       return;
     }
@@ -191,7 +199,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
   const onColClick = (e) => {
     if (frameResizingRef.current) return;
     if (draggedTask) return;
-    if (!isOverEmptySlot(e.target)) return;
+    if (isOverTaskCard(e.target)) return;
     const t = timeFromEvent(e);
     setNewTask({ title: '', startTime: t, duration: 30, date: col.dateStr, isAllDay: false });
     setShowAddTask(true);

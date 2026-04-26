@@ -14,6 +14,11 @@ export default function useDayViewHourHeight(calendarRef, stickyHeaderRef) {
       const stickyH = stickyHeaderRef?.current?.offsetHeight || 0;
       const usable = Math.max(160, totalH - stickyH);
       setHourHeight(Math.max(20, usable / 8));
+      // DAY view is overflow:hidden and must never scroll. Any scroll drift
+      // (browser restoration, scroll anchoring, stale timers) gets reset here
+      // on every measurement, including ResizeObserver callbacks that fire
+      // when the tab is restored after prolonged background time.
+      calendarRef.current.scrollTop = 0;
     };
 
     // Defer first measurement by one frame so the sticky header ref is populated.

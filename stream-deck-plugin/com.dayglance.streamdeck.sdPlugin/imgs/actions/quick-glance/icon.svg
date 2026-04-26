@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- eye outline -->
+  <path d="M 2 12 Q 12 4 22 12 Q 12 20 2 12 Z"/>
+  <!-- pupil (solid) -->
+  <circle cx="12" cy="12" r="2.5" fill="#FFFFFF" stroke="none"/>
+</svg>

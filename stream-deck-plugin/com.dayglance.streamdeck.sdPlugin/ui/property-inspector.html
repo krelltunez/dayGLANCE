@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root {
+      --brand: #fe8b00;
+      --bg: #1e1e1e;
+      --surface: #2a2a2a;
+      --border: #3a3a3a;
+      --text: #d4d4d4;
+      --text-dim: #888;
+      --radius: 4px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .dot.connected    { background: #4caf50; }
+    .dot.disconnected { background: var(--text-dim); }
+    .dot.error        { background: #f44336; }
+
+    .status-label {
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 12px 0;
+    }
+
+    button {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    button:hover  { border-color: var(--brand); color: var(--brand); }
+    button:active { opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div class="status-row">
+    <div class="dot disconnected" id="dot"></div>
+    <span class="status-label" id="statusLabel">Connecting…</span>
+  </div>
+  <p class="hint">ws://localhost:7892 &nbsp;·&nbsp; open dayGLANCE Desktop to connect</p>
+
+  <hr class="divider" />
+
+  <button id="reconnectBtn">Reconnect</button>
+
+  <script>
+    const WS_URL = "ws://localhost:7892";
+    const RETRY_MS = 4000;
+
+    // Stream Deck ↔ plugin socket
+    let sdWs = null;
+
+    function connectElgatoStreamDeckSocket(port, pluginUUID, registerEvent) {
+      sdWs = new WebSocket(`ws://127.0.0.1:${port}`);
+      sdWs.onopen = () => sdWs.send(JSON.stringify({ event: registerEvent, uuid: pluginUUID }));
+    }
+
+    // dayGLANCE Desktop status probe
+    let dgWs = null;
+    let retryTimer = null;
+
+    function setStatus(state) {
+      const dot   = document.getElementById("dot");
+      const label = document.getElementById("statusLabel");
+      dot.className = "dot " + state;
+      label.textContent = state === "connected" ? "Connected" : "dayGLANCE Desktop not running";
+    }
+
+    function probe() {
+      clearTimeout(retryTimer);
+      if (dgWs) { dgWs.onopen = dgWs.onclose = dgWs.onerror = null; dgWs.close(); }
+
+      dgWs = new WebSocket(WS_URL);
+
+      dgWs.onopen  = () => setStatus("connected");
+      dgWs.onclose = () => { setStatus("disconnected"); retryTimer = setTimeout(probe, RETRY_MS); };
+      dgWs.onerror = () => { /* onclose fires after onerror */ };
+    }
+
+    document.getElementById("reconnectBtn").addEventListener("click", probe);
+
+    probe();
+  </script>
+</body>
+</html>

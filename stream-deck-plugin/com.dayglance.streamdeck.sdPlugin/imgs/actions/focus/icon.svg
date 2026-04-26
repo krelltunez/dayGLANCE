@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- stopwatch body -->
+  <circle cx="12" cy="14" r="7"/>
+  <!-- crown button on top -->
+  <line x1="10.5" y1="3" x2="13.5" y2="3"/>
+  <line x1="12" y1="3" x2="12" y2="5"/>
+  <!-- side buttons (left and right shoulders) -->
+  <line x1="6" y1="8" x2="7.5" y2="9.5"/>
+  <line x1="18" y1="8" x2="16.5" y2="9.5"/>
+  <!-- clock hands: hour pointing up, minute hand pointing to ~5 (25 min mark, classic Pomodoro) -->
+  <line x1="12" y1="14" x2="12" y2="10"/>
+  <line x1="12" y1="14" x2="15" y2="16"/>
+  <!-- center pivot -->
+  <circle cx="12" cy="14" r="0.8" fill="#FFFFFF"/>
+</svg>

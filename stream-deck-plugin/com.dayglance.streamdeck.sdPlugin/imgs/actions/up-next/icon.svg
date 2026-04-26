@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- clock face -->
+  <circle cx="9" cy="12" r="6.5"/>
+  <!-- clock hands pointing to next hour -->
+  <polyline points="9,8 9,12 12,13"/>
+  <!-- forward chevron / next indicator -->
+  <polyline points="18.5,9 21.5,12 18.5,15"/>
+</svg>
