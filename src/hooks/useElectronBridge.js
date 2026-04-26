@@ -78,6 +78,7 @@ export default function useElectronBridge({
   setFocusBreakMinutes,
   setFocusLongBreakMinutes,
   focusCompleteTask,
+  hgCompleteTask,
   toggleComplete,
   // HyperGLANCE
   showHyperGlanceMode,
@@ -120,6 +121,7 @@ export default function useElectronBridge({
   const skipFocusPhaseRef = useRef(skipFocusPhase);
   const dismissFocusStatsRef = useRef(dismissFocusStats);
   const focusCompleteTaskRef = useRef(focusCompleteTask);
+  const hgCompleteTaskRef = useRef(hgCompleteTask);
   const toggleCompleteRef = useRef(toggleComplete);
   const incrementHabitRef = useRef(incrementHabit);
   const toggleRoutineCompletionRef = useRef(toggleRoutineCompletion);
@@ -137,6 +139,7 @@ export default function useElectronBridge({
   skipFocusPhaseRef.current = skipFocusPhase;
   dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
+  hgCompleteTaskRef.current = hgCompleteTask;
   toggleCompleteRef.current = toggleComplete;
   incrementHabitRef.current = incrementHabit;
   toggleRoutineCompletionRef.current = toggleRoutineCompletion;
@@ -209,7 +212,7 @@ export default function useElectronBridge({
           exitHyperGlanceModeRef.current?.();
           break;
         case MSG_DAY_HG_TASK_COMPLETE:
-          if (cmd.id) toggleCompleteRef.current?.(cmd.id);
+          if (cmd.id) hgCompleteTaskRef.current?.(cmd.id);
           break;
       }
     });

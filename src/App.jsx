@@ -6015,6 +6015,7 @@ const DayPlanner = () => {
     recordDeletedTaskTombstone,
     scheduleTaskAtNextSlot,
     manuallyScheduleTask,
+    hgCompleteTask,
     focusCompleteTask,
     focusUpdateTaskNotes,
     focusAddSubtask,
@@ -6181,6 +6182,7 @@ const DayPlanner = () => {
     setFocusWorkMinutes,
     setFocusBreakMinutes,
     focusCompleteTask,
+    hgCompleteTask,
     toggleComplete,
     // HyperGLANCE
     showHyperGlanceMode,

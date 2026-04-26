@@ -751,6 +751,11 @@ export default function useTaskActions({
     }
   };
 
+  const hgCompleteTask = (taskId) => {
+    const fromInbox = !tasks.find(t => t.id === taskId);
+    toggleComplete(taskId, fromInbox);
+  };
+
   const focusUpdateTaskNotes = (taskId, notes, isInbox) => {
     updateTaskNotes(taskId, notes, isInbox);
     setFocusBlockTasks(prev => prev.map(t => t.id === taskId ? { ...t, notes } : t));
@@ -818,6 +823,8 @@ export default function useTaskActions({
     // Schedule
     scheduleTaskAtNextSlot,
     manuallyScheduleTask,
+    // HG wrapper
+    hgCompleteTask,
     // Focus wrappers
     focusCompleteTask,
     focusUpdateTaskNotes,

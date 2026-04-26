@@ -399,7 +399,7 @@ export function renderHGIdleKey(session: { title: string; colorHex: string; star
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="#111"/>
   <rect width="${W}" height="5" fill="#4f46e5" fill-opacity="0.3"/>
-  <text x="72" y="80" font-family="${FONT}" font-size="28" fill="white" fill-opacity="0.15" text-anchor="middle" font-weight="700">hG</text>
+  <text x="72" y="80" font-family="${FONT}" font-size="16" fill="white" fill-opacity="0.15" text-anchor="middle" font-weight="700">hyper<tspan font-style="italic">GLANCE</tspan></text>
 </svg>`;
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
   }
@@ -425,7 +425,7 @@ export function renderHGIdleSlot(session: { title: string; colorHex: string; sta
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   <rect width="${SW}" height="${SH}" fill="#111"/>
   <rect width="${SW}" height="4" fill="#4f46e5" fill-opacity="0.2"/>
-  <text x="12" y="60" font-family="${FONT}" font-size="28" fill="white" fill-opacity="0.1" font-weight="700">hG</text>
+  <text x="12" y="60" font-family="${FONT}" font-size="16" fill="white" fill-opacity="0.1" font-weight="700">hyper<tspan font-style="italic">GLANCE</tspan></text>
 </svg>`;
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
   }
