@@ -1,5 +1,5 @@
 {
-  "appId": "app.dayglance",
+  "appId": "com.dayglance.app",
   "productName": "dayGLANCE",
   "directories": {
     "buildResources": "public",
@@ -11,6 +11,10 @@
   ],
   "mac": {
     "category": "public.app-category.productivity",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "electron/entitlements.mac.plist",
+    "entitlementsInherit": "electron/entitlements.mac.plist",
     "target": [
       { "target": "dmg", "arch": ["x64", "arm64"] },
       { "target": "zip", "arch": ["x64", "arm64"] }
