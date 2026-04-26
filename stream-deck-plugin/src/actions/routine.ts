@@ -8,7 +8,7 @@ import {
 import { DayGlanceState, onState, send, MSG_DAY_ROUTINE_COMPLETE } from "../client";
 import { renderKey, truncate } from "../render";
 
-@action({ UUID: "app.dayglance.streamdeck.routine" })
+@action({ UUID: "com.dayglance.streamdeck.routine" })
 export class RoutineAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

@@ -11,7 +11,7 @@ import { renderKey, truncate } from "../render";
 
 type Settings = { habitId: string | null };
 
-@action({ UUID: "app.dayglance.streamdeck.habit" })
+@action({ UUID: "com.dayglance.streamdeck.habit" })
 export class HabitAction extends SingletonAction<Settings> {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

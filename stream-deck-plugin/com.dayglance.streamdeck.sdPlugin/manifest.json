@@ -29,7 +29,7 @@
     "Actions": [
         {
             "Name": "Agenda",
-            "UUID": "app.dayglance.streamdeck.agenda",
+            "UUID": "com.dayglance.streamdeck.agenda",
             "Icon": "imgs/actions/agenda/icon",
             "Tooltip": "Scrollable agenda strip — shows current and next events.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -42,7 +42,6 @@
                 "TriggerDescription": {
                     "Rotate": "Cycle through tasks / overview",
                     "Push": "Complete current task",
-                    "TouchTap": "Tap left/right to cycle views",
                     "LongTouch": "Complete current task"
                 }
             },
@@ -51,15 +50,11 @@
                     "Image": "imgs/actions/agenda/key",
                     "TitleAlignment": "bottom"
                 }
-            ],
-            "KeyDescription": {
-                "Short": "Cycle to next task",
-                "Long": "Complete current task"
-            }
+            ]
         },
         {
             "Name": "Focus / Pomodoro",
-            "UUID": "app.dayglance.streamdeck.focus",
+            "UUID": "com.dayglance.streamdeck.focus",
             "Icon": "imgs/actions/focus/icon",
             "Tooltip": "Start, stop, or adjust the Pomodoro timer. Stays in sync with dayGLANCE focus mode.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -72,7 +67,6 @@
                 "TriggerDescription": {
                     "Rotate": "Adjust session duration",
                     "Push": "Start / stop session",
-                    "TouchTap": "Switch work / break phase",
                     "LongTouch": "Start / stop session"
                 }
             },
@@ -84,7 +78,7 @@
         },
         {
             "Name": "hyperGLANCE",
-            "UUID": "app.dayglance.streamdeck.hyperglance",
+            "UUID": "com.dayglance.streamdeck.hyperglance",
             "Icon": "imgs/actions/hyperglance/icon",
             "Tooltip": "Control hyperGLANCE project focus sessions. Shows scheduled sessions in idle; pulsing when a session is ready to start.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -97,7 +91,6 @@
                 "TriggerDescription": {
                     "Rotate": "Adjust session duration",
                     "Push": "Start session / skip phase",
-                    "TouchTap": "Start session / skip phase",
                     "LongTouch": "Stop session"
                 }
             },
@@ -109,7 +102,7 @@
         },
         {
             "Name": "Up Next",
-            "UUID": "app.dayglance.streamdeck.up-next",
+            "UUID": "com.dayglance.streamdeck.up-next",
             "Icon": "imgs/actions/up-next/icon",
             "Tooltip": "Shows the current or next scheduled task with a live countdown. Auto-advances when the time passes.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -133,7 +126,7 @@
         },
         {
             "Name": "Goal Progress",
-            "UUID": "app.dayglance.streamdeck.goal-progress",
+            "UUID": "com.dayglance.streamdeck.goal-progress",
             "Icon": "imgs/actions/goal-progress/icon",
             "Tooltip": "Cycles through active goals with arc progress indicator.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -144,8 +137,7 @@
             "Encoder": {
                 "layout": "layouts/goal-progress.json",
                 "TriggerDescription": {
-                    "Rotate": "Cycle through goals / overview",
-                    "TouchTap": "Tap left/right to cycle goals"
+                    "Rotate": "Cycle through goals / overview"
                 }
             },
             "States": [
@@ -157,7 +149,7 @@
         },
         {
             "Name": "Project Progress",
-            "UUID": "app.dayglance.streamdeck.project-progress",
+            "UUID": "com.dayglance.streamdeck.project-progress",
             "Icon": "imgs/actions/project-progress/icon",
             "Tooltip": "Cycles through active projects with arc progress indicator. Goal-linked projects first, then standalone.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -168,8 +160,7 @@
             "Encoder": {
                 "layout": "layouts/project-progress.json",
                 "TriggerDescription": {
-                    "Rotate": "Cycle through projects / overview",
-                    "TouchTap": "Tap left/right to cycle projects"
+                    "Rotate": "Cycle through projects / overview"
                 }
             },
             "States": [
@@ -181,7 +172,7 @@
         },
         {
             "Name": "Quick Glance",
-            "UUID": "app.dayglance.streamdeck.quick-glance",
+            "UUID": "com.dayglance.streamdeck.quick-glance",
             "Icon": "imgs/actions/quick-glance/icon",
             "Tooltip": "Auto-rotates between date, next event, and focus timer every 10s. Pin to lock on a mode.",
             "PropertyInspectorPath": "ui/property-inspector.html",
@@ -194,7 +185,6 @@
                 "TriggerDescription": {
                     "Rotate": "Cycle display mode",
                     "Push": "Pin / unpin current mode",
-                    "TouchTap": "Tap left/right to cycle modes",
                     "LongTouch": "Pin / unpin current mode"
                 }
             },
@@ -207,7 +197,7 @@
         },
         {
             "Name": "Habit",
-            "UUID": "app.dayglance.streamdeck.habit",
+            "UUID": "com.dayglance.streamdeck.habit",
             "Icon": "imgs/actions/habit/icon",
             "Tooltip": "Shows today's count for a selected habit. Press to log one increment.",
             "PropertyInspectorPath": "ui/habit-pi.html",
@@ -223,7 +213,7 @@
         },
         {
             "Name": "Next Routine",
-            "UUID": "app.dayglance.streamdeck.routine",
+            "UUID": "com.dayglance.streamdeck.routine",
             "Icon": "imgs/actions/next-routine/icon",
             "Tooltip": "Shows the next uncompleted routine for today. Press to mark it done.",
             "PropertyInspectorPath": "ui/property-inspector.html",

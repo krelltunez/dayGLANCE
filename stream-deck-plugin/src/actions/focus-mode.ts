@@ -21,7 +21,7 @@ import { renderKey, renderStrip, renderFocusSlot, renderFocusSlotKey, renderFocu
 //   setup  — panel open, settings screen showing (active=true, setup=true)
 //   session — timer running or paused (active=true, setup=false)
 
-@action({ UUID: "app.dayglance.streamdeck.focus" })
+@action({ UUID: "com.dayglance.streamdeck.focus" })
 export class FocusAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

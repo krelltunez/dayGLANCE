@@ -16,7 +16,7 @@ type DisplayMode = "date" | "next-event" | "focus";
 const MODES: DisplayMode[] = ["date", "next-event", "focus"];
 const AUTO_ROTATE_MS = 10_000;
 
-@action({ UUID: "app.dayglance.streamdeck.quick-glance" })
+@action({ UUID: "com.dayglance.streamdeck.quick-glance" })
 export class QuickGlanceAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

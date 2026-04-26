@@ -11,7 +11,7 @@ import {
 import { DayGlanceState, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
 import { renderKey, renderStrip, stripTags, truncate } from "../render";
 
-@action({ UUID: "app.dayglance.streamdeck.next-task" })
+@action({ UUID: "com.dayglance.streamdeck.next-task" })
 export class NextTaskAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

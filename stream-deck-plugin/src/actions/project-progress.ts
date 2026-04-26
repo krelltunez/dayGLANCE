@@ -12,7 +12,7 @@ import {
 import { DayGlanceState, onState } from "../client";
 import { renderProjectKey, renderProjectStrip } from "../render";
 
-@action({ UUID: "app.dayglance.streamdeck.project-progress" })
+@action({ UUID: "com.dayglance.streamdeck.project-progress" })
 export class ProjectProgressAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

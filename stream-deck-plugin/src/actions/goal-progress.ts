@@ -12,7 +12,7 @@ import {
 import { DayGlanceState, onState } from "../client";
 import { renderGoalKey, renderGoalStrip } from "../render";
 
-@action({ UUID: "app.dayglance.streamdeck.goal-progress" })
+@action({ UUID: "com.dayglance.streamdeck.goal-progress" })
 export class GoalProgressAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

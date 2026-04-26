@@ -27,7 +27,7 @@ import {
 //   session  — timer running/paused (hg.active, !setup, !completed)
 //   complete — post-session stats screen (hg.active.completed=true)
 
-@action({ UUID: "app.dayglance.streamdeck.hyperglance" })
+@action({ UUID: "com.dayglance.streamdeck.hyperglance" })
 export class HyperGlanceAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;

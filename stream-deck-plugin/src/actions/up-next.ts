@@ -10,7 +10,7 @@ import {
 import { DayGlanceState, Task, onState, send, MSG_DAY_TASK_COMPLETE } from "../client";
 import { renderKey, renderStrip, stripTags, truncate } from "../render";
 
-@action({ UUID: "app.dayglance.streamdeck.up-next" })
+@action({ UUID: "com.dayglance.streamdeck.up-next" })
 export class UpNextAction extends SingletonAction {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;
