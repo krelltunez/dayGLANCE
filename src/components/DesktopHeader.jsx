@@ -93,13 +93,9 @@ const DesktopHeader = () => {
           })()}
         </div>
 
-        {/* Center: Logo + Date Nav */}
-        {/* Narrow (<1080px): shift up + stack Today below. Wide: original 3-col grid centered. */}
-        <div className="absolute inset-0 flex items-start pt-2 min-[1080px]:items-center min-[1080px]:pt-0 justify-center max-[950px]:pr-36 pointer-events-none">
-        <div className="flex flex-col items-center gap-1 min-[1080px]:grid min-[1080px]:grid-cols-[1fr_auto_1fr] min-[1080px]:gap-0 pointer-events-auto">
-          <div className="hidden min-[1080px]:flex justify-end pr-2">
-            <img src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'} alt="dayGLANCE" className="h-10" />
-          </div>
+        {/* Center: Date Nav */}
+        <div className="absolute inset-0 flex items-center justify-center max-[950px]:pr-36 pointer-events-none">
+        <div className="pointer-events-auto">
           <div className="flex items-center gap-1 relative">
             <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
               <ChevronLeft size={20} className={textSecondary} />
@@ -119,6 +115,12 @@ const DesktopHeader = () => {
             </button>
             <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Next day">
               <ChevronRight size={20} className={textSecondary} />
+            </button>
+            <button
+              onClick={goToToday}
+              className={`ml-1 px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
+            >
+              Today
             </button>
             {/* Month View Popup */}
             {showMonthView && (
@@ -166,14 +168,6 @@ const DesktopHeader = () => {
                 </div>
               </div>
             )}
-          </div>
-          <div className="flex min-[1080px]:justify-start min-[1080px]:pl-5">
-            <button
-              onClick={goToToday}
-              className={`px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
-            >
-              Today
-            </button>
           </div>
         </div>
         </div>
