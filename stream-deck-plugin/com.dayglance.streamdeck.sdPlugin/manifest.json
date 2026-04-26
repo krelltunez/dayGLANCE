@@ -8,9 +8,9 @@
     "CategoryIcon": "imgs/plugin/category-icon",
     "Icon": "imgs/plugin/icon",
     "CodePath": "bin/plugin.js",
-    "SDKVersion": 2,
+    "SDKVersion": 3,
     "Software": {
-        "MinimumVersion": "6.5"
+        "MinimumVersion": "6.9"
     },
     "OS": [
         {
