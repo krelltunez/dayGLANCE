@@ -68,7 +68,7 @@ import useCloudSync from './hooks/useCloudSync.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
-import { getGlanceHGInstances } from './hooks/useHyperGlance.js';
+import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -622,6 +622,7 @@ const DayPlanner = () => {
   const [hgCycleCount, setHgCycleCount] = React.useState(0);
   const [hgExitConfirm, setHgExitConfirm] = React.useState(false);
   const [hgShowSettings, setHgShowSettings] = React.useState(true);
+  const [hgCompleted, setHgCompleted] = React.useState(false);
   const hgTimerRef = React.useRef(null);
 
   const {
@@ -3069,6 +3070,7 @@ const DayPlanner = () => {
     setHgCycleCount(0);
     setHgExitConfirm(false);
     setHgShowSettings(true);
+    setHgCompleted(false);
     setShowHyperGlanceMode(true);
     // Request fullscreen (web fallback; Android uses native immersive mode below)
     try { document.documentElement.requestFullscreen?.(); } catch (e) {}
@@ -3118,6 +3120,33 @@ const DayPlanner = () => {
     setHgExitConfirm(false);
     // Don't close the modal here — the modal handles showing the summary screen
     // and the user dismisses it via the "Done" button (exitHyperGlanceMode).
+  };
+
+  const startHyperGlanceTimer = () => {
+    setHgShowSettings(false);
+    setHgTimerSeconds(hgWorkMinutes * 60);
+    setHgTimerRunning(true);
+    setHgTimerPhase('work');
+    setHgCycleCount(0);
+  };
+
+  const skipHyperGlancePhase = () => {
+    setHgCycleCount(prev => {
+      const newCycle = hgTimerPhase === 'work' ? prev + 1 : prev;
+      if (hgTimerPhase === 'work') {
+        if (newCycle % 4 === 0) {
+          setHgTimerPhase('longBreak');
+          setHgTimerSeconds(hgLongBreakMinutes * 60);
+        } else {
+          setHgTimerPhase('shortBreak');
+          setHgTimerSeconds(hgBreakMinutes * 60);
+        }
+      } else {
+        setHgTimerPhase('work');
+        setHgTimerSeconds(hgWorkMinutes * 60);
+      }
+      return newCycle;
+    });
   };
 
   const openHGAdjust = (projectId, date) => {
@@ -6118,7 +6147,8 @@ const DayPlanner = () => {
         const hg = project.hyperglance;
         const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '';
         const duration = hg.scheduledDurationOverrides?.[instance.date] || hg.scheduledDuration || 60;
-        return { id: project.id, title: project.title, colorHex: hg.color || '#4f46e5', startTime: effectiveTime, duration, isOverdue: instance.isOverdue, date: instance.date, isHGSession: true };
+        const reachable = isHGSessionReachable(instance, hg, currentTime);
+        return { id: project.id, title: project.title, colorHex: hg.color || '#4f46e5', startTime: effectiveTime, duration, isOverdue: instance.isOverdue, date: instance.date, reachable, isHGSession: true };
       })
       .filter(s => !s.isOverdue && s.date === todayStr && s.startTime);
   }, [goalsProjectsEnabled, projects, currentTime]);
@@ -6152,6 +6182,27 @@ const DayPlanner = () => {
     setFocusBreakMinutes,
     focusCompleteTask,
     toggleComplete,
+    // HyperGLANCE
+    showHyperGlanceMode,
+    hyperGlanceProjectId,
+    hyperGlanceSessionDate,
+    hgTimerSeconds,
+    hgTimerRunning,
+    hgTimerPhase,
+    hgWorkMinutes,
+    hgBreakMinutes,
+    hgLongBreakMinutes,
+    hgCycleCount,
+    hgShowSettings,
+    hgCompleted,
+    startHyperGlanceTimer,
+    skipHyperGlancePhase,
+    setHgWorkMinutes,
+    setHgBreakMinutes,
+    setHgLongBreakMinutes,
+    enterHyperGlanceMode,
+    exitHyperGlanceMode,
+    setHgCompleted,
     activeHabits,
     getTodayHabitCount,
     habitsEnabled,
@@ -7524,7 +7575,9 @@ const DayPlanner = () => {
     hgCycleCount, setHgCycleCount,
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,
+    hgCompleted, setHgCompleted,
     enterHyperGlanceMode, exitHyperGlanceMode, completeHyperGlanceSession,
+    startHyperGlanceTimer, skipHyperGlancePhase,
     hgContextMenu, setHgContextMenu,
     hgAdjustModal, setHgAdjustModal,
     hgAdjustTimeField, setHgAdjustTimeField,

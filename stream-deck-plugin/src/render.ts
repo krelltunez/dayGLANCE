@@ -390,6 +390,60 @@ export function renderProjectStrip(opts: ProjectOpts): string {
   return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
 
+// ── HyperGLANCE idle-slot rendering ──────────────────────────────────────
+
+/** 144×144 key for a scheduled (idle) hyperGLANCE session slot.
+ *  pulseOn adds a glowing border to indicate the session is reachable. */
+export function renderHGIdleKey(session: { title: string; colorHex: string; startTime: string } | null, pulseOn = false): string {
+  if (!session) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <rect width="${W}" height="${H}" fill="#111"/>
+  <rect width="${W}" height="5" fill="#4f46e5" fill-opacity="0.3"/>
+  <text x="72" y="80" font-family="${FONT}" font-size="28" fill="white" fill-opacity="0.15" text-anchor="middle" font-weight="700">hG</text>
+</svg>`;
+    return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+  }
+  const { title, colorHex, startTime } = session;
+  const label = truncate(title, 11);
+  const border = pulseOn ? `<rect x="2" y="2" width="140" height="140" rx="3" fill="none" stroke="${escape(colorHex)}" stroke-width="2.5" stroke-opacity="0.9"/>` : "";
+  const textOpacity = pulseOn ? "1" : "0.75";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <rect width="${W}" height="${H}" fill="#111"/>
+  <rect width="${W}" height="5" fill="${escape(colorHex)}"/>
+  ${border}
+  <text x="72" y="22" font-family="${FONT}" font-size="11" fill="${escape(colorHex)}" fill-opacity="0.7" text-anchor="middle" letter-spacing="0.5">hyper<tspan font-style="italic">GLANCE</tspan></text>
+  <text x="72" y="74" font-family="${FONT}" font-size="22" fill="white" fill-opacity="${textOpacity}" text-anchor="middle" font-weight="700">${escape(label)}</text>
+  <text x="72" y="103" font-family="${FONT}" font-size="18" fill="white" fill-opacity="0.5" text-anchor="middle">${escape(startTime)}</text>
+</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+
+/** 200×100 touch-strip slot for a scheduled (idle) hyperGLANCE session.
+ *  pulseOn brightens the text to indicate the session is reachable. */
+export function renderHGIdleSlot(session: { title: string; colorHex: string; startTime: string } | null, pulseOn = false): string {
+  if (!session) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
+  <rect width="${SW}" height="${SH}" fill="#111"/>
+  <rect width="${SW}" height="4" fill="#4f46e5" fill-opacity="0.2"/>
+  <text x="12" y="60" font-family="${FONT}" font-size="28" fill="white" fill-opacity="0.1" font-weight="700">hG</text>
+</svg>`;
+    return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+  }
+  const { title, colorHex, startTime } = session;
+  const label = truncate(title, 14);
+  const titleOpacity = pulseOn ? "1" : "0.8";
+  const timeOpacity = pulseOn ? "0.8" : "0.5";
+  const accentOpacity = pulseOn ? "1" : "0.6";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
+  <rect width="${SW}" height="${SH}" fill="#111"/>
+  <rect width="${SW}" height="4" fill="${escape(colorHex)}" fill-opacity="${accentOpacity}"/>
+  <rect width="4" height="${SH}" fill="${escape(colorHex)}" fill-opacity="${accentOpacity}"/>
+  <text x="16" y="46" font-family="${FONT}" font-size="22" fill="white" fill-opacity="${titleOpacity}" font-weight="700">${escape(label)}</text>
+  <text x="16" y="74" font-family="${FONT}" font-size="18" fill="white" fill-opacity="${timeOpacity}">${escape(startTime)}</text>
+</svg>`;
+  return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
+}
+
 /** Strips #hashtags and [[wikilinks]] from a task title. */
 export function stripTags(s: string): string {
   return s

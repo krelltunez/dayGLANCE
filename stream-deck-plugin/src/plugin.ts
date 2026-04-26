@@ -8,6 +8,7 @@ import { HabitAction } from "./actions/habit";
 import { UpNextAction } from "./actions/up-next";
 import { QuickGlanceAction } from "./actions/quick-glance";
 import { RoutineAction } from "./actions/routine";
+import { HyperGlanceAction } from "./actions/hyperglance";
 
 streamDeck.actions.registerAction(new AgendaAction());
 streamDeck.actions.registerAction(new FocusAction());
@@ -17,5 +18,6 @@ streamDeck.actions.registerAction(new HabitAction());
 streamDeck.actions.registerAction(new UpNextAction());
 streamDeck.actions.registerAction(new QuickGlanceAction());
 streamDeck.actions.registerAction(new RoutineAction());
+streamDeck.actions.registerAction(new HyperGlanceAction());
 
 streamDeck.connect();

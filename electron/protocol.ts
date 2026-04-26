@@ -15,6 +15,13 @@ export const MSG_DAY_FOCUS_STOP           = 'day:focus:stop'           as const;
 export const MSG_DAY_FOCUS_SKIP           = 'day:focus:skip'           as const;
 export const MSG_DAY_FOCUS_SET_DURATION   = 'day:focus:set-duration'   as const;
 export const MSG_DAY_FOCUS_DISMISS_STATS  = 'day:focus:dismiss-stats'  as const;
+export const MSG_DAY_HG_START             = 'day:hg:start'             as const;
+export const MSG_DAY_HG_TIMER_START       = 'day:hg:timer-start'       as const;
+export const MSG_DAY_HG_STOP              = 'day:hg:stop'              as const;
+export const MSG_DAY_HG_SKIP              = 'day:hg:skip'              as const;
+export const MSG_DAY_HG_SET_DURATION      = 'day:hg:set-duration'      as const;
+export const MSG_DAY_HG_COMPLETE          = 'day:hg:complete'          as const;
+export const MSG_DAY_HG_TASK_COMPLETE     = 'day:hg:task-complete'     as const;
 export const MSG_DAY_TASK_COMPLETE    = 'day:task:complete'    as const;
 export const MSG_DAY_HABIT_INCREMENT  = 'day:habit:increment'  as const;
 export const MSG_DAY_ROUTINE_COMPLETE = 'day:routine:complete' as const;
@@ -45,6 +52,36 @@ export type FocusState = {
   longBreakMinutes: number;
   cycleCount: number;      // total completed work cycles since session start
   nextFocusTask: { id: string; title: string } | null;  // first incomplete task in the focus block
+};
+
+export type HGScheduledSession = {
+  projectId: string;
+  title: string;
+  colorHex: string;
+  startTime: string;
+  reachable: boolean;
+  date: string;
+};
+
+export type HGActiveSession = {
+  projectId: string;
+  title: string;
+  colorHex: string;
+  setup: boolean;
+  completed: boolean;
+  phase: string;           // 'work' | 'shortBreak' | 'longBreak'
+  secondsRemaining: number;
+  running: boolean;
+  cycleCount: number;
+  workMinutes: number;
+  breakMinutes: number;
+  longBreakMinutes: number;
+  nextTask: { id: string; title: string } | null;
+};
+
+export type HGState = {
+  scheduled: HGScheduledSession[];  // today's sessions (up to 4), sorted by time
+  active: HGActiveSession | null;
 };
 
 export type Habit = {
@@ -88,6 +125,7 @@ export type DayGlanceState = {
   scheduledTasks: Task[];
   today: { total: number; completed: number; date: string };
   focus: FocusState;
+  hg: HGState;
   habits: Habit[];
   nextRoutine: Routine | null;
   use24Hour: boolean;
@@ -109,6 +147,13 @@ export type InboundCommand =
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SKIP }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_FOCUS_DISMISS_STATS }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_START; projectId: string; date: string }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_TIMER_START }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_STOP }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_SKIP }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_COMPLETE }
+  | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HG_TASK_COMPLETE; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_TASK_COMPLETE; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_HABIT_INCREMENT; id: string }
   | { v: typeof PROTOCOL_VERSION; type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };
