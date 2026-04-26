@@ -1,5 +1,6 @@
 {
     "Name": "dayGLANCE",
+    "UUID": "com.dayglance.streamdeck",
     "Version": "0.0.1",
     "Author": "dayGLANCE",
     "Description": "Agenda, focus, tasks, and goals on your Stream Deck+.",
