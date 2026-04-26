@@ -320,6 +320,11 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
   });
   useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
+  const [weekTimelineStartHour, setWeekTimelineStartHour] = useState(() => {
+    const saved = localStorage.getItem('day-planner-week-timeline-start-hour');
+    return saved !== null ? JSON.parse(saved) : 0;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-week-timeline-start-hour', JSON.stringify(weekTimelineStartHour)); }, [weekTimelineStartHour]);
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
   const [weatherEnabled, setWeatherEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-weather-enabled');
@@ -7117,6 +7122,7 @@ const DayPlanner = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    weekTimelineStartHour, setWeekTimelineStartHour,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
     collapsedSettings, setCollapsedSettings,

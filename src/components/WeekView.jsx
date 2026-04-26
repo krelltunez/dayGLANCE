@@ -104,7 +104,7 @@ const fmtDur = (min) => {
   return min < 60 ? `${min}m` : m ? `${h}h${m}m` : `${h}h`;
 };
 
-const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, activePopoverTaskId, isToday }) => {
+const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, startHour, onTaskClick, activePopoverTaskId, isToday }) => {
   const {
     darkMode, borderClass, cardBg,
     getTasksForDate, getTaskCalendarStyle,
@@ -126,10 +126,11 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
   // Compute the snapped drop time for the cursor Y relative to this
   // week-view column. Week columns always span 00:00..24:00, so startMinute
   // is 0 and the max is clamped to 23:45 (minus the dragged task's length).
+  const startMinute = startHour * 60;
   const timeFromEvent = (e, { taskDuration = 0 } = {}) => columnTimeFromEvent(e, colRef.current, {
-    startMinute: 0,
+    startMinute,
     hourHeight,
-    minMinute: 0,
+    minMinute: startMinute,
     maxMinute: 24 * 60,
     taskDuration,
   });
@@ -170,7 +171,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
 
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const nowY = isToday ? nowMinutes * hourHeight / 60 : 0;
+  const nowY = isToday ? (nowMinutes - startMinute) * hourHeight / 60 : 0;
   const altRow = darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50';
 
   const hgBars = goalsProjectsEnabled
@@ -201,29 +202,32 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
       onDrop={onColDrop}
       className={`flex-1 flex flex-col min-w-0 relative ${colIdx > 0 ? `border-l ${borderClass}` : ''} ${isToday ? (darkMode ? 'bg-blue-900/10' : 'bg-blue-50/40') : ''}`}
     >
-      {/* Hour rows */}
-      {Array.from({ length: 24 }, (_, hour) => (
-        <div
-          key={hour}
-          className="relative"
-          style={{ height: `${hourHeight}px` }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            const rect = e.currentTarget.getBoundingClientRect();
-            const fraction = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-            const minutes = hour * 60 + Math.round(fraction * 60 / 15) * 15;
-            setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr, timeMinutes: minutes });
-          }}
-        >
-          <div className={`border-b h-full ${borderClass} ${hour % 2 === 1 ? altRow : ''}`} />
+      {/* Hour rows — only render visible hours */}
+      {Array.from({ length: 24 - startHour }, (_, i) => {
+        const hour = startHour + i;
+        return (
           <div
-            className="absolute left-0 right-0 pointer-events-none"
-            style={{ top: `${hourHeight / 2}px` }}
+            key={hour}
+            className="relative"
+            style={{ height: `${hourHeight}px` }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const rect = e.currentTarget.getBoundingClientRect();
+              const fraction = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+              const minutes = hour * 60 + Math.round(fraction * 60 / 15) * 15;
+              setTimelineContextMenu({ x: e.clientX, y: e.clientY, dateStr, timeMinutes: minutes });
+            }}
           >
-            <div className={`border-b border-dashed ${borderClass} opacity-30`} />
+            <div className={`border-b h-full ${borderClass} ${hour % 2 === 1 ? altRow : ''}`} />
+            <div
+              className="absolute left-0 right-0 pointer-events-none"
+              style={{ top: `${hourHeight / 2}px` }}
+            >
+              <div className={`border-b border-dashed ${borderClass} opacity-30`} />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Now line — today's column only */}
       {isToday && (
@@ -242,7 +246,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
       {getFrameInstancesForDate(date).map(frame => {
         const fStartMin = timeToMinutes(frame.start);
         const fEndMin = timeToMinutes(frame.end);
-        const top = fStartMin * hourHeight / 60;
+        const top = (fStartMin - startMinute) * hourHeight / 60;
         const height = Math.max((fEndMin - fStartMin) * hourHeight / 60, 4);
         const bg = frameColorBg(frame.color, darkMode);
         const border = frameColorBorder(frame.color, darkMode);
@@ -266,7 +270,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
             const [bh, bm] = effectiveTime.split(':').map(Number);
             const startMin = bh * 60 + bm;
             const dur = bar.isCompleted ? 15 : (hg.scheduledDurationOverrides?.[bar.date] || hg.scheduledDuration || 60);
-            const barTop = startMin * hourHeight / 60;
+            const barTop = (startMin - startMinute) * hourHeight / 60;
             const barH = Math.max(dur * hourHeight / 60, 18);
             const barColor = hg.color || '#4f46e5';
             const IconComp = Icons[hg.icon] || Icons.Sparkles;
@@ -307,7 +311,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           const duration = task.duration || 0;
           const rawH = duration * hourHeight / 60;
           const chipH = Math.max(22, rawH);
-          const chipTop = taskStart * hourHeight / 60;
+          const chipTop = (taskStart - startMinute) * hourHeight / 60;
           const { left, right, width } = weekColConflictPos(task, colTasks, timeToMinutes);
 
           const isImported = task.imported;
@@ -418,10 +422,10 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
           const items = [];
 
           assignments.filter(({ r, col }) => col < 2 && !hiddenCol1.has(r.id)).forEach(({ r, col }) => {
-            const rawTop = timeToMinutes(r.startTime) * hourHeight / 60;
+            const rawTop = (timeToMinutes(r.startTime) - startMinute) * hourHeight / 60;
             const h = Math.max(22, r.duration * hourHeight / 60);
             // Clamp top so the chip never straddles the next hour line
-            const nextHourPx = (Math.floor(timeToMinutes(r.startTime) / 60) + 1) * hourHeight;
+            const nextHourPx = (Math.floor(timeToMinutes(r.startTime) / 60) + 1 - startHour) * hourHeight;
             const top = Math.min(rawTop, nextHourPx - h);
             const hasVisiblePartner = assignments.some(({ r: pr, col: pc }) =>
               pc === (1 - col) && !hiddenCol1.has(pr.id) && rangesOverlap(r, pr)
@@ -453,7 +457,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
             items.push(
               <div key={`overflow-${i}`}
                 className="absolute pointer-events-auto flex items-center justify-center cursor-pointer"
-                style={{ top: `${Math.min(sp.s * hourHeight / 60, (Math.floor(sp.s / 60) + 1) * hourHeight - Math.max(22, (sp.e - sp.s) * hourHeight / 60))}px`, height: `${Math.max(22, (sp.e - sp.s) * hourHeight / 60)}px`, left: 'calc(50% + 1px)', right: '1px', zIndex: 6 }}
+                style={{ top: `${Math.min((sp.s - startMinute) * hourHeight / 60, (Math.floor(sp.s / 60) + 1 - startHour) * hourHeight - Math.max(22, (sp.e - sp.s) * hourHeight / 60))}px`, height: `${Math.max(22, (sp.e - sp.s) * hourHeight / 60)}px`, left: 'calc(50% + 1px)', right: '1px', zIndex: 6 }}
                 onClick={(e) => { e.stopPropagation(); setOverflowPopover({ routines: sp.routines, rect: e.currentTarget.getBoundingClientRect() }); }}>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${darkMode ? 'bg-teal-700/60 text-teal-200' : 'bg-teal-500/60 text-white'}`}>
                   +{sp.routines.length}
@@ -469,7 +473,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, onTaskClick, active
       {/* Drag preview bar — shows target day + time during an active drag */}
       {isDraggingOverThisCol && dragPreviewTime && (() => {
         const dragMin = timeToMinutes(dragPreviewTime);
-        const topPx = dragMin * hourHeight / 60;
+        const topPx = (dragMin - startMinute) * hourHeight / 60;
         return (
           <div
             className="absolute left-0 right-0 pointer-events-none z-30"
@@ -525,9 +529,14 @@ const WeekView = () => {
     cardBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
     getTasksForDate,
+    weekTimelineStartHour,
   } = useDayPlannerCtx();
 
-  const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef);
+  const [showAllHours, setShowAllHours] = useState(false);
+  const startHour = showAllHours ? 0 : weekTimelineStartHour;
+  const visibleHours = 24 - startHour;
+
+  const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef, visibleHours);
   const [popoverTask, setPopoverTask] = useState(null);
   const [popoverAnchor, setPopoverAnchor] = useState(null);
 
@@ -565,27 +574,38 @@ const WeekView = () => {
     <div className="flex" style={{ height: '100%' }}>
       {/* Hour-label gutter */}
       <div
-        className={`flex-shrink-0 border-r ${borderClass} flex flex-col`}
+        className={`flex-shrink-0 border-r ${borderClass} flex flex-col relative`}
         style={{ width: WEEK_GUTTER_W }}
       >
-        {Array.from({ length: 24 }, (_, hour) => (
-          <div
-            key={hour}
-            className="relative flex-shrink-0"
-            style={{ height: `${hourHeight}px` }}
+        {weekTimelineStartHour > 0 && (
+          <button
+            onClick={() => setShowAllHours(v => !v)}
+            className={`absolute top-1 left-0 right-0 z-10 text-[9px] text-center leading-none px-1 transition-colors ${showAllHours ? 'text-blue-500' : textSecondary} hover:text-blue-500`}
           >
-            {hour % 3 === 0 && (
-              <span
-                className={`absolute top-0.5 right-2 text-[10px] leading-none ${textSecondary} select-none`}
-              >
-                {use24HourClock
-                  ? `${String(hour).padStart(2, '0')}:00`
-                  : hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`
-                }
-              </span>
-            )}
-          </div>
-        ))}
+            {showAllHours ? 'trim' : `▲ ${use24HourClock ? `${String(weekTimelineStartHour).padStart(2,'0')}:00` : weekTimelineStartHour < 12 ? `${weekTimelineStartHour}am` : '12pm'}`}
+          </button>
+        )}
+        {Array.from({ length: visibleHours }, (_, i) => {
+          const hour = startHour + i;
+          return (
+            <div
+              key={hour}
+              className="relative flex-shrink-0"
+              style={{ height: `${hourHeight}px` }}
+            >
+              {hour % 3 === 0 && (
+                <span
+                  className={`absolute top-0.5 right-2 text-[10px] leading-none ${textSecondary} select-none`}
+                >
+                  {use24HourClock
+                    ? `${String(hour).padStart(2, '0')}:00`
+                    : hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`
+                  }
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Day columns */}
@@ -598,6 +618,7 @@ const WeekView = () => {
             dateStr={dateStr}
             colIdx={colIdx}
             hourHeight={hourHeight}
+            startHour={startHour}
             onTaskClick={handleTaskClick}
             activePopoverTaskId={popoverTask?.id}
             isToday={dateStr === todayStr}

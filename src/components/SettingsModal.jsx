@@ -20,6 +20,7 @@ const SettingsModal = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    weekTimelineStartHour, setWeekTimelineStartHour,
     soundEnabled, setSoundEnabled,
     setOnboardingProgress,
     isMobile, isTablet,
@@ -231,6 +232,24 @@ const SettingsModal = () => {
                           >
                             24-hour
                           </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Week timeline start</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[0, 4, 5, 6, 7].map(h => (
+                            <button
+                              key={h}
+                              onClick={() => setWeekTimelineStartHour(h)}
+                              className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                                weekTimelineStartHour === h
+                                  ? 'bg-blue-600 text-white'
+                                  : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                              }`}
+                            >
+                              {h === 0 ? '12am' : `${h}am`}
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <div>
