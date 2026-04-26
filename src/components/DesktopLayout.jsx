@@ -423,8 +423,15 @@ const DesktopLayout = () => {
   } = useFeaturesCtx();
 
 
+  const isElectronMac = window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
+  const titlebarH = isElectronMac ? 28 : 0;
+
   return (
       <>
+      {/* macOS traffic-light drag region — sits above the header so content clears the buttons */}
+      {isElectronMac && (
+        <div style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0 }} />
+      )}
       {/* Desktop & Tablet Layout */}
       {!isTablet && <DesktopHeader />}
 
@@ -617,7 +624,7 @@ const DesktopLayout = () => {
       )}
 
       {/* Content area: side panel + calendar */}
-      <div className="flex" style={{ height: isTablet ? 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' : 'calc(100vh - 80px - env(safe-area-inset-top, 0px))' }}>
+      <div className="flex" style={{ height: isTablet ? 'calc(100vh - 56px - env(safe-area-inset-top, 0px))' : `calc(100vh - ${80 + titlebarH}px - env(safe-area-inset-top, 0px))` }}>
 
         <div className="contents">
 

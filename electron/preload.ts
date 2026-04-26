@@ -1,7 +1,8 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, process } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
+  platform: process.platform,
 
   // Renderer pushes app state to connected WebSocket clients (e.g. Stream Deck plugin)
   pushState: (state: unknown) => ipcRenderer.send('ws:push-state', state),
