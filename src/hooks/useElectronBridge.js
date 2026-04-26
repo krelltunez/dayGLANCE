@@ -15,6 +15,13 @@ import {
   MSG_DAY_HABIT_INCREMENT,
   MSG_DAY_ROUTINE_COMPLETE,
   MSG_DAY_FOCUS_DISMISS_STATS,
+  MSG_DAY_HG_START,
+  MSG_DAY_HG_TIMER_START,
+  MSG_DAY_HG_STOP,
+  MSG_DAY_HG_SKIP,
+  MSG_DAY_HG_SET_DURATION,
+  MSG_DAY_HG_COMPLETE,
+  MSG_DAY_HG_TASK_COMPLETE,
 } from '../../electron/protocol';
 
 const timeToMinutes = (time) => {
@@ -72,6 +79,27 @@ export default function useElectronBridge({
   setFocusLongBreakMinutes,
   focusCompleteTask,
   toggleComplete,
+  // HyperGLANCE
+  showHyperGlanceMode,
+  hyperGlanceProjectId,
+  hyperGlanceSessionDate,
+  hgTimerSeconds,
+  hgTimerRunning,
+  hgTimerPhase,
+  hgWorkMinutes,
+  hgBreakMinutes,
+  hgLongBreakMinutes,
+  hgCycleCount,
+  hgShowSettings,
+  hgCompleted,
+  startHyperGlanceTimer,
+  skipHyperGlancePhase,
+  setHgWorkMinutes,
+  setHgBreakMinutes,
+  setHgLongBreakMinutes,
+  enterHyperGlanceMode,
+  exitHyperGlanceMode,
+  setHgCompleted,
   // Habits
   activeHabits,
   getTodayHabitCount,
@@ -98,6 +126,14 @@ export default function useElectronBridge({
   const setFocusWorkMinutesRef = useRef(setFocusWorkMinutes);
   const setFocusBreakMinutesRef = useRef(setFocusBreakMinutes);
   const setFocusLongBreakMinutesRef = useRef(setFocusLongBreakMinutes);
+  const startHyperGlanceTimerRef = useRef(startHyperGlanceTimer);
+  const skipHyperGlancePhaseRef = useRef(skipHyperGlancePhase);
+  const enterHyperGlanceModeRef = useRef(enterHyperGlanceMode);
+  const exitHyperGlanceModeRef = useRef(exitHyperGlanceMode);
+  const setHgWorkMinutesRef = useRef(setHgWorkMinutes);
+  const setHgBreakMinutesRef = useRef(setHgBreakMinutes);
+  const setHgLongBreakMinutesRef = useRef(setHgLongBreakMinutes);
+  const setHgCompletedRef = useRef(setHgCompleted);
   skipFocusPhaseRef.current = skipFocusPhase;
   dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
@@ -107,6 +143,14 @@ export default function useElectronBridge({
   setFocusWorkMinutesRef.current = setFocusWorkMinutes;
   setFocusBreakMinutesRef.current = setFocusBreakMinutes;
   setFocusLongBreakMinutesRef.current = setFocusLongBreakMinutes;
+  startHyperGlanceTimerRef.current = startHyperGlanceTimer;
+  skipHyperGlancePhaseRef.current = skipHyperGlancePhase;
+  enterHyperGlanceModeRef.current = enterHyperGlanceMode;
+  exitHyperGlanceModeRef.current = exitHyperGlanceMode;
+  setHgWorkMinutesRef.current = setHgWorkMinutes;
+  setHgBreakMinutesRef.current = setHgBreakMinutes;
+  setHgLongBreakMinutesRef.current = setHgLongBreakMinutes;
+  setHgCompletedRef.current = setHgCompleted;
 
   // Subscribe to commands from WebSocket clients once on mount.
   useEffect(() => {
@@ -142,6 +186,30 @@ export default function useElectronBridge({
           break;
         case MSG_DAY_ROUTINE_COMPLETE:
           if (cmd.id) toggleRoutineCompletionRef.current?.(cmd.id);
+          break;
+        case MSG_DAY_HG_START:
+          if (cmd.projectId && cmd.date) enterHyperGlanceModeRef.current?.(cmd.projectId, cmd.date);
+          break;
+        case MSG_DAY_HG_TIMER_START:
+          startHyperGlanceTimerRef.current?.();
+          break;
+        case MSG_DAY_HG_STOP:
+          exitHyperGlanceModeRef.current?.();
+          break;
+        case MSG_DAY_HG_SKIP:
+          skipHyperGlancePhaseRef.current?.();
+          break;
+        case MSG_DAY_HG_SET_DURATION:
+          if (cmd.workMinutes !== undefined) setHgWorkMinutesRef.current?.(Math.max(1, Math.min(120, cmd.workMinutes)));
+          if (cmd.breakMinutes !== undefined) setHgBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.breakMinutes)));
+          if (cmd.longBreakMinutes !== undefined) setHgLongBreakMinutesRef.current?.(Math.max(1, Math.min(60, cmd.longBreakMinutes)));
+          break;
+        case MSG_DAY_HG_COMPLETE:
+          setHgCompletedRef.current?.(true);
+          exitHyperGlanceModeRef.current?.();
+          break;
+        case MSG_DAY_HG_TASK_COMPLETE:
+          if (cmd.id) toggleCompleteRef.current?.(cmd.id);
           break;
       }
     });
@@ -287,12 +355,45 @@ export default function useElectronBridge({
       use24Hour: !!use24HourClock,
       goals: goalsPayload,
       projects: projectsPayload,
+      hg: {
+        scheduled: (todayHGSessions || []).slice(0, 4).map(s => ({
+          projectId: s.id,
+          title: s.title,
+          colorHex: s.colorHex,
+          startTime: s.startTime,
+          reachable: !!s.reachable,
+          date: s.date,
+        })),
+        active: showHyperGlanceMode ? {
+          projectId: hyperGlanceProjectId || '',
+          title: (() => { const p = (projects || []).find(p => p.id === hyperGlanceProjectId); return p?.title || ''; })(),
+          colorHex: (() => { const p = (projects || []).find(p => p.id === hyperGlanceProjectId); return p?.hyperglance?.color || '#4f46e5'; })(),
+          setup: !!hgShowSettings,
+          completed: !!hgCompleted,
+          phase: hgTimerPhase || 'work',
+          secondsRemaining: hgTimerSeconds || 0,
+          running: !!hgTimerRunning,
+          cycleCount: hgCycleCount || 0,
+          workMinutes: hgWorkMinutes || 25,
+          breakMinutes: hgBreakMinutes || 5,
+          longBreakMinutes: hgLongBreakMinutes || 15,
+          nextTask: (() => {
+            if (!hyperGlanceProjectId) return null;
+            const allT = [...(tasks || []), ...(unscheduledTasks || [])];
+            const t = allT.find(t => t.projectId === hyperGlanceProjectId && !t.archived && !t.completed);
+            return t ? { id: t.id, title: t.title } : null;
+          })(),
+        } : null,
+      },
     });
   }, [
     todayAgenda, currentTime, tasks, expandedRecurringTasks, todayHGSessions, focusModeAvailable,
     showFocusMode, focusShowSettings, focusShowStats, focusPhase, focusTimerSeconds, focusTimerRunning,
     focusCycleCount, focusWorkMinutes, focusBreakMinutes, focusLongBreakMinutes,
     focusBlockTasks, focusCompletedTasks,
+    showHyperGlanceMode, hyperGlanceProjectId, hyperGlanceSessionDate,
+    hgTimerSeconds, hgTimerRunning, hgTimerPhase, hgCycleCount,
+    hgWorkMinutes, hgBreakMinutes, hgLongBreakMinutes, hgShowSettings, hgCompleted,
     activeHabits, getTodayHabitCount, habitsEnabled,
     todayRoutines, routineCompletions, use24HourClock,
     goals, projects, unscheduledTasks, goalsProjectsEnabled,
