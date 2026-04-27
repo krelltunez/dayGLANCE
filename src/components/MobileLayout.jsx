@@ -661,7 +661,7 @@ const MobileLayout = () => {
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-center px-4 py-3">
                   <img
-                    src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                    src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
                     alt="dayGLANCE"
                     className="h-8"
                   />
