@@ -7,16 +7,24 @@
 // App Store / notarized signing. It satisfies macOS code signature requirements
 // without being trusted by Gatekeeper's CA chain.
 
-const { execFileSync } = require('child_process');
+const { execSync } = require('child_process');
 const path = require('path');
 
 exports.default = async function codesignAdHoc({ appOutDir, packager }) {
   if (packager.platform.name !== 'mac') return;
   const appPath = path.join(appOutDir, `${packager.appInfo.productName}.app`);
-  // Strip extended attributes (resource forks, Finder metadata) — codesign
-  // refuses to sign a bundle that contains them.
+
+  // codesign --deep traverses nested executables (Electron framework, helpers)
+  // and fails with "detritus not allowed" if any file has a resource fork or
+  // extended attribute. Two sources of detritus need clearing:
+  //   1. ._* files — resource fork proxy files macOS creates on non-HFS+ copies
+  //   2. Extended attributes on regular files (com.apple.FinderInfo etc.)
+  // xattr -cr alone misses ._* files; find + delete handles them explicitly.
+  // xargs -0 on non-symlinks avoids xattr choking on symlinks inside frameworks.
+  console.log(`[codesign-ad-hoc] Removing ._* resource fork files from ${appPath}`);
+  execSync(`find ${JSON.stringify(appPath)} -name "._*" -delete`);
   console.log(`[codesign-ad-hoc] Clearing xattrs on ${appPath}`);
-  execFileSync('xattr', ['-cr', appPath], { stdio: 'inherit' });
+  execSync(`find ${JSON.stringify(appPath)} -not -type l -print0 | xargs -0 xattr -c`);
   console.log(`[codesign-ad-hoc] Signing ${appPath}`);
-  execFileSync('codesign', ['--sign', '-', '--deep', '--force', appPath], { stdio: 'inherit' });
+  execSync(`codesign --sign - --deep --force ${JSON.stringify(appPath)}`);
 };
