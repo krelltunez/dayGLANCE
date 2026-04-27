@@ -100,6 +100,7 @@ import FrameNudgeCard from './components/FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './components/DeadlinePickerPopover.jsx';
 import DatePicker from './components/DatePicker.jsx';
 import DesktopLayout from './components/DesktopLayout.jsx';
+import GlanceSidebar from './components/GlanceSidebar.jsx';
 import MobileLayout from './components/MobileLayout.jsx';
 import ShortcutHelpModal from './components/ShortcutHelpModal.jsx';
 import FocusModeModal from './components/FocusModeModal.jsx';
@@ -168,6 +169,8 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 // Smart Schedule panel — shows AI scheduling UI
 // FrameNudgeCard extracted to src/components/FrameNudgeCard.jsx
 
+
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
   const _visibleDays = useVisibleDays();
@@ -7514,6 +7517,23 @@ const DayPlanner = () => {
     applyReminderPreset, updateCategoryReminder,
     snoozeReminder, dismissReminder, dismissAllReminders,
   };
+
+  // Tray popup mode: render only the Glance panel inside a scrollable frameless window.
+  // The full provider tree initialises normally (reads from the same localStorage),
+  // but we skip all desktop chrome, modals, and drag handlers.
+  if (isTrayMode) {
+    return (
+      <DayPlannerContext.Provider value={ctx}>
+      <SyncContext.Provider value={syncCtx}>
+      <FeaturesContext.Provider value={featuresCtx}>
+        <div className={`${bgClass} overflow-y-auto`} style={{ height: '100vh', padding: '12px' }}>
+          <GlanceSidebar variant="desktop" />
+        </div>
+      </FeaturesContext.Provider>
+      </SyncContext.Provider>
+      </DayPlannerContext.Provider>
+    );
+  }
 
   return (
     <DayPlannerContext.Provider value={ctx}>

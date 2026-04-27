@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
+  platform: process.platform,
 
   // Renderer pushes app state to connected WebSocket clients (e.g. Stream Deck plugin)
   pushState: (state: unknown) => ipcRenderer.send('ws:push-state', state),
@@ -12,4 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ws:command', handler);
     return () => ipcRenderer.removeListener('ws:command', handler);
   },
+
+  // Sets the macOS dock badge to the number of incomplete tasks today.
+  setBadgeCount: (count: number) => ipcRenderer.send('set-badge-count', count),
 });

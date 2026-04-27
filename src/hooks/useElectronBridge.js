@@ -153,6 +153,9 @@ export default function useElectronBridge({
       .filter(r => r.startTime && !r.isAllDay && !routineCompletions?.[r.id])
       .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0] ?? null;
 
+    // Dock badge: incomplete scheduled tasks today
+    window.electronAPI.setBadgeCount?.(todayTasks.filter(t => !t.completed).length);
+
     window.electronAPI.pushState({
       v: PROTOCOL_VERSION,
       type: MSG_DAY_STATE,
