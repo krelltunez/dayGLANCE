@@ -31,7 +31,7 @@ const MobileWelcomeModal = () => {
         {mobileWelcomeStep === 0 && (
           <div className="text-center">
             <img
-              src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+              src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
               alt="dayGLANCE"
               className="h-24 mx-auto mb-6"
             />
@@ -130,7 +130,7 @@ const MobileWelcomeModal = () => {
         {mobileWelcomeStep === 6 && (
           <div className="text-center">
             <img
-              src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+              src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
               alt="dayGLANCE"
               className="h-20 mx-auto mb-6"
             />

@@ -37,7 +37,7 @@ const RoutinesDashboardModal = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img
-                  src={darkMode ? '/dayglance-dark.svg' : '/dayglance-light.svg'}
+                  src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
                   alt="dayGLANCE"
                   className="h-[4.5rem]"
                 />
