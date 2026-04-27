@@ -337,8 +337,9 @@ const CalendarHeader = () => {
   })()}
 </div>
 
-{/* Now bar - current running task */}
+{/* Now bar - current running task (suppressed on Electron Mac where it shows in the title bar) */}
 {(() => {
+  if (window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin') return null;
   const todayStr = dateToString(new Date());
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
