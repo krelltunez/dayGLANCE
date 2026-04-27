@@ -13,6 +13,10 @@ const path = require('path');
 exports.default = async function codesignAdHoc({ appOutDir, packager }) {
   if (packager.platform.name !== 'mac') return;
   const appPath = path.join(appOutDir, `${packager.appInfo.productName}.app`);
+  // Strip extended attributes (resource forks, Finder metadata) — codesign
+  // refuses to sign a bundle that contains them.
+  console.log(`[codesign-ad-hoc] Clearing xattrs on ${appPath}`);
+  execFileSync('xattr', ['-cr', appPath], { stdio: 'inherit' });
   console.log(`[codesign-ad-hoc] Signing ${appPath}`);
   execFileSync('codesign', ['--sign', '-', '--deep', '--force', appPath], { stdio: 'inherit' });
 };
