@@ -52,7 +52,8 @@ export default function useTimelineScroll({
     }
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
-      setTimeout(() => scrollToCurrentHour(false), 100);
+      const timerId = setTimeout(() => scrollToCurrentHour(false), 100);
+      return () => clearTimeout(timerId);
     }
   }, [selectedDate, isMobile, mobileActiveTab, scrollToCurrentHour, viewMode]);
 

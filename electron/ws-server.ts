@@ -11,7 +11,12 @@ export function createWsServer(win: BrowserWindow): WebSocketServer {
 
   wss.on('connection', (ws) => {
     clients.add(ws);
-    if (lastState) ws.send(lastState);
+    if (lastState) {
+      ws.send(lastState);
+    } else {
+      // Renderer hasn't pushed yet — ask it to send current state now.
+      win.webContents.send('ws:request-state');
+    }
 
     ws.on('message', (raw) => {
       try {

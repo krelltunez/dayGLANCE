@@ -9,7 +9,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@elgato/streamdeck": "^1.0.0",
+    "@elgato/streamdeck": "^2.1.0",
     "ws": "^8.0.0"
   },
   "devDependencies": {

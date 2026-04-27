@@ -425,6 +425,9 @@ const DesktopLayout = () => {
   const isElectronMac = window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
   const titlebarH = isElectronMac ? 28 : 0;
 
+  const isElectronMac = window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
+  const titlebarH = isElectronMac ? 28 : 0;
+
   return (
       <>
       {/* macOS traffic-light drag region — doubles as the NOW bar when a task is running */}

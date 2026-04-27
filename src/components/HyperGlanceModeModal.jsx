@@ -36,6 +36,7 @@ const HyperGlanceModeModal = () => {
     hgCycleCount, setHgCycleCount,
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,
+    hgCompleted, setHgCompleted,
     exitHyperGlanceMode,
     completeHyperGlanceSession,
     aiConfig,
@@ -47,7 +48,6 @@ const HyperGlanceModeModal = () => {
   const [sessionElapsed, setSessionElapsed] = useState(0);
   // Set of expanded task IDs (allows multiple open at once)
   const [expandedTaskIds, setExpandedTaskIds] = useState(new Set());
-  const [hgCompleted, setHgCompleted] = useState(false);
 
   const project = projects.find(p => p.id === hyperGlanceProjectId);
   const hg = project?.hyperglance;

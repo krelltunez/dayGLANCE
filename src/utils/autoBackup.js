@@ -3,6 +3,27 @@ import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } fro
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
 const toBase64 = (str) => btoa(unescape(encodeURIComponent(str)));
 
+// Routes a WebDAV request through the Electron main process on desktop (no CORS
+// restrictions) or through the server-side proxy on web. Translates X-WebDAV-Auth
+// to Authorization when going direct, mirroring what the proxy does.
+const webdavProxyFetch = async (method, url, headers, body = null) => {
+  if (typeof window !== 'undefined' && window.electronAPI?.isElectron) {
+    const fwd = {};
+    for (const [k, v] of Object.entries(headers)) {
+      fwd[k === 'X-WebDAV-Auth' ? 'Authorization' : k] = v;
+    }
+    if (body != null && !fwd['Content-Type']) fwd['Content-Type'] = 'application/octet-stream';
+    const r = await window.electronAPI.proxyFetch(method, url, fwd, body);
+    if (!r) throw new Error('Electron network bridge unavailable');
+    return { status: r.status, ok: r.ok, statusText: r.statusText, text: async () => r.body, json: async () => JSON.parse(r.body) };
+  }
+  return fetch(`/api/webdav-proxy/?url=${url}`, {
+    method,
+    headers,
+    ...(body != null ? { body } : {}),
+  });
+};
+
 // Auto-backup IndexedDB wrapper
 export const autoBackupDB = {
   _db: null,
@@ -106,18 +127,14 @@ export const autoBackupProviders = {
       const body = JSON.stringify(payload);
 
       const doUpload = () =>
-        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-          method: 'PUT',
-          headers: { ...authHeaders, 'Content-Type': 'application/json' },
-          body
-        });
+        webdavProxyFetch('PUT', fileUrl, { ...authHeaders, 'Content-Type': 'application/json' }, body);
 
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
         // Create /dayglance/ then /dayglance/backups/
         const parentDir = `${config.nextcloudUrl.replace(/\/+$/, '')}/remote.php/dav/files/${encodeURIComponent(config.username)}/dayglance/`;
-        await fetch(`/api/webdav-proxy/?url=${parentDir}`, { method: 'MKCOL', headers: authHeaders });
-        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        await webdavProxyFetch('MKCOL', parentDir, authHeaders);
+        await webdavProxyFetch('MKCOL', dirUrl, authHeaders);
         res = await doUpload();
       }
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
@@ -126,10 +143,7 @@ export const autoBackupProviders = {
     async listBackups(config) {
       const dirUrl = this._getBackupDirUrl(config);
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-        method: 'PROPFIND',
-        headers: { ...authHeaders, 'Depth': '1' }
-      });
+      const res = await webdavProxyFetch('PROPFIND', dirUrl, { ...authHeaders, 'Depth': '1' });
       if (res.status === 404) return [];
       if (!res.ok) throw new Error(`List failed: ${res.status}`);
       const xml = await res.text();
@@ -150,10 +164,7 @@ export const autoBackupProviders = {
     async downloadBackup(config, filename) {
       const fileUrl = this._getBackupDirUrl(config) + filename;
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-        method: 'GET',
-        headers: authHeaders
-      });
+      const res = await webdavProxyFetch('GET', fileUrl, authHeaders);
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
       const parsed = await res.json();
       if (isEncryptedEnvelope(parsed)) return decryptData(parsed);
@@ -162,19 +173,13 @@ export const autoBackupProviders = {
     async deleteBackup(config, filename) {
       const fileUrl = this._getBackupDirUrl(config) + filename;
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-        method: 'DELETE',
-        headers: authHeaders
-      });
+      const res = await webdavProxyFetch('DELETE', fileUrl, authHeaders);
       if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
     },
     async testConnection(config) {
       const dirUrl = this._getBackupDirUrl(config);
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-        method: 'PROPFIND',
-        headers: { ...authHeaders, 'Depth': '0' }
-      });
+      const res = await webdavProxyFetch('PROPFIND', dirUrl, { ...authHeaders, 'Depth': '0' });
       if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
       return { success: false, error: `Unexpected response: ${res.status}` };
@@ -203,14 +208,10 @@ export const autoBackupProviders = {
       const payload = hasEncryptionReady() ? await encryptData(data) : data;
       const body = JSON.stringify(payload);
       const doUpload = () =>
-        fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-          method: 'PUT',
-          headers: { ...authHeaders, 'Content-Type': 'application/json' },
-          body
-        });
+        webdavProxyFetch('PUT', fileUrl, { ...authHeaders, 'Content-Type': 'application/json' }, body);
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
-        await fetch(`/api/webdav-proxy/?url=${dirUrl}`, { method: 'MKCOL', headers: authHeaders });
+        await webdavProxyFetch('MKCOL', dirUrl, authHeaders);
         res = await doUpload();
       }
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
@@ -219,10 +220,7 @@ export const autoBackupProviders = {
     async listBackups(config) {
       const dirUrl = this._getBackupDirUrl(config);
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-        method: 'PROPFIND',
-        headers: { ...authHeaders, 'Depth': '1' }
-      });
+      const res = await webdavProxyFetch('PROPFIND', dirUrl, { ...authHeaders, 'Depth': '1' });
       if (res.status === 404) return [];
       if (!res.ok) throw new Error(`List failed: ${res.status}`);
       const xml = await res.text();
@@ -243,10 +241,7 @@ export const autoBackupProviders = {
     async downloadBackup(config, filename) {
       const fileUrl = this._getBackupDirUrl(config) + filename;
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-        method: 'GET',
-        headers: authHeaders
-      });
+      const res = await webdavProxyFetch('GET', fileUrl, authHeaders);
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
       const parsed = await res.json();
       if (isEncryptedEnvelope(parsed)) return decryptData(parsed);
@@ -255,19 +250,13 @@ export const autoBackupProviders = {
     async deleteBackup(config, filename) {
       const fileUrl = this._getBackupDirUrl(config) + filename;
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${fileUrl}`, {
-        method: 'DELETE',
-        headers: authHeaders
-      });
+      const res = await webdavProxyFetch('DELETE', fileUrl, authHeaders);
       if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
     },
     async testConnection(config) {
       const dirUrl = this._getBackupDirUrl(config);
       const authHeaders = this._getAuthHeaders(config);
-      const res = await fetch(`/api/webdav-proxy/?url=${dirUrl}`, {
-        method: 'PROPFIND',
-        headers: { ...authHeaders, 'Depth': '0' }
-      });
+      const res = await webdavProxyFetch('PROPFIND', dirUrl, { ...authHeaders, 'Depth': '0' });
       if (res.status === 200 || res.status === 207 || res.status === 404) return { success: true };
       if (res.status === 401) return { success: false, error: 'Invalid credentials.' };
       return { success: false, error: `Unexpected response: ${res.status}` };

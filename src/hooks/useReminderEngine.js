@@ -86,15 +86,15 @@ export default function useReminderEngine({
           localStorage.setItem('day-planner-weekly-review-fired', isoWeek);
           playUISound('reminder');
           if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            try {
-              navigator.serviceWorker?.ready.then(reg => {
-                reg.showNotification('dayGLANCE', {
-                  body: 'Time for your weekly review!',
-                  icon: '/icon-192.png',
-                  tag: 'weekly-review',
+            if (window.electronAPI?.isElectron) {
+              try { new Notification('dayGLANCE', { body: 'Time for your weekly review!' }); } catch {}
+            } else {
+              try {
+                navigator.serviceWorker?.ready.then(reg => {
+                  reg.showNotification('dayGLANCE', { body: 'Time for your weekly review!', icon: '/icon-192.png', tag: 'weekly-review' });
                 });
-              });
-            } catch {}
+              } catch {}
+            }
           }
         }
       } else {
@@ -148,11 +148,17 @@ export default function useReminderEngine({
         playUISound('reminder');
         // Android: AlarmManager already fires showTaskNotification (with Snooze) — don't duplicate.
         if (!isNativeAndroid() && reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          navigator.serviceWorker?.ready.then(reg => {
-            for (const { title, body, tag } of hgFires) {
-              try { reg.showNotification(title, { body, icon: '/icon-192.png', tag }); } catch {}
+          if (window.electronAPI?.isElectron) {
+            for (const { title, body } of hgFires) {
+              try { new Notification(title, { body }); } catch {}
             }
-          });
+          } else {
+            navigator.serviceWorker?.ready.then(reg => {
+              for (const { title, body, tag } of hgFires) {
+                try { reg.showNotification(title, { body, icon: '/icon-192.png', tag }); } catch {}
+              }
+            });
+          }
         }
       }
     }
@@ -214,17 +220,23 @@ export default function useReminderEngine({
         setActiveReminders(prev => [...prev.filter(r => !newTaskIds.has(r.taskId)), ...newReminders]);
       }
       if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        navigator.serviceWorker?.ready.then(reg => {
+        if (window.electronAPI?.isElectron) {
           for (const r of newReminders) {
-            try {
-              reg.showNotification(r.taskTitle, {
-                body: r.message,
-                icon: '/icon-192.png',
-                tag: String(r.taskId), // Use taskId so subsequent reminders replace prior ones
-              });
-            } catch {}
+            try { new Notification(r.taskTitle, { body: r.message }); } catch {}
           }
-        });
+        } else {
+          navigator.serviceWorker?.ready.then(reg => {
+            for (const r of newReminders) {
+              try {
+                reg.showNotification(r.taskTitle, {
+                  body: r.message,
+                  icon: '/icon-192.png',
+                  tag: String(r.taskId),
+                });
+              } catch {}
+            }
+          });
+        }
       }
       // Native Android: show rich notifications with Snooze / Mark Complete action buttons
       if (isNativeAndroid()) {

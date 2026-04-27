@@ -11,7 +11,7 @@ import { renderKey, truncate } from "../render";
 
 type Settings = { habitId: string | null };
 
-@action({ UUID: "app.dayglance.streamdeck.habit" })
+@action({ UUID: "com.dayglance.streamdeck.habit" })
 export class HabitAction extends SingletonAction<Settings> {
   private unsubscribe: (() => void) | null = null;
   private lastState: DayGlanceState | null = null;
@@ -76,7 +76,9 @@ export class HabitAction extends SingletonAction<Settings> {
       return;
     }
     const valueStr = `${habit.count}/${habit.target}`;
-    const sub = truncate(habit.name, 14);
+    const exceeded = habit.type === 'limit' && habit.count > habit.target;
+    const indicator = habit.complete ? "✓ " : exceeded ? "✗ " : "";
+    const sub = indicator + truncate(habit.name, exceeded || habit.complete ? 12 : 14);
     const barColor = habit.complete ? "#22c55e" : habit.ringColorHex;
     await action.setImage(renderKey({ value: valueStr, sub, barColor }));
     await action.setTitle("");

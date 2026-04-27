@@ -3,8 +3,18 @@ import {
   PROTOCOL_VERSION,
   MSG_DAY_STATE,
   MSG_DAY_FOCUS_START,
+  MSG_DAY_FOCUS_TIMER_START,
   MSG_DAY_FOCUS_STOP,
   MSG_DAY_FOCUS_SKIP,
+  MSG_DAY_FOCUS_SET_DURATION,
+  MSG_DAY_FOCUS_DISMISS_STATS,
+  MSG_DAY_HG_START,
+  MSG_DAY_HG_TIMER_START,
+  MSG_DAY_HG_STOP,
+  MSG_DAY_HG_SKIP,
+  MSG_DAY_HG_SET_DURATION,
+  MSG_DAY_HG_COMPLETE,
+  MSG_DAY_HG_TASK_COMPLETE,
   MSG_DAY_TASK_COMPLETE,
   MSG_DAY_HABIT_INCREMENT,
   MSG_DAY_ROUTINE_COMPLETE,
@@ -13,14 +23,30 @@ import {
 } from "../../electron/protocol";
 
 // Re-export everything action files need — keeps their imports pointing at ../client only
-export type { DayGlanceState, Task, FocusState } from "../../electron/protocol";
-export { MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP, MSG_DAY_TASK_COMPLETE, MSG_DAY_HABIT_INCREMENT, MSG_DAY_ROUTINE_COMPLETE } from "../../electron/protocol";
+export type { DayGlanceState, Task, FocusState, HGState, HGScheduledSession, HGActiveSession } from "../../electron/protocol";
+export {
+  MSG_DAY_FOCUS_START, MSG_DAY_FOCUS_TIMER_START, MSG_DAY_FOCUS_STOP, MSG_DAY_FOCUS_SKIP,
+  MSG_DAY_FOCUS_SET_DURATION, MSG_DAY_FOCUS_DISMISS_STATS,
+  MSG_DAY_HG_START, MSG_DAY_HG_TIMER_START, MSG_DAY_HG_STOP, MSG_DAY_HG_SKIP,
+  MSG_DAY_HG_SET_DURATION, MSG_DAY_HG_COMPLETE, MSG_DAY_HG_TASK_COMPLETE,
+  MSG_DAY_TASK_COMPLETE, MSG_DAY_HABIT_INCREMENT, MSG_DAY_ROUTINE_COMPLETE,
+} from "../../electron/protocol";
 
 // CommandPayload is the caller-facing API — send() stamps v internally
 type CommandPayload =
   | { type: typeof MSG_DAY_FOCUS_START }
+  | { type: typeof MSG_DAY_FOCUS_TIMER_START }
   | { type: typeof MSG_DAY_FOCUS_STOP }
   | { type: typeof MSG_DAY_FOCUS_SKIP }
+  | { type: typeof MSG_DAY_FOCUS_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
+  | { type: typeof MSG_DAY_FOCUS_DISMISS_STATS }
+  | { type: typeof MSG_DAY_HG_START; projectId: string; date: string }
+  | { type: typeof MSG_DAY_HG_TIMER_START }
+  | { type: typeof MSG_DAY_HG_STOP }
+  | { type: typeof MSG_DAY_HG_SKIP }
+  | { type: typeof MSG_DAY_HG_SET_DURATION; workMinutes?: number; breakMinutes?: number; longBreakMinutes?: number }
+  | { type: typeof MSG_DAY_HG_COMPLETE }
+  | { type: typeof MSG_DAY_HG_TASK_COMPLETE; id: string }
   | { type: typeof MSG_DAY_TASK_COMPLETE; id: string }
   | { type: typeof MSG_DAY_HABIT_INCREMENT; id: string }
   | { type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };

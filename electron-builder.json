@@ -1,6 +1,7 @@
 {
-  "appId": "app.dayglance",
+  "appId": "com.dayglance.app",
   "productName": "dayGLANCE",
+  "afterPack": "./scripts/codesign-ad-hoc.cjs",
   "directories": {
     "buildResources": "public",
     "output": "dist-app"
@@ -10,6 +11,7 @@
     "dist-electron/**/*"
   ],
   "mac": {
+    "identity": null,
     "category": "public.app-category.productivity",
     "target": [
       { "target": "dmg", "arch": ["x64", "arm64"] },

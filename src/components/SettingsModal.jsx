@@ -20,6 +20,7 @@ const SettingsModal = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    weekTimelineStartHour, setWeekTimelineStartHour,
     soundEnabled, setSoundEnabled,
     setOnboardingProgress,
     isMobile, isTablet,
@@ -231,6 +232,24 @@ const SettingsModal = () => {
                           >
                             24-hour
                           </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Week timeline start</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[0, 4, 5, 6, 7].map(h => (
+                            <button
+                              key={h}
+                              onClick={() => setWeekTimelineStartHour(h)}
+                              className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                                weekTimelineStartHour === h
+                                  ? 'bg-blue-600 text-white'
+                                  : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                              }`}
+                            >
+                              {h === 0 ? '12am' : `${h}am`}
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <div>
@@ -849,7 +868,7 @@ const SettingsModal = () => {
                                 <ul className={`${textSecondary} space-y-1 ml-3 list-disc mb-2`}>
                                   <li>Ollama must be running on your computer</li>
                                   <li>CORS must be enabled for this site&apos;s origin</li>
-                                  <li>Set: <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.location.origin}</code></li>
+                                  <li>Set: <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.electronAPI?.isElectron ? '*' : window.location.origin}</code></li>
                                 </ul>
                                 <a
                                   href="https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server"
