@@ -3914,6 +3914,20 @@ const DayPlanner = () => {
     reader.readAsText(pendingBackupFile);
   };
 
+  // Fetches an ICS/CalDAV URL, routing through the Vercel proxy on web or via
+  // the Electron main process on desktop (both avoid Chromium CORS restrictions).
+  const icsProxyFetch = async (url, authValue) => {
+    if (window.electronAPI?.isElectron) {
+      const headers = { Accept: 'text/calendar, text/plain, */*' };
+      if (authValue) headers['Authorization'] = authValue;
+      const r = await window.electronAPI.proxyFetch('GET', url, headers, null);
+      return { status: r.status, ok: r.ok, statusText: r.statusText, headers: { get: () => null }, text: async () => r.body };
+    }
+    const proxyHeaders = {};
+    if (authValue) proxyHeaders['X-Calendar-Auth'] = authValue;
+    return fetch(`/api/calendar-proxy/?url=${url}`, { headers: proxyHeaders });
+  };
+
   // Returns { success: boolean, count?: number, error?: string }
   const syncWithCalendar = async () => {
     // On Android, calendar events come from the native CalendarBridge (device accounts).
@@ -3924,14 +3938,10 @@ const DayPlanner = () => {
     }
 
     try {
-      // Use proxy to bypass CORS restrictions
-      // Note: URL is not encoded because nginx's $arg_url doesn't auto-decode
-      const proxyUrl = `/api/calendar-proxy/?url=${syncUrl}`;
-      const calProxyHeaders = {};
-      if (calendarUrlAuth.username && calendarUrlAuth.password) {
-        calProxyHeaders['X-Calendar-Auth'] = 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password);
-      }
-      const response = await fetch(proxyUrl, { headers: calProxyHeaders });
+      const calAuthValue = (calendarUrlAuth.username && calendarUrlAuth.password)
+        ? 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password)
+        : null;
+      const response = await icsProxyFetch(syncUrl, calAuthValue);
       if (!response.ok) throw new Error('Failed to fetch calendar');
 
       let icsContent = await response.text();
@@ -3945,7 +3955,7 @@ const DayPlanner = () => {
           const exportUrl = syncUrl.includes('?') ? `${syncUrl}&export` : `${syncUrl}?export`;
           console.log('[calendar-sync] Retrying with ?export:', exportUrl);
           try {
-            const exportResponse = await fetch(`/api/calendar-proxy/?url=${exportUrl}`, { headers: calProxyHeaders });
+            const exportResponse = await icsProxyFetch(exportUrl, calAuthValue);
             if (exportResponse.ok) {
               const exportContent = await exportResponse.text();
               if (exportContent.includes('BEGIN:VCALENDAR')) {
@@ -4008,12 +4018,10 @@ const DayPlanner = () => {
         if (!result || !result.ok) throw new Error('Failed to fetch task calendar');
         icsContent = result.body;
       } else {
-        const proxyUrl = `/api/calendar-proxy/?url=${taskCalendarUrl}`;
-        const taskProxyHeaders = {};
-        if (taskCalendarAuth.username && taskCalendarAuth.appPassword) {
-          taskProxyHeaders['X-Calendar-Auth'] = 'Basic ' + toBase64(taskCalendarAuth.username + ':' + taskCalendarAuth.appPassword);
-        }
-        const response = await fetch(proxyUrl, { headers: taskProxyHeaders });
+        const taskAuthValue = (taskCalendarAuth.username && taskCalendarAuth.appPassword)
+          ? 'Basic ' + toBase64(taskCalendarAuth.username + ':' + taskCalendarAuth.appPassword)
+          : null;
+        const response = await icsProxyFetch(taskCalendarUrl, taskAuthValue);
         if (!response.ok) throw new Error('Failed to fetch task calendar');
         icsContent = await response.text();
 
@@ -4023,7 +4031,7 @@ const DayPlanner = () => {
           const exportUrl = taskCalendarUrl.includes('?') ? `${taskCalendarUrl}&export` : `${taskCalendarUrl}?export`;
           console.log('[task-calendar-sync] Retrying with ?export:', exportUrl);
           try {
-            const exportResponse = await fetch(`/api/calendar-proxy/?url=${exportUrl}`, { headers: taskProxyHeaders });
+            const exportResponse = await icsProxyFetch(exportUrl, taskAuthValue);
             if (exportResponse.ok) {
               const exportContent = await exportResponse.text();
               if (exportContent.includes('BEGIN:VCALENDAR')) {

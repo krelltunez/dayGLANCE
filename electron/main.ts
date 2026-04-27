@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWsServer } from './ws-server.js';
@@ -41,6 +41,18 @@ function createWindow(): BrowserWindow {
 
   return win;
 }
+
+// Proxy outbound HTTP requests from the renderer so they aren't subject to
+// Chromium's CORS restrictions when the app is loaded from file://.
+ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, headers: Record<string, string>, body: string | null) => {
+  const response = await net.fetch(url, {
+    method,
+    headers,
+    ...(body != null ? { body } : {}),
+  });
+  const text = await response.text();
+  return { status: response.status, ok: response.ok, statusText: response.statusText, body: text };
+});
 
 app.whenReady().then(() => {
   const win = createWindow();

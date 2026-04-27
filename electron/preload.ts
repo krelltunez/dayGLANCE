@@ -20,4 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ws:request-state', handler);
     return () => ipcRenderer.removeListener('ws:request-state', handler);
   },
+
+  // Routes an HTTP request through the main process so the renderer can reach
+  // external servers (WebDAV, CalDAV) without hitting Chromium CORS restrictions.
+  proxyFetch: (method: string, url: string, headers: Record<string, string>, body: string | null) =>
+    ipcRenderer.invoke('proxy-fetch', method, url, headers, body),
 });

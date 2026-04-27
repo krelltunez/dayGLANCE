@@ -28,6 +28,27 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       text: async () => result.body,
     };
   }
+  if (typeof window !== 'undefined' && window.electronAPI?.isElectron) {
+    // On Electron: route through the main process (net.fetch has no CORS restrictions).
+    const headers = { ...extraHeaders };
+    if (authHeaders['X-WebDAV-Auth']) {
+      headers['Authorization'] = authHeaders['X-WebDAV-Auth'];
+    } else {
+      Object.assign(headers, authHeaders);
+    }
+    if (body !== undefined && body !== null) {
+      headers['Content-Type'] = extraHeaders['Content-Type'] || 'application/octet-stream';
+    }
+    const result = await window.electronAPI.proxyFetch(method, targetUrl, headers, body ?? null);
+    if (!result) throw new Error('Electron network bridge unavailable');
+    return {
+      status: result.status,
+      ok: result.ok,
+      statusText: result.statusText,
+      json: async () => JSON.parse(result.body),
+      text: async () => result.body,
+    };
+  }
   // On web: route through the server-side CORS proxy.
   return fetch(`/api/webdav-proxy/?url=${targetUrl}`, {
     method,
