@@ -10,6 +10,7 @@
     "dist-electron/**/*"
   ],
   "mac": {
+    "identity": null,
     "category": "public.app-category.productivity",
     "target": [
       { "target": "dmg", "arch": ["x64", "arm64"] },
