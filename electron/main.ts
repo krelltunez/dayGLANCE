@@ -129,6 +129,14 @@ ipcMain.on('set-badge-count', (_event, count: number) => {
   if (process.platform === 'darwin') app.setBadgeCount(count);
 });
 
+// Tray popup requests the main window to show and navigate to a specific location.
+ipcMain.on('tray:open-main', (_event, payload: unknown) => {
+  trayWindow?.hide();
+  mainWindow?.show();
+  mainWindow?.focus();
+  mainWindow?.webContents.send('tray:navigate', payload);
+});
+
 // Keep tray popup in sync: reload it in the background whenever state changes
 ipcMain.on('ws:push-state', (event) => {
   if (!trayWindow || trayWindow.isDestroyed()) return;

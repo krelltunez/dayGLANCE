@@ -103,13 +103,16 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
   } = useFeaturesCtx();
 
   const isDesktop = variant === 'desktop';
-  const interactionClass = isDesktop ? 'hover:opacity-80' : 'active:opacity-70';
-  const keyPrefix = isDesktop ? 'desktop' : 'tablet';
+  const isTray = variant === 'tray';
+  const interactionClass = isDesktop || isTray ? 'hover:opacity-80' : 'active:opacity-70';
+  const keyPrefix = isDesktop ? 'desktop' : isTray ? 'tray' : 'tablet';
+
+  const openMainAt = (payload) => window.electronAPI?.openMainAt(payload);
 
   return (
 <div className="space-y-4">
-  {/* Search bar + filter */}
-  <div className="flex items-center gap-2">
+  {/* Search bar + filter — hidden in tray (TrayHeader handles search/voice) */}
+  {!isTray && <div className="flex items-center gap-2">
     <button
       onClick={() => { setShowSpotlight(true); playUISound('spotlight'); }}
       className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors ${interactionClass}`}
@@ -200,7 +203,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         <Mic size={16} />
       </button>
     )}
-  </div>
+  </div>}
 
   {/* Habit rings row — pinned to top */}
   {habitsEnabled && (() => {
@@ -569,6 +572,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                       target.classList.add('ring-2', 'ring-blue-400');
                       setTimeout(() => target.classList.remove('ring-2', 'ring-blue-400'), 2000);
                     };
+                    if (isTray) { openMainAt({ action: 'goto-task', taskId: task.id, date: task.date }); return; }
                     if (el) { applyRing(); } else if (task.date) { goToDate(task.date); setTimeout(applyRing, 200); }
                   }}
                 >
@@ -851,6 +855,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               target.classList.add('ring-2', 'ring-blue-400');
               setTimeout(() => target.classList.remove('ring-2', 'ring-blue-400'), 2000);
             };
+            if (isTray) { openMainAt({ action: 'goto-task', taskId: task.id, date: task.date }); return; }
             if (el) { applyRing(); } else if (task.date) { goToDate(task.date); setTimeout(applyRing, 200); }
           }}
         >
@@ -865,7 +870,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
               {relativeLabel === 'In Progress' && focusModeAvailable && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); enterFocusMode(); }}
+                  onClick={(e) => { e.stopPropagation(); isTray ? openMainAt({ action: 'focus-mode' }) : enterFocusMode(); }}
                   className="ml-1 p-1.5 rounded text-purple-500 ${isDesktop ? 'hover:text-purple-400 hover:bg-purple-500/20' : 'active:text-purple-400 active:bg-purple-500/20'} transition-colors"
                   title="Enter Focus Mode"
                 >
@@ -1074,7 +1079,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             return (
               <button
                 key={project.id}
-                onClick={() => isFuture ? setShowGoalsDashboard(true) : enterHyperGlanceMode(project.id, instance.date)}
+                onClick={() => isTray ? openMainAt({ action: 'hyperglance', projectId: project.id, date: instance.date }) : isFuture ? setShowGoalsDashboard(true) : enterHyperGlanceMode(project.id, instance.date)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-opacity ${isDesktop ? 'hover:opacity-80' : 'active:opacity-70'} ${darkMode ? 'bg-white/5' : 'bg-stone-50'}`}
               >
                 <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
@@ -1103,10 +1108,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const handleGlanceAheadClick = () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
+      if (isTray) { openMainAt({ action: 'goto-date', date: tomorrow.toISOString() }); return; }
       goToDate(tomorrow);
-      if (firstStartTime) {
-        setTimeout(() => scrollToHour(firstStartTime), 150);
-      }
+      if (firstStartTime) setTimeout(() => scrollToHour(firstStartTime), 150);
     };
     return (
       <div

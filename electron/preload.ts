@@ -28,4 +28,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Sets the macOS dock badge to the number of incomplete tasks today.
   setBadgeCount: (count: number) => ipcRenderer.send('set-badge-count', count),
+
+  // Tray popup tells the main process to show the main window and navigate to a location.
+  openMainAt: (payload: unknown) => ipcRenderer.send('tray:open-main', payload),
+
+  // Main window listens for navigation requests forwarded from the tray popup.
+  onTrayNavigate: (callback: (payload: unknown) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+    ipcRenderer.on('tray:navigate', handler);
+    return () => ipcRenderer.removeListener('tray:navigate', handler);
+  },
 });

@@ -119,6 +119,7 @@ export default function useElectronBridge({
   projects,
   unscheduledTasks,
   goalsProjectsEnabled,
+  goToDate,
 }) {
   const [pushTrigger, setPushTrigger] = useState(0);
 
@@ -229,6 +230,22 @@ export default function useElectronBridge({
     if (!window.electronAPI?.onRequestState) return;
     return window.electronAPI.onRequestState(() => setPushTrigger(n => n + 1));
   }, []);
+
+  // Handle navigation requests forwarded from the tray popup (main window only).
+  useEffect(() => {
+    if (isTrayMode || !window.electronAPI?.onTrayNavigate) return;
+    return window.electronAPI.onTrayNavigate((payload) => {
+      if (!payload?.action) return;
+      const { action, date, projectId } = payload;
+      if (action === 'goto-task' || action === 'goto-date') {
+        if (date) goToDate(date);
+      } else if (action === 'focus-mode') {
+        enterFocusModeRef.current?.();
+      } else if (action === 'hyperglance') {
+        if (projectId && date) enterHyperGlanceModeRef.current?.(projectId, date);
+      }
+    });
+  }, [goToDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {

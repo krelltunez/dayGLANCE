@@ -101,6 +101,7 @@ import DeadlinePickerPopover from './components/DeadlinePickerPopover.jsx';
 import DatePicker from './components/DatePicker.jsx';
 import DesktopLayout from './components/DesktopLayout.jsx';
 import GlanceSidebar from './components/GlanceSidebar.jsx';
+import TrayApp from './components/TrayApp.jsx';
 import MobileLayout from './components/MobileLayout.jsx';
 import ShortcutHelpModal from './components/ShortcutHelpModal.jsx';
 import FocusModeModal from './components/FocusModeModal.jsx';
@@ -6233,6 +6234,7 @@ const DayPlanner = () => {
     projects,
     unscheduledTasks,
     goalsProjectsEnabled,
+    goToDate,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
@@ -7627,9 +7629,7 @@ const DayPlanner = () => {
       <DayPlannerContext.Provider value={ctx}>
       <SyncContext.Provider value={syncCtx}>
       <FeaturesContext.Provider value={featuresCtx}>
-        <div className={`${bgClass} overflow-y-auto`} style={{ height: '100vh', padding: '12px' }}>
-          <GlanceSidebar variant="desktop" />
-        </div>
+        <TrayApp bgClass={bgClass} darkMode={darkMode} />
       </FeaturesContext.Provider>
       </SyncContext.Provider>
       </DayPlannerContext.Provider>
