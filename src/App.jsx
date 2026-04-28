@@ -6233,6 +6233,7 @@ const DayPlanner = () => {
     goals,
     projects,
     unscheduledTasks,
+    setUnscheduledTasks,
     goalsProjectsEnabled,
     goToDate,
   });

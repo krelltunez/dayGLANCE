@@ -38,4 +38,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tray:navigate', handler);
     return () => ipcRenderer.removeListener('tray:navigate', handler);
   },
+
+  // Tray sends background mutations (e.g. toggle-complete) that run in the
+  // main window without bringing it to the foreground.
+  backgroundAction: (payload: unknown) => ipcRenderer.send('tray:background-action', payload),
+  onBackgroundAction: (callback: (payload: unknown) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+    ipcRenderer.on('tray:background-action', handler);
+    return () => ipcRenderer.removeListener('tray:background-action', handler);
+  },
 });

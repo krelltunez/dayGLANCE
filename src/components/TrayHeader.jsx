@@ -15,7 +15,7 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
       id: crypto.randomUUID(),
       title,
       duration: 30,
-      color: 'gray',
+      color: 'bg-blue-500',
       completed: false,
       isAllDay: false,
       notes: '',
@@ -23,6 +23,9 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
       priority: 0,
     }]);
     setText('');
+    // Notify the main window to re-read inbox from localStorage so it sees
+    // the new task without needing a restart.
+    window.electronAPI?.backgroundAction({ action: 'refresh-inbox' });
   };
 
   const showVoice = aiConfig?.enabled && aiConfig?.features?.voiceTaskInput && voiceCanRecord;

@@ -109,6 +109,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
 
   const openMainAt = (payload) => window.electronAPI?.openMainAt(payload);
 
+  // In tray mode, call local toggleComplete for immediate visual update AND
+  // send the action to the main window so its state stays in sync.
+  const doToggleComplete = (taskId, isDeadline = false) => {
+    toggleComplete(taskId, isDeadline);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'toggle-complete', taskId });
+  };
+
   return (
 <div className="space-y-4">
   {/* Search bar + filter — hidden in tray (TrayHeader handles search/voice) */}
@@ -548,7 +555,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 className={`flex items-center gap-2.5 py-2 px-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-white/80'}`}
               >
                 <button
-                  onClick={() => toggleComplete(task.id, task._overdueType === 'deadline')}
+                  onClick={() => doToggleComplete(task.id, task._overdueType === 'deadline')}
                   className={`w-5 h-5 rounded flex-shrink-0 border-2 ${task.completed
                     ? 'border-orange-400 bg-orange-400'
                     : darkMode ? 'border-orange-400/60 bg-white/10' : 'border-orange-400/60 bg-white'
@@ -597,7 +604,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                         <RefreshCw size={14} />
                       </span>
                       <button
-                        onClick={() => toggleComplete(task.id, false)}
+                        onClick={() => doToggleComplete(task.id, false)}
                         className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
                         title="Mark complete"
                       >
@@ -919,7 +926,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 </button>
               )}
               <button
-                onClick={(e) => { e.stopPropagation(); toggleComplete(task.id, false); }}
+                onClick={(e) => { e.stopPropagation(); doToggleComplete(task.id, false); }}
                 className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
                 title="Mark complete"
               >

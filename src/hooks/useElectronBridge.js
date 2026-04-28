@@ -118,6 +118,7 @@ export default function useElectronBridge({
   goals,
   projects,
   unscheduledTasks,
+  setUnscheduledTasks,
   goalsProjectsEnabled,
   goToDate,
 }) {
@@ -141,6 +142,7 @@ export default function useElectronBridge({
   const setHgBreakMinutesRef = useRef(setHgBreakMinutes);
   const setHgLongBreakMinutesRef = useRef(setHgLongBreakMinutes);
   const setHgCompletedRef = useRef(setHgCompleted);
+  const setUnscheduledTasksRef = useRef(setUnscheduledTasks);
   skipFocusPhaseRef.current = skipFocusPhase;
   dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
@@ -159,6 +161,7 @@ export default function useElectronBridge({
   setHgBreakMinutesRef.current = setHgBreakMinutes;
   setHgLongBreakMinutesRef.current = setHgLongBreakMinutes;
   setHgCompletedRef.current = setHgCompleted;
+  setUnscheduledTasksRef.current = setUnscheduledTasks;
 
   // Subscribe to commands from WebSocket clients once on mount.
   useEffect(() => {
@@ -246,6 +249,22 @@ export default function useElectronBridge({
       }
     });
   }, [goToDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle background mutations from the tray (no window focus change).
+  useEffect(() => {
+    if (isTrayMode || !window.electronAPI?.onBackgroundAction) return;
+    return window.electronAPI.onBackgroundAction((payload) => {
+      if (!payload?.action) return;
+      if (payload.action === 'toggle-complete') {
+        toggleCompleteRef.current?.(payload.taskId, false);
+      } else if (payload.action === 'refresh-inbox') {
+        try {
+          const fresh = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
+          setUnscheduledTasksRef.current?.(fresh);
+        } catch {}
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
