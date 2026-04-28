@@ -11,7 +11,7 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
   const commit = () => {
     const title = text.trim();
     if (!title) return;
-    setUnscheduledTasks(prev => [...prev, {
+    const newTask = {
       id: crypto.randomUUID(),
       title,
       duration: 30,
@@ -21,11 +21,12 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
       notes: '',
       subtasks: [],
       priority: 0,
-    }]);
+    };
+    setUnscheduledTasks(prev => [...prev, newTask]);
     setText('');
-    // Notify the main window to re-read inbox from localStorage so it sees
-    // the new task without needing a restart.
-    window.electronAPI?.backgroundAction({ action: 'refresh-inbox' });
+    // Send the task directly in the payload so the main window doesn't race
+    // against the tray's async localStorage write.
+    window.electronAPI?.backgroundAction({ action: 'add-inbox-task', task: newTask });
   };
 
   const showVoice = aiConfig?.enabled && aiConfig?.features?.voiceTaskInput && voiceCanRecord;

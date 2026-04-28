@@ -91,8 +91,8 @@ function createTrayWindow(): BrowserWindow {
 
 function createTray(): void {
   const iconPath = DEV
-    ? path.join(process.cwd(), 'public/icon-32x32.png')
-    : path.join(__dirname, '../dist/icon-32x32.png');
+    ? path.join(process.cwd(), 'public/icon-16x16.png')
+    : path.join(__dirname, '../dist/icon-16x16.png');
 
   const icon = nativeImage.createFromPath(iconPath);
   icon.setTemplateImage(true); // auto-adapts to light/dark menu bar (white on dark)

@@ -257,11 +257,8 @@ export default function useElectronBridge({
       if (!payload?.action) return;
       if (payload.action === 'toggle-complete') {
         toggleCompleteRef.current?.(payload.taskId, false);
-      } else if (payload.action === 'refresh-inbox') {
-        try {
-          const fresh = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
-          setUnscheduledTasksRef.current?.(fresh);
-        } catch {}
+      } else if (payload.action === 'add-inbox-task' && payload.task) {
+        setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.task]);
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -302,7 +299,7 @@ export default function useElectronBridge({
     const todayRecurring = (expandedRecurringTasks || []).filter(t => t.date === todayStr);
     // Include recurring instances in counts (stable denominator — all tasks regardless of completion/time)
     const todayTasks = [
-      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay),
+      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay && !(t.imported && !t.isTaskCalendar)),
       ...todayRecurring.filter(t => t.startTime && !t.isAllDay),
       ...hgSessions,
     ];
