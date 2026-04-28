@@ -15,6 +15,7 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localh
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let trayWindow: BrowserWindow | null = null;
+let trayNeedsReload = false;
 
 function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -68,8 +69,14 @@ function createTrayWindow(): BrowserWindow {
     win.loadFile(path.join(__dirname, '../dist/index.html'), { query: { tray: '1' } });
   }
 
-  // Hide when the user clicks outside the popup
-  win.on('blur', () => win.hide());
+  // Hide when the user clicks outside the popup; reload if state changed while it was open
+  win.on('blur', () => {
+    win.hide();
+    if (trayNeedsReload) {
+      trayNeedsReload = false;
+      win.webContents.reload();
+    }
+  });
 
   return win;
 }
@@ -119,6 +126,16 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
 // Dock badge — macOS only
 ipcMain.on('set-badge-count', (_event, count: number) => {
   if (process.platform === 'darwin') app.setBadgeCount(count);
+});
+
+// Keep tray popup in sync: reload it in the background whenever state changes
+ipcMain.on('ws:push-state', () => {
+  if (!trayWindow) return;
+  if (trayWindow.isVisible()) {
+    trayNeedsReload = true; // reload on next blur so the open popup isn't disrupted
+  } else {
+    trayWindow.webContents.reload();
+  }
 });
 
 app.whenReady().then(() => {
