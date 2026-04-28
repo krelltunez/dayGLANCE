@@ -247,7 +247,7 @@ export default function useElectronBridge({
         if (date) goToDate(date);
         // Scroll to the task's time slot; delay so the calendar re-renders first
         // and the useTimelineScroll auto-scroll-to-current-time effect fires before us.
-        if (action === 'goto-task' && payload.startTime) {
+        if (payload.startTime) {
           setTimeout(() => scrollToHourRef.current?.(payload.startTime, true), 350);
         }
       } else if (action === 'focus-mode') {

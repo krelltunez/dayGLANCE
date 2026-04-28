@@ -1115,7 +1115,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const handleGlanceAheadClick = () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      if (isTray) { openMainAt({ action: 'goto-date', date: dateToString(tomorrow) }); return; }
+      if (isTray) { openMainAt({ action: 'goto-date', date: dateToString(tomorrow), startTime: firstStartTime }); return; }
       goToDate(tomorrow);
       if (firstStartTime) setTimeout(() => scrollToHour(firstStartTime), 150);
     };
