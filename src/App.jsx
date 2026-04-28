@@ -6226,6 +6226,7 @@ const DayPlanner = () => {
     getTodayHabitCount,
     habitsEnabled,
     incrementHabit,
+    setHabitCount,
     todayRoutines,
     routineCompletions,
     toggleRoutineCompletion,

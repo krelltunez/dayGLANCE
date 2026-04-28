@@ -108,6 +108,7 @@ export default function useElectronBridge({
   getTodayHabitCount,
   habitsEnabled,
   incrementHabit,
+  setHabitCount,
   // Routines
   todayRoutines,
   routineCompletions,
@@ -145,6 +146,7 @@ export default function useElectronBridge({
   const setHgCompletedRef = useRef(setHgCompleted);
   const setUnscheduledTasksRef = useRef(setUnscheduledTasks);
   const scrollToHourRef = useRef(scrollToHour);
+  const setHabitCountRef = useRef(setHabitCount);
   skipFocusPhaseRef.current = skipFocusPhase;
   dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
@@ -165,6 +167,7 @@ export default function useElectronBridge({
   setHgCompletedRef.current = setHgCompleted;
   setUnscheduledTasksRef.current = setUnscheduledTasks;
   scrollToHourRef.current = scrollToHour;
+  setHabitCountRef.current = setHabitCount;
 
   // Subscribe to commands from WebSocket clients once on mount.
   useEffect(() => {
@@ -267,6 +270,10 @@ export default function useElectronBridge({
         toggleCompleteRef.current?.(payload.taskId, false);
       } else if (payload.action === 'add-inbox-task' && payload.task) {
         setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.task]);
+      } else if (payload.action === 'increment-habit' && payload.habitId) {
+        incrementHabitRef.current?.(payload.habitId);
+      } else if (payload.action === 'set-habit-count' && payload.habitId != null) {
+        setHabitCountRef.current?.(payload.habitId, payload.count);
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

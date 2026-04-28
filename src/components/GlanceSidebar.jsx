@@ -109,6 +109,18 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
 
   const openMainAt = (payload) => window.electronAPI?.openMainAt(payload);
 
+  // Habit mutations from the tray must also update the main window's in-memory
+  // state, otherwise the main window's next save overwrites localStorage and the
+  // tray reloads back to the old value.
+  const doIncrementHabit = (habitId) => {
+    incrementHabit(habitId);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'increment-habit', habitId });
+  };
+  const doSetHabitCount = (habitId, count) => {
+    setHabitCount(habitId, count);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'set-habit-count', habitId, count: Math.max(0, count) });
+  };
+
   // In tray mode, call local toggleComplete for immediate visual update AND
   // send the action to the main window so its state stays in sync.
   const doToggleComplete = (taskId, isDeadline = false) => {
@@ -243,7 +255,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               habit={habit}
               count={getTodayHabitCount(habit.id)}
               darkMode={darkMode}
-              onClick={() => incrementHabit(habit.id)}
+              onClick={() => doIncrementHabit(habit.id)}
               onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
               onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
               onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
@@ -257,13 +269,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(todayHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                   <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                   <div className="flex items-center justify-center gap-3">
-                    <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
+                    <button onClick={() => { doSetHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
                     {habitEditingCountId === habit.id ? (
                     <input
                       type="number"
                       autoFocus
                       defaultValue={getTodayHabitCount(habit.id)}
-                      onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
+                      onBlur={(e) => { doSetHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
                       onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                       onClick={(e) => e.stopPropagation()}
                       className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
@@ -272,9 +284,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   ) : (
                     <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
                   )}
-                    <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
+                    <button onClick={() => { doIncrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
                   </div>
-                  <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                  <button onClick={() => { doSetHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
                 </div>
               </>
             )}
@@ -299,7 +311,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     return (
                       <button
                         key={habit.id}
-                        onClick={() => { incrementHabit(habit.id); }}
+                        onClick={() => { doIncrementHabit(habit.id); }}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'} transition-colors`}
                       >
                         <IconComp size={16} style={{ color: colorObj.ring }} />
