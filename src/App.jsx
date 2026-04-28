@@ -68,7 +68,7 @@ import useCloudSync from './hooks/useCloudSync.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
-import { getGlanceHGInstances } from './hooks/useHyperGlance.js';
+import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -323,6 +323,11 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
   });
   useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
+  const [weekTimelineStartHour, setWeekTimelineStartHour] = useState(() => {
+    const saved = localStorage.getItem('day-planner-week-timeline-start-hour');
+    return saved !== null ? JSON.parse(saved) : 0;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-week-timeline-start-hour', JSON.stringify(weekTimelineStartHour)); }, [weekTimelineStartHour]);
   const { weather, setWeather, weatherZip, setWeatherZip, weatherTempUnit, setWeatherTempUnit, fetchWeather } = useWeather();
   const [weatherEnabled, setWeatherEnabled] = useState(() => {
     const saved = localStorage.getItem('day-planner-weather-enabled');
@@ -625,6 +630,7 @@ const DayPlanner = () => {
   const [hgCycleCount, setHgCycleCount] = React.useState(0);
   const [hgExitConfirm, setHgExitConfirm] = React.useState(false);
   const [hgShowSettings, setHgShowSettings] = React.useState(true);
+  const [hgCompleted, setHgCompleted] = React.useState(false);
   const hgTimerRef = React.useRef(null);
 
   const {
@@ -2266,6 +2272,7 @@ const DayPlanner = () => {
   }, [aiConfig]);
 
   const enterFocusModeRef = useRef(null);
+  const startFocusTimerRef = useRef(null);
   const openRoutinesDashboardRef = useRef(null);
 
   const { longPressTriggeredRef, longPressTimerRef } = useMobileInteractions({
@@ -2915,6 +2922,7 @@ const DayPlanner = () => {
       setOnboardingProgress(prev => ({ ...prev, hasUsedFocusMode: true }));
     }
   };
+  startFocusTimerRef.current = startFocusTimer;
 
   const exitFocusMode = (showStats = true) => {
     setFocusTimerRunning(false);
@@ -3070,6 +3078,7 @@ const DayPlanner = () => {
     setHgCycleCount(0);
     setHgExitConfirm(false);
     setHgShowSettings(true);
+    setHgCompleted(false);
     setShowHyperGlanceMode(true);
     // Request fullscreen (web fallback; Android uses native immersive mode below)
     try { document.documentElement.requestFullscreen?.(); } catch (e) {}
@@ -3119,6 +3128,33 @@ const DayPlanner = () => {
     setHgExitConfirm(false);
     // Don't close the modal here — the modal handles showing the summary screen
     // and the user dismisses it via the "Done" button (exitHyperGlanceMode).
+  };
+
+  const startHyperGlanceTimer = () => {
+    setHgShowSettings(false);
+    setHgTimerSeconds(hgWorkMinutes * 60);
+    setHgTimerRunning(true);
+    setHgTimerPhase('work');
+    setHgCycleCount(0);
+  };
+
+  const skipHyperGlancePhase = () => {
+    setHgCycleCount(prev => {
+      const newCycle = hgTimerPhase === 'work' ? prev + 1 : prev;
+      if (hgTimerPhase === 'work') {
+        if (newCycle % 4 === 0) {
+          setHgTimerPhase('longBreak');
+          setHgTimerSeconds(hgLongBreakMinutes * 60);
+        } else {
+          setHgTimerPhase('shortBreak');
+          setHgTimerSeconds(hgBreakMinutes * 60);
+        }
+      } else {
+        setHgTimerPhase('work');
+        setHgTimerSeconds(hgWorkMinutes * 60);
+      }
+      return newCycle;
+    });
   };
 
   const openHGAdjust = (projectId, date) => {
@@ -3881,6 +3917,20 @@ const DayPlanner = () => {
     reader.readAsText(pendingBackupFile);
   };
 
+  // Fetches an ICS/CalDAV URL, routing through the Vercel proxy on web or via
+  // the Electron main process on desktop (both avoid Chromium CORS restrictions).
+  const icsProxyFetch = async (url, authValue) => {
+    if (window.electronAPI?.isElectron) {
+      const headers = { Accept: 'text/calendar, text/plain, */*' };
+      if (authValue) headers['Authorization'] = authValue;
+      const r = await window.electronAPI.proxyFetch('GET', url, headers, null);
+      return { status: r.status, ok: r.ok, statusText: r.statusText, headers: { get: () => null }, text: async () => r.body };
+    }
+    const proxyHeaders = {};
+    if (authValue) proxyHeaders['X-Calendar-Auth'] = authValue;
+    return fetch(`/api/calendar-proxy/?url=${url}`, { headers: proxyHeaders });
+  };
+
   // Returns { success: boolean, count?: number, error?: string }
   const syncWithCalendar = async () => {
     // On Android, calendar events come from the native CalendarBridge (device accounts).
@@ -3891,14 +3941,10 @@ const DayPlanner = () => {
     }
 
     try {
-      // Use proxy to bypass CORS restrictions
-      // Note: URL is not encoded because nginx's $arg_url doesn't auto-decode
-      const proxyUrl = `/api/calendar-proxy/?url=${syncUrl}`;
-      const calProxyHeaders = {};
-      if (calendarUrlAuth.username && calendarUrlAuth.password) {
-        calProxyHeaders['X-Calendar-Auth'] = 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password);
-      }
-      const response = await fetch(proxyUrl, { headers: calProxyHeaders });
+      const calAuthValue = (calendarUrlAuth.username && calendarUrlAuth.password)
+        ? 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password)
+        : null;
+      const response = await icsProxyFetch(syncUrl, calAuthValue);
       if (!response.ok) throw new Error('Failed to fetch calendar');
 
       let icsContent = await response.text();
@@ -3912,7 +3958,7 @@ const DayPlanner = () => {
           const exportUrl = syncUrl.includes('?') ? `${syncUrl}&export` : `${syncUrl}?export`;
           console.log('[calendar-sync] Retrying with ?export:', exportUrl);
           try {
-            const exportResponse = await fetch(`/api/calendar-proxy/?url=${exportUrl}`, { headers: calProxyHeaders });
+            const exportResponse = await icsProxyFetch(exportUrl, calAuthValue);
             if (exportResponse.ok) {
               const exportContent = await exportResponse.text();
               if (exportContent.includes('BEGIN:VCALENDAR')) {
@@ -3975,12 +4021,10 @@ const DayPlanner = () => {
         if (!result || !result.ok) throw new Error('Failed to fetch task calendar');
         icsContent = result.body;
       } else {
-        const proxyUrl = `/api/calendar-proxy/?url=${taskCalendarUrl}`;
-        const taskProxyHeaders = {};
-        if (taskCalendarAuth.username && taskCalendarAuth.appPassword) {
-          taskProxyHeaders['X-Calendar-Auth'] = 'Basic ' + toBase64(taskCalendarAuth.username + ':' + taskCalendarAuth.appPassword);
-        }
-        const response = await fetch(proxyUrl, { headers: taskProxyHeaders });
+        const taskAuthValue = (taskCalendarAuth.username && taskCalendarAuth.appPassword)
+          ? 'Basic ' + toBase64(taskCalendarAuth.username + ':' + taskCalendarAuth.appPassword)
+          : null;
+        const response = await icsProxyFetch(taskCalendarUrl, taskAuthValue);
         if (!response.ok) throw new Error('Failed to fetch task calendar');
         icsContent = await response.text();
 
@@ -3990,7 +4034,7 @@ const DayPlanner = () => {
           const exportUrl = taskCalendarUrl.includes('?') ? `${taskCalendarUrl}&export` : `${taskCalendarUrl}?export`;
           console.log('[task-calendar-sync] Retrying with ?export:', exportUrl);
           try {
-            const exportResponse = await fetch(`/api/calendar-proxy/?url=${exportUrl}`, { headers: taskProxyHeaders });
+            const exportResponse = await icsProxyFetch(exportUrl, taskAuthValue);
             if (exportResponse.ok) {
               const exportContent = await exportResponse.text();
               if (exportContent.includes('BEGIN:VCALENDAR')) {
@@ -5987,6 +6031,7 @@ const DayPlanner = () => {
     recordDeletedTaskTombstone,
     scheduleTaskAtNextSlot,
     manuallyScheduleTask,
+    hgCompleteTask,
     focusCompleteTask,
     focusUpdateTaskNotes,
     focusAddSubtask,
@@ -6110,21 +6155,72 @@ const DayPlanner = () => {
   // ── Electron desktop bridge ──────────────────────────────────────────────
   // Pushes lightweight state snapshots to the Electron WebSocket server and
   // routes commands from connected clients (Stream Deck, etc.) back into the app.
+  const todayHGSessions = useMemo(() => {
+    if (!goalsProjectsEnabled) return [];
+    const todayStr = getTodayStr();
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+    return getGlanceHGInstances(projects, nowMin)
+      .map(({ project, instance }) => {
+        const hg = project.hyperglance;
+        const effectiveTime = hg.scheduledTimeOverrides?.[instance.date] || hg.scheduledTime || '';
+        const duration = hg.scheduledDurationOverrides?.[instance.date] || hg.scheduledDuration || 60;
+        const reachable = isHGSessionReachable(instance, hg, currentTime);
+        return { id: project.id, title: project.title, colorHex: hg.color || '#4f46e5', startTime: effectiveTime, duration, isOverdue: instance.isOverdue, date: instance.date, reachable, isHGSession: true };
+      })
+      .filter(s => !s.isOverdue && s.date === todayStr && s.startTime);
+  }, [goalsProjectsEnabled, projects, currentTime]);
+
   useElectronBridge({
     todayAgenda,
     currentTime,
     tasks,
+    expandedRecurringTasks,
+    todayHGSessions,
     focusModeAvailable,
     showFocusMode,
     focusPhase,
     focusTimerSeconds,
     focusTimerRunning,
+    focusCycleCount,
     focusWorkMinutes,
     focusBreakMinutes,
+    focusLongBreakMinutes,
+    focusShowSettings,
+    focusShowStats,
+    focusBlockTasks,
+    focusCompletedTasks,
     enterFocusModeRef,
     exitFocusModeRef,
+    startFocusTimerRef,
+    dismissFocusStats,
     skipFocusPhase,
+    setFocusLongBreakMinutes,
+    setFocusWorkMinutes,
+    setFocusBreakMinutes,
+    focusCompleteTask,
+    hgCompleteTask,
     toggleComplete,
+    // HyperGLANCE
+    showHyperGlanceMode,
+    hyperGlanceProjectId,
+    hyperGlanceSessionDate,
+    hgTimerSeconds,
+    hgTimerRunning,
+    hgTimerPhase,
+    hgWorkMinutes,
+    hgBreakMinutes,
+    hgLongBreakMinutes,
+    hgCycleCount,
+    hgShowSettings,
+    hgCompleted,
+    startHyperGlanceTimer,
+    skipHyperGlancePhase,
+    setHgWorkMinutes,
+    setHgBreakMinutes,
+    setHgLongBreakMinutes,
+    enterHyperGlanceMode,
+    exitHyperGlanceMode,
+    setHgCompleted,
     activeHabits,
     getTodayHabitCount,
     habitsEnabled,
@@ -6132,6 +6228,11 @@ const DayPlanner = () => {
     todayRoutines,
     routineCompletions,
     toggleRoutineCompletion,
+    use24HourClock,
+    goals,
+    projects,
+    unscheduledTasks,
+    goalsProjectsEnabled,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
@@ -7032,6 +7133,7 @@ const DayPlanner = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    weekTimelineStartHour, setWeekTimelineStartHour,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
     collapsedSettings, setCollapsedSettings,
@@ -7492,7 +7594,9 @@ const DayPlanner = () => {
     hgCycleCount, setHgCycleCount,
     hgExitConfirm, setHgExitConfirm,
     hgShowSettings, setHgShowSettings,
+    hgCompleted, setHgCompleted,
     enterHyperGlanceMode, exitHyperGlanceMode, completeHyperGlanceSession,
+    startHyperGlanceTimer, skipHyperGlancePhase,
     hgContextMenu, setHgContextMenu,
     hgAdjustModal, setHgAdjustModal,
     hgAdjustTimeField, setHgAdjustTimeField,
