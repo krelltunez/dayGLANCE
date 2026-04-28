@@ -302,7 +302,7 @@ export default function useElectronBridge({
     const todayRecurring = (expandedRecurringTasks || []).filter(t => t.date === todayStr);
     // Include recurring instances in counts (stable denominator — all tasks regardless of completion/time)
     const todayTasks = [
-      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay),
+      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay && !(t.imported && !t.isTaskCalendar)),
       ...todayRecurring.filter(t => t.startTime && !t.isAllDay),
       ...hgSessions,
     ];
