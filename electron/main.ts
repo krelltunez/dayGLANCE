@@ -16,6 +16,7 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let trayWindow: BrowserWindow | null = null;
 let trayNeedsReload = false;
+let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
 function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -130,13 +131,18 @@ ipcMain.on('set-badge-count', (_event, count: number) => {
 
 // Keep tray popup in sync: reload it in the background whenever state changes
 ipcMain.on('ws:push-state', (event) => {
-  if (!trayWindow) return;
+  if (!trayWindow || trayWindow.isDestroyed()) return;
   // Ignore pushes from the tray window itself to prevent a reload loop
   if (event.sender === trayWindow.webContents) return;
   if (trayWindow.isVisible()) {
     trayNeedsReload = true; // reload on next blur so the open popup isn't disrupted
   } else {
-    trayWindow.webContents.reload();
+    // Debounce: coalesce rapid pushes (e.g. hover/interaction) into one reload
+    if (trayReloadTimer) clearTimeout(trayReloadTimer);
+    trayReloadTimer = setTimeout(() => {
+      trayReloadTimer = null;
+      if (trayWindow && !trayWindow.isDestroyed()) trayWindow.webContents.reload();
+    }, 500);
   }
 });
 

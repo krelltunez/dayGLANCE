@@ -30,6 +30,8 @@ const timeToMinutes = (time) => {
   return h * 60 + (m || 0);
 };
 
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 // Inline habit color map (mirrors HABIT_COLORS ring values from src/constants/habits.js)
 const HABIT_COLOR_HEX = {
   blue: '#3b82f6', green: '#22c55e', red: '#ef4444', amber: '#f59e0b',
@@ -323,6 +325,8 @@ export default function useElectronBridge({
       ...activeProjects.filter(p => p.goalId).map(mapProject).sort(sortByProgressAsc),
       ...activeProjects.filter(p => !p.goalId).map(mapProject).sort(sortByProgressAsc),
     ];
+
+    if (isTrayMode) return;
 
     // Dock badge: incomplete scheduled tasks today
     window.electronAPI.setBadgeCount?.(todayTasks.filter(t => !t.completed).length);
