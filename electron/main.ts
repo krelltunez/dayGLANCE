@@ -91,10 +91,12 @@ function createTrayWindow(): BrowserWindow {
 
 function createTray(): void {
   const iconPath = DEV
-    ? path.join(process.cwd(), 'public/icon-16x16.png')
-    : path.join(__dirname, '../dist/icon-16x16.png');
+    ? path.join(process.cwd(), 'public/icon-32x32.png')
+    : path.join(__dirname, '../dist/icon-32x32.png');
 
-  tray = new Tray(nativeImage.createFromPath(iconPath));
+  const icon = nativeImage.createFromPath(iconPath);
+  icon.setTemplateImage(true); // auto-adapts to light/dark menu bar (white on dark)
+  tray = new Tray(icon);
   tray.setToolTip('dayGLANCE');
   trayWindow = createTrayWindow();
 
@@ -142,6 +144,11 @@ ipcMain.on('tray:open-main', (_event, payload: unknown) => {
   live(trayWindow)?.hide();
   const mw = live(mainWindow);
   if (mw) { mw.show(); mw.focus(); mw.webContents.send('tray:navigate', payload); }
+});
+
+// Tray sends background mutations (e.g. toggle-complete) to the main window without showing it.
+ipcMain.on('tray:background-action', (_event, payload: unknown) => {
+  live(mainWindow)?.webContents.send('tray:background-action', payload);
 });
 
 // Keep tray popup in sync: reload it in the background whenever state changes

@@ -440,8 +440,8 @@ const DesktopLayout = () => {
         );
         return (
           <div
-            style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0, paddingLeft: '85px' }}
-            className={`flex items-center gap-2 text-xs font-semibold overflow-hidden ${
+            style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0, paddingLeft: '85px', paddingRight: '85px' }}
+            className={`flex items-center justify-center gap-2 text-xs font-semibold overflow-hidden ${
               runningTask
                 ? (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-800')
                 : ''

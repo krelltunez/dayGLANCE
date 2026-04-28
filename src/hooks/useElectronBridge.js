@@ -247,6 +247,17 @@ export default function useElectronBridge({
     });
   }, [goToDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle background mutations from the tray (no window focus change).
+  useEffect(() => {
+    if (isTrayMode || !window.electronAPI?.onBackgroundAction) return;
+    return window.electronAPI.onBackgroundAction((payload) => {
+      if (!payload?.action) return;
+      if (payload.action === 'toggle-complete') {
+        toggleCompleteRef.current?.(payload.taskId, false);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
     if (!window.electronAPI) return;

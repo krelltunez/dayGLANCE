@@ -15,7 +15,7 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
       id: crypto.randomUUID(),
       title,
       duration: 30,
-      color: 'gray',
+      color: 'bg-blue-500',
       completed: false,
       isAllDay: false,
       notes: '',
