@@ -863,6 +863,7 @@ const DayPlanner = () => {
 
   // Check for app updates on mount and every 6 hours
   useEffect(() => {
+    if (isTrayMode) return;
     const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
     const doCheck = async () => {
       const result = await checkForUpdate(currentVersion);
@@ -1137,6 +1138,7 @@ const DayPlanner = () => {
 
   // Catch up on missed reminders and sync when tab becomes visible
   useEffect(() => {
+    if (isTrayMode) return;
     const handleVisibility = () => {
       if (!document.hidden) {
         setCurrentTime(new Date());
@@ -1152,6 +1154,7 @@ const DayPlanner = () => {
 
   // Auto-refresh page at midnight (00:00:01) to reset the timeline to the new day
   useEffect(() => {
+    if (isTrayMode) return;
     const calculateMsUntilMidnight = () => {
       const now = new Date();
       const midnight = new Date(now);
@@ -1186,6 +1189,7 @@ const DayPlanner = () => {
   // Auto-sync calendars every 15 minutes when URLs are configured.
   // On Android, only the task calendar matters — calendar events come from the native bridge.
   useEffect(() => {
+    if (isTrayMode) return;
     const hasSyncTarget = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) return;
 
@@ -1198,7 +1202,7 @@ const DayPlanner = () => {
 
   // Cloud sync: debounced upload on data changes
   useEffect(() => {
-    if (!cloudSyncConfig?.enabled || !dataLoaded || suppressCloudUploadRef.current) return;
+    if (isTrayMode || !cloudSyncConfig?.enabled || !dataLoaded || suppressCloudUploadRef.current) return;
     if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current);
     cloudSyncDebounceRef.current = setTimeout(() => {
       cloudSyncUpload();
@@ -1210,6 +1214,7 @@ const DayPlanner = () => {
   // If encryption is enabled, wait until the session key is ready (either
   // restored from IndexedDB or provided by the passphrase modal).
   useEffect(() => {
+    if (isTrayMode) return;
     if (dataLoaded && cloudSyncConfig?.enabled && syncKeyReady) {
       cloudSyncDownload();
     } else if (dataLoaded && !cloudSyncConfig?.enabled) {
@@ -1220,7 +1225,7 @@ const DayPlanner = () => {
 
   // Cloud sync: poll for remote changes every 60 seconds
   useEffect(() => {
-    if (!cloudSyncConfig?.enabled) return;
+    if (isTrayMode || !cloudSyncConfig?.enabled) return;
     const pollTimer = setInterval(() => {
       if (syncKeyReadyRef.current && Date.now() >= cloudSyncBackoffUntilRef.current) {
         cloudSyncDownloadRef.current?.();
@@ -1237,7 +1242,7 @@ const DayPlanner = () => {
     performTrmnlSyncRef.current = performTrmnlSync;
   });
   useEffect(() => {
-    if (!trmnlConfig?.enabled || !trmnlConfig?.webhookUrl || !dataLoaded) return;
+    if (isTrayMode || !trmnlConfig?.enabled || !trmnlConfig?.webhookUrl || !dataLoaded) return;
     if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current);
     trmnlSyncTimerRef.current = setTimeout(() => {
       const now = Date.now();
@@ -1259,7 +1264,7 @@ const DayPlanner = () => {
 
   // Auto-archive completed inbox tasks older than the configured threshold
   useEffect(() => {
-    if (!dataLoaded || inboxAutoArchiveDays === 0) return;
+    if (isTrayMode || !dataLoaded || inboxAutoArchiveDays === 0) return;
     const cutoff = Date.now() - inboxAutoArchiveDays * 86400000;
     setUnscheduledTasks(prev => {
       const hasChanges = prev.some(t => t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff);
@@ -1274,7 +1279,7 @@ const DayPlanner = () => {
 
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
-    if (!dataLoaded) return;
+    if (isTrayMode || !dataLoaded) return;
     if (isNativeAndroid()) {
       // Android: vault is configured natively — detect and auto-enable
       try {
@@ -1318,6 +1323,7 @@ const DayPlanner = () => {
 
   // Obsidian sync: on visibility change (user switches back from Obsidian / native settings)
   useEffect(() => {
+    if (isTrayMode) return;
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
       if (isNativeAndroid()) {
@@ -1349,7 +1355,7 @@ const DayPlanner = () => {
 
   // Obsidian sync: poll every 5 minutes while open
   useEffect(() => {
-    if (!obsidianConfig?.enabled) return;
+    if (isTrayMode || !obsidianConfig?.enabled) return;
     const timer = setInterval(() => {
       if (obsidianVaultHandleRef.current) performObsidianSync();
     }, 5 * 60 * 1000);
@@ -1362,7 +1368,7 @@ const DayPlanner = () => {
 
   // Obsidian writeback: detect completion/scheduling/title changes and write back to vault
   useEffect(() => {
-    if (!obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
+    if (isTrayMode || !obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
     // Skip writeback while a sync is replacing the task arrays
     if (obsidianSyncInProgressRef.current) return;
 
@@ -1464,7 +1470,7 @@ const DayPlanner = () => {
 
   // Auto-backup timer
   useEffect(() => {
-    if (!dataLoaded) return;
+    if (isTrayMode || !dataLoaded) return;
     const localEnabled = autoBackupConfig.local.enabled;
     const remoteEnabled = autoBackupConfig.remote.enabled;
     if (!localEnabled && !remoteEnabled) return;
@@ -5919,7 +5925,7 @@ const DayPlanner = () => {
   // Auto-trigger frame nudge when entering a new Frame
   const prevFrameNudgeKeyRef = useRef(null);
   useEffect(() => {
-    if (!aiConfig.enabled || !aiConfig.features?.frameNudge) return;
+    if (isTrayMode || !aiConfig.enabled || !aiConfig.features?.frameNudge) return;
     if (gtdFrames.filter(f => f.enabled).length === 0) return;
     if (activeFrameNudgeKey === prevFrameNudgeKeyRef.current) return;
     prevFrameNudgeKeyRef.current = activeFrameNudgeKey;

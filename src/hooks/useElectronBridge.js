@@ -332,7 +332,7 @@ export default function useElectronBridge({
     const todayRecurring = (expandedRecurringTasks || []).filter(t => t.date === todayStr);
     // Include recurring instances in counts (stable denominator — all tasks regardless of completion/time)
     const todayTasks = [
-      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay && !(t.imported && !t.isTaskCalendar)),
+      ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay),
       ...todayRecurring.filter(t => t.startTime && !t.isAllDay),
       ...hgSessions,
     ];
@@ -394,8 +394,9 @@ export default function useElectronBridge({
 
     if (isTrayMode) return;
 
-    // Dock badge: incomplete scheduled tasks today
-    window.electronAPI.setBadgeCount?.(todayTasks.filter(t => !t.completed).length);
+    // Dock badge: incomplete scheduled tasks today, excluding imported calendar events
+    // (imported events can't be "completed" by the user and shouldn't inflate the badge)
+    window.electronAPI.setBadgeCount?.(todayTasks.filter(t => !t.completed && !(t.imported && !t.isTaskCalendar)).length);
 
     window.electronAPI.pushState({
       v: PROTOCOL_VERSION,

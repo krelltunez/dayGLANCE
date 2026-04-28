@@ -207,7 +207,7 @@ ipcMain.on('ws:push-state', (event) => {
 
 app.whenReady().then(() => {
   const win = createWindow();
-  createWsServer(win);
+  createWsServer(() => live(mainWindow));
   if (process.platform === 'darwin') createTray();
 
   app.on('activate', () => {

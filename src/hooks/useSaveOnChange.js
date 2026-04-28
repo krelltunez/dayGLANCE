@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 
+// The tray popup must never write to localStorage — it holds a snapshot of
+// state as of the last reload and would overwrite fresher main-window data.
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 export default function useSaveOnChange({
   saveData, checkConflicts,
   dataLoaded,
@@ -10,7 +14,7 @@ export default function useSaveOnChange({
   goals, projects, goalsProjectsEnabled,
 }) {
   useEffect(() => {
-    if (!dataLoaded) return; // Don't overwrite localStorage before initial load
+    if (isTrayMode || !dataLoaded) return;
     saveData();
     checkConflicts();
     // After the first save pass following applyRemoteData, clear the suppress flags

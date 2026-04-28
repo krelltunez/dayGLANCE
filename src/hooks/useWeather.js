@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 const getWeatherCondition = (code) => {
   if (code === 0) return 'Clear';
   if ([1, 2, 3].includes(code)) return 'Partly Cloudy';
@@ -151,6 +153,7 @@ const useWeather = () => {
 
   // Fetch on mount and refresh every hour
   useEffect(() => {
+    if (isTrayMode) return;
     fetchWeather();
     const weatherInterval = setInterval(() => {
       fetchWeather();

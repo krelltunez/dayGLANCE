@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { isNativeAndroid } from '../native.js';
 
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 export default function useAppInit({
   loadData, fetchAllDailyContent, setContentRotation,
   dailyContentEnabled,
@@ -11,6 +13,7 @@ export default function useAppInit({
   // Load data and fetch daily content on mount; rotate content every 15 minutes
   useEffect(() => {
     loadData();
+    if (isTrayMode) return;
     if (dailyContentEnabled && !isNativeAndroid()) {
       fetchAllDailyContent();
     }
@@ -27,6 +30,7 @@ export default function useAppInit({
 
   // Persist welcome dismissal only when user has real tasks
   useEffect(() => {
+    if (isTrayMode) return;
     if (!showWelcome && !hasZeroRealTasks) {
       localStorage.setItem('welcomeDismissed', 'true');
     }
@@ -34,6 +38,7 @@ export default function useAppInit({
 
   // Show welcome only on initial load with zero tasks (not when zeroing out during session)
   useEffect(() => {
+    if (isTrayMode) return;
     if (dataLoaded && !hasCheckedInitialWelcome.current) {
       hasCheckedInitialWelcome.current = true;
       if (hasZeroRealTasks) {
