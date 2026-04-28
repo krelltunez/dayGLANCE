@@ -109,11 +109,31 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
 
   const openMainAt = (payload) => window.electronAPI?.openMainAt(payload);
 
+  // Habit mutations from the tray must also update the main window's in-memory
+  // state, otherwise the main window's next save overwrites localStorage and the
+  // tray reloads back to the old value.
+  const doIncrementHabit = (habitId) => {
+    incrementHabit(habitId);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'increment-habit', habitId });
+  };
+  const doSetHabitCount = (habitId, count) => {
+    setHabitCount(habitId, count);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'set-habit-count', habitId, count: Math.max(0, count) });
+  };
+
   // In tray mode, call local toggleComplete for immediate visual update AND
   // send the action to the main window so its state stays in sync.
   const doToggleComplete = (taskId, isDeadline = false) => {
     toggleComplete(taskId, isDeadline);
     if (isTray) window.electronAPI?.backgroundAction({ action: 'toggle-complete', taskId });
+  };
+  const doToggleRoutine = (routineId) => {
+    toggleRoutineCompletion(routineId);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'toggle-routine', routineId });
+  };
+  const doMoveToRecycleBin = (taskId, isInbox = false) => {
+    moveToRecycleBin(taskId, isInbox);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-recycle-bin', taskId, isInbox });
   };
 
   return (
@@ -243,7 +263,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               habit={habit}
               count={getTodayHabitCount(habit.id)}
               darkMode={darkMode}
-              onClick={() => incrementHabit(habit.id)}
+              onClick={() => doIncrementHabit(habit.id)}
               onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
               onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
               onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
@@ -257,13 +277,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(todayHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
                   <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
                   <div className="flex items-center justify-center gap-3">
-                    <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
+                    <button onClick={() => { doSetHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
                     {habitEditingCountId === habit.id ? (
                     <input
                       type="number"
                       autoFocus
                       defaultValue={getTodayHabitCount(habit.id)}
-                      onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
+                      onBlur={(e) => { doSetHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
                       onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                       onClick={(e) => e.stopPropagation()}
                       className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
@@ -272,9 +292,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   ) : (
                     <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
                   )}
-                    <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
+                    <button onClick={() => { doIncrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
                   </div>
-                  <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                  <button onClick={() => { doSetHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
                 </div>
               </>
             )}
@@ -299,7 +319,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     return (
                       <button
                         key={habit.id}
-                        onClick={() => { incrementHabit(habit.id); }}
+                        onClick={() => { doIncrementHabit(habit.id); }}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'} transition-colors`}
                       >
                         <IconComp size={16} style={{ color: colorObj.ring }} />
@@ -618,11 +638,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                         pushUndo();
                         setTasks(prev => prev.filter(t => t.id !== task.id));
                         const { startTime, date, duration, _overdueType, ...rest } = task;
-                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                        const inboxTask = { ...rest, priority: rest.priority || 0 };
+                        setUnscheduledTasks(prev => [...prev, inboxTask]);
+                        if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-inbox', taskId: task.id, inboxTask });
                         playUISound('slide');
                         setUndoToast({ message: 'Moved to inbox', actionable: true });
                       } else {
                         clearDeadline(task.id);
+                        if (isTray) window.electronAPI?.backgroundAction({ action: 'clear-deadline', taskId: task.id });
                         playUISound('slide');
                         setUndoToast({ message: 'Deadline cleared', actionable: true });
                       }
@@ -634,7 +657,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   </button>
                   )}
                   <button
-                    onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
+                    onClick={() => doMoveToRecycleBin(task.id, task._overdueType === 'deadline')}
                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
                     title="Move to Recycle Bin"
                   >
@@ -915,7 +938,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     pushUndo();
                     setTasks(prev => prev.filter(t => t.id !== task.id));
                     const { startTime, date, _agendaType, ...rest } = task;
-                    setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                    const inboxTask = { ...rest, priority: rest.priority || 0 };
+                    setUnscheduledTasks(prev => [...prev, inboxTask]);
+                    if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-inbox', taskId: task.id, inboxTask });
                     playUISound('slide');
                     setUndoToast({ message: 'Moved to inbox', actionable: true });
                   }}
@@ -1115,7 +1140,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const handleGlanceAheadClick = () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      if (isTray) { openMainAt({ action: 'goto-date', date: dateToString(tomorrow) }); return; }
+      if (isTray) { openMainAt({ action: 'goto-date', date: dateToString(tomorrow), startTime: firstStartTime }); return; }
       goToDate(tomorrow);
       if (firstStartTime) setTimeout(() => scrollToHour(firstStartTime), 150);
     };
@@ -1204,7 +1229,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             return (
               <button
                 key={r.id}
-                onClick={() => toggleRoutineCompletion(r.id)}
+                onClick={() => doToggleRoutine(r.id)}
                 className={`rounded-full px-2.5 ${isDesktop ? "py-0.5" : "py-1"} text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${done ? 'line-through opacity-50' : 'hover:opacity-80'} transition-opacity`}
               >
                 {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createWsServer } from './ws-server.js';
 
@@ -24,10 +25,30 @@ function live(win: BrowserWindow | null): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null;
 }
 
+// ── Window state persistence ─────────────────────────────────────────────────
+interface WindowState { x?: number; y?: number; width: number; height: number; maximized: boolean; }
+
+function winStatePath() { return path.join(app.getPath('userData'), 'window-state.json'); }
+
+function loadWindowState(): WindowState {
+  try {
+    const data = JSON.parse(fs.readFileSync(winStatePath(), 'utf-8')) as WindowState;
+    if (typeof data.width === 'number' && typeof data.height === 'number') return data;
+  } catch { /* first launch or corrupt file — use defaults */ }
+  return { width: 1280, height: 800, maximized: false };
+}
+
+function saveWindowState(state: WindowState): void {
+  try { fs.writeFileSync(winStatePath(), JSON.stringify(state)); } catch { /* ignore */ }
+}
+
 function createWindow(): BrowserWindow {
+  const saved = loadWindowState();
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: saved.width,
+    height: saved.height,
+    ...(saved.x != null && saved.y != null ? { x: saved.x, y: saved.y } : {}),
     minWidth: 800,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
@@ -38,6 +59,20 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   });
+
+  // Track the last non-maximized bounds so we can restore them correctly.
+  let normalBounds = { x: saved.x, y: saved.y, width: saved.width, height: saved.height };
+  const trackBounds = () => {
+    const win = live(mainWindow);
+    if (win && !win.isMaximized() && !win.isMinimized()) normalBounds = win.getBounds();
+  };
+  mainWindow.on('resize', trackBounds);
+  mainWindow.on('move', trackBounds);
+  mainWindow.on('close', () => {
+    saveWindowState({ ...normalBounds, maximized: live(mainWindow)?.isMaximized() ?? false });
+  });
+
+  if (saved.maximized) mainWindow.maximize();
 
   if (DEV) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);

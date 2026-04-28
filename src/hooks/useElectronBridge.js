@@ -108,6 +108,7 @@ export default function useElectronBridge({
   getTodayHabitCount,
   habitsEnabled,
   incrementHabit,
+  setHabitCount,
   // Routines
   todayRoutines,
   routineCompletions,
@@ -119,6 +120,9 @@ export default function useElectronBridge({
   projects,
   unscheduledTasks,
   setUnscheduledTasks,
+  setTasks,
+  moveToRecycleBin,
+  clearDeadline,
   goalsProjectsEnabled,
   goToDate,
   scrollToHour,
@@ -144,7 +148,11 @@ export default function useElectronBridge({
   const setHgLongBreakMinutesRef = useRef(setHgLongBreakMinutes);
   const setHgCompletedRef = useRef(setHgCompleted);
   const setUnscheduledTasksRef = useRef(setUnscheduledTasks);
+  const setTasksRef = useRef(setTasks);
+  const moveToRecycleBinRef = useRef(moveToRecycleBin);
+  const clearDeadlineRef = useRef(clearDeadline);
   const scrollToHourRef = useRef(scrollToHour);
+  const setHabitCountRef = useRef(setHabitCount);
   skipFocusPhaseRef.current = skipFocusPhase;
   dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
@@ -164,7 +172,11 @@ export default function useElectronBridge({
   setHgLongBreakMinutesRef.current = setHgLongBreakMinutes;
   setHgCompletedRef.current = setHgCompleted;
   setUnscheduledTasksRef.current = setUnscheduledTasks;
+  setTasksRef.current = setTasks;
+  moveToRecycleBinRef.current = moveToRecycleBin;
+  clearDeadlineRef.current = clearDeadline;
   scrollToHourRef.current = scrollToHour;
+  setHabitCountRef.current = setHabitCount;
 
   // Subscribe to commands from WebSocket clients once on mount.
   useEffect(() => {
@@ -247,7 +259,7 @@ export default function useElectronBridge({
         if (date) goToDate(date);
         // Scroll to the task's time slot; delay so the calendar re-renders first
         // and the useTimelineScroll auto-scroll-to-current-time effect fires before us.
-        if (action === 'goto-task' && payload.startTime) {
+        if (payload.startTime) {
           setTimeout(() => scrollToHourRef.current?.(payload.startTime, true), 350);
         }
       } else if (action === 'focus-mode') {
@@ -267,6 +279,19 @@ export default function useElectronBridge({
         toggleCompleteRef.current?.(payload.taskId, false);
       } else if (payload.action === 'add-inbox-task' && payload.task) {
         setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.task]);
+      } else if (payload.action === 'increment-habit' && payload.habitId) {
+        incrementHabitRef.current?.(payload.habitId);
+      } else if (payload.action === 'set-habit-count' && payload.habitId != null) {
+        setHabitCountRef.current?.(payload.habitId, payload.count);
+      } else if (payload.action === 'toggle-routine' && payload.routineId) {
+        toggleRoutineCompletionRef.current?.(payload.routineId);
+      } else if (payload.action === 'move-to-inbox' && payload.taskId) {
+        setTasksRef.current?.(prev => prev.filter(t => t.id !== payload.taskId));
+        if (payload.inboxTask) setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.inboxTask]);
+      } else if (payload.action === 'move-to-recycle-bin' && payload.taskId) {
+        moveToRecycleBinRef.current?.(payload.taskId, !!payload.isInbox);
+      } else if (payload.action === 'clear-deadline' && payload.taskId) {
+        clearDeadlineRef.current?.(payload.taskId);
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
