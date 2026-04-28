@@ -124,6 +124,7 @@ export type DayGlanceState = {
   nextTask: Task | null;
   scheduledTasks: Task[];
   today: { total: number; completed: number; date: string };
+  tomorrow: { total: number; tasks: Task[] };
   focus: FocusState;
   hg: HGState;
   habits: Habit[];

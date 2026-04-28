@@ -53,6 +53,30 @@
             ]
         },
         {
+            "Name": "Tomorrow",
+            "UUID": "com.dayglance.streamdeck.tomorrow",
+            "Icon": "imgs/actions/tomorrow/icon",
+            "Tooltip": "Shows tomorrow's task and event count. Dial or press to cycle through tomorrow's schedule.",
+            "PropertyInspectorPath": "ui/property-inspector.html",
+            "Controllers": [
+                "Encoder",
+                "Keypad"
+            ],
+            "Encoder": {
+                "layout": "layouts/tomorrow.json",
+                "TriggerDescription": {
+                    "Rotate": "Cycle through tasks / overview",
+                    "Push": "Cycle through tasks / overview"
+                }
+            },
+            "States": [
+                {
+                    "Image": "imgs/actions/tomorrow/key",
+                    "TitleAlignment": "bottom"
+                }
+            ]
+        },
+        {
             "Name": "Focus / Pomodoro",
             "UUID": "com.dayglance.streamdeck.focus",
             "Icon": "imgs/actions/focus/icon",

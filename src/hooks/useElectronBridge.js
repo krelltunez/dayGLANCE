@@ -330,6 +330,19 @@ export default function useElectronBridge({
 
     const todayStr = dateToString(currentTime);
     const todayRecurring = (expandedRecurringTasks || []).filter(t => t.date === todayStr);
+
+    const tomorrowDate = new Date(currentTime);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = dateToString(tomorrowDate);
+    const tomorrowRecurring = (expandedRecurringTasks || []).filter(t => t.date === tomorrowStr);
+    const tomorrowAllDay = [
+      ...tasks.filter(t => t.date === tomorrowStr && !!t.isAllDay),
+      ...tomorrowRecurring.filter(t => !!t.isAllDay),
+    ];
+    const tomorrowTimed = [
+      ...tasks.filter(t => t.date === tomorrowStr && t.startTime && !t.isAllDay),
+      ...tomorrowRecurring.filter(t => t.startTime && !t.isAllDay),
+    ].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
     // Include recurring instances in counts (stable denominator — all tasks regardless of completion/time)
     const todayTasks = [
       ...tasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay),
@@ -413,6 +426,10 @@ export default function useElectronBridge({
         total: todayTasks.length + allDayTasks.length,
         completed: todayTasks.filter(t => t.completed).length + allDayTasks.filter(t => t.completed).length,
         date: todayStr,
+      },
+      tomorrow: {
+        total: tomorrowAllDay.length + tomorrowTimed.length,
+        tasks: [...tomorrowAllDay.map(mapTask), ...tomorrowTimed.map(mapTask)],
       },
       focus: {
         available: focusModeAvailable,
