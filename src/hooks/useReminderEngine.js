@@ -2,6 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { isNativeAndroid, nativeShowNotification, nativeShowTaskNotification, nativeSyncReminders } from '../native.js';
 
+// The tray popup runs the same App tree — skip the reminder engine there so
+// sounds and notifications don't fire twice (once per renderer process).
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 // Pure local helpers
 const timeToMinutes = (time) => {
   const [hours, minutes] = time.split(':').map(Number);
@@ -64,6 +68,7 @@ export default function useReminderEngine({
 
   // Reminder notification engine
   useEffect(() => {
+    if (isTrayMode) return;
     // Weekly review notification (independent of main reminder toggle)
     const wr = reminderSettings.weeklyReview;
     if (wr?.enabled) {
@@ -249,7 +254,7 @@ export default function useReminderEngine({
 
   // Auto-dismiss reminders based on type
   useEffect(() => {
-    if (activeReminders.length === 0) return;
+    if (isTrayMode || activeReminders.length === 0) return;
     const dismissMs = { before15: 870000, before10: 570000, before5: 270000, start: 600000, end: 300000 };
     const timer = setInterval(() => {
       const now = Date.now();
