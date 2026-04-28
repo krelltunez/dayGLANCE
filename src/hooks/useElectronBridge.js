@@ -120,6 +120,9 @@ export default function useElectronBridge({
   projects,
   unscheduledTasks,
   setUnscheduledTasks,
+  setTasks,
+  moveToRecycleBin,
+  clearDeadline,
   goalsProjectsEnabled,
   goToDate,
   scrollToHour,
@@ -145,6 +148,9 @@ export default function useElectronBridge({
   const setHgLongBreakMinutesRef = useRef(setHgLongBreakMinutes);
   const setHgCompletedRef = useRef(setHgCompleted);
   const setUnscheduledTasksRef = useRef(setUnscheduledTasks);
+  const setTasksRef = useRef(setTasks);
+  const moveToRecycleBinRef = useRef(moveToRecycleBin);
+  const clearDeadlineRef = useRef(clearDeadline);
   const scrollToHourRef = useRef(scrollToHour);
   const setHabitCountRef = useRef(setHabitCount);
   skipFocusPhaseRef.current = skipFocusPhase;
@@ -166,6 +172,9 @@ export default function useElectronBridge({
   setHgLongBreakMinutesRef.current = setHgLongBreakMinutes;
   setHgCompletedRef.current = setHgCompleted;
   setUnscheduledTasksRef.current = setUnscheduledTasks;
+  setTasksRef.current = setTasks;
+  moveToRecycleBinRef.current = moveToRecycleBin;
+  clearDeadlineRef.current = clearDeadline;
   scrollToHourRef.current = scrollToHour;
   setHabitCountRef.current = setHabitCount;
 
@@ -274,6 +283,15 @@ export default function useElectronBridge({
         incrementHabitRef.current?.(payload.habitId);
       } else if (payload.action === 'set-habit-count' && payload.habitId != null) {
         setHabitCountRef.current?.(payload.habitId, payload.count);
+      } else if (payload.action === 'toggle-routine' && payload.routineId) {
+        toggleRoutineCompletionRef.current?.(payload.routineId);
+      } else if (payload.action === 'move-to-inbox' && payload.taskId) {
+        setTasksRef.current?.(prev => prev.filter(t => t.id !== payload.taskId));
+        if (payload.inboxTask) setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.inboxTask]);
+      } else if (payload.action === 'move-to-recycle-bin' && payload.taskId) {
+        moveToRecycleBinRef.current?.(payload.taskId, !!payload.isInbox);
+      } else if (payload.action === 'clear-deadline' && payload.taskId) {
+        clearDeadlineRef.current?.(payload.taskId);
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

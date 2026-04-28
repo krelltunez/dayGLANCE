@@ -127,6 +127,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     toggleComplete(taskId, isDeadline);
     if (isTray) window.electronAPI?.backgroundAction({ action: 'toggle-complete', taskId });
   };
+  const doToggleRoutine = (routineId) => {
+    toggleRoutineCompletion(routineId);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'toggle-routine', routineId });
+  };
+  const doMoveToRecycleBin = (taskId, isInbox = false) => {
+    moveToRecycleBin(taskId, isInbox);
+    if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-recycle-bin', taskId, isInbox });
+  };
 
   return (
 <div className="space-y-4">
@@ -630,11 +638,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                         pushUndo();
                         setTasks(prev => prev.filter(t => t.id !== task.id));
                         const { startTime, date, duration, _overdueType, ...rest } = task;
-                        setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                        const inboxTask = { ...rest, priority: rest.priority || 0 };
+                        setUnscheduledTasks(prev => [...prev, inboxTask]);
+                        if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-inbox', taskId: task.id, inboxTask });
                         playUISound('slide');
                         setUndoToast({ message: 'Moved to inbox', actionable: true });
                       } else {
                         clearDeadline(task.id);
+                        if (isTray) window.electronAPI?.backgroundAction({ action: 'clear-deadline', taskId: task.id });
                         playUISound('slide');
                         setUndoToast({ message: 'Deadline cleared', actionable: true });
                       }
@@ -646,7 +657,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   </button>
                   )}
                   <button
-                    onClick={() => moveToRecycleBin(task.id, task._overdueType === 'deadline')}
+                    onClick={() => doMoveToRecycleBin(task.id, task._overdueType === 'deadline')}
                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
                     title="Move to Recycle Bin"
                   >
@@ -927,7 +938,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     pushUndo();
                     setTasks(prev => prev.filter(t => t.id !== task.id));
                     const { startTime, date, _agendaType, ...rest } = task;
-                    setUnscheduledTasks(prev => [...prev, { ...rest, priority: rest.priority || 0 }]);
+                    const inboxTask = { ...rest, priority: rest.priority || 0 };
+                    setUnscheduledTasks(prev => [...prev, inboxTask]);
+                    if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-inbox', taskId: task.id, inboxTask });
                     playUISound('slide');
                     setUndoToast({ message: 'Moved to inbox', actionable: true });
                   }}
@@ -1216,7 +1229,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             return (
               <button
                 key={r.id}
-                onClick={() => toggleRoutineCompletion(r.id)}
+                onClick={() => doToggleRoutine(r.id)}
                 className={`rounded-full px-2.5 ${isDesktop ? "py-0.5" : "py-1"} text-xs font-medium ${darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'} ${done ? 'line-through opacity-50' : 'hover:opacity-80'} transition-opacity`}
               >
                 {timeLabel && <span className="opacity-70 mr-1">{timeLabel}</span>}{r.name}
