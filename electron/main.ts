@@ -139,7 +139,7 @@ function createTray(): void {
   tray.setToolTip('dayGLANCE');
   trayWindow = createTrayWindow();
 
-  // Left-click: toggle the Glance popup
+  // Left-click: toggle the Glance popup; clear any pending reminder indicator.
   tray.on('click', (_event, bounds) => {
     const tw = live(trayWindow);
     if (!tw) return;
@@ -147,6 +147,7 @@ function createTray(): void {
     const { x, y, width: iconW, height: iconH } = bounds;
     const { width: popW } = tw.getBounds();
     tw.setPosition(Math.round(x - popW / 2 + iconW / 2), Math.round(y + iconH));
+    tray?.setTitle('');
     tw.show();
     tw.focus();
   });
@@ -190,6 +191,11 @@ ipcMain.on('tray:background-action', (_event, payload: unknown) => {
   live(mainWindow)?.webContents.send('tray:background-action', payload);
 });
 
+// Reminder indicator: show/clear the dot next to the tray icon.
+ipcMain.on('tray:set-indicator', (_event, on: boolean) => {
+  tray?.setTitle(on ? '●' : '');
+});
+
 // Global hotkey: show tray popup and focus quick-add input.
 ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
   if (registeredHotkey) {
@@ -207,6 +213,7 @@ ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
       const { width: popW } = tw.getBounds();
       tw.setPosition(Math.round(x - popW / 2 + iconW / 2), Math.round(y + iconH));
     }
+    tray?.setTitle('');
     tw.show();
     tw.focus();
     tw.webContents.send('tray:focus-quick-add');

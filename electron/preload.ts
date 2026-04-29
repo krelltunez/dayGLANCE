@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('tray:background-action', handler);
   },
 
+  // Show or clear the reminder dot (●) next to the tray icon.
+  setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
+
   // Registers (or clears) a system-wide hotkey that shows the tray popup.
   // Pass an empty string to unregister. Returns true if registration succeeded.
   setGlobalHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register', accelerator),

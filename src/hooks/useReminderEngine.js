@@ -151,6 +151,7 @@ export default function useReminderEngine({
 
       if (hgFires.length > 0) {
         playUISound('reminder');
+        if (window.electronAPI?.isElectron) window.electronAPI.setTrayIndicator(true);
         // Android: AlarmManager already fires showTaskNotification (with Snooze) — don't duplicate.
         if (!isNativeAndroid() && reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           if (window.electronAPI?.isElectron) {
@@ -220,6 +221,7 @@ export default function useReminderEngine({
 
     if (newReminders.length > 0) {
       playUISound('reminder');
+      if (window.electronAPI?.isElectron) window.electronAPI.setTrayIndicator(true);
       if (reminderSettings.inAppToasts !== false) {
         const newTaskIds = new Set(newReminders.map(r => r.taskId));
         setActiveReminders(prev => [...prev.filter(r => !newTaskIds.has(r.taskId)), ...newReminders]);
