@@ -125,6 +125,13 @@ function createTrayWindow(): BrowserWindow {
     win.loadFile(path.join(__dirname, '../dist/index.html'), { query: { tray: '1' } });
   }
 
+  // After every (re)load, re-push cached reminders once React has mounted and
+  // registered its onReminders listener. 800ms is enough for the renderer to
+  // finish hydrating; focus state self-corrects within 1s so no re-push needed.
+  win.webContents.on('did-finish-load', () => {
+    setTimeout(pushRemindersToTray, 800);
+  });
+
   // Hide when the user clicks outside the popup; reload if state changed while it was open
   win.on('blur', () => {
     if (win.isDestroyed()) return;
@@ -164,6 +171,7 @@ function createTray(): void {
     refreshTrayTitle();
     tw.show();
     tw.focus();
+    pushRemindersToTray();
   });
 
   // Right-click: native Open / Quit menu
@@ -211,8 +219,19 @@ ipcMain.on('tray:set-indicator', (_event, on: boolean) => {
   refreshTrayTitle();
 });
 
-// Reminder list: forward to tray popup whenever it changes.
+// Last-known reminder list — re-sent to the tray popup after a reload or on show,
+// so reminders aren't lost when the tray reloads in the background.
+let lastKnownReminders: unknown = [];
+
+function pushRemindersToTray() {
+  if (Array.isArray(lastKnownReminders) && lastKnownReminders.length > 0) {
+    live(trayWindow)?.webContents.send('tray:reminders', lastKnownReminders);
+  }
+}
+
+// Reminder list: cache + forward to tray popup whenever it changes.
 ipcMain.on('tray:push-reminders', (_event, reminders: unknown) => {
+  lastKnownReminders = reminders;
   live(trayWindow)?.webContents.send('tray:reminders', reminders);
 });
 
@@ -250,6 +269,7 @@ ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
     refreshTrayTitle();
     tw.show();
     tw.focus();
+    pushRemindersToTray();
     tw.webContents.send('tray:focus-quick-add');
   });
   if (ok) registeredHotkey = accelerator;
