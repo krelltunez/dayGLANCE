@@ -6247,6 +6247,9 @@ const DayPlanner = () => {
     goalsProjectsEnabled,
     goToDate,
     scrollToHour,
+    activeReminders,
+    snoozeReminder,
+    dismissReminder,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────

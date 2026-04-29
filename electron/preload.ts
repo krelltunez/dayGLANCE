@@ -61,6 +61,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('tray:focus-state', handler);
   },
 
+  // Main window pushes active reminders to the tray popup whenever they change.
+  pushReminders: (reminders: unknown) => ipcRenderer.send('tray:push-reminders', reminders),
+
+  // Tray popup receives the active reminder list forwarded from the main window.
+  onReminders: (callback: (reminders: unknown) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, reminders: unknown) => callback(reminders);
+    ipcRenderer.on('tray:reminders', handler);
+    return () => ipcRenderer.removeListener('tray:reminders', handler);
+  },
+
   // Registers (or clears) a system-wide hotkey that shows the tray popup.
   // Pass an empty string to unregister. Returns true if registration succeeded.
   setGlobalHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register', accelerator),

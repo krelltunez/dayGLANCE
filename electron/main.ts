@@ -205,6 +205,11 @@ ipcMain.on('tray:set-indicator', (_event, on: boolean) => {
   refreshTrayTitle();
 });
 
+// Reminder list: forward to tray popup whenever it changes.
+ipcMain.on('tray:push-reminders', (_event, reminders: unknown) => {
+  live(trayWindow)?.webContents.send('tray:reminders', reminders);
+});
+
 // Focus state: update menu bar countdown and forward to tray popup.
 ipcMain.on('tray:push-focus-state', (_event, state: { active: boolean; secondsRemaining: number }) => {
   if (state.active) {
