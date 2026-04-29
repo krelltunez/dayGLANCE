@@ -4985,13 +4985,13 @@ const DayPlanner = () => {
   }, [voiceParsedTasks, voiceParsedEdits]);
 
   // --- Morning dayGLANCE (AI morning summary) ---
-  const generateMorningSummary = useCallback(async () => {
+  const generateMorningSummary = useCallback(async (force = false) => {
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.morningSummary) return;
     const todayStr = dateToString(new Date());
-    // Check cache
+    // Check cache (skip when force-regenerating via the refresh button)
     try {
       const cached = localStorage.getItem('day-planner-morning-glance');
-      if (cached) {
+      if (cached && !force) {
         const { date, text } = JSON.parse(cached);
         if (date === todayStr) { setMorningGlanceText(text); return; }
       }
@@ -5083,12 +5083,12 @@ const DayPlanner = () => {
   }, [aiConfig.enabled, aiConfig.features.morningSummary]);
 
   // --- Evening Reflection ---
-  const generateEveningReflection = useCallback(async () => {
+  const generateEveningReflection = useCallback(async (force = false) => {
     if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama') || !aiConfig.features.eveningReflection) return;
     const todayStr = dateToString(new Date());
     try {
       const cached = localStorage.getItem('day-planner-evening-glance');
-      if (cached) {
+      if (cached && !force) {
         const { date, text } = JSON.parse(cached);
         if (date === todayStr) { setEveningGlanceText(text); return; }
       }
@@ -6253,6 +6253,10 @@ const DayPlanner = () => {
     setShowRescheduleModal,
     setRescheduleResults,
     setRescheduleError,
+    openRoutinesDashboardRef,
+    setShowFramesModal,
+    setFramesModalTab,
+    setEditingFrame,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────

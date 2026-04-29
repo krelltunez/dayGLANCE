@@ -387,7 +387,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
-            onClick={generateMorningSummary}
+            onClick={() => generateMorningSummary(true)}
             className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
             title="Regenerate"
           >
@@ -417,7 +417,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         )}
         {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
           <button
-            onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
+            onClick={() => isTray ? openMainAt({ action: 'schedule-inbox' }) : (setShowFramesModal(true), setFramesModalTab('schedule'), setEditingFrame(null))}
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
           >
             <BrainCircuit size={12} />
@@ -454,7 +454,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Evening Reflection</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={generateEveningReflection} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
+          <button onClick={() => generateEveningReflection(true)} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
             <RefreshCw size={12} className={`${eveningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
           </button>
           <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss for today">
@@ -1192,7 +1192,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     if (realRoutines.length > 0 && visibleRoutines.length === 0) return null;
     if (visibleRoutines.length === 0) {
       return (
-        <div className={isDesktop ? `rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity` : `mt-3 pt-3 border-t ${borderClass} cursor-pointer active:opacity-70 transition-opacity`} onClick={() => openRoutinesDashboard()}>
+        <div className={isDesktop ? `rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity` : `mt-3 pt-3 border-t ${borderClass} cursor-pointer active:opacity-70 transition-opacity`} onClick={() => isTray ? openMainAt({ action: 'routines' }) : openRoutinesDashboard()}>
           <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
           <div className="flex items-center gap-2">
             <span className={`text-xs ${textSecondary} italic`}>None scheduled</span>
@@ -1205,7 +1205,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <div className={`${isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}`}>
         <div className="flex items-center justify-between mb-2">
           <div className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Routines</div>
-          <button onClick={() => openRoutinesDashboard()} className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ Add</button>
+          <button onClick={() => isTray ? openMainAt({ action: 'routines' }) : openRoutinesDashboard()} className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ Add</button>
         </div>
         <div className={`flex flex-wrap ${isDesktop ? "gap-1" : "gap-1.5"}`}>
           {[...visibleRoutines].sort((a, b) => {

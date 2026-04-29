@@ -296,7 +296,7 @@ const MobileGlanceSection = () => {
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
-            onClick={generateMorningSummary}
+            onClick={() => generateMorningSummary(true)}
             className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
             title="Regenerate"
           >
@@ -362,7 +362,7 @@ const MobileGlanceSection = () => {
           <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Evening Reflection</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={generateEveningReflection} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
+          <button onClick={() => generateEveningReflection(true)} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
             <RefreshCw size={12} className={`${eveningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
           </button>
           <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss for today">
