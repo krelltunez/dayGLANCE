@@ -330,13 +330,13 @@ export default function useElectronBridge({
   useEffect(() => {
     if (isTrayMode || !window.electronAPI?.pushFocusState) return;
     window.electronAPI.pushFocusState({
-      active: showFocusMode,
+      active: showFocusMode && !focusShowStats && !focusShowSettings,
       phase: focusPhase,
       secondsRemaining: focusTimerSeconds,
       running: focusTimerRunning,
       cycleCount: focusCycleCount,
     });
-  }, [showFocusMode, focusPhase, focusTimerSeconds, focusTimerRunning, focusCycleCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showFocusMode, focusShowStats, focusShowSettings, focusPhase, focusTimerSeconds, focusTimerRunning, focusCycleCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
