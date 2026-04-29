@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage, globalShortcut } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage, globalShortcut, session } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +32,27 @@ function refreshTrayTitle() {
 // never have to scatter isDestroyed() checks throughout the file.
 function live(win: BrowserWindow | null): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null;
+}
+
+// Only open http/https URLs in the system browser — prevents javascript:,
+// file:, custom-protocol, and other potentially dangerous scheme abuse.
+function openExternalSafe(url: string): void {
+  try {
+    const { protocol } = new URL(url);
+    if (protocol === 'https:' || protocol === 'http:') shell.openExternal(url);
+  } catch { /* malformed URL — ignore */ }
+}
+
+// True if the navigation target is the app itself (file:// in production,
+// the Vite dev server in dev). Used to block renderer-initiated navigations
+// to external origins (defense-in-depth against XSS).
+function isSameAppOrigin(url: string): boolean {
+  try {
+    const { protocol, origin } = new URL(url);
+    if (protocol === 'file:') return true;
+    if (DEV && origin === new URL(VITE_DEV_SERVER_URL).origin) return true;
+    return false;
+  } catch { return false; }
 }
 
 // ── Window state persistence ─────────────────────────────────────────────────
@@ -94,10 +115,15 @@ function createWindow(): BrowserWindow {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Open external links in the system browser
+  // Open external links in the system browser (https/http only).
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
+  });
+
+  // Prevent the renderer from navigating away from the app origin.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isSameAppOrigin(url)) event.preventDefault();
   });
 
   return mainWindow;
@@ -130,6 +156,15 @@ function createTrayWindow(): BrowserWindow {
   // finish hydrating; focus state self-corrects within 1s so no re-push needed.
   win.webContents.on('did-finish-load', () => {
     setTimeout(() => { pushRemindersToTray(); pushCurrentTaskToTray(); }, 800);
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalSafe(url);
+    return { action: 'deny' };
+  });
+
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!isSameAppOrigin(url)) event.preventDefault();
   });
 
   // Hide when the user clicks outside the popup; reload if state changed while it was open
@@ -353,6 +388,32 @@ ipcMain.on('ws:push-state', (event) => {
 });
 
 app.whenReady().then(() => {
+  // Content Security Policy — applied to every response the renderer loads.
+  // script-src 'self': only scripts from the app bundle (no inline scripts, no eval).
+  // style-src 'self' 'unsafe-inline': Tailwind generates inline styles at runtime.
+  // connect-src 'self' https:: allows XHR/fetch to any https origin (AI APIs, CalDAV, etc.).
+  // img-src 'self' data: blob:: covers favicons, base64 images, and blob URLs.
+  // object-src / base-uri 'none': closes classic plugin and base-tag injection vectors.
+  const CSP = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "connect-src 'self' https:",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [CSP],
+      },
+    });
+  });
+
   const win = createWindow();
   createWsServer(() => live(mainWindow));
   if (process.platform === 'darwin') createTray();
