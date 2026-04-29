@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, Mic } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -7,6 +7,15 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
   const { setUnscheduledTasks, borderClass } = useDayPlannerCtx();
   const { aiConfig, voiceCanRecord } = useFeaturesCtx();
   const [text, setText] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onFocusQuickAdd) return;
+    return window.electronAPI.onFocusQuickAdd(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, []);
 
   const commit = () => {
     const title = text.trim();
@@ -35,6 +44,7 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
     <div className={`flex-shrink-0 px-3 pt-3 pb-2 border-b ${borderClass}`}>
       <div className="flex items-center gap-1.5">
         <input
+          ref={inputRef}
           className={`flex-1 text-sm px-3 py-2 rounded-lg outline-none ${
             darkMode
               ? 'bg-white/10 text-white placeholder-gray-500'

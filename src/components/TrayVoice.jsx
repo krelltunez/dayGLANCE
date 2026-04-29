@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { Mic, MicOff, X, Loader, RotateCcw } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
-export default function TrayVoice({ darkMode, onClose }) {
+export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
   const { textPrimary, textSecondary, borderClass, cardBg } = useDayPlannerCtx();
   const {
     aiConfig,
@@ -17,6 +18,10 @@ export default function TrayVoice({ darkMode, onClose }) {
     voiceParseWithAI, voiceApplyAllChanges,
     voiceHasTranscription,
   } = useFeaturesCtx();
+
+  useEffect(() => {
+    if (autoStart && voiceCanRecord && !voiceIsRecording) voiceStartRecording();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasParsed = voiceParsedTasks !== null && (voiceParsedTasks?.length > 0 || voiceParsedEdits?.length > 0);
   const isProcessing = voiceIsTranscribing || voiceIsParsing;

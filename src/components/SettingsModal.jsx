@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -63,6 +63,31 @@ const SettingsModal = () => {
   const provider = cloudSyncProviders[currentProvider];
   const storageUsage = getStorageUsage();
   const storageWarning = storageUsage.totalBytes > 4 * 1024 * 1024;
+
+  const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
+
+  const handleHotkeyRecord = (e) => {
+    e.preventDefault();
+    const ignored = new Set(['Meta', 'Shift', 'Alt', 'Control']);
+    if (ignored.has(e.key)) return;
+    const mods = [];
+    if (e.metaKey) mods.push('Cmd');
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey) mods.push('Shift');
+    const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    const accelerator = [...mods, key].join('+');
+    setTrayHotkey(accelerator);
+    localStorage.setItem('dg-tray-hotkey', accelerator);
+    window.electronAPI?.setGlobalHotkey?.(accelerator);
+    e.target.blur();
+  };
+
+  const clearHotkey = () => {
+    setTrayHotkey('');
+    localStorage.removeItem('dg-tray-hotkey');
+    window.electronAPI?.setGlobalHotkey?.('');
+  };
 
   return (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowSettings(false)}>
@@ -364,6 +389,38 @@ const SettingsModal = () => {
                         <span className={`text-sm ${textPrimary}`}>Show daily tips &amp; quotes in header</span>
                       </label>
                     </div>
+
+                    {window.electronAPI?.platform === 'darwin' && (<>
+                    <hr className={borderClass} />
+
+                    {/* Global Shortcut — macOS only */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Key size={16} className={textSecondary} />
+                        Global Shortcut
+                      </h4>
+                      <p className={`text-sm ${textSecondary}`}>
+                        Open the quick-add popup from anywhere on your Mac.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          placeholder="Click, then press shortcut…"
+                          value={trayHotkey}
+                          onKeyDown={handleHotkeyRecord}
+                          className={`flex-1 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'} text-sm cursor-pointer font-mono`}
+                        />
+                        {trayHotkey && (
+                          <button
+                            onClick={clearHotkey}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    </>)}
 
                     </>)}
 

@@ -296,6 +296,13 @@ export default function useElectronBridge({
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-register the stored global hotkey after the main window (re)loads.
+  useEffect(() => {
+    if (isTrayMode || !window.electronAPI?.setGlobalHotkey) return;
+    const stored = localStorage.getItem('dg-tray-hotkey');
+    if (stored) window.electronAPI.setGlobalHotkey(stored);
+  }, []);
+
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
     if (!window.electronAPI) return;

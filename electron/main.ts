@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage, globalShortcut } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ let tray: Tray | null = null;
 let trayWindow: BrowserWindow | null = null;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
+let registeredHotkey: string | null = null;
 
 // Safe accessor — returns null if the window has been destroyed so callers
 // never have to scatter isDestroyed() checks throughout the file.
@@ -189,6 +190,31 @@ ipcMain.on('tray:background-action', (_event, payload: unknown) => {
   live(mainWindow)?.webContents.send('tray:background-action', payload);
 });
 
+// Global hotkey: show tray popup and focus quick-add input.
+ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
+  if (registeredHotkey) {
+    try { globalShortcut.unregister(registeredHotkey); } catch { /* ignore */ }
+    registeredHotkey = null;
+  }
+  if (!accelerator) return true;
+  const ok = globalShortcut.register(accelerator, () => {
+    const tw = live(trayWindow);
+    if (!tw) return;
+    if (tw.isVisible()) { tw.hide(); return; }
+    const bounds = tray?.getBounds();
+    if (bounds) {
+      const { x, y, width: iconW, height: iconH } = bounds;
+      const { width: popW } = tw.getBounds();
+      tw.setPosition(Math.round(x - popW / 2 + iconW / 2), Math.round(y + iconH));
+    }
+    tw.show();
+    tw.focus();
+    tw.webContents.send('tray:focus-quick-add');
+  });
+  if (ok) registeredHotkey = accelerator;
+  return ok;
+});
+
 // Keep tray popup in sync: reload it in the background whenever state changes
 ipcMain.on('ws:push-state', (event) => {
   const tw = live(trayWindow);
@@ -214,6 +240,10 @@ app.whenReady().then(() => {
     const mw = live(mainWindow);
     if (mw) { mw.show(); mw.focus(); } else createWindow();
   });
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {
