@@ -185,11 +185,56 @@ function createTray(): void {
   });
 }
 
+// Allowed HTTP methods for the proxy — covers CalDAV/WebDAV needs.
+const PROXY_ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'PROPFIND', 'MKCOL', 'REPORT', 'OPTIONS']);
+
+// Block private/loopback/link-local addresses to prevent SSRF.
+function validateProxyUrl(urlString: string): void {
+  let parsed: URL;
+  try { parsed = new URL(urlString); } catch { throw new Error('Invalid URL'); }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Only http and https URLs are allowed');
+  }
+
+  const h = parsed.hostname.toLowerCase();
+
+  if (h === 'localhost' || h === '0.0.0.0') throw new Error('Private/reserved address');
+
+  const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      a === 0 ||
+      (a === 100 && b >= 64 && b <= 127)
+    ) throw new Error('Private/reserved address');
+  }
+
+  if (
+    h === '::1' || h === '::' ||
+    /^::ffff:/i.test(h) || /^fe80:/i.test(h) ||
+    /^fc/i.test(h)      || /^fd/i.test(h)
+  ) throw new Error('Private/reserved address');
+}
+
 // Proxy outbound HTTP requests from the renderer so they aren't subject to
 // Chromium's CORS restrictions when the app is loaded from file://.
 ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, headers: Record<string, string>, body: string | null) => {
+  const upperMethod = (method ?? '').toUpperCase();
+  if (!PROXY_ALLOWED_METHODS.has(upperMethod)) {
+    return { status: 400, ok: false, statusText: 'Bad Request', body: 'Method not allowed' };
+  }
+  try { validateProxyUrl(url); } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Invalid URL';
+    return { status: 400, ok: false, statusText: 'Bad Request', body: msg };
+  }
   const response = await net.fetch(url, {
-    method,
+    method: upperMethod,
     headers,
     ...(body != null ? { body } : {}),
   });

@@ -8,11 +8,20 @@ const WS_PORT = 7892;
 // even if it was closed and recreated after startup (possible when the tray
 // keeps the process alive).
 export function createWsServer(getMainWindow: () => BrowserWindow | null): WebSocketServer {
-  const wss = new WebSocketServer({ port: WS_PORT });
+  // Bind to loopback only — never reachable from the network.
+  const wss = new WebSocketServer({ host: '127.0.0.1', port: WS_PORT });
   const clients = new Set<WebSocket>();
   let lastState: string | null = null;
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    // Browser-initiated WebSocket connections always include an Origin header;
+    // native clients (e.g. the Stream Deck plugin) do not. Reject browser
+    // connections to prevent any web page from reaching this server.
+    if (req.headers['origin']) {
+      ws.terminate();
+      return;
+    }
+
     clients.add(ws);
     if (lastState) {
       ws.send(lastState);
