@@ -57,7 +57,7 @@ async function loadKeyFromIndexedDB() {
     });
     if (!record) return null;
     const key = await crypto.subtle.importKey(
-      'raw', record.rawKey, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
+      'raw', record.rawKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
     );
     return { key, salt: new Uint8Array(record.salt) };
   } catch {
@@ -87,7 +87,7 @@ async function loadKeyFromAndroid() {
     if (!b64) return null;
     const record = JSON.parse(atob(b64));
     const key = await crypto.subtle.importKey(
-      'raw', new Uint8Array(record.rawKey), { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
+      'raw', new Uint8Array(record.rawKey), { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
     );
     return { key, salt: new Uint8Array(record.salt) };
   } catch {
@@ -162,15 +162,19 @@ export async function initSessionKey() {
  */
 export async function setupEncryptionKey(passphrase) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key  = await deriveKey(passphrase, salt);
+  const key  = await deriveKey(passphrase, salt);  // extractable: true (needed to export for storage)
   _sessionPassphrase = passphrase;
-  _sessionKey        = key;
   _sessionSalt       = salt;
   if (typeof window !== 'undefined' && window.DayGlanceNative?.storeSyncKey) {
     await saveKeyToAndroid(key, salt);
   } else {
     await saveKeyToIndexedDB(key, salt);
   }
+  // Re-import as non-extractable so the live in-memory key cannot be exported via the Web Crypto API.
+  const rawKey = await crypto.subtle.exportKey('raw', key);
+  _sessionKey = await crypto.subtle.importKey(
+    'raw', rawKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
 }
 
 /**
