@@ -783,6 +783,8 @@ export default function useDragDrop({
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('dragstart', preventDrag);
       setIsResizing(false);
+      frameResizingRef.current = true;
+      setTimeout(() => { frameResizingRef.current = false; }, 0);
       // Sync resize back to the device calendar for native events
       if (task.nativeEventId && !isRecurringTask && task.startTime) {
         const endMin = timeToMinutes(task.startTime) + finalDuration;
@@ -904,6 +906,8 @@ export default function useDragDrop({
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('dragstart', preventDrag);
       setIsResizing(false);
+      frameResizingRef.current = true;
+      setTimeout(() => { frameResizingRef.current = false; }, 0);
     };
 
     document.addEventListener('mousemove', handleMouseMove);

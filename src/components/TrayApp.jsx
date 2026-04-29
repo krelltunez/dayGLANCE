@@ -3,6 +3,7 @@ import GlanceSidebar from './GlanceSidebar.jsx';
 import TrayHeader from './TrayHeader.jsx';
 import TrayFocus from './TrayFocus.jsx';
 import TrayReminders from './TrayReminders.jsx';
+import TrayNowBar from './TrayNowBar.jsx';
 import TraySpotlight from './TraySpotlight.jsx';
 import TrayVoice from './TrayVoice.jsx';
 
@@ -10,6 +11,7 @@ export default function TrayApp({ bgClass, darkMode }) {
   const [overlay, setOverlay] = useState(null); // 'spotlight' | 'voice' | null
   const [focusState, setFocusState] = useState(null);
   const [reminders, setReminders] = useState([]);
+  const [currentTask, setCurrentTask] = useState(null);
 
   useEffect(() => {
     if (!window.electronAPI?.onFocusState) return;
@@ -25,6 +27,13 @@ export default function TrayApp({ bgClass, darkMode }) {
     });
   }, []);
 
+  useEffect(() => {
+    if (!window.electronAPI?.onCurrentTask) return;
+    return window.electronAPI.onCurrentTask((task) => {
+      setCurrentTask(task ?? null);
+    });
+  }, []);
+
   return (
     <div className={`${bgClass} flex flex-col`} style={{ height: '100vh' }}>
       <TrayHeader
@@ -37,6 +46,7 @@ export default function TrayApp({ bgClass, darkMode }) {
       ) : (
         <>
           <TrayReminders darkMode={darkMode} reminders={reminders} />
+          <TrayNowBar darkMode={darkMode} currentTask={currentTask} />
           {overlay === 'spotlight' && (
             <TraySpotlight darkMode={darkMode} onClose={() => setOverlay(null)} />
           )}

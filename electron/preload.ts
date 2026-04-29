@@ -71,6 +71,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('tray:reminders', handler);
   },
 
+  // Main window pushes the currently-in-progress task to the tray popup.
+  pushCurrentTask: (task: unknown) => ipcRenderer.send('tray:push-current-task', task),
+
+  // Tray popup receives the currently-in-progress task forwarded from the main window.
+  onCurrentTask: (callback: (task: unknown) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, task: unknown) => callback(task);
+    ipcRenderer.on('tray:current-task', handler);
+    return () => ipcRenderer.removeListener('tray:current-task', handler);
+  },
+
   // Registers (or clears) a system-wide hotkey that shows the tray popup.
   // Pass an empty string to unregister. Returns true if registration succeeded.
   setGlobalHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register', accelerator),

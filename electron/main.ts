@@ -129,7 +129,7 @@ function createTrayWindow(): BrowserWindow {
   // registered its onReminders listener. 800ms is enough for the renderer to
   // finish hydrating; focus state self-corrects within 1s so no re-push needed.
   win.webContents.on('did-finish-load', () => {
-    setTimeout(pushRemindersToTray, 800);
+    setTimeout(() => { pushRemindersToTray(); pushCurrentTaskToTray(); }, 800);
   });
 
   // Hide when the user clicks outside the popup; reload if state changed while it was open
@@ -172,6 +172,7 @@ function createTray(): void {
     tw.show();
     tw.focus();
     pushRemindersToTray();
+    pushCurrentTaskToTray();
   });
 
   // Right-click: native Open / Quit menu
@@ -229,10 +230,23 @@ function pushRemindersToTray() {
   }
 }
 
+// Last-known in-progress task — re-sent to the tray popup after a reload or on show.
+let lastKnownCurrentTask: unknown = null;
+
+function pushCurrentTaskToTray() {
+  live(trayWindow)?.webContents.send('tray:current-task', lastKnownCurrentTask);
+}
+
 // Reminder list: cache + forward to tray popup whenever it changes.
 ipcMain.on('tray:push-reminders', (_event, reminders: unknown) => {
   lastKnownReminders = reminders;
   live(trayWindow)?.webContents.send('tray:reminders', reminders);
+});
+
+// Current task: cache + forward to tray popup whenever it changes.
+ipcMain.on('tray:push-current-task', (_event, task: unknown) => {
+  lastKnownCurrentTask = task;
+  live(trayWindow)?.webContents.send('tray:current-task', task);
 });
 
 // Focus state: update menu bar countdown and forward to tray popup.
@@ -270,6 +284,7 @@ ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
     tw.show();
     tw.focus();
     pushRemindersToTray();
+    pushCurrentTaskToTray();
     tw.webContents.send('tray:focus-quick-add');
   });
   if (ok) registeredHotkey = accelerator;

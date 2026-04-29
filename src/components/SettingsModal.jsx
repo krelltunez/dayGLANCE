@@ -223,6 +223,24 @@ const SettingsModal = () => {
                             </button>
                           </div>
                         </div>
+                        <div>
+                          <label className={`block text-xs ${textSecondary} mb-1.5`}>Week timeline start</label>
+                          <div className="flex flex-wrap gap-2">
+                            {[0, 4, 5, 6, 7].map(h => (
+                              <button
+                                key={h}
+                                onClick={() => setWeekTimelineStartHour(h)}
+                                className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                                  weekTimelineStartHour === h
+                                    ? 'bg-blue-600 text-white'
+                                    : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                                }`}
+                              >
+                                {h === 0 ? '12am' : `${h}am`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -260,24 +278,6 @@ const SettingsModal = () => {
                         </div>
                       </div>
                       <div>
-                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Week timeline start</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[0, 4, 5, 6, 7].map(h => (
-                            <button
-                              key={h}
-                              onClick={() => setWeekTimelineStartHour(h)}
-                              className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                                weekTimelineStartHour === h
-                                  ? 'bg-blue-600 text-white'
-                                  : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
-                              }`}
-                            >
-                              {h === 0 ? '12am' : `${h}am`}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
                         <label className={`block text-xs ${textSecondary} mb-1.5`}>First day of week</label>
                         <div className="flex gap-2">
                           <button
@@ -303,6 +303,38 @@ const SettingsModal = () => {
                         </div>
                       </div>
                     </div>
+
+                    {window.electronAPI?.platform === 'darwin' && (<>
+                    <hr className={borderClass} />
+
+                    {/* Global Shortcut — macOS only */}
+                    <div className="space-y-3">
+                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <Key size={16} className={textSecondary} />
+                        Global Shortcut
+                      </h4>
+                      <p className={`text-sm ${textSecondary}`}>
+                        Open the quick-add popup from anywhere on your Mac.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          placeholder="Click, then press shortcut…"
+                          value={trayHotkey}
+                          onKeyDown={handleHotkeyRecord}
+                          className={`flex-1 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'} text-sm cursor-pointer font-mono`}
+                        />
+                        {trayHotkey && (
+                          <button
+                            onClick={clearHotkey}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    </>)}
 
                     <hr className={borderClass} />
 
@@ -389,38 +421,6 @@ const SettingsModal = () => {
                         <span className={`text-sm ${textPrimary}`}>Show daily tips &amp; quotes in header</span>
                       </label>
                     </div>
-
-                    {window.electronAPI?.platform === 'darwin' && (<>
-                    <hr className={borderClass} />
-
-                    {/* Global Shortcut — macOS only */}
-                    <div className="space-y-3">
-                      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
-                        <Key size={16} className={textSecondary} />
-                        Global Shortcut
-                      </h4>
-                      <p className={`text-sm ${textSecondary}`}>
-                        Open the quick-add popup from anywhere on your Mac.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          readOnly
-                          placeholder="Click, then press shortcut…"
-                          value={trayHotkey}
-                          onKeyDown={handleHotkeyRecord}
-                          className={`flex-1 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'} text-sm cursor-pointer font-mono`}
-                        />
-                        {trayHotkey && (
-                          <button
-                            onClick={clearHotkey}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    </>)}
 
                     </>)}
 
