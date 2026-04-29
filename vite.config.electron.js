@@ -13,7 +13,7 @@ export default defineConfig({
     __IS_ELECTRON__: 'true',
   },
   build: {
-    sourcemap: true,
+    sourcemap: false,
     outDir: 'dist',
     emptyOutDir: true,
   },
