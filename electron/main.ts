@@ -15,6 +15,7 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localh
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let isQuitting = false;
 let trayWindow: BrowserWindow | null = null;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
@@ -76,7 +77,12 @@ function createWindow(): BrowserWindow {
   };
   mainWindow.on('resize', trackBounds);
   mainWindow.on('move', trackBounds);
-  mainWindow.on('close', () => {
+  mainWindow.on('close', (event) => {
+    if (process.platform === 'darwin' && !isQuitting) {
+      event.preventDefault();
+      live(mainWindow)?.hide();
+      return;
+    }
     saveWindowState({ ...normalBounds, maximized: live(mainWindow)?.isMaximized() ?? false });
   });
 
@@ -273,9 +279,11 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     const mw = live(mainWindow);
-    if (mw) { mw.show(); mw.focus(); } else createWindow();
+    if (mw) { if (!mw.isVisible()) mw.show(); mw.focus(); } else createWindow();
   });
 });
+
+app.on('before-quit', () => { isQuitting = true; });
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();

@@ -473,7 +473,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
         {eveningGlanceText && !eveningGlanceLoading && incompleteTodayTasks.length > 0 && gtdFrames.filter(f => f.enabled).length > 0 && aiConfig.features?.aiReschedule && (
           <button
-            onClick={() => { setShowRescheduleModal(true); setRescheduleResults(null); setRescheduleError(''); }}
+            onClick={() => isTray ? openMainAt({ action: 'reschedule' }) : (setShowRescheduleModal(true), setRescheduleResults(null), setRescheduleError(''))}
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-orange-400 hover:text-orange-300' : 'text-orange-600 hover:text-orange-700'}`}
           >
             <CalendarDays size={12} />
@@ -536,7 +536,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     if (!(_pastOverdue.length > 0 || (incompleteTodayTasks.length > 0 && currentTime.getHours() >= 19))) return null;
     return (
       <button
-        onClick={() => { setShowRescheduleModal(true); setRescheduleResults(null); setRescheduleError(''); }}
+        onClick={() => isTray ? openMainAt({ action: 'reschedule' }) : (setShowRescheduleModal(true), setRescheduleResults(null), setRescheduleError(''))}
         className={`w-full mb-3 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors ${darkMode ? 'bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30' : 'bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200'}`}
       >
         <Sparkles size={15} />

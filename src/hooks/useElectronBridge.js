@@ -130,6 +130,10 @@ export default function useElectronBridge({
   activeReminders,
   snoozeReminder,
   dismissReminder,
+  // Reschedule modal
+  setShowRescheduleModal,
+  setRescheduleResults,
+  setRescheduleError,
 }) {
   const [pushTrigger, setPushTrigger] = useState(0);
 
@@ -159,6 +163,9 @@ export default function useElectronBridge({
   const setHabitCountRef = useRef(setHabitCount);
   const snoozeReminderRef = useRef(snoozeReminder);
   const dismissReminderRef = useRef(dismissReminder);
+  const setShowRescheduleModalRef = useRef(setShowRescheduleModal);
+  const setRescheduleResultsRef = useRef(setRescheduleResults);
+  const setRescheduleErrorRef = useRef(setRescheduleError);
   skipFocusPhaseRef.current = skipFocusPhase;
   dismissFocusStatsRef.current = dismissFocusStats;
   focusCompleteTaskRef.current = focusCompleteTask;
@@ -185,6 +192,9 @@ export default function useElectronBridge({
   setHabitCountRef.current = setHabitCount;
   snoozeReminderRef.current = snoozeReminder;
   dismissReminderRef.current = dismissReminder;
+  setShowRescheduleModalRef.current = setShowRescheduleModal;
+  setRescheduleResultsRef.current = setRescheduleResults;
+  setRescheduleErrorRef.current = setRescheduleError;
 
   // Subscribe to commands from WebSocket clients once on mount.
   useEffect(() => {
@@ -274,6 +284,10 @@ export default function useElectronBridge({
         enterFocusModeRef.current?.();
       } else if (action === 'hyperglance') {
         if (projectId && date) enterHyperGlanceModeRef.current?.(projectId, date);
+      } else if (action === 'reschedule') {
+        setShowRescheduleModalRef.current?.(true);
+        setRescheduleResultsRef.current?.(null);
+        setRescheduleErrorRef.current?.('');
       }
     });
   }, [goToDate]); // eslint-disable-line react-hooks/exhaustive-deps

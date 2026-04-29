@@ -6250,6 +6250,9 @@ const DayPlanner = () => {
     activeReminders,
     snoozeReminder,
     dismissReminder,
+    setShowRescheduleModal,
+    setRescheduleResults,
+    setRescheduleError,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
