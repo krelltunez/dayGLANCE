@@ -21,11 +21,21 @@ export default function useDayViewHourHeight(calendarRef, stickyHeaderRef) {
       calendarRef.current.scrollTop = 0;
     };
 
+    // Also reset on any scroll event — Chromium's scroll-anchoring and
+    // focus-scroll can set scrollTop on overflow:hidden containers without
+    // triggering a ResizeObserver, causing a visible "drift" on task click.
+    const onScroll = () => {
+      if (calendarRef?.current) calendarRef.current.scrollTop = 0;
+    };
+
     // Defer first measurement by one frame so the sticky header ref is populated.
     const rafId = requestAnimationFrame(() => {
       compute();
       const ro = new ResizeObserver(compute);
-      if (calendarRef?.current) ro.observe(calendarRef.current);
+      if (calendarRef?.current) {
+        ro.observe(calendarRef.current);
+        calendarRef.current.addEventListener('scroll', onScroll, { passive: true });
+      }
       if (stickyHeaderRef?.current) ro.observe(stickyHeaderRef.current);
       // Keep a reference so cleanup can disconnect even after the rAF fires.
       roRef = ro;
@@ -35,6 +45,7 @@ export default function useDayViewHourHeight(calendarRef, stickyHeaderRef) {
     return () => {
       cancelAnimationFrame(rafId);
       roRef?.disconnect();
+      calendarRef?.current?.removeEventListener('scroll', onScroll);
     };
   }, []); // refs are stable objects — no deps needed
 
