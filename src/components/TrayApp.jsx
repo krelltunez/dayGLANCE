@@ -18,7 +18,7 @@ export default function TrayApp({ bgClass, darkMode }) {
         <TraySpotlight darkMode={darkMode} onClose={() => setOverlay(null)} />
       )}
       {overlay === 'voice' && (
-        <TrayVoice darkMode={darkMode} onClose={() => setOverlay(null)} />
+        <TrayVoice darkMode={darkMode} onClose={() => setOverlay(null)} autoStart />
       )}
       {!overlay && (
         <div className="flex-1 overflow-y-auto px-3 py-3">

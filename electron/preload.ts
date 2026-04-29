@@ -50,4 +50,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
+
+  // Registers (or clears) a system-wide hotkey that shows the tray popup.
+  // Pass an empty string to unregister. Returns true if registration succeeded.
+  setGlobalHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register', accelerator),
+
+  // Tray popup listens for the signal to focus the quick-add input.
+  onFocusQuickAdd: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:focus-quick-add', handler);
+    return () => ipcRenderer.removeListener('tray:focus-quick-add', handler);
+  },
 });
