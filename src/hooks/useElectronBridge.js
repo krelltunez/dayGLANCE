@@ -374,6 +374,28 @@ export default function useElectronBridge({
     });
   }, [showFocusMode, focusShowStats, focusShowSettings, focusPhase, focusTimerSeconds, focusTimerRunning, focusCycleCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Push currently-in-progress task to tray popup whenever it changes. Guarded to main window only.
+  useEffect(() => {
+    if (isTrayMode || !window.electronAPI?.pushCurrentTask) return;
+    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const hgSessions = todayHGSessions || [];
+    const scheduled = [
+      ...todayAgenda.filter(t => t._agendaType === 'scheduled' && !t.completed && t.startTime),
+      ...hgSessions,
+    ];
+    const inProgress = scheduled.find(t => {
+      const start = timeToMinutes(t.startTime);
+      return start <= nowMin && start + (t.duration || 0) > nowMin;
+    }) || null;
+    window.electronAPI.pushCurrentTask(inProgress ? {
+      id: inProgress.id,
+      title: inProgress.title,
+      startTime: inProgress.startTime ?? null,
+      duration: inProgress.duration || 0,
+      colorHex: inProgress.colorHex || taskColorToHex(inProgress.color, inProgress.nativeCalendarColor),
+    } : null);
+  }, [currentTime, todayAgenda, todayHGSessions]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
     if (!window.electronAPI) return;
