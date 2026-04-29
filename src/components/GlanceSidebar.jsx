@@ -237,7 +237,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const todayDow = new Date().getDay();
     const todayHabits = activeHabits.filter(h => (h.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6]).includes(todayDow));
     if (activeHabits.length === 0) return (
-      <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => setShowHabitModal(true)}>
+      <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => isTray ? openMainAt({ action: 'habits' }) : setShowHabitModal(true)}>
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
         <div className="flex items-center gap-2">
           <span className={`text-xs ${textSecondary} italic`}>None added</span>
@@ -249,7 +249,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     return (
       <div className="relative">
         <button
-          onClick={() => setShowHabitModal(true)}
+          onClick={() => isTray ? openMainAt({ action: 'habits' }) : setShowHabitModal(true)}
           className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
           title="Manage habits"
         >

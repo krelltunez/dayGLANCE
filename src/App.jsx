@@ -6257,6 +6257,7 @@ const DayPlanner = () => {
     setShowFramesModal,
     setFramesModalTab,
     setEditingFrame,
+    setShowHabitModal,
   });
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
