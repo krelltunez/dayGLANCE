@@ -20,35 +20,25 @@ function fmtEndTime(startTime, duration) {
 }
 
 export default function TrayNowBar({ darkMode, currentTask }) {
-  const { borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
-
   if (!currentTask) return null;
 
   const open = () => window.electronAPI?.openMainAt({ action: 'goto-task', taskId: currentTask.id });
   const start = fmtTime(currentTask.startTime);
   const end = fmtEndTime(currentTask.startTime, currentTask.duration);
   const timeLabel = end ? `${start}–${end}` : start;
+  const label = timeLabel ? `Now: ${currentTask.title}  ·  ${timeLabel}` : `Now: ${currentTask.title}`;
 
   return (
-    <div className={`flex-shrink-0 border-b ${borderClass}`}>
-      <button
-        onClick={open}
-        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-opacity hover:opacity-80 ${
-          darkMode ? 'bg-blue-500/15' : 'bg-blue-50'
-        }`}
-      >
-        <div
-          className="flex-shrink-0 w-2 h-2 rounded-full mt-px"
-          style={{ backgroundColor: currentTask.colorHex || '#3b82f6' }}
-        />
-        <div className="flex-1 min-w-0">
-          <div className={`text-xs font-medium truncate ${textPrimary}`}>{currentTask.title}</div>
-          {timeLabel && <div className={`text-xs ${textSecondary}`}>{timeLabel}</div>}
-        </div>
-        <div className={`text-xs font-medium flex-shrink-0 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-          Now
-        </div>
-      </button>
-    </div>
+    <button
+      onClick={open}
+      className={`w-full flex-shrink-0 flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-left transition-opacity hover:opacity-80 ${
+        darkMode
+          ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40'
+          : 'bg-amber-50 text-amber-800 border-b border-amber-200'
+      }`}
+    >
+      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
   );
 }

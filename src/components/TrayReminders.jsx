@@ -12,6 +12,11 @@ export default function TrayReminders({ darkMode, reminders }) {
   const snooze = (reminder) =>
     window.electronAPI?.backgroundAction({ action: 'snooze-reminder', reminder });
 
+  const complete = (reminder) => {
+    window.electronAPI?.backgroundAction({ action: 'toggle-complete', taskId: reminder.taskId });
+    dismiss(reminder.id);
+  };
+
   return (
     <div className={`flex-shrink-0 border-b ${borderClass}`}>
       {reminders.map((r) => (
@@ -27,7 +32,16 @@ export default function TrayReminders({ darkMode, reminders }) {
             <div className={`text-xs ${textSecondary}`}>{r.message}</div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            {!r.isCalendarEvent && r.startTime && (
+            {r.type === 'end' && !r.isCalendarEvent && (
+              <button
+                onClick={() => complete(r)}
+                title="Mark complete"
+                className="px-2 py-0.5 text-xs rounded bg-blue-600 text-white transition-opacity hover:opacity-80"
+              >
+                Complete
+              </button>
+            )}
+            {r.type !== 'end' && r.type !== 'morning' && !r.isCalendarEvent && r.startTime && (
               <button
                 onClick={() => snooze(r)}
                 title="Snooze 15 min"
