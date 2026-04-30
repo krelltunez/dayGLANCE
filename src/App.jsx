@@ -240,6 +240,10 @@ const DayPlanner = () => {
   // Below 1600px the cycler is hidden and the stored mode is ignored until the
   // viewport grows back; the app behaves as 'multi' in the meantime.
   const effectiveViewMode = canShowViewCycler ? viewMode : 'multi';
+  const [mobileViewMode, setMobileViewMode] = useState(() => {
+    const saved = localStorage.getItem('day-planner-mobile-view-mode');
+    return saved ? JSON.parse(saved) : 'grid';
+  });
   const [defaultView, setDefaultView] = useState(() => {
     const saved = localStorage.getItem('day-planner-default-view');
     return saved ? JSON.parse(saved) : 'multi';
@@ -1050,6 +1054,10 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-view-mode', JSON.stringify(viewMode));
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify(mobileViewMode));
+  }, [mobileViewMode]);
 
   useEffect(() => {
     localStorage.setItem('day-planner-default-view', JSON.stringify(defaultView));
@@ -7090,6 +7098,7 @@ const DayPlanner = () => {
     isPhone, isMobile, isTablet, isLandscape,
     visibleDays, visibleDates,
     viewMode, setViewMode, canShowViewCycler, effectiveViewMode,
+    mobileViewMode, setMobileViewMode,
     defaultView, setDefaultView,
     dayViewMode, setDayViewMode,
     dayViewColumns,
