@@ -145,6 +145,17 @@ body.using-pointer a:focus-visible {
   -webkit-overflow-scrolling: touch;
 }
 
+/* LIST view — next-event block single pulse (fires once on change, never repeats) */
+@keyframes list-block-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  20%  { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.45); }
+  60%  { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+.list-block-pulse {
+  animation: list-block-pulse 1.5s ease-in-out 1 forwards;
+}
+
 /* Mobile tab switch animation */
 @keyframes mobile-tab-fade-in {
   from { opacity: 0; }
