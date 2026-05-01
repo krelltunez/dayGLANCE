@@ -966,6 +966,7 @@ const DayPlanner = () => {
     selectedDate,
     isMobile, isTablet,
     mobileActiveTab,
+    mobileViewMode,
     viewMode: effectiveViewMode,
   });
 
@@ -8517,8 +8518,8 @@ const DayPlanner = () => {
         </div>
       )}
 
-      {/* Refocus timeline toast — all form factors */}
-      {timelineScrolledAway && effectiveViewMode === 'multi' && (
+      {/* Refocus timeline toast — all form factors except mobile list view */}
+      {timelineScrolledAway && effectiveViewMode === 'multi' && !(isMobile && mobileViewMode === 'list') && (
         <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <button
             onClick={() => { setTimelineScrolledAway(false); scrollToCurrentHour(true); }}

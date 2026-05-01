@@ -787,20 +787,25 @@ const MobileListView = () => {
     return ys;
   }, [segments, isToday, inProgressItem, visibleItems]);
 
-  // CSS mask: opaque everywhere, fades to transparent at each marker centre (±FADE px).
-  // This makes the spine genuinely transparent at markers rather than being covered.
+  // CSS mask: spine fades to transparent BEFORE each marker's top edge, holds
+  // invisible through the marker, then fades back after the marker's bottom edge.
   const bgSpineMask = useMemo(() => {
     if (spineMarkerYs.length === 0) return undefined;
-    const FADE = 14;
+    const MARKER_R  = 8;  // half of 16px marker height
+    const PRE_FADE  = 12; // fade-out distance ending at marker top edge
+    const POST_FADE = 12; // fade-in distance starting at marker bottom edge
     const stops = ['black 0px'];
     let prev = 0;
     spineMarkerYs.forEach(cy => {
-      const lo = cy - FADE;
-      const hi = cy + FADE;
-      if (lo > prev) stops.push(`black ${lo}px`);
-      stops.push(`transparent ${cy}px`);
-      stops.push(`black ${hi}px`);
-      prev = hi;
+      const fadeOutStart = cy - MARKER_R - PRE_FADE;  // where spine starts fading
+      const fadeOutEnd   = cy - MARKER_R;              // fully transparent by here
+      const fadeInStart  = cy + MARKER_R;              // starts returning after marker
+      const fadeInEnd    = cy + MARKER_R + POST_FADE;  // back to opaque
+      if (fadeOutStart > prev) stops.push(`black ${fadeOutStart}px`);
+      stops.push(`transparent ${fadeOutEnd}px`);
+      stops.push(`transparent ${fadeInStart}px`);
+      stops.push(`black ${fadeInEnd}px`);
+      prev = fadeInEnd;
     });
     stops.push('black 9999px');
     return `linear-gradient(to bottom, ${stops.join(', ')})`;
