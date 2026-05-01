@@ -79,7 +79,7 @@ function countdownText(diffMin) {
 
 // ─── SpineMarker ─────────────────────────────────────────────────────────────
 
-function SpineMarker({ kind, completed, colour }) {
+function SpineMarker({ kind, completed, colour, pageBg }) {
   const base = {
     width: 16, height: 16, flexShrink: 0, position: 'relative', zIndex: 2,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -92,7 +92,7 @@ function SpineMarker({ kind, completed, colour }) {
   }
   if (kind === 'frame') {
     return (
-      <div style={{ ...base, borderRadius: '50%', border: `2px solid ${colour}`, background: 'transparent' }} />
+      <div style={{ ...base, borderRadius: '50%', border: `2px solid ${colour}`, background: pageBg }} />
     );
   }
   if (kind === 'calendar-event') {
@@ -100,14 +100,14 @@ function SpineMarker({ kind, completed, colour }) {
       <div style={{ ...base, borderRadius: 2, background: colour }} />
     );
   }
-  // task / calendar-task
+  // task
   return (
     <div
       style={{
         ...base,
         borderRadius: 4,
         border: `2px solid ${colour}`,
-        background: completed ? colour : 'transparent',
+        background: completed ? colour : pageBg,
       }}
     >
       {completed && <Check size={9} strokeWidth={3} color="#fff" />}
@@ -309,7 +309,7 @@ function FrameCard({ frame, darkMode, textPrimary, textSecondary, openFrameAdjus
 
 // ─── Row wrapper (3 columns) ──────────────────────────────────────────────────
 
-function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow }) {
+function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg }) {
   return (
     <div style={{ display: 'flex', minHeight: cardHeight }}>
       {/* Col 1 — time */}
@@ -331,36 +331,24 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
         {isNow && <Clock size={11} style={{ color: timeColour, marginLeft: 'auto', marginTop: 2 }} />}
       </div>
 
-      {/* Col 2 — spine */}
+      {/* Col 2 — spine (background line drawn by container; halo + marker here) */}
       <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* Top spine segment — fades to transparent near the marker */}
-        <div
-          style={{
-            position: 'absolute', top: 0, bottom: 'calc(50% + 9px)',
-            left: '50%', transform: 'translateX(-50%)',
-            width: 2,
-            background: spineStyle === 'dashed'
-              ? dashedGradient(spineColour + '88')
-              : `linear-gradient(to bottom, ${spineColour}, ${spineColour} calc(100% - 10px), transparent)`,
-          }}
-        />
-        {/* Bottom spine segment — fades in from transparent below the marker */}
-        <div
-          style={{
-            position: 'absolute', top: 'calc(50% + 9px)', bottom: 0,
-            left: '50%', transform: 'translateX(-50%)',
-            width: 2,
-            background: spineStyle === 'dashed'
-              ? dashedGradient(spineColour + '88')
-              : `linear-gradient(to bottom, transparent, ${spineColour} 10px, ${spineColour})`,
-          }}
-        />
-        {/* Marker */}
+        {/* Gradient halo: fades the background spine into the marker */}
+        {pageBg && (
+          <div style={{
+            position: 'absolute',
+            top: '50%', transform: 'translateY(-50%)',
+            left: '50%', marginLeft: -1,
+            width: 2, height: 56, zIndex: 1, pointerEvents: 'none',
+            background: `linear-gradient(to bottom, transparent, ${pageBg} 40%, ${pageBg} 60%, transparent)`,
+          }} />
+        )}
         {marker}
       </div>
 
-      {/* Col 3 — content */}
-      <div style={{ flex: 1, minWidth: 0, position: 'relative', paddingTop: 4, paddingBottom: 4, paddingRight: 8 }}>
+      {/* Col 3 — no padding; card provides its own internal padding so top:50% on
+          the connector always matches the spine marker's vertical centre */}
+      <div style={{ flex: 1, minWidth: 0, position: 'relative', paddingRight: 8 }}>
         {accentHex && <Connector colour={accentHex} />}
         {children}
       </div>
@@ -389,9 +377,8 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
           </span>
         )}
       </div>
-      {/* Spine col */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: dashedGradient(spineColour + '88') }} />
+      {/* Spine col (line drawn by container; only drag indicator here) */}
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* Drag preview indicator on spine */}
         {isTarget && (
           <div
@@ -432,7 +419,7 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
 
 // ─── NowRow ───────────────────────────────────────────────────────────────────
 
-function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24HourClock }) {
+function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24HourClock, pageBg }) {
   const nowLabel = (() => {
     const h = Math.floor(nowMin / 60);
     const m = nowMin % 60;
@@ -456,10 +443,17 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       <div style={{ width: TIME_COL_W, flexShrink: 0, paddingRight: 8, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{nowLabel}</span>
       </div>
-      {/* Spine col */}
+      {/* Spine col (line drawn by container; halo + marker here) */}
       <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', top: 0, bottom: 'calc(50% + 9px)', left: '50%', transform: 'translateX(-50%)', width: 2, background: 'linear-gradient(to bottom, #ef444466, transparent)' }} />
-        <div style={{ position: 'absolute', top: 'calc(50% + 9px)', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: 'linear-gradient(to bottom, transparent, #ef444466)' }} />
+        {pageBg && (
+          <div style={{
+            position: 'absolute',
+            top: '50%', transform: 'translateY(-50%)',
+            left: '50%', marginLeft: -1,
+            width: 2, height: 56, zIndex: 1, pointerEvents: 'none',
+            background: `linear-gradient(to bottom, transparent, ${pageBg} 40%, ${pageBg} 60%, transparent)`,
+          }} />
+        )}
         {/* Red clock marker */}
         <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, position: 'relative' }}>
           <Clock size={9} color="#fff" />
@@ -762,6 +756,24 @@ const MobileListView = () => {
     return segs;
   }, [visibleItems, isToday, nowMin, timeToMinutes]);
 
+  // Page background colour — used as opaque fill behind spine markers so they cover the line
+  const pageBg = darkMode ? '#1f2937' : '#ffffff';
+
+  // Single continuous background spine gradient covering the visible time range
+  const bgSpineGradient = useMemo(() => {
+    const startMin = isToday
+      ? Math.min(nowMin, segments[0]?.fromMin ?? segments[0]?.startMin ?? nowMin)
+      : (segments[0]?.fromMin ?? segments[0]?.startMin ?? 0);
+    const lastSeg = segments[segments.length - 1];
+    const endMin = lastSeg?.toMin ?? lastSeg?.endMin ?? (startMin + 120);
+    const range = Math.max(endMin - startMin, 1);
+    const stops = [0, 0.25, 0.5, 0.75, 1].map(t => {
+      const min = startMin + t * range;
+      return `${spineColorAt(min)} ${(t * 100).toFixed(0)}%`;
+    });
+    return `linear-gradient(to bottom, ${stops.join(', ')})`;
+  }, [segments, isToday, nowMin]);
+
   // ── Render helpers ─────────────────────────────────────────────────────────
   const getAccentHex = (item) => {
     if (item._kind === 'calendar-event') {
@@ -810,52 +822,51 @@ const MobileListView = () => {
         </button>
       )}
 
-      {/* ── Spine spacer (padding above "now") ── */}
-      {isToday && !inProgressItem && (
-        <div style={{ display: 'flex', height: 16 }}>
-          <div style={{ width: TIME_COL_W, flexShrink: 0 }} />
-          <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: spineColorAt(nowMin) }} />
-          </div>
-          <div style={{ flex: 1 }} />
-        </div>
-      )}
-
-      {/* ── Now row — hidden when something is currently in progress ── */}
-      {isToday && !inProgressItem && (
-        <div ref={nowRowRef}>
-          <NowRow
-            nowMin={nowMin}
-            nextItem={nextItem}
-            formatTime={formatTime}
-            textSecondary={textSecondary}
-            darkMode={darkMode}
-            use24HourClock={use24HourClock}
+      {/* ── Timed body — single continuous background spine ── */}
+      <div style={{ position: 'relative' }}>
+        {/* One unbroken spine line behind all rows */}
+        {(visibleItems.length > 0 || (isToday && !inProgressItem)) && (
+          <div
+            style={{
+              position: 'absolute', top: 0, bottom: 0, zIndex: 0, pointerEvents: 'none',
+              left: TIME_COL_W + SPINE_COL_W / 2 - 1,
+              width: 2,
+              background: bgSpineGradient,
+            }}
           />
-        </div>
-      )}
+        )}
 
-      {/* ── Spine spacer (padding below "now") ── */}
-      {isToday && !inProgressItem && visibleItems.length > 0 && (
-        <div style={{ display: 'flex', height: 12 }}>
-          <div style={{ width: TIME_COL_W, flexShrink: 0 }} />
-          <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: spineColorAt(nowMin) }} />
+        {/* Padding above "now" */}
+        {isToday && !inProgressItem && <div style={{ height: 16 }} />}
+
+        {/* Now row */}
+        {isToday && !inProgressItem && (
+          <div ref={nowRowRef}>
+            <NowRow
+              nowMin={nowMin}
+              nextItem={nextItem}
+              formatTime={formatTime}
+              textSecondary={textSecondary}
+              darkMode={darkMode}
+              use24HourClock={use24HourClock}
+              pageBg={pageBg}
+            />
           </div>
-          <div style={{ flex: 1 }} />
-        </div>
-      )}
+        )}
 
-      {/* ── Empty state ── */}
-      {visibleItems.length === 0 && (
-        <div className={`flex flex-col items-center justify-center py-16 ${textSecondary}`}>
-          <p className="text-sm">No items scheduled</p>
-          {isToday && <p className="text-xs mt-1 opacity-60">Tap + to add a task</p>}
-        </div>
-      )}
+        {/* Padding below "now" */}
+        {isToday && !inProgressItem && visibleItems.length > 0 && <div style={{ height: 12 }} />}
 
-      {/* ── Segment list ── */}
-      {segments.map(seg => {
+        {/* Empty state */}
+        {visibleItems.length === 0 && (
+          <div className={`flex flex-col items-center justify-center py-16 ${textSecondary}`}>
+            <p className="text-sm">No items scheduled</p>
+            {isToday && <p className="text-xs mt-1 opacity-60">Tap + to add a task</p>}
+          </div>
+        )}
+
+        {/* Segment list */}
+        {segments.map(seg => {
         if (seg.type === 'gap') {
           const midMin = Math.round((seg.fromMin + seg.toMin) / 2);
           return (
@@ -887,16 +898,19 @@ const MobileListView = () => {
                 timeLabel={formatTime(item.startTime)}
                 spineColour={sc}
                 spineStyle="solid"
-                marker={<SpineMarker kind="routine" colour="#14b8a6" completed={completed} />}
+                marker={<SpineMarker kind="routine" colour="#14b8a6" completed={completed} pageBg={pageBg} />}
                 cardHeight={ROUTINE_H}
                 accentHex="#14b8a6"
+                pageBg={pageBg}
               >
-                <RoutineChip
-                  routine={item}
-                  completed={completed}
-                  onToggle={toggleRoutineCompletion}
-                  darkMode={darkMode}
-                />
+                <div style={{ marginTop: 4, marginBottom: 4 }}>
+                  <RoutineChip
+                    routine={item}
+                    completed={completed}
+                    onToggle={toggleRoutineCompletion}
+                    darkMode={darkMode}
+                  />
+                </div>
               </Row>
             );
           }
@@ -908,18 +922,21 @@ const MobileListView = () => {
                 timeLabel={formatTime(item.startTime)}
                 spineColour={sc}
                 spineStyle="solid"
-                marker={<SpineMarker kind="frame" colour={accentHex} />}
+                marker={<SpineMarker kind="frame" colour={accentHex} pageBg={pageBg} />}
                 cardHeight={FRAME_H}
                 accentHex={accentHex}
+                pageBg={pageBg}
               >
-                <FrameCard
-                  frame={item}
-                  darkMode={darkMode}
-                  textPrimary={textPrimary}
-                  textSecondary={textSecondary}
-                  openFrameAdjust={openFrameAdjust}
-                  dateStr={dateStr}
-                />
+                <div style={{ marginTop: 4, marginBottom: 4 }}>
+                  <FrameCard
+                    frame={item}
+                    darkMode={darkMode}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                    openFrameAdjust={openFrameAdjust}
+                    dateStr={dateStr}
+                  />
+                </div>
               </Row>
             );
           }
@@ -938,12 +955,14 @@ const MobileListView = () => {
                   kind={isCalendarEvent ? 'calendar-event' : 'task'}
                   completed={item.completed}
                   colour={accentHex}
+                  pageBg={pageBg}
                 />
               }
               cardHeight={TASK_H}
               accentHex={accentHex}
+              pageBg={pageBg}
             >
-              <div style={{ opacity: isPast ? 0.5 : 1 }}>
+              <div style={{ opacity: isPast ? 0.5 : 1, marginTop: 4, marginBottom: 4 }}>
                 <TaskCard
                   item={item}
                   accentHex={accentHex}
@@ -968,6 +987,7 @@ const MobileListView = () => {
 
         return null;
       })}
+      </div>{/* end timed body */}
 
       {/* ── Inbox drawer ── */}
       {/* Collapsed handle — fixed to viewport */}
