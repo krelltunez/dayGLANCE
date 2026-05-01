@@ -1,23 +1,191 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Check, ChevronUp, Inbox, RefreshCw } from 'lucide-react';
+import {
+  Check, ChevronUp, Edit2, ExternalLink, FileText, Inbox,
+  RefreshCw, SkipForward,
+} from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { renderTitle } from '../utils/textFormatting.jsx';
+import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks } from '../utils/textFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
+import { taskColorToHex } from '../utils/colorUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
-import MobileViewToggle from './MobileViewToggle.jsx';
 
-// px per hour — spine is pixel-accurate for solid/dotted logic and drag-drop
-const HOUR_H = 48;
-// Uniform height for task/event blocks (duration is text, not space)
-const BLOCK_H = 52;
-// Routine chip height
-const CHIP_H = 22;
-// Left edge of the spine line, matching the w-12 time-label column
-const SPINE_X = 48;
 const ORANGE = '#fe8b00';
+// Gap-segment heights (px) — short <1h, medium 1–3h, long >3h
+const GAP_H = { short: 20, medium: 40, long: 60 };
 
-const minToY = (min) => (min / 60) * HOUR_H;
+// Time-label column width — matches GRID view's w-12
+const TIME_COL = 48;
+
+function gapHeight(gapMin) {
+  if (gapMin < 60) return GAP_H.short;
+  if (gapMin <= 180) return GAP_H.medium;
+  return GAP_H.long;
+}
+
+function fmtDur(min) {
+  if (min >= 60) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${min}m`;
+}
+
+// ── Spine line variants ──────────────────────────────────────────────────────
+// Rendered inside the left time-column so borders appear as a continuous line.
+
+const SolidSpineLine = ({ color }) => (
+  <div
+    className="absolute top-0 bottom-0 pointer-events-none"
+    style={{ left: TIME_COL - 1, width: 2, backgroundColor: color }}
+  />
+);
+
+const DashedSpineLine = ({ color }) => (
+  <div
+    className="absolute top-0 bottom-0 pointer-events-none"
+    style={{
+      left: TIME_COL - 1,
+      width: 2,
+      background: `repeating-linear-gradient(to bottom,${color}55 0px,${color}55 4px,transparent 4px,transparent 10px)`,
+    }}
+  />
+);
+
+// ── TaskBlock ────────────────────────────────────────────────────────────────
+
+const TaskBlock = React.memo(({
+  item, isPulsing, isNext, isPast,
+  darkMode, textPrimary,
+  formatTime, minutesToTime, timeToMinutes,
+  toggleComplete, setExpandedNotesTaskId,
+  postponeTask, moveToInbox, openMobileEditTask,
+  getTaskCalendarStyle, goalsProjectsEnabled, projects,
+  setPulsingBlockId, dateStr,
+}) => {
+  const isImportedCal = item.imported && !item.isTaskCalendar;
+  const calStyle = isImportedCal ? getTaskCalendarStyle(item, darkMode) : undefined;
+  const isRecurring = typeof item.id === 'string' && item.id.startsWith('recurring-');
+
+  const hex = isImportedCal
+    ? (calStyle?.backgroundColor || '#6b7280')
+    : (taskColorToHex(item.color) || '#3b82f6');
+
+  const cardStyle = {
+    border: `1px solid ${hex}44`,
+    borderLeft: `3px solid ${hex}`,
+    background: `${hex}12`,
+    borderRadius: 6,
+  };
+
+  const proj = goalsProjectsEnabled && item.projectId
+    ? projects.find(p => p.id === item.projectId) : null;
+  const ProjIcon = proj?.hyperglance?.icon ? LucideIcons[proj.hyperglance.icon] : null;
+
+  const startMin = timeToMinutes(item.startTime);
+  const durMin = item.duration || 30;
+  const endMin = startMin + durMin;
+
+  const NoteIcon = isLinkOnlyTask(item) ? ExternalLink : FileText;
+
+  return (
+    <div
+      className={[
+        'overflow-hidden select-none',
+        isPast ? 'opacity-50' : '',
+        isPulsing ? 'list-block-pulse' : '',
+      ].filter(Boolean).join(' ')}
+      style={cardStyle}
+      onAnimationEnd={() => { if (isPulsing) setPulsingBlockId(null); }}
+    >
+      {/* Title row */}
+      <div className="flex items-start gap-2 px-2 pt-1.5">
+        {/* Completion dot */}
+        {!isImportedCal && (
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleComplete(item.id); }}
+            className={`mt-0.5 w-4 h-4 flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-colors`}
+            style={{
+              borderColor: hex,
+              background: item.completed ? hex : 'transparent',
+            }}
+          >
+            {item.completed && <Check size={8} strokeWidth={3} className="text-white" />}
+          </button>
+        )}
+
+        {/* Title */}
+        <div className="flex-1 min-w-0">
+          <div className={`flex items-center gap-1 min-w-0`}>
+            {isRecurring && <RefreshCw size={9} className="flex-shrink-0" style={{ color: hex, opacity: 0.7 }} />}
+            {ProjIcon && <ProjIcon size={10} className="flex-shrink-0" style={{ color: hex, opacity: 0.8 }} />}
+            <span
+              className={`text-sm font-medium truncate ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
+            >
+              {renderTitle(item.title)}
+            </span>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isLinkOnlyTask(item)) {
+                window.open(getLinkUrl(item), '_blank', 'noopener,noreferrer');
+              } else {
+                setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
+              }
+            }}
+            className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'} ${hasNotesOrSubtasks(item) || isLinkOnlyTask(item) ? 'opacity-80' : 'opacity-30'}`}
+            title="Notes / links"
+          >
+            <NoteIcon size={13} style={{ color: hex }} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); postponeTask(item.id, dateStr); }}
+            className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'} opacity-70`}
+            title="Postpone"
+          >
+            <SkipForward size={13} style={{ color: hex }} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); moveToInbox(item.id, dateStr); }}
+            className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'} opacity-70`}
+            title="Move to inbox"
+          >
+            <Inbox size={13} style={{ color: hex }} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); openMobileEditTask(item, false); }}
+            className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'} opacity-70`}
+            title="Edit"
+          >
+            <Edit2 size={13} style={{ color: hex }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Meta row — indented to align with title text */}
+      <div className="flex items-center pb-1.5 px-2 mt-0.5">
+        <div className="w-4 flex-shrink-0 mr-2" />{/* spacer = completion dot width + gap */}
+        <span className={`text-[11px] ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>
+          {formatTime(item.startTime)}–{formatTime(minutesToTime(endMin))} · {fmtDur(durMin)}
+          {isNext && (
+            <span className={`ml-2 font-semibold ${darkMode ? 'text-amber-400' : 'text-amber-600'}`}>
+              next
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+});
+TaskBlock.displayName = 'TaskBlock';
+
+// ── MobileListView ───────────────────────────────────────────────────────────
 
 const MobileListView = () => {
   const {
@@ -27,22 +195,22 @@ const MobileListView = () => {
     expandedRecurringTasks,
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, timeToMinutes, minutesToTime,
-    getTasksForDate, getTaskCalendarStyle, toggleComplete,
+    getTasksForDate, getTaskCalendarStyle,
+    toggleComplete, postponeTask, moveToInbox, openMobileEditTask,
+    setExpandedNotesTaskId,
     pushUndo, playUISound,
+    goalsProjectsEnabled, projects,
   } = useDayPlannerCtx();
 
   const {
     routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
-    goalsProjectsEnabled, projects,
   } = useFeaturesCtx();
 
   const [showPast, setShowPast] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
-  const [inboxPinned, setInboxPinned] = useState(false);
   const [activeDrag, setActiveDrag] = useState(null);
   const [dragSnapMin, setDragSnapMin] = useState(null);
   const [dragBlocked, setDragBlocked] = useState(false);
-  // ID of the block currently animating its one-time pulse
   const [pulsingBlockId, setPulsingBlockId] = useState(null);
 
   const spineRef = useRef(null);
@@ -56,7 +224,6 @@ const MobileListView = () => {
 
   const dayTasks = useMemo(
     () => getTasksForDate(selectedDate).filter(t => !t.isAllDay && !t.isExample),
-    // expandedRecurringTasks in deps ensures recurring instances are included
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedDate, tasks, expandedRecurringTasks],
   );
@@ -73,13 +240,11 @@ const MobileListView = () => {
     [currentTime],
   );
 
-  // All scheduled items sorted by start time
   const allItems = useMemo(() => {
     const taskItems = dayTasks.map(t => ({ ...t, _kind: 'task' }));
     const routineItems = dayRoutines.map(r => ({
       ...r,
       _kind: 'routine',
-      // stable key that won't collide with task IDs
       id: `routine-list-${r.id}`,
       _origId: r.id,
       title: r.name,
@@ -89,7 +254,6 @@ const MobileListView = () => {
     );
   }, [dayTasks, dayRoutines, timeToMinutes]);
 
-  // Past = fully ended before now (today only); running tasks stay in future
   const pastItems = useMemo(
     () => isToday
       ? allItems.filter(i => timeToMinutes(i.startTime) + (i.duration || 30) <= nowMin)
@@ -104,7 +268,8 @@ const MobileListView = () => {
     [allItems, nowMin, isToday, timeToMinutes],
   );
 
-  // Next non-completed task that hasn't started yet
+  const visibleItems = showPast ? allItems : futureItems;
+
   const nextEvent = useMemo(
     () => futureItems.find(
       i => i._kind === 'task' && !i.completed && timeToMinutes(i.startTime) > nowMin,
@@ -112,7 +277,7 @@ const MobileListView = () => {
     [futureItems, nowMin, timeToMinutes],
   );
 
-  // Single pulse when the next event identity changes
+  // Single pulse on next-event identity change
   useEffect(() => {
     const id = nextEvent?.id ?? null;
     if (id && id !== prevNextEventIdRef.current) setPulsingBlockId(id);
@@ -125,37 +290,43 @@ const MobileListView = () => {
     if (diff <= 0) return null;
     const h = Math.floor(diff / 60);
     const m = diff % 60;
-    return `${h > 0 ? `${h}h ` : ''}${m}m`.trim();
+    const t = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return `${t} until ${nextEvent.title}`;
   }, [nextEvent, nowMin, isToday, timeToMinutes]);
 
-  // Spine solid-segment map (every scheduled item occupies its duration)
-  const occupiedSegs = useMemo(
-    () => allItems.map(item => ({
-      id: item.id,
-      top: minToY(timeToMinutes(item.startTime)),
-      height: Math.max(minToY(item.duration || 30), 4),
-    })),
-    [allItems, timeToMinutes],
-  );
+  // ── Segment list (content-driven, no pixel canvas) ─────────────────────────
 
-  // Scroll to anchor when the date changes
-  useEffect(() => {
-    if (!spineRef.current) return;
-    const anchorMin = isToday
-      ? (futureItems.length > 0
-        ? Math.max(0, timeToMinutes(futureItems[0].startTime) - 30)
-        : nowMin)
-      : (allItems.length > 0 ? timeToMinutes(allItems[0].startTime) : 8 * 60);
-    spineRef.current.scrollTop = Math.max(0, minToY(anchorMin) - 80);
-    // Only re-run when the day actually changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateStr]);
+  const segments = useMemo(() => {
+    const segs = [];
+    if (visibleItems.length === 0) return segs;
+
+    let prevEndMin = timeToMinutes(visibleItems[0].startTime);
+
+    visibleItems.forEach((item, i) => {
+      const startMin = timeToMinutes(item.startTime);
+      const durMin = item.duration || 30;
+      const endMin = startMin + durMin;
+
+      // Gap before this item
+      const gapMin = startMin - prevEndMin;
+      if (gapMin > 0) {
+        segs.push({ type: 'gap', id: `gap-${i}`, gapMin, gapStart: prevEndMin, gapEnd: startMin });
+      }
+
+      segs.push({ type: item._kind, item, startMin, endMin });
+      prevEndMin = Math.max(prevEndMin, endMin);
+    });
+
+    // Trailing padding gap so the last block isn't at the very bottom
+    segs.push({ type: 'gap', id: 'gap-tail', gapMin: 30, gapStart: prevEndMin, gapEnd: prevEndMin + 30 });
+
+    return segs;
+  }, [visibleItems, timeToMinutes]);
 
   // ── Conflict detection & snap ─────────────────────────────────────────────
 
   const isSlotBlocked = useCallback((startMin, durMin) => {
     const endMin = startMin + durMin;
-    // Both tasks AND routines block scheduling (functionally equivalent)
     for (const item of [...dayTasks, ...dayRoutines]) {
       const s = timeToMinutes(item.startTime);
       const e = s + (item.duration || 30);
@@ -164,7 +335,6 @@ const MobileListView = () => {
     return false;
   }, [dayTasks, dayRoutines, timeToMinutes]);
 
-  // Snap to nearest valid 15-min increment, skipping occupied slots
   const getValidSnap = useCallback((rawMin, durMin) => {
     const base = Math.round(rawMin / 15) * 15;
     for (let d = 0; d <= 24 * 60; d += 15) {
@@ -175,30 +345,30 @@ const MobileListView = () => {
         if (bck >= 0 && !isSlotBlocked(bck, durMin)) return bck;
       }
     }
-    return null; // no valid slot in the day
+    return null;
   }, [isSlotBlocked]);
 
-  // ── Drag-and-drop from inbox drawer ──────────────────────────────────────
-  // Touch events stay on the element where touchstart fired, so move/end
-  // handlers on the inbox chip correctly track the finger even when it moves
-  // up into the spine area.
+  // ── Drag from inbox panel ─────────────────────────────────────────────────
+  // Touch events stay on the originating element. We use elementFromPoint to
+  // find which gap segment the finger is over.
 
   const handleInboxTouchStart = useCallback((e, task) => {
     const t = e.touches[0];
     dragStateRef.current = { active: false, task, startX: t.clientX, startY: t.clientY };
   }, []);
 
-  const computeDragSnap = useCallback((clientY) => {
-    const el = spineRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const y = clientY - rect.top + el.scrollTop;
-    const rawMin = (y / HOUR_H) * 60;
-    const durMin = dragStateRef.current.task?.duration || 30;
-    const snapped = getValidSnap(rawMin, durMin);
-    setDragSnapMin(snapped);
-    setDragBlocked(snapped === null);
-  }, [getValidSnap]);
+  const findGapAtPoint = useCallback((clientX, clientY) => {
+    // Temporarily hide the pointer-events on the drag ghost so elementFromPoint
+    // sees the segment divs underneath.
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!el) return null;
+    const seg = el.closest('[data-gap-start]');
+    if (!seg) return null;
+    return {
+      gapStart: parseInt(seg.dataset.gapStart, 10),
+      gapEnd: parseInt(seg.dataset.gapEnd, 10),
+    };
+  }, []);
 
   const handleInboxTouchMove = useCallback((e) => {
     const state = dragStateRef.current;
@@ -210,20 +380,32 @@ const MobileListView = () => {
     if (!state.active && Math.sqrt(dx * dx + dy * dy) > 8) {
       state.active = true;
       setActiveDrag(state.task);
-      setInboxPinned(true);
     }
-    if (state.active) computeDragSnap(t.clientY);
-  }, [computeDragSnap]);
+    if (!state.active) return;
+
+    e.preventDefault(); // prevent page scroll while dragging
+
+    const gap = findGapAtPoint(t.clientX, t.clientY);
+    if (gap) {
+      const midMin = Math.round((gap.gapStart + gap.gapEnd) / 2 / 15) * 15;
+      const durMin = state.task.duration || 30;
+      const snapped = getValidSnap(midMin, durMin);
+      setDragSnapMin(snapped);
+      setDragBlocked(snapped === null);
+    } else {
+      setDragSnapMin(null);
+      setDragBlocked(false);
+    }
+  }, [findGapAtPoint, getValidSnap]);
 
   const handleInboxTouchEnd = useCallback(() => {
     const state = dragStateRef.current;
     if (state.active && dragSnapMin !== null && !dragBlocked) {
-      const startTime = minutesToTime(dragSnapMin);
       pushUndo();
       setTasks(prev => [...prev, {
         ...state.task,
         date: dateStr,
-        startTime,
+        startTime: minutesToTime(dragSnapMin),
         duration: state.task.duration || 30,
         color: state.task.color || 'bg-blue-500',
         isAllDay: false,
@@ -233,7 +415,6 @@ const MobileListView = () => {
     }
     dragStateRef.current = { active: false, task: null };
     setActiveDrag(null);
-    setInboxPinned(false);
     setDragSnapMin(null);
     setDragBlocked(false);
   }, [dragSnapMin, dragBlocked, minutesToTime, dateStr, pushUndo,
@@ -241,41 +422,25 @@ const MobileListView = () => {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  const fmtHour = (h) => {
+  const fmtHour = useCallback((min) => {
+    const h = Math.floor(min / 60);
     if (use24HourClock) return `${String(h).padStart(2, '0')}:00`;
     if (h === 0) return '12a';
     if (h === 12) return '12p';
     return h > 12 ? `${h - 12}p` : `${h}a`;
-  };
+  }, [use24HourClock]);
 
   const inboxTasks = useMemo(
     () => unscheduledTasks.filter(t => !t.isExample && !t.completed),
     [unscheduledTasks],
   );
 
-  // Items rendered in the spine (past hidden unless expanded)
-  const visibleItems = showPast ? allItems : futureItems;
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
 
-      {/* Header row: view toggle + countdown */}
-      <div className={`flex-shrink-0 flex items-center gap-2 px-2 py-1 border-b ${borderClass}`}>
-        <div className="w-10 h-8 flex-shrink-0">
-          <MobileViewToggle />
-        </div>
-        {countdownText && nextEvent ? (
-          <p className={`flex-1 text-xs font-medium truncate ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>
-            {countdownText} until {nextEvent.title}
-          </p>
-        ) : (
-          <div className="flex-1" />
-        )}
-      </div>
-
-      {/* Expand-past row */}
+      {/* ── Expand-past row ─────────────────────────────────────────────── */}
       {isToday && pastItems.length > 0 && !showPast && (
         <button
           onClick={() => setShowPast(true)}
@@ -286,258 +451,265 @@ const MobileListView = () => {
         </button>
       )}
 
-      {/* Spine scroll area */}
-      <div
-        ref={spineRef}
-        className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative ${darkMode ? 'dark-scrollbar' : ''}`}
-        style={{ touchAction: 'pan-y' }}
-      >
-        {/* Full-day canvas — pixel-accurate for solid/dotted spine + drag */}
-        <div className="relative" style={{ height: `${24 * HOUR_H}px` }}>
+      {/* ── Countdown ───────────────────────────────────────────────────── */}
+      {countdownText && (
+        <div
+          className={`flex-shrink-0 px-4 py-1.5 text-xs font-medium border-b ${borderClass} ${darkMode ? 'text-amber-300 bg-amber-900/20' : 'text-amber-700 bg-amber-50'}`}
+        >
+          {countdownText}
+        </div>
+      )}
 
-          {/* Hour labels + tick marks */}
-          {Array.from({ length: 24 }, (_, h) => (
-            <div
-              key={h}
-              className="absolute left-0 right-0 pointer-events-none"
-              style={{ top: `${minToY(h * 60)}px` }}
-            >
-              <span
-                className={`absolute text-[9px] leading-none ${textSecondary} opacity-60`}
-                style={{ right: `calc(100% - ${SPINE_X - 5}px)`, top: '-5px', whiteSpace: 'nowrap', textAlign: 'right' }}
-              >
-                {fmtHour(h)}
-              </span>
-              {/* Small tick on spine for each hour */}
-              <div
-                className="absolute"
-                style={{ left: `${SPINE_X - 4}px`, top: 0, width: '8px', height: '1px', backgroundColor: ORANGE, opacity: 0.25 }}
-              />
+      {/* ── Main area: spine + optional inbox panel ──────────────────────── */}
+      <div className="flex flex-row flex-1 min-h-0">
+
+        {/* ── Spine scroll area ─────────────────────────────────────────── */}
+        <div
+          ref={spineRef}
+          className={`flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''}`}
+          style={{ touchAction: activeDrag ? 'none' : 'pan-y' }}
+        >
+          {visibleItems.length === 0 ? (
+            <div className={`flex flex-col items-center justify-center py-16 text-center ${textSecondary}`}>
+              <p className="text-sm font-medium">No events scheduled</p>
+              <p className="text-xs mt-1 opacity-70">
+                {isToday ? 'Use + to add a task' : 'Nothing planned for this day'}
+              </p>
             </div>
-          ))}
+          ) : (
+            <div className="flex flex-col">
+              {segments.map((seg) => {
+                // ── Gap segment ──────────────────────────────────────────
+                if (seg.type === 'gap') {
+                  const h = gapHeight(seg.gapMin);
+                  const showLabel = seg.gapMin >= 60 && seg.id !== 'gap-tail';
+                  // Highlight gap when a drag is targeting it
+                  const isTarget = activeDrag && dragSnapMin !== null &&
+                    dragSnapMin >= seg.gapStart && dragSnapMin < seg.gapEnd;
 
-          {/* Spine: dotted background = free time */}
-          <div
-            className="absolute top-0 bottom-0 pointer-events-none"
-            style={{
-              left: `${SPINE_X}px`,
-              width: '2px',
-              background: `repeating-linear-gradient(to bottom, ${ORANGE}55 0px, ${ORANGE}55 4px, transparent 4px, transparent 10px)`,
-            }}
-          />
-
-          {/* Spine: solid overlays = occupied time */}
-          {occupiedSegs.map(seg => (
-            <div
-              key={`seg-${seg.id}`}
-              className="absolute pointer-events-none"
-              style={{
-                left: `${SPINE_X}px`,
-                top: `${seg.top}px`,
-                width: '2px',
-                height: `${seg.height}px`,
-                backgroundColor: ORANGE,
-              }}
-            />
-          ))}
-
-          {/* Task / event blocks — right of spine, uniform height */}
-          {visibleItems.filter(i => i._kind === 'task').map(item => {
-            const top = minToY(timeToMinutes(item.startTime));
-            const endMin = timeToMinutes(item.startTime) + (item.duration || 30);
-            const isPast = isToday && endMin <= nowMin;
-            const isRecurring = typeof item.id === 'string' && item.id.startsWith('recurring-');
-            const isImportedCal = item.imported && !item.isTaskCalendar;
-            const calStyle = isImportedCal ? getTaskCalendarStyle(item, darkMode) : undefined;
-            const isNext = nextEvent?.id === item.id;
-            const isPulsing = pulsingBlockId === item.id;
-            const proj = goalsProjectsEnabled && item.projectId
-              ? projects.find(p => p.id === item.projectId) : null;
-            const ProjIcon = proj?.hyperglance?.icon
-              ? LucideIcons[proj.hyperglance.icon] : null;
-            const durMin = item.duration || 30;
-            const durLabel = durMin >= 60
-              ? `${Math.floor(durMin / 60)}h${durMin % 60 > 0 ? `${durMin % 60}m` : ''}`
-              : `${durMin}m`;
-            const totalSubs = item.subtasks?.length ?? 0;
-            const doneSubs = item.subtasks?.filter(s => s.completed).length ?? 0;
-
-            return (
-              <div
-                key={item.id}
-                className="absolute"
-                style={{ top: `${top}px`, left: `${SPINE_X + 8}px`, right: '8px', height: `${BLOCK_H}px` }}
-              >
-                {/* Horizontal connector: spine → block */}
-                <div
-                  className="absolute pointer-events-none"
-                  style={{ left: '-8px', top: `${BLOCK_H / 2 - 1}px`, width: '8px', height: '2px', backgroundColor: ORANGE, opacity: 0.45 }}
-                />
-                <div
-                  className={[
-                    'h-full rounded-lg shadow-sm flex flex-col justify-between px-2 py-1.5 overflow-hidden select-none',
-                    isImportedCal ? '' : (item.color || 'bg-blue-500'),
-                    isPast ? 'opacity-50' : '',
-                    isNext ? (darkMode ? 'ring-2 ring-amber-400' : 'ring-2 ring-amber-500') : '',
-                    isPulsing ? 'list-block-pulse' : '',
-                  ].filter(Boolean).join(' ')}
-                  style={calStyle}
-                  onAnimationEnd={() => { if (isPulsing) setPulsingBlockId(null); }}
-                >
-                  {/* Title row */}
-                  <div className="flex items-center gap-1 min-w-0">
-                    {!isImportedCal && (
-                      <button
-                        onClick={() => toggleComplete(item.id)}
-                        className={`rounded flex-shrink-0 ${item.completed ? 'bg-white/40' : 'bg-white/20'} border-2 border-white w-3.5 h-3.5 flex items-center justify-center`}
+                  return (
+                    <div
+                      key={seg.id}
+                      className="flex flex-row"
+                      style={{ height: h }}
+                      data-gap-start={seg.gapStart}
+                      data-gap-end={seg.gapEnd}
+                    >
+                      {/* Time column — dashed spine */}
+                      <div
+                        className="flex-shrink-0 relative flex items-center justify-end pr-2"
+                        style={{ width: TIME_COL }}
                       >
-                        {item.completed && <Check size={8} strokeWidth={3} />}
-                      </button>
-                    )}
-                    {isRecurring && <RefreshCw size={9} className="flex-shrink-0 text-white/70" />}
-                    {ProjIcon && <ProjIcon size={10} className="flex-shrink-0 text-white/80" />}
-                    <span className={`text-sm font-medium text-white truncate flex-1 min-w-0 ${item.completed ? 'line-through' : ''}`}>
-                      {renderTitle(item.title)}
-                    </span>
-                    {totalSubs > 0 && (
-                      <span className="flex-shrink-0 text-[10px] text-white/65 ml-0.5">
-                        {doneSubs}/{totalSubs}
-                      </span>
-                    )}
-                  </div>
-                  {/* Meta row */}
-                  <div className="text-[10px] text-white/60 leading-none">
-                    {formatTime(item.startTime)}–{formatTime(minutesToTime(endMin))} · {durLabel}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                        <DashedSpineLine color={ORANGE} />
+                        {showLabel && (
+                          <span
+                            className="text-[9px] leading-none relative z-10"
+                            style={{ color: ORANGE, opacity: 0.5 }}
+                          >
+                            {fmtHour(seg.gapStart)}
+                          </span>
+                        )}
+                      </div>
+                      {/* Free-time hint */}
+                      <div className="flex-1 flex items-center pl-2">
+                        {showLabel && (
+                          <span className={`text-[10px] ${darkMode ? 'text-gray-600' : 'text-stone-300'}`}>
+                            {fmtDur(seg.gapMin)} free
+                          </span>
+                        )}
+                        {isTarget && (
+                          <div
+                            className={`ml-2 px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              dragBlocked
+                                ? (darkMode ? 'bg-red-900/60 text-red-400' : 'bg-red-100 text-red-600')
+                                : (darkMode ? 'bg-orange-900/60 text-orange-300' : 'bg-orange-100 text-orange-700')
+                            }`}
+                          >
+                            {dragBlocked ? 'Blocked' : formatTime(minutesToTime(dragSnapMin))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
 
-          {/* Routine chips — perpendicular to spine, left side */}
-          {visibleItems.filter(i => i._kind === 'routine').map(item => {
-            const centerY = minToY(timeToMinutes(item.startTime));
-            const isCompleted = routineCompletions[item._origId];
-            return (
-              <div
-                key={item.id}
-                className="absolute flex items-center justify-end pointer-events-auto"
-                style={{
-                  top: `${centerY - CHIP_H / 2}px`,
-                  left: 0,
-                  // right edge touches the spine
-                  right: `calc(100% - ${SPINE_X}px)`,
-                  height: `${CHIP_H}px`,
-                }}
-              >
-                <button
-                  onClick={() => toggleRoutineCompletion(item._origId)}
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium leading-none truncate ${darkMode ? 'bg-teal-700 text-teal-100' : 'bg-teal-600 text-white'} ${isCompleted ? 'opacity-50 line-through' : ''}`}
-                  style={{ maxWidth: `${SPINE_X - 4}px` }}
-                >
-                  {item.name}
-                </button>
-              </div>
-            );
-          })}
+                // ── Routine segment ──────────────────────────────────────
+                if (seg.type === 'routine') {
+                  const { item } = seg;
+                  const isCompleted = routineCompletions[item._origId];
+                  return (
+                    <div key={item.id} className="flex flex-row items-center" style={{ minHeight: 28 }}>
+                      {/* Time column — solid spine, chip on left */}
+                      <div
+                        className="flex-shrink-0 relative flex items-center justify-end pr-1.5"
+                        style={{ width: TIME_COL }}
+                      >
+                        <SolidSpineLine color={ORANGE} />
+                        <button
+                          onClick={() => toggleRoutineCompletion(item._origId)}
+                          className={`relative z-10 rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-none truncate transition-colors ${
+                            darkMode
+                              ? (isCompleted ? 'bg-teal-800 text-teal-300' : 'bg-teal-700 text-teal-100')
+                              : (isCompleted ? 'bg-teal-100 text-teal-600' : 'bg-teal-600 text-white')
+                          } ${isCompleted ? 'opacity-50 line-through' : ''}`}
+                          style={{ maxWidth: TIME_COL - 6 }}
+                        >
+                          {item.name}
+                        </button>
+                      </div>
+                      {/* Right: time label */}
+                      <div className="flex-1 pl-3 py-1">
+                        <span className={`text-[10px] ${darkMode ? 'text-gray-500' : 'text-stone-400'}`}>
+                          {formatTime(item.startTime)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
 
-          {/* Drag preview block */}
-          {activeDrag && dragSnapMin !== null && (
-            <div
-              className="absolute pointer-events-none z-20"
-              style={{ top: `${minToY(dragSnapMin)}px`, left: `${SPINE_X + 8}px`, right: '8px', height: `${BLOCK_H}px` }}
-            >
-              <div
-                className={`h-full rounded-lg border-2 flex items-center px-2 ${
-                  dragBlocked
-                    ? 'border-red-500 bg-red-500/20'
-                    : 'border-orange-400 bg-orange-400/15'
-                }`}
-              >
-                <span className={`text-xs font-semibold ${
-                  dragBlocked
-                    ? (darkMode ? 'text-red-400' : 'text-red-600')
-                    : (darkMode ? 'text-orange-300' : 'text-orange-700')
-                }`}>
-                  {dragBlocked ? 'Blocked' : formatTime(minutesToTime(dragSnapMin))}
-                </span>
-              </div>
-            </div>
-          )}
+                // ── Task segment ─────────────────────────────────────────
+                if (seg.type === 'task') {
+                  const { item, startMin } = seg;
+                  const isPast = isToday && seg.endMin <= nowMin;
+                  const isNext = nextEvent?.id === item.id;
+                  const isPulsing = pulsingBlockId === item.id;
 
-          {/* Current-time line */}
-          {isToday && (
-            <div
-              className="absolute pointer-events-none z-10"
-              style={{ top: `${minToY(nowMin)}px`, left: `${SPINE_X - 5}px`, right: 0 }}
-            >
-              <div className="flex items-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
-                <div className="flex-1 h-0.5 bg-red-500 opacity-50" />
-              </div>
+                  return (
+                    <div key={item.id} className="flex flex-row" style={{ minHeight: 52 }}>
+                      {/* Time column — solid spine, start-time label */}
+                      <div
+                        className="flex-shrink-0 relative flex items-start justify-end pt-1.5 pr-2"
+                        style={{ width: TIME_COL }}
+                      >
+                        <SolidSpineLine color={ORANGE} />
+                        <span
+                          className="text-[9px] leading-none relative z-10"
+                          style={{ color: ORANGE, opacity: 0.75 }}
+                        >
+                          {fmtHour(startMin)}
+                        </span>
+                      </div>
+                      {/* Block */}
+                      <div className="flex-1 min-w-0 py-1 pr-2">
+                        <TaskBlock
+                          item={item}
+                          isPulsing={isPulsing}
+                          isNext={isNext}
+                          isPast={isPast}
+                          darkMode={darkMode}
+                          textPrimary={textPrimary}
+                          formatTime={formatTime}
+                          minutesToTime={minutesToTime}
+                          timeToMinutes={timeToMinutes}
+                          toggleComplete={toggleComplete}
+                          setExpandedNotesTaskId={setExpandedNotesTaskId}
+                          postponeTask={postponeTask}
+                          moveToInbox={moveToInbox}
+                          openMobileEditTask={openMobileEditTask}
+                          getTaskCalendarStyle={getTaskCalendarStyle}
+                          goalsProjectsEnabled={goalsProjectsEnabled}
+                          projects={projects}
+                          setPulsingBlockId={setPulsingBlockId}
+                          dateStr={dateStr}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
             </div>
           )}
         </div>
-      </div>
 
-      {/* Inbox drawer */}
-      <div className={`flex-shrink-0 border-t ${borderClass} ${cardBg}`}>
-        <button
-          disabled={inboxPinned}
-          onClick={() => setInboxOpen(v => !v)}
-          className={`w-full flex items-center justify-between px-4 py-2.5 ${textPrimary} active:bg-black/5 dark:active:bg-white/5 transition-colors`}
-        >
-          <div className="flex items-center gap-2">
-            <Inbox size={14} className={textSecondary} />
-            <span className="text-sm font-medium">Inbox</span>
-            {inboxTasks.length > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
-                {inboxTasks.length}
+        {/* ── Inbox panel (open state: pushes spine left) ──────────────── */}
+        {inboxOpen && (
+          <div
+            className={`flex-shrink-0 flex flex-col border-l ${borderClass} ${darkMode ? 'bg-gray-800' : 'bg-stone-50'}`}
+            style={{ width: 120 }}
+          >
+            {/* Panel header */}
+            <div className={`flex items-center justify-between px-2 py-1.5 border-b ${borderClass}`}>
+              <span className={`text-[10px] font-semibold uppercase tracking-wide ${textSecondary}`}>
+                Inbox
               </span>
-            )}
-          </div>
-          <ChevronUp
-            size={15}
-            className={`${textSecondary} transition-transform duration-200 ${inboxOpen || inboxPinned ? '' : 'rotate-180'}`}
-          />
-        </button>
-
-        {(inboxOpen || inboxPinned) && (
-          <div style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }} className="px-4">
-            {inboxTasks.length === 0 ? (
-              <p className={`text-xs ${textSecondary} text-center py-2`}>Inbox empty</p>
-            ) : (
-              <div
-                className="flex gap-2 overflow-x-auto pb-1"
-                style={{ scrollSnapType: 'x mandatory' }}
+              <button
+                onClick={() => setInboxOpen(false)}
+                className={`p-0.5 rounded ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'} transition-colors`}
               >
-                {inboxTasks.map(task => (
-                  <div
-                    key={task.id}
-                    className={`flex-shrink-0 rounded-lg px-3 py-2 min-w-[120px] max-w-[180px] select-none ${task.color || 'bg-blue-500'}`}
-                    style={{
-                      scrollSnapAlign: 'start',
-                      touchAction: 'none',
-                      opacity: activeDrag?.id === task.id ? 0.35 : 1,
-                      transition: 'opacity 0.15s',
-                    }}
-                    onTouchStart={(e) => handleInboxTouchStart(e, task)}
-                    onTouchMove={handleInboxTouchMove}
-                    onTouchEnd={handleInboxTouchEnd}
-                  >
-                    <div className="text-white text-sm font-medium truncate leading-tight">
-                      {task.title}
+                <span className={`text-xs leading-none ${textSecondary}`}>✕</span>
+              </button>
+            </div>
+
+            {/* Task list */}
+            <div className="flex-1 overflow-y-auto py-1 px-1.5 space-y-1.5">
+              {inboxTasks.length === 0 ? (
+                <p className={`text-[10px] ${textSecondary} text-center pt-4`}>Empty</p>
+              ) : (
+                inboxTasks.map(task => {
+                  const hex = taskColorToHex(task.color) || '#3b82f6';
+                  const isDragging = activeDrag?.id === task.id;
+                  return (
+                    <div
+                      key={task.id}
+                      className="rounded px-2 py-1.5 select-none"
+                      style={{
+                        border: `1px solid ${hex}44`,
+                        borderLeft: `3px solid ${hex}`,
+                        background: `${hex}15`,
+                        touchAction: 'none',
+                        opacity: isDragging ? 0.35 : 1,
+                        transition: 'opacity 0.12s',
+                      }}
+                      onTouchStart={(e) => handleInboxTouchStart(e, task)}
+                      onTouchMove={handleInboxTouchMove}
+                      onTouchEnd={handleInboxTouchEnd}
+                    >
+                      <div
+                        className={`text-[11px] font-medium leading-tight ${textPrimary} truncate`}
+                      >
+                        {task.title}
+                      </div>
+                      <div className={`text-[9px] mt-0.5 ${textSecondary}`}>
+                        {task.duration || 30}m
+                      </div>
                     </div>
-                    <div className="text-white/60 text-[10px] mt-0.5">
-                      {task.duration || 30}m
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* ── Inbox collapsed handle (right edge, only when closed) ────────── */}
+      {!inboxOpen && (
+        <button
+          onClick={() => setInboxOpen(true)}
+          className={`absolute right-0 z-20 flex flex-col items-center justify-center gap-1 rounded-l-lg shadow-md transition-colors ${
+            darkMode
+              ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-600'
+              : 'bg-stone-100 hover:bg-stone-200 active:bg-stone-200'
+          }`}
+          style={{
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 22,
+            height: 64,
+          }}
+          title="Open inbox"
+        >
+          <Inbox size={11} className={textSecondary} />
+          {inboxTasks.length > 0 && (
+            <span
+              className={`text-[9px] font-bold leading-none ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}
+            >
+              {inboxTasks.length > 9 ? '9+' : inboxTasks.length}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 };

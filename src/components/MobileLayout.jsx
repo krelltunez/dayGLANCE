@@ -674,7 +674,29 @@ const MobileLayout = () => {
 
             {/* Mobile Tab Content */}
             {mobileActiveTab === 'timeline' && mobileViewMode === 'list' && (
-              <MobileListView />
+              <>
+                {/* Sub-header: toggle + date label (mirrors GRID's sticky header row) */}
+                <div className={`flex-shrink-0 flex items-stretch border-b ${borderClass} ${cardBg}`} style={{ height: 46 }}>
+                  <div className={`w-12 flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}>
+                    <MobileViewToggle />
+                  </div>
+                  <div className={`flex-1 flex items-center px-3`}>
+                    <span className={`text-sm font-semibold ${textPrimary}`}>
+                      {visibleDates[0] ? formatShortDate(visibleDates[0]) : ''}
+                    </span>
+                    {visibleDates[0] && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(dateToString(visibleDates[0])); }}
+                        className={`ml-2 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateToString(visibleDates[0])]?.text ? '' : 'opacity-40'}`}
+                        title="Daily notes"
+                      >
+                        <NotebookPen size={14} className={textSecondary} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <MobileListView />
+              </>
             )}
             {mobileActiveTab === 'timeline' && mobileViewMode === 'grid' && (
               <div className="px-0 flex-1 min-h-0">
