@@ -331,19 +331,8 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
         {isNow && <Clock size={11} style={{ color: timeColour, marginLeft: 'auto', marginTop: 2 }} />}
       </div>
 
-      {/* Col 2 — spine */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* -1/+1 overreach ensures flush join with adjacent rows — no pixel gaps */}
-        <div
-          style={{
-            position: 'absolute', top: 0, bottom: 0,
-            left: '50%', transform: 'translateX(-50%)',
-            width: 2, zIndex: 0,
-            background: spineStyle === 'dashed'
-              ? dashedGradient(spineColour + '88')
-              : spineColour,
-          }}
-        />
+      {/* Col 2 — spine (line drawn by container; only marker here) */}
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         {marker}
       </div>
 
@@ -378,9 +367,8 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
           </span>
         )}
       </div>
-      {/* Spine col */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: dashedGradient(spineColour + '88') }} />
+      {/* Spine col (line drawn by container; only drag indicator here) */}
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* Drag preview indicator on spine */}
         {isTarget && (
           <div
@@ -445,9 +433,8 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       <div style={{ width: TIME_COL_W, flexShrink: 0, paddingRight: 8, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{nowLabel}</span>
       </div>
-      {/* Spine col */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, zIndex: 0, background: '#ef444440' }} />
+      {/* Spine col (line drawn by container) */}
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* Red clock marker */}
         <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, position: 'relative' }}>
           <Clock size={9} color="#fff" />
@@ -753,6 +740,21 @@ const MobileListView = () => {
   // Page background colour — used as opaque fill behind spine markers so they cover the line
   const pageBg = darkMode ? '#1f2937' : '#ffffff';
 
+  // Single continuous background spine gradient covering the visible time range
+  const bgSpineGradient = useMemo(() => {
+    const startMin = isToday
+      ? Math.min(nowMin, segments[0]?.fromMin ?? segments[0]?.startMin ?? nowMin)
+      : (segments[0]?.fromMin ?? segments[0]?.startMin ?? 0);
+    const lastSeg = segments[segments.length - 1];
+    const endMin = lastSeg?.toMin ?? lastSeg?.endMin ?? (startMin + 120);
+    const range = Math.max(endMin - startMin, 1);
+    const stops = [0, 0.25, 0.5, 0.75, 1].map(t => {
+      const min = startMin + t * range;
+      return `${spineColorAt(min)} ${(t * 100).toFixed(0)}%`;
+    });
+    return `linear-gradient(to bottom, ${stops.join(', ')})`;
+  }, [segments, isToday, nowMin]);
+
   // ── Render helpers ─────────────────────────────────────────────────────────
   const getAccentHex = (item) => {
     if (item._kind === 'calendar-event') {
@@ -801,52 +803,50 @@ const MobileListView = () => {
         </button>
       )}
 
-      {/* ── Spine spacer (padding above "now") ── */}
-      {isToday && !inProgressItem && (
-        <div style={{ display: 'flex', height: 16 }}>
-          <div style={{ width: TIME_COL_W, flexShrink: 0 }} />
-          <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: spineColorAt(nowMin) }} />
-          </div>
-          <div style={{ flex: 1 }} />
-        </div>
-      )}
-
-      {/* ── Now row — hidden when something is currently in progress ── */}
-      {isToday && !inProgressItem && (
-        <div ref={nowRowRef}>
-          <NowRow
-            nowMin={nowMin}
-            nextItem={nextItem}
-            formatTime={formatTime}
-            textSecondary={textSecondary}
-            darkMode={darkMode}
-            use24HourClock={use24HourClock}
+      {/* ── Timed body — single continuous background spine ── */}
+      <div style={{ position: 'relative' }}>
+        {/* One unbroken spine line behind all rows */}
+        {(visibleItems.length > 0 || (isToday && !inProgressItem)) && (
+          <div
+            style={{
+              position: 'absolute', top: 0, bottom: 0, zIndex: 0, pointerEvents: 'none',
+              left: TIME_COL_W + SPINE_COL_W / 2 - 1,
+              width: 2,
+              background: bgSpineGradient,
+            }}
           />
-        </div>
-      )}
+        )}
 
-      {/* ── Spine spacer (padding below "now") ── */}
-      {isToday && !inProgressItem && visibleItems.length > 0 && (
-        <div style={{ display: 'flex', height: 12 }}>
-          <div style={{ width: TIME_COL_W, flexShrink: 0 }} />
-          <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: spineColorAt(nowMin) }} />
+        {/* Padding above "now" */}
+        {isToday && !inProgressItem && <div style={{ height: 16 }} />}
+
+        {/* Now row */}
+        {isToday && !inProgressItem && (
+          <div ref={nowRowRef}>
+            <NowRow
+              nowMin={nowMin}
+              nextItem={nextItem}
+              formatTime={formatTime}
+              textSecondary={textSecondary}
+              darkMode={darkMode}
+              use24HourClock={use24HourClock}
+            />
           </div>
-          <div style={{ flex: 1 }} />
-        </div>
-      )}
+        )}
 
-      {/* ── Empty state ── */}
-      {visibleItems.length === 0 && (
-        <div className={`flex flex-col items-center justify-center py-16 ${textSecondary}`}>
-          <p className="text-sm">No items scheduled</p>
-          {isToday && <p className="text-xs mt-1 opacity-60">Tap + to add a task</p>}
-        </div>
-      )}
+        {/* Padding below "now" */}
+        {isToday && !inProgressItem && visibleItems.length > 0 && <div style={{ height: 12 }} />}
 
-      {/* ── Segment list ── */}
-      {segments.map(seg => {
+        {/* Empty state */}
+        {visibleItems.length === 0 && (
+          <div className={`flex flex-col items-center justify-center py-16 ${textSecondary}`}>
+            <p className="text-sm">No items scheduled</p>
+            {isToday && <p className="text-xs mt-1 opacity-60">Tap + to add a task</p>}
+          </div>
+        )}
+
+        {/* Segment list */}
+        {segments.map(seg => {
         if (seg.type === 'gap') {
           const midMin = Math.round((seg.fromMin + seg.toMin) / 2);
           return (
@@ -964,6 +964,7 @@ const MobileListView = () => {
 
         return null;
       })}
+      </div>{/* end timed body */}
 
       {/* ── Inbox drawer ── */}
       {/* Collapsed handle — fixed to viewport */}
