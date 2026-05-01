@@ -93,7 +93,17 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
   }
   if (kind === 'hg-session') {
     return (
-      <Zap size={14} strokeWidth={2.5} style={{ color: colour, opacity: completed ? 0.4 : 1, flexShrink: 0 }} />
+      <div style={{ ...base, overflow: 'visible' }}>
+        {/* Line extending right from icon centre to Col2/Col3 boundary */}
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%', marginTop: -1,
+          width: CONNECTOR_W, height: 2, background: colour,
+          opacity: completed ? 0.4 : 1, zIndex: 1,
+        }} />
+        <Zap size={18} strokeWidth={2.5}
+          style={{ color: colour, opacity: completed ? 0.4 : 1, position: 'relative', zIndex: 2 }}
+        />
+      </div>
     );
   }
   if (kind === 'calendar-event') {
@@ -761,10 +771,13 @@ const MobileListView = () => {
     if (!el) return;
     const stickyHeader = el.firstElementChild;
     if (!stickyHeader) return;
-    const update = () => setInboxHandleTop(stickyHeader.getBoundingClientRect().bottom);
+    // Use container top + header offsetHeight — avoids sticky-positioning quirks
+    // in getBoundingClientRect() that caused incorrect viewport-relative values.
+    const update = () => setInboxHandleTop(el.getBoundingClientRect().top + stickyHeader.offsetHeight);
     update();
     const ro = new ResizeObserver(update);
     ro.observe(stickyHeader);
+    ro.observe(el);
     window.addEventListener('resize', update);
     return () => { ro.disconnect(); window.removeEventListener('resize', update); };
   }, [calendarRef]);
