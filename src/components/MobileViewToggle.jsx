@@ -14,15 +14,12 @@ const GridIcon = () => (
 
 const ListIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-    {/* Vertical spine */}
-    <rect x="4" y="1" width="2" height="16" rx="1" fill={ORANGE} />
-    {/* Blocks to the right of the spine — start at x=7 to match GRID's visual width */}
-    <rect x="7" y="2"  width="10" height="4" rx="1" fill={ORANGE} />
-    <rect x="7" y="8"  width="10" height="4" rx="1" fill={ORANGE} fillOpacity="0.7" />
-    <rect x="7" y="14" width="7"  height="3" rx="1" fill={ORANGE} fillOpacity="0.45" />
-    {/* Tiny time labels left of spine */}
-    <rect x="1" y="3.5" width="2" height="1" rx="0.5" fill={ORANGE} fillOpacity="0.5" />
-    <rect x="1" y="9.5" width="2" height="1" rx="0.5" fill={ORANGE} fillOpacity="0.5" />
+    {/* Vertical spine — flush left */}
+    <rect x="1" y="1" width="2" height="16" rx="1" fill={ORANGE} />
+    {/* Blocks to the right */}
+    <rect x="5" y="2"  width="12" height="4" rx="1" fill={ORANGE} />
+    <rect x="5" y="8"  width="12" height="4" rx="1" fill={ORANGE} fillOpacity="0.7" />
+    <rect x="5" y="14" width="9"  height="3" rx="1" fill={ORANGE} fillOpacity="0.45" />
   </svg>
 );
 
