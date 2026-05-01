@@ -97,11 +97,11 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
       <div style={{ ...base, overflow: 'visible' }}>
         {/* Line from icon right edge to Col2/Col3 boundary — avoids drawing through hollow icon */}
         <div style={{
-          position: 'absolute', left: 'calc(100% - 4px)', top: '50%', marginTop: -1,
-          width: 12, height: 2, background: colour,
+          position: 'absolute', left: 'calc(100% - 3px)', top: '50%', marginTop: -1,
+          width: 11, height: 2, background: colour,
           opacity: completed ? 0.4 : 1, zIndex: 1,
         }} />
-        <Zap size={19} strokeWidth={2.5}
+        <Zap size={20} strokeWidth={2.5}
           style={{ color: colour, opacity: completed ? 0.4 : 1, position: 'relative', zIndex: 2 }}
         />
       </div>
@@ -505,7 +505,7 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
           className="text-xs font-medium px-2 py-0.5 rounded-full"
           style={{
             color: darkMode ? '#fca5a5' : '#991b1b',
-            border: '2px solid #ef444488',
+            border: '2px solid #ef4444',
             background: darkMode ? '#ef444415' : '#fef2f2',
           }}
         >
