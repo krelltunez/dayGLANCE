@@ -149,7 +149,7 @@ function Connector({ colour }) {
 // ─── TaskCard ─────────────────────────────────────────────────────────────────
 
 const TaskCard = React.memo(({
-  item, accentHex, isCalendarEvent, darkMode, textPrimary, textSecondary,
+  item, accentHex, isCalendarEvent, isInProgress, darkMode, textPrimary, textSecondary,
   formatTime, minutesToTime, timeToMinutes,
   setExpandedNotesTaskId, postponeTask, moveToInbox, openMobileEditTask,
   dateStr,
@@ -172,8 +172,8 @@ const TaskCard = React.memo(({
 
   return (
     <div style={cardStyle}>
-      {/* Left colour bar */}
-      <div style={barStyle} />
+      {/* Left colour bar — pulses when item is currently in progress */}
+      <div style={barStyle} className={isInProgress ? 'animate-pulse' : undefined} />
       {/* Text content */}
       <div style={{ flex: 1, minWidth: 0, padding: '7px 0 7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
         {/* Title */}
@@ -265,7 +265,7 @@ function RoutineChip({ routine, completed, onToggle, darkMode }) {
 // ─── HGSessionCard ────────────────────────────────────────────────────────────
 
 const HGSessionCard = React.memo(({
-  bar, accentHex, darkMode, textPrimary, textSecondary,
+  bar, accentHex, isInProgress, darkMode, textPrimary, textSecondary,
   formatTime, canEnter, incompleteTaskCount,
   enterHyperGlanceMode, setPendingEditProjectId,
 }) => {
@@ -318,7 +318,7 @@ const HGSessionCard = React.memo(({
 
   return (
     <div style={cardStyle}>
-      <div style={barStyle} />
+      <div style={barStyle} className={isInProgress ? 'animate-pulse' : undefined} />
       {/* Left: icon + title, then time meta */}
       <div style={{ flex: 1, minWidth: 0, padding: '7px 0 7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1035,10 +1035,13 @@ const MobileListView = () => {
               hg, currentTime,
             );
             const isPast = isItemPast(item);
+            const isInProgress = item.id === inProgressItem?.id;
+            const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 60)) - nowMin) : 0;
             return (
               <Row
                 key={seg.id}
-                timeLabel={formatTime(item.startTime)}
+                timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
+                timeColour={isInProgress ? accentHex : undefined}
                 spineColour={sc}
                 spineStyle="solid"
                 marker={<SpineMarker kind="hg-session" colour={accentHex} completed={item.isCompleted} pageBg={pageBg} />}
@@ -1051,6 +1054,7 @@ const MobileListView = () => {
                   <HGSessionCard
                     bar={item}
                     accentHex={accentHex}
+                    isInProgress={isInProgress}
                     darkMode={darkMode}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
@@ -1068,10 +1072,13 @@ const MobileListView = () => {
           // task or calendar-event
           const isCalendarEvent = item._kind === 'calendar-event';
           const isPast = isItemPast(item);
+          const isInProgress = item.id === inProgressItem?.id;
+          const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 30)) - nowMin) : 0;
           return (
             <Row
               key={seg.id}
-              timeLabel={formatTime(item.startTime)}
+              timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
+              timeColour={isInProgress ? accentHex : undefined}
               spineColour={sc}
               spineStyle="solid"
               marker={
@@ -1092,6 +1099,7 @@ const MobileListView = () => {
                   item={item}
                   accentHex={accentHex}
                   isCalendarEvent={isCalendarEvent}
+                  isInProgress={isInProgress}
                   darkMode={darkMode}
                   textPrimary={textPrimary}
                   textSecondary={textSecondary}
