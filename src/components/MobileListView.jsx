@@ -1,7 +1,8 @@
 import React, {
-  useState, useRef, useEffect, useLayoutEffect,
+  useState, useRef, useEffect,
   useMemo, useCallback,
 } from 'react';
+import ReactDOM from 'react-dom';
 import {
   Check, ChevronDown, ChevronRight, ChevronUp,
   Clock, Edit2, ExternalLink, FileText, Inbox, SkipForward, Zap,
@@ -560,7 +561,7 @@ const MobileListView = () => {
     selectedDate, currentTime,
     tasks, setTasks, unscheduledTasks, setUnscheduledTasks,
     expandedRecurringTasks,
-    calendarRef, use24HourClock,
+    calendarRef, mobileDateHeaderRef, use24HourClock,
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, timeToMinutes, minutesToTime,
     getTasksForDate, getTaskCalendarStyle,
@@ -581,9 +582,9 @@ const MobileListView = () => {
   const [dragTargetMin, setDragTargetMin] = useState(null);
   const [dragBlocked, setDragBlocked] = useState(false);
   const [activeDragTask, setActiveDragTask] = useState(null);
-  const [inboxHandleTop, setInboxHandleTop] = useState(160);
 
-  const nowRowRef  = useRef(null);
+  const nowRowRef     = useRef(null);
+  const inboxPanelTop = useRef(0); // captured at open-time; used only for expanded panel
   const dragRef    = useRef({ active: false, task: null, startX: 0, startY: 0 });
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -770,25 +771,6 @@ const MobileListView = () => {
     return () => clearTimeout(timer);
   }, [dateStr, isToday, calendarRef]);
 
-  // ── Keep inbox handle anchored to the bottom of the sticky header ──────────
-  // calendarRef's first child is the sticky header group (date row + optional
-  // "Now" banner). Measuring its bottom edge keeps the handle correctly aligned
-  // regardless of whether the banner is visible or not.
-  useLayoutEffect(() => {
-    const el = calendarRef?.current;
-    if (!el) return;
-    const stickyHeader = el.firstElementChild;
-    if (!stickyHeader) return;
-    // Use container top + header offsetHeight — avoids sticky-positioning quirks
-    // in getBoundingClientRect() that caused incorrect viewport-relative values.
-    const update = () => setInboxHandleTop(el.getBoundingClientRect().top + stickyHeader.offsetHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(stickyHeader);
-    ro.observe(el);
-    window.addEventListener('resize', update);
-    return () => { ro.disconnect(); window.removeEventListener('resize', update); };
-  }, [calendarRef]);
 
   // ── Segment builder ────────────────────────────────────────────────────────
   const segments = useMemo(() => {
@@ -1123,48 +1105,46 @@ const MobileListView = () => {
       </div>{/* end timed body */}
 
       {/* ── Inbox drawer ── */}
-      {/* Collapsed handle — fixed to viewport */}
-      {!inboxOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            right: 0,
-            top: inboxHandleTop,
-            zIndex: 40,
+      {/* Collapsed handle — portalled into the sticky date header so it sits
+          flush with it without any JS measurement */}
+      {!inboxOpen && !inboxPinned && mobileDateHeaderRef?.current && ReactDOM.createPortal(
+        <button
+          onClick={() => {
+            // Capture panel top at the moment of opening — sticky header is
+            // guaranteed to be in its correct viewport position right now.
+            inboxPanelTop.current = mobileDateHeaderRef.current?.getBoundingClientRect().bottom ?? 0;
+            setInboxOpen(true);
           }}
+          className={`absolute right-0 inset-y-0 flex flex-col items-center justify-center gap-1 px-1.5 transition-colors z-50
+            ${darkMode ? 'bg-gray-700/90 hover:bg-gray-600 active:bg-gray-600' : 'bg-white/90 hover:bg-stone-50 active:bg-stone-100'}
+            border-l ${borderClass}`}
+          style={{ width: 32 }}
+          title="Open inbox"
         >
-          <button
-            onClick={() => setInboxOpen(true)}
-            className={`flex flex-col items-center justify-center gap-1 rounded-l-xl shadow-lg py-3 px-1.5 transition-colors
-              ${darkMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-600' : 'bg-white hover:bg-stone-50 active:bg-stone-100'}
-              border ${borderClass}`}
-            style={{ width: 32 }}
-            title="Open inbox"
+          <Inbox size={14} className={textSecondary} />
+          <span
+            className="font-semibold"
+            style={{
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
           >
-            <Inbox size={14} className={textSecondary} />
-            <span
-              className="font-semibold"
-              style={{
-                writingMode: 'vertical-rl',
-                textOrientation: 'mixed',
-                fontSize: 9,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
-            >
-              <span className={textSecondary}>Inbox</span>
-            </span>
-          </button>
-        </div>
+            <span className={textSecondary}>Inbox</span>
+          </span>
+        </button>,
+        mobileDateHeaderRef.current
       )}
 
-      {/* Expanded panel — fixed to viewport */}
+      {/* Expanded panel — fixed to viewport; top captured at open time */}
       {(inboxOpen || inboxPinned) && (
         <div
           style={{
             position: 'fixed',
             right: 0,
-            top: inboxHandleTop,
+            top: inboxPanelTop.current,
             bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))',
             width: 160,
             zIndex: 40,
