@@ -101,7 +101,7 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
           width: 12, height: 2, background: colour,
           opacity: completed ? 0.4 : 1, zIndex: 1,
         }} />
-        <Zap size={20} strokeWidth={2.5}
+        <Zap size={19} strokeWidth={2.5}
           style={{ color: colour, opacity: completed ? 0.4 : 1, position: 'relative', zIndex: 2 }}
         />
       </div>
@@ -493,8 +493,8 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 16, height: 16, flexShrink: 0, position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
           <div style={{
-            position: 'absolute', left: 'calc(100% - 4px)', top: '50%', marginTop: -1,
-            width: 12, height: 2, background: '#ef4444', zIndex: 1,
+            position: 'absolute', left: 'calc(100% - 2px)', top: '50%', marginTop: -1,
+            width: 10, height: 2, background: '#ef4444', zIndex: 1,
           }} />
           <Clock size={20} strokeWidth={2} color="#ef4444" style={{ position: 'relative', zIndex: 2 }} />
         </div>
@@ -505,7 +505,7 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
           className="text-xs font-medium px-2 py-0.5 rounded-full"
           style={{
             color: darkMode ? '#fca5a5' : '#991b1b',
-            border: '1px solid #ef444466',
+            border: '2px solid #ef444488',
             background: darkMode ? '#ef444415' : '#fef2f2',
           }}
         >
