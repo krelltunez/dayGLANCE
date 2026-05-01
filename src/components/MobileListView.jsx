@@ -97,8 +97,8 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
       <div style={{ ...base, overflow: 'visible' }}>
         {/* Line from icon right edge to Col2/Col3 boundary — avoids drawing through hollow icon */}
         <div style={{
-          position: 'absolute', left: '100%', top: '50%', marginTop: -1,
-          width: 8, height: 2, background: colour,
+          position: 'absolute', left: 'calc(100% - 4px)', top: '50%', marginTop: -1,
+          width: 12, height: 2, background: colour,
           opacity: completed ? 0.4 : 1, zIndex: 1,
         }} />
         <Zap size={20} strokeWidth={2.5}
@@ -493,14 +493,14 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 16, height: 16, flexShrink: 0, position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
           <div style={{
-            position: 'absolute', left: '100%', top: '50%', marginTop: -1,
-            width: 8, height: 2, background: '#ef4444', zIndex: 1,
+            position: 'absolute', left: 'calc(100% - 4px)', top: '50%', marginTop: -1,
+            width: 12, height: 2, background: '#ef4444', zIndex: 1,
           }} />
           <Clock size={20} strokeWidth={2} color="#ef4444" style={{ position: 'relative', zIndex: 2 }} />
         </div>
       </div>
-      {/* Countdown pill */}
-      <div style={{ flex: 1, minWidth: 0, paddingLeft: 4, paddingRight: 8 }}>
+      {/* Countdown pill — no left padding so pill border meets the connector line */}
+      <div style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
         <span
           className="text-xs font-medium px-2 py-0.5 rounded-full"
           style={{
@@ -1110,15 +1110,13 @@ const MobileListView = () => {
       {!inboxOpen && !inboxPinned && mobileDateHeaderRef?.current && ReactDOM.createPortal(
         <button
           onClick={() => {
-            // Capture panel top at the moment of opening — sticky header is
-            // guaranteed to be in its correct viewport position right now.
             inboxPanelTop.current = mobileDateHeaderRef.current?.getBoundingClientRect().bottom ?? 0;
             setInboxOpen(true);
           }}
-          className={`absolute right-0 inset-y-0 flex flex-col items-center justify-center gap-1 px-1.5 transition-colors z-50
-            ${darkMode ? 'bg-gray-700/90 hover:bg-gray-600 active:bg-gray-600' : 'bg-white/90 hover:bg-stone-50 active:bg-stone-100'}
-            border-l ${borderClass}`}
-          style={{ width: 32 }}
+          className={`absolute right-0 flex flex-col items-center justify-center gap-1 py-3 px-1.5 transition-colors z-50
+            ${darkMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-600' : 'bg-white hover:bg-stone-50 active:bg-stone-100'}
+            border-l border-b ${borderClass} rounded-bl-xl shadow-md`}
+          style={{ top: '100%', width: 32 }}
           title="Open inbox"
         >
           <Inbox size={14} className={textSecondary} />
