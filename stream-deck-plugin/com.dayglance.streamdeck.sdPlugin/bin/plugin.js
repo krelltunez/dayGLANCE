@@ -8580,8 +8580,13 @@ function renderGoalStrip(opts) {
 </svg>`;
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
+function formatTaskStats(done, total) {
+    if (total === 0)
+        return "No tasks";
+    return `${done} of ${total} done`;
+}
 function renderProjectKey(opts) {
-    const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0 } = opts;
+    const { title, progress, colorHex, goalTitle, overview = false, avgProgress = 0, tasksDone = 0, tasksTotal = 0 } = opts;
     const pct = overview ? avgProgress : Math.round(progress);
     const arc = arcPath(72, 72, 42, pct);
     const arcEl = arc
@@ -8590,16 +8595,16 @@ function renderProjectKey(opts) {
     let centerEl;
     let bottomEl;
     if (overview) {
-        centerEl = `
-  <text x="72" y="69" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${projectCount}</text>
-  <text x="72" y="86" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.45" text-anchor="middle">projects</text>`;
-        bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.45" text-anchor="middle">${pct}% avg</text>`;
+        centerEl = `<text x="72" y="80" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+        bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${formatTaskStats(tasksDone, tasksTotal)}</text>`;
     }
     else {
-        const goalLine = goalTitle
+        // Goal-linked projects show the parent goal under the pct%; standalone
+        // projects show task stats in the same slot instead of a redundant pct.
+        const subLine = goalTitle
             ? `<text x="72" y="91" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.38" text-anchor="middle" font-style="italic">↳ ${escape(truncate(goalTitle, 14))}</text>`
-            : "";
-        centerEl = `<text x="72" y="78" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>${goalLine}`;
+            : `<text x="72" y="91" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.55" text-anchor="middle">${formatTaskStats(tasksDone, tasksTotal)}</text>`;
+        centerEl = `<text x="72" y="78" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>${subLine}`;
         bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${escape(truncate(title, 15))}</text>`;
     }
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
@@ -8613,7 +8618,7 @@ function renderProjectKey(opts) {
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
 function renderProjectStrip(opts) {
-    const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0 } = opts;
+    const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0, tasksDone = 0, tasksTotal = 0 } = opts;
     const pct = overview ? avgProgress : Math.round(progress);
     const arc = arcPath(48, 50, 30, pct);
     const arcEl = arc
@@ -8621,8 +8626,8 @@ function renderProjectStrip(opts) {
         : "";
     const mainText = overview ? `${projectCount} Project${projectCount !== 1 ? "s" : ""}` : escape(truncate(title, 11));
     const subText = overview
-        ? `${pct}% avg`
-        : goalTitle ? `↳ ${escape(truncate(goalTitle, 12))}` : `${pct}% done`;
+        ? formatTaskStats(tasksDone, tasksTotal)
+        : goalTitle ? `↳ ${escape(truncate(goalTitle, 12))}` : formatTaskStats(tasksDone, tasksTotal);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   <rect width="${SW}" height="${SH}" fill="#111"/>
   <rect width="${SW}" height="4" fill="${colorHex}"/>
@@ -9324,20 +9329,26 @@ let ProjectProgressAction = (() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async renderOne(act, state) {
             const isEncoder = this.encoderRefs.has(act);
-            const projects = state.projects ?? [];
+            const projects = sortProjects(state.projects ?? []);
             let keyImg;
             let stripImg;
             if (this.viewIndex === 0 || projects.length === 0) {
                 const avgProgress = projects.length > 0
                     ? Math.round(projects.reduce((s, p) => s + p.progress, 0) / projects.length)
                     : 0;
-                const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, projectCount: projects.length, avgProgress };
+                const tasksDone = projects.reduce((s, p) => s + (p.tasksDone ?? 0), 0);
+                const tasksTotal = projects.reduce((s, p) => s + (p.tasksTotal ?? 0), 0);
+                const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, projectCount: projects.length, avgProgress, tasksDone, tasksTotal };
                 keyImg = renderProjectKey(opts);
                 stripImg = renderProjectStrip(opts);
             }
             else {
                 const project = projects[this.viewIndex - 1];
-                const opts = { title: project.title, progress: project.progress, colorHex: project.colorHex, goalTitle: project.goalTitle };
+                const opts = {
+                    title: project.title, progress: project.progress, colorHex: project.colorHex,
+                    goalTitle: project.goalTitle,
+                    tasksDone: project.tasksDone, tasksTotal: project.tasksTotal,
+                };
                 keyImg = renderProjectKey(opts);
                 stripImg = renderProjectStrip(opts);
             }
@@ -9352,6 +9363,20 @@ let ProjectProgressAction = (() => {
     });
     return _classThis;
 })();
+// Sort by parent goal's days-until-target asc (soonest first); projects with
+// no parent or whose parent has no target sink to the bottom, ordered by
+// progress desc so unstarted ones come last.
+function sortProjects(projects) {
+    return [...projects].sort((a, b) => {
+        if (a.goalDaysLeft !== null && b.goalDaysLeft !== null)
+            return a.goalDaysLeft - b.goalDaysLeft;
+        if (a.goalDaysLeft !== null)
+            return -1;
+        if (b.goalDaysLeft !== null)
+            return 1;
+        return b.progress - a.progress;
+    });
+}
 
 let HabitAction = (() => {
     let _classDecorators = [action({ UUID: "com.dayglance.streamdeck.habit" })];

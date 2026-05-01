@@ -503,7 +503,19 @@ export default function useElectronBridge({
       const progress = Math.round(calculateProjectProgress(p.id, allTasksForGoals) * 100);
       const colorHex = TAILWIND_TO_HEX[p.color] || '#3b82f6';
       const parentGoal = p.goalId ? (goals || []).find(g => g.id === p.goalId) : null;
-      return { id: p.id, title: p.title, progress, colorHex, goalTitle: parentGoal?.title ?? null };
+      const goalDaysLeft = parentGoal?.targetDate
+        ? Math.round((new Date(parentGoal.targetDate + 'T00:00:00').getTime() - todayMs) / 86400000)
+        : null;
+      const projectTasks = allTasksForGoals.filter(t => t.projectId === p.id && !t.archived);
+      const tasksTotal = projectTasks.length;
+      const tasksDone = projectTasks.filter(t => t.completed).length;
+      return {
+        id: p.id, title: p.title, progress, colorHex,
+        goalTitle: parentGoal?.title ?? null,
+        goalDaysLeft,
+        tasksDone,
+        tasksTotal,
+      };
     };
     const sortByProgressAsc = (a, b) => a.progress - b.progress;
     const activeProjects = goalsProjectsEnabled ? (projects || []).filter(p => p.status === 'active') : [];
