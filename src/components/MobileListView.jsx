@@ -162,8 +162,8 @@ const TaskCard = React.memo(({
       {/* Left colour bar */}
       <div style={barStyle} />
       {/* Content */}
-      <div style={{ flex: 1, minWidth: 0, padding: '6px 6px 6px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        {/* Top row: completion + title + action grid */}
+      <div style={{ flex: 1, minWidth: 0, padding: '6px 6px 6px 8px', display: 'flex', flexDirection: 'column' }}>
+        {/* Top row: completion + title/time + action grid */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
           {/* Completion circle (tasks only, not pure calendar events) */}
           {!isCalendarEvent && (
@@ -180,13 +180,16 @@ const TaskCard = React.memo(({
               {item.completed && <Check size={8} strokeWidth={3} color="#fff" />}
             </button>
           )}
-          {/* Title */}
+          {/* Title + time meta */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
               style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
             >
               {renderTitle(item.title)}
+            </div>
+            <div className={`text-[10px] leading-none ${textSecondary}`} style={{ marginTop: 3 }}>
+              {timeStr}
             </div>
           </div>
           {/* 2×2 action grid (tasks only) */}
@@ -234,10 +237,6 @@ const TaskCard = React.memo(({
               </button>
             </div>
           )}
-        </div>
-        {/* Time meta */}
-        <div className={`text-[10px] leading-none ${textSecondary}`} style={{ marginTop: 4 }}>
-          {timeStr}
         </div>
       </div>
     </div>
@@ -333,10 +332,21 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 
       {/* Col 2 — spine */}
       <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* Spine line segment */}
+        {/* Top spine segment — stops just above the marker */}
         <div
           style={{
-            position: 'absolute', top: 0, bottom: 0,
+            position: 'absolute', top: 0, bottom: 'calc(50% + 9px)',
+            left: '50%', transform: 'translateX(-50%)',
+            width: 2,
+            ...(spineStyle === 'dashed'
+              ? { background: dashedGradient(spineColour + '88') }
+              : { background: spineColour }),
+          }}
+        />
+        {/* Bottom spine segment — resumes just below the marker */}
+        <div
+          style={{
+            position: 'absolute', top: 'calc(50% + 9px)', bottom: 0,
             left: '50%', transform: 'translateX(-50%)',
             width: 2,
             ...(spineStyle === 'dashed'
