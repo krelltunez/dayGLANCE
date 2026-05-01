@@ -3,8 +3,8 @@ import React, {
   useMemo, useCallback,
 } from 'react';
 import {
-  Check, ChevronDown, ChevronUp, Clock, Edit2, ExternalLink,
-  FileText, Inbox, SkipForward, Zap,
+  Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  Clock, Edit2, ExternalLink, FileText, Inbox, SkipForward, Zap,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks } from '../utils/textFormatting.jsx';
@@ -165,11 +165,10 @@ const TaskCard = React.memo(({
     <div style={cardStyle}>
       {/* Left colour bar */}
       <div style={barStyle} />
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0, padding: '6px 6px 6px 8px', display: 'flex', flexDirection: 'column' }}>
-        {/* Top row: completion + title/time + action grid */}
+      {/* Text content */}
+      <div style={{ flex: 1, minWidth: 0, padding: '7px 0 7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-          {/* Completion circle (tasks only, not pure calendar events) */}
+          {/* Completion circle (tasks only) */}
           {!isCalendarEvent && (
             <button
               onClick={e => { e.stopPropagation(); toggleComplete(item.id); }}
@@ -184,65 +183,70 @@ const TaskCard = React.memo(({
               {item.completed && <Check size={8} strokeWidth={3} color="#fff" />}
             </button>
           )}
-          {/* Title + time meta */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
-              style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
-            >
-              {renderTitle(item.title)}
-            </div>
-            <div className={`text-[10px] leading-none ${textSecondary}`} style={{ marginTop: 3 }}>
-              {timeStr}
-            </div>
+          {/* Title */}
+          <div
+            className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
+            style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+          >
+            {renderTitle(item.title)}
           </div>
-          {/* 2×2 action grid (tasks only) */}
-          {!isCalendarEvent && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, flexShrink: 0 }}>
-              {/* Notes */}
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  if (isLinkOnlyTask(item)) window.open(getLinkUrl(item), '_blank', 'noopener,noreferrer');
-                  else setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
-                }}
-                className={`flex items-center justify-center rounded p-1 transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
-                style={{ opacity: hasNotes ? 0.85 : 0.35 }}
-                title="Notes / links"
-              >
-                <NoteIcon size={12} style={{ color: accentHex }} />
-              </button>
-              {/* Postpone */}
-              <button
-                onClick={e => { e.stopPropagation(); postponeTask(item.id); }}
-                className={`flex items-center justify-center rounded p-1 transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
-                style={{ opacity: 0.7 }}
-                title="Postpone"
-              >
-                <SkipForward size={12} style={{ color: accentHex }} />
-              </button>
-              {/* Move to inbox */}
-              <button
-                onClick={e => { e.stopPropagation(); moveToInbox(item.id, dateStr); }}
-                className={`flex items-center justify-center rounded p-1 transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
-                style={{ opacity: 0.7 }}
-                title="Move to inbox"
-              >
-                <Inbox size={12} style={{ color: accentHex }} />
-              </button>
-              {/* Edit */}
-              <button
-                onClick={e => { e.stopPropagation(); openMobileEditTask(item, false); }}
-                className={`flex items-center justify-center rounded p-1 transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
-                style={{ opacity: 0.7 }}
-                title="Edit"
-              >
-                <Edit2 size={12} style={{ color: accentHex }} />
-              </button>
-            </div>
-          )}
+        </div>
+        {/* Time meta */}
+        <div className={`text-[10px] leading-none ${textSecondary}`} style={{ paddingLeft: isCalendarEvent ? 0 : 22 }}>
+          {timeStr}
         </div>
       </div>
+      {/* Full-height 2×2 action grid (tasks only) */}
+      {!isCalendarEvent && (
+        <div
+          style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr',
+            flexShrink: 0, alignSelf: 'stretch', width: 72,
+            borderLeft: `1px solid ${accentHex}22`,
+          }}
+        >
+          {/* Notes */}
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              if (isLinkOnlyTask(item)) window.open(getLinkUrl(item), '_blank', 'noopener,noreferrer');
+              else setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
+            }}
+            className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
+            style={{ opacity: hasNotes ? 0.85 : 0.35 }}
+            title="Notes / links"
+          >
+            <NoteIcon size={14} style={{ color: accentHex }} />
+          </button>
+          {/* Postpone */}
+          <button
+            onClick={e => { e.stopPropagation(); postponeTask(item.id); }}
+            className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
+            style={{ opacity: 0.7 }}
+            title="Postpone"
+          >
+            <SkipForward size={14} style={{ color: accentHex }} />
+          </button>
+          {/* Move to inbox */}
+          <button
+            onClick={e => { e.stopPropagation(); moveToInbox(item.id, dateStr); }}
+            className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
+            style={{ opacity: 0.7 }}
+            title="Move to inbox"
+          >
+            <Inbox size={14} style={{ color: accentHex }} />
+          </button>
+          {/* Edit */}
+          <button
+            onClick={e => { e.stopPropagation(); openMobileEditTask(item, false); }}
+            className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
+            style={{ opacity: 0.7 }}
+            title="Edit"
+          >
+            <Edit2 size={14} style={{ color: accentHex }} />
+          </button>
+        </div>
+      )}
     </div>
   );
 });
@@ -768,11 +772,16 @@ const MobileListView = () => {
     return () => clearTimeout(timer);
   }, [dateStr, isToday, calendarRef]);
 
-  // ── Position inbox handle below sticky header ──────────────────────────────
+  // ── Keep inbox handle anchored to the top of the scroll container ──────────
   useLayoutEffect(() => {
-    if (!calendarRef?.current) return;
-    const rect = calendarRef.current.getBoundingClientRect();
-    setInboxHandleTop(rect.top + 24);
+    const el = calendarRef?.current;
+    if (!el) return;
+    const update = () => setInboxHandleTop(el.getBoundingClientRect().top);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => { ro.disconnect(); window.removeEventListener('resize', update); };
   }, [calendarRef]);
 
   // ── Segment builder ────────────────────────────────────────────────────────
@@ -913,10 +922,10 @@ const MobileListView = () => {
       {isToday && pastItems.length > 0 && (
         <button
           onClick={() => setShowPast(v => !v)}
-          className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium ${textSecondary} border-b ${borderClass} ${darkMode ? 'hover:bg-white/5 active:bg-white/10' : 'hover:bg-black/5 active:bg-black/8'} transition-colors`}
+          className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium ${textSecondary} border-b ${borderClass} ${darkMode ? 'hover:bg-white/5 active:bg-white/10' : 'hover:bg-black/5 active:bg-black/8'} transition-colors`}
         >
           {showPast ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          {showPast ? 'Hide earlier items' : `↑ ${pastItems.length} earlier item${pastItems.length !== 1 ? 's' : ''}`}
+          {showPast ? 'Hide earlier items' : `Show ${pastItems.length} earlier item${pastItems.length !== 1 ? 's' : ''}`}
         </button>
       )}
 
@@ -1138,6 +1147,7 @@ const MobileListView = () => {
             >
               <span className={textSecondary}>Inbox</span>
             </span>
+            <ChevronLeft size={11} className={textSecondary} style={{ opacity: 0.5 }} />
           </button>
         </div>
       )}
@@ -1167,7 +1177,7 @@ const MobileListView = () => {
               onClick={() => { setInboxOpen(false); setInboxPinned(false); }}
               className={`p-0.5 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
             >
-              <ChevronDown size={14} className={textSecondary} />
+              <ChevronRight size={14} className={textSecondary} />
             </button>
           </div>
 
