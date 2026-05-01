@@ -321,7 +321,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Key size={16} className={textSecondary} />
-                        Global Shortcut
+                        Global Shortcuts
                       </h4>
                       <p className={`text-sm ${textSecondary}`}>
                         Open the quick-add popup from anywhere on your Mac.
