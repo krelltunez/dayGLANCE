@@ -36,6 +36,7 @@ import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { TASK_COLORS, TAILWIND_TO_HEX, hexToRgba } from '../../utils/colorUtils.js';
 import { HG_ICON_GROUPS, HG_COLORS, HG_DAYS } from '../../hooks/useHyperGlance.js';
+import { dateToString } from '../../utils/taskUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalCard from './GoalCard.jsx';
@@ -63,6 +64,14 @@ const sortByOrder = (projs) =>
 const toLightBg = (bgClass, dark) => {
   const hex = toHex(bgClass);
   return dark ? hexToRgba(hex, 0.13) : hexToRgba(hex, 0.09);
+};
+
+const nextQuarterHour = () => {
+  const now = new Date();
+  const m = now.getMinutes();
+  const next = Math.ceil((m + 1) / 15) * 15;
+  const h = (now.getHours() + Math.floor(next / 60)) % 24;
+  return `${String(h).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`;
 };
 
 // ─── Goal sorting helpers ─────────────────────────────────────────────────────
@@ -293,8 +302,8 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   const [hgColor, setHgColor] = useState(initHG.color || '#4f46e5');
   const [hgIsRecurring, setHgIsRecurring] = useState(initHG.isRecurring !== false);
   const [hgScheduledDays, setHgScheduledDays] = useState(initHG.scheduledDays || []);
-  const [hgScheduledDate, setHgScheduledDate] = useState(initHG.scheduledDate || '');
-  const [hgScheduledTime, setHgScheduledTime] = useState(initHG.scheduledTime || '09:00');
+  const [hgScheduledDate, setHgScheduledDate] = useState(initHG.scheduledDate || dateToString(new Date()));
+  const [hgScheduledTime, setHgScheduledTime] = useState(initHG.scheduledTime || nextQuarterHour());
   const [hgDuration, setHgDuration] = useState(initHG.scheduledDuration || 60);
   const [hgTemplateTasks, setHgTemplateTasks] = useState(initHG.templateTasks || []);
   const [hgNewTask, setHgNewTask] = useState('');
@@ -938,6 +947,21 @@ const DesktopDashboard = ({
     if (containerRef.current) ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, [recalc]);
+
+  // ── Arrow-key carousel navigation ────────────────────────────────────────────
+  useEffect(() => {
+    if (sortedGoals.length <= 1) return;
+    const handler = (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+      e.preventDefault();
+      if (e.key === 'ArrowLeft')  setActiveGoalIdx(i => Math.max(0, i - 1));
+      if (e.key === 'ArrowRight') setActiveGoalIdx(i => Math.min(sortedGoals.length - 1, i + 1));
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [sortedGoals.length]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (

@@ -20,6 +20,7 @@ let trayWindow: BrowserWindow | null = null;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
 let registeredHotkey: string | null = null;
+let registeredMainWindowHotkey: string | null = null;
 
 // Tray menu bar title: focus countdown takes priority over the reminder dot.
 let trayIndicatorOn = false;
@@ -368,6 +369,24 @@ ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
     tw.webContents.send('tray:focus-quick-add');
   });
   if (ok) registeredHotkey = accelerator;
+  return ok;
+});
+
+// Global hotkey: show and focus the main app window.
+ipcMain.handle('hotkey:register-main-window', (_event, accelerator: string) => {
+  if (registeredMainWindowHotkey) {
+    try { globalShortcut.unregister(registeredMainWindowHotkey); } catch { /* ignore */ }
+    registeredMainWindowHotkey = null;
+  }
+  if (!accelerator) return true;
+  const ok = globalShortcut.register(accelerator, () => {
+    const mw = live(mainWindow);
+    if (!mw) return;
+    if (mw.isMinimized()) mw.restore();
+    mw.show();
+    mw.focus();
+  });
+  if (ok) registeredMainWindowHotkey = accelerator;
   return ok;
 });
 

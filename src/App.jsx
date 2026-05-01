@@ -2334,7 +2334,7 @@ const DayPlanner = () => {
     setShowMonthView,
     setShowMobileTagFilter,
     setShowBackupMenu,
-    isMobile, setTabletActiveTab,
+    isMobile, tabletActiveTab, setTabletActiveTab,
     aiConfig, setShowVoiceInput,
     habitsEnabled, setHabitsEnabled, setShowHabitModal,
     goalsProjectsEnabled, setGoalsProjectsEnabled, showGoalsDashboard, setShowGoalsDashboard,

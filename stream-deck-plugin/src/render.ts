@@ -249,6 +249,16 @@ interface GoalOpts {
   overview?: boolean;
   goalCount?: number;
   avgProgress?: number;
+  linkedProjectCount?: number;
+  daysLeft?: number | null;
+}
+
+function formatDaysLeft(days: number | null | undefined): string {
+  if (days === null || days === undefined) return "No target";
+  if (days < 0) return "Overdue";
+  if (days === 0) return "Today";
+  if (days === 1) return "1d left";
+  return `${days}d left`;
 }
 
 function arcPath(cx: number, cy: number, r: number, pct: number): string {
@@ -266,7 +276,7 @@ function arcPath(cx: number, cy: number, r: number, pct: number): string {
 }
 
 export function renderGoalKey(opts: GoalOpts): string {
-  const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0 } = opts;
+  const { title, progress, colorHex, overview = false, avgProgress = 0, linkedProjectCount = 0, daysLeft } = opts;
   const pct = overview ? avgProgress : Math.round(progress);
   const arc = arcPath(72, 74, 44, pct);
   const arcEl = arc
@@ -276,12 +286,13 @@ export function renderGoalKey(opts: GoalOpts): string {
   let centerEl: string;
   let bottomEl: string;
   if (overview) {
-    centerEl = `
-  <text x="72" y="71" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${goalCount}</text>
-  <text x="72" y="88" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.45" text-anchor="middle">goals</text>`;
-    bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.45" text-anchor="middle">${pct}% avg</text>`;
-  } else {
     centerEl = `<text x="72" y="82" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+    const projLabel = `${linkedProjectCount} project${linkedProjectCount !== 1 ? "s" : ""}`;
+    bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${projLabel}</text>`;
+  } else {
+    centerEl = `
+  <text x="72" y="71" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>
+  <text x="72" y="88" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.55" text-anchor="middle">${formatDaysLeft(daysLeft)}</text>`;
     bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${escape(truncate(title, 15))}</text>`;
   }
 
@@ -297,14 +308,16 @@ export function renderGoalKey(opts: GoalOpts): string {
 }
 
 export function renderGoalStrip(opts: GoalOpts): string {
-  const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0 } = opts;
+  const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0, linkedProjectCount = 0, daysLeft } = opts;
   const pct = overview ? avgProgress : Math.round(progress);
   const arc = arcPath(48, 50, 30, pct);
   const arcEl = arc
     ? `<path d="${arc}" fill="none" stroke="${colorHex}" stroke-width="6" stroke-linecap="round"/>`
     : "";
   const mainText = overview ? `${goalCount} Goal${goalCount !== 1 ? "s" : ""}` : escape(truncate(title, 11));
-  const subText = overview ? `${pct}% avg` : `${pct}% done`;
+  const subText = overview
+    ? `${linkedProjectCount} project${linkedProjectCount !== 1 ? "s" : ""}`
+    : formatDaysLeft(daysLeft);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   <rect width="${SW}" height="${SH}" fill="#111"/>
@@ -329,10 +342,17 @@ interface ProjectOpts {
   overview?: boolean;
   projectCount?: number;
   avgProgress?: number;
+  tasksDone?: number;
+  tasksTotal?: number;
+}
+
+function formatTaskStats(done: number, total: number): string {
+  if (total === 0) return "No tasks";
+  return `${done} of ${total} done`;
 }
 
 export function renderProjectKey(opts: ProjectOpts): string {
-  const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0 } = opts;
+  const { title, progress, colorHex, goalTitle, overview = false, avgProgress = 0, tasksDone = 0, tasksTotal = 0 } = opts;
   const pct = overview ? avgProgress : Math.round(progress);
   const arc = arcPath(72, 72, 42, pct);
   const arcEl = arc
@@ -342,15 +362,15 @@ export function renderProjectKey(opts: ProjectOpts): string {
   let centerEl: string;
   let bottomEl: string;
   if (overview) {
-    centerEl = `
-  <text x="72" y="69" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${projectCount}</text>
-  <text x="72" y="86" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.45" text-anchor="middle">projects</text>`;
-    bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.45" text-anchor="middle">${pct}% avg</text>`;
+    centerEl = `<text x="72" y="80" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+    bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${formatTaskStats(tasksDone, tasksTotal)}</text>`;
   } else {
-    const goalLine = goalTitle
+    // Goal-linked projects show the parent goal under the pct%; standalone
+    // projects show task stats in the same slot instead of a redundant pct.
+    const subLine = goalTitle
       ? `<text x="72" y="91" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.38" text-anchor="middle" font-style="italic">↳ ${escape(truncate(goalTitle, 14))}</text>`
-      : "";
-    centerEl = `<text x="72" y="78" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>${goalLine}`;
+      : `<text x="72" y="91" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.55" text-anchor="middle">${formatTaskStats(tasksDone, tasksTotal)}</text>`;
+    centerEl = `<text x="72" y="78" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>${subLine}`;
     bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${escape(truncate(title, 15))}</text>`;
   }
 
@@ -366,7 +386,7 @@ export function renderProjectKey(opts: ProjectOpts): string {
 }
 
 export function renderProjectStrip(opts: ProjectOpts): string {
-  const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0 } = opts;
+  const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0, tasksDone = 0, tasksTotal = 0 } = opts;
   const pct = overview ? avgProgress : Math.round(progress);
   const arc = arcPath(48, 50, 30, pct);
   const arcEl = arc
@@ -374,8 +394,8 @@ export function renderProjectStrip(opts: ProjectOpts): string {
     : "";
   const mainText = overview ? `${projectCount} Project${projectCount !== 1 ? "s" : ""}` : escape(truncate(title, 11));
   const subText = overview
-    ? `${pct}% avg`
-    : goalTitle ? `↳ ${escape(truncate(goalTitle, 12))}` : `${pct}% done`;
+    ? formatTaskStats(tasksDone, tasksTotal)
+    : goalTitle ? `↳ ${escape(truncate(goalTitle, 12))}` : formatTaskStats(tasksDone, tasksTotal);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   <rect width="${SW}" height="${SH}" fill="#111"/>

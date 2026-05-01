@@ -6,6 +6,7 @@ const ShortcutHelpModal = () => {
   const {
     setShowShortcutHelp,
     cardBg, borderClass, textPrimary, textSecondary, darkMode,
+    canShowViewCycler,
   } = useDayPlannerCtx();
 
   return (
@@ -27,6 +28,11 @@ const ShortcutHelpModal = () => {
               ['T', 'Go to today'],
               ['\u2190 / \u2192', 'Previous / next day'],
               ['M', 'Toggle month view'],
+              ...(canShowViewCycler ? [
+                ['1', 'View: Day'],
+                ['2', 'View: 3-day'],
+                ['3', 'View: Week'],
+              ] : []),
             ].map(([key, desc]) => (
               <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>
                 <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono min-w-[2rem] text-center ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>{key}</kbd>

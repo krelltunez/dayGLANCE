@@ -97,7 +97,7 @@ export class ProjectProgressAction extends SingletonAction {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const isEncoder = this.encoderRefs.has(act);
-    const projects = state.projects ?? [];
+    const projects = sortProjects(state.projects ?? []);
 
     let keyImg: string;
     let stripImg: string;
@@ -106,12 +106,18 @@ export class ProjectProgressAction extends SingletonAction {
       const avgProgress = projects.length > 0
         ? Math.round(projects.reduce((s, p) => s + p.progress, 0) / projects.length)
         : 0;
-      const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, projectCount: projects.length, avgProgress };
+      const tasksDone = projects.reduce((s, p) => s + (p.tasksDone ?? 0), 0);
+      const tasksTotal = projects.reduce((s, p) => s + (p.tasksTotal ?? 0), 0);
+      const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, projectCount: projects.length, avgProgress, tasksDone, tasksTotal };
       keyImg = renderProjectKey(opts);
       stripImg = renderProjectStrip(opts);
     } else {
       const project = projects[this.viewIndex - 1];
-      const opts = { title: project.title, progress: project.progress, colorHex: project.colorHex, goalTitle: project.goalTitle };
+      const opts = {
+        title: project.title, progress: project.progress, colorHex: project.colorHex,
+        goalTitle: project.goalTitle,
+        tasksDone: project.tasksDone, tasksTotal: project.tasksTotal,
+      };
       keyImg = renderProjectKey(opts);
       stripImg = renderProjectStrip(opts);
     }
@@ -123,4 +129,16 @@ export class ProjectProgressAction extends SingletonAction {
       await act.setTitle("");
     }
   }
+}
+
+// Sort by parent goal's days-until-target asc (soonest first); projects with
+// no parent or whose parent has no target sink to the bottom, ordered by
+// progress desc so unstarted ones come last.
+function sortProjects<T extends { goalDaysLeft: number | null; progress: number }>(projects: T[]): T[] {
+  return [...projects].sort((a, b) => {
+    if (a.goalDaysLeft !== null && b.goalDaysLeft !== null) return a.goalDaysLeft - b.goalDaysLeft;
+    if (a.goalDaysLeft !== null) return -1;
+    if (b.goalDaysLeft !== null) return 1;
+    return b.progress - a.progress;
+  });
 }

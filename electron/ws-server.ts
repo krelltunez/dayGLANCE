@@ -14,10 +14,16 @@ export function createWsServer(getMainWindow: () => BrowserWindow | null): WebSo
   let lastState: string | null = null;
 
   wss.on('connection', (ws, req) => {
-    // Browser-initiated WebSocket connections always include an Origin header;
-    // native clients (e.g. the Stream Deck plugin) do not. Reject browser
-    // connections to prevent any web page from reaching this server.
-    if (req.headers['origin']) {
+    // Allow connections from non-browser clients (no Origin header — e.g. the
+    // Stream Deck plugin runtime), file:// pages (Origin: null — the Stream
+    // Deck property inspector is loaded this way), and loopback origins.
+    // Reject anything else so a random web page can't reach this server.
+    const origin = req.headers['origin'];
+    const allowed =
+      !origin ||
+      origin === 'null' ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (!allowed) {
       ws.terminate();
       return;
     }

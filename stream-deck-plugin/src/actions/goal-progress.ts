@@ -97,7 +97,8 @@ export class GoalProgressAction extends SingletonAction {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async renderOne(act: any, state: DayGlanceState): Promise<void> {
     const isEncoder = this.encoderRefs.has(act);
-    const goals = state.goals ?? [];
+    const goals = sortGoals(state.goals ?? []);
+    const linkedProjectCount = (state.projects ?? []).filter(p => p.goalTitle).length;
 
     let keyImg: string;
     let stripImg: string;
@@ -106,12 +107,12 @@ export class GoalProgressAction extends SingletonAction {
       const avgProgress = goals.length > 0
         ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length)
         : 0;
-      const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, goalCount: goals.length, avgProgress };
+      const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, goalCount: goals.length, avgProgress, linkedProjectCount };
       keyImg = renderGoalKey(opts);
       stripImg = renderGoalStrip(opts);
     } else {
       const goal = goals[this.viewIndex - 1];
-      const opts = { title: goal.title, progress: goal.progress, colorHex: goal.colorHex };
+      const opts = { title: goal.title, progress: goal.progress, colorHex: goal.colorHex, daysLeft: goal.daysLeft };
       keyImg = renderGoalKey(opts);
       stripImg = renderGoalStrip(opts);
     }
@@ -123,4 +124,15 @@ export class GoalProgressAction extends SingletonAction {
       await act.setTitle("");
     }
   }
+}
+
+// Sort by target date asc (soonest first); goals without a target go last,
+// ordered by progress desc so unstarted ones sit at the bottom.
+function sortGoals<T extends { daysLeft: number | null; progress: number }>(goals: T[]): T[] {
+  return [...goals].sort((a, b) => {
+    if (a.daysLeft !== null && b.daysLeft !== null) return a.daysLeft - b.daysLeft;
+    if (a.daysLeft !== null) return -1;
+    if (b.daysLeft !== null) return 1;
+    return b.progress - a.progress;
+  });
 }

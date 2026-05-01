@@ -1,9 +1,9 @@
 {
     "Name": "dayGLANCE",
     "UUID": "com.dayglance.streamdeck",
-    "Version": "0.0.1",
+    "Version": "0.0.2.0",
     "Author": "dayGLANCE",
-    "Description": "Agenda, focus, tasks, and goals on your Stream Deck+.",
+    "Description": "Agenda, focus, tasks, and goals on your Stream Deck.",
     "Category": "dayGLANCE",
     "CategoryIcon": "imgs/plugin/category-icon",
     "Icon": "imgs/plugin/icon",

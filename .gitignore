@@ -26,3 +26,6 @@ dayglance-android/app/src/main/assets/web
 *.njsproj
 *.sln
 *.sw?
+
+# Stream Deck pack output
+*.streamDeckPlugin

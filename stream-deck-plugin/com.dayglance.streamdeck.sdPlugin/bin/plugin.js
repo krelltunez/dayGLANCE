@@ -8502,6 +8502,17 @@ function renderFocusSetupSlot(slotIndex, workMinutes, breakMinutes, longBreakMin
 </svg>`;
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
+function formatDaysLeft(days) {
+    if (days === null || days === undefined)
+        return "No target";
+    if (days < 0)
+        return "Overdue";
+    if (days === 0)
+        return "Today";
+    if (days === 1)
+        return "1d left";
+    return `${days}d left`;
+}
 function arcPath(cx, cy, r, pct) {
     if (pct <= 0)
         return "";
@@ -8517,7 +8528,7 @@ function arcPath(cx, cy, r, pct) {
     return `M ${cx} ${cy - r} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}`;
 }
 function renderGoalKey(opts) {
-    const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0 } = opts;
+    const { title, progress, colorHex, overview = false, avgProgress = 0, linkedProjectCount = 0, daysLeft } = opts;
     const pct = overview ? avgProgress : Math.round(progress);
     const arc = arcPath(72, 74, 44, pct);
     const arcEl = arc
@@ -8526,13 +8537,14 @@ function renderGoalKey(opts) {
     let centerEl;
     let bottomEl;
     if (overview) {
-        centerEl = `
-  <text x="72" y="71" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${goalCount}</text>
-  <text x="72" y="88" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.45" text-anchor="middle">goals</text>`;
-        bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.45" text-anchor="middle">${pct}% avg</text>`;
+        centerEl = `<text x="72" y="82" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+        const projLabel = `${linkedProjectCount} project${linkedProjectCount !== 1 ? "s" : ""}`;
+        bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${projLabel}</text>`;
     }
     else {
-        centerEl = `<text x="72" y="82" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+        centerEl = `
+  <text x="72" y="71" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>
+  <text x="72" y="88" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.55" text-anchor="middle">${formatDaysLeft(daysLeft)}</text>`;
         bottomEl = `<text x="72" y="134" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${escape(truncate(title, 15))}</text>`;
     }
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
@@ -8546,14 +8558,16 @@ function renderGoalKey(opts) {
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
 function renderGoalStrip(opts) {
-    const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0 } = opts;
+    const { title, progress, colorHex, overview = false, goalCount = 0, avgProgress = 0, linkedProjectCount = 0, daysLeft } = opts;
     const pct = overview ? avgProgress : Math.round(progress);
     const arc = arcPath(48, 50, 30, pct);
     const arcEl = arc
         ? `<path d="${arc}" fill="none" stroke="${colorHex}" stroke-width="6" stroke-linecap="round"/>`
         : "";
     const mainText = overview ? `${goalCount} Goal${goalCount !== 1 ? "s" : ""}` : escape(truncate(title, 11));
-    const subText = overview ? `${pct}% avg` : `${pct}% done`;
+    const subText = overview
+        ? `${linkedProjectCount} project${linkedProjectCount !== 1 ? "s" : ""}`
+        : formatDaysLeft(daysLeft);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   <rect width="${SW}" height="${SH}" fill="#111"/>
   <rect width="${SW}" height="4" fill="${colorHex}"/>
@@ -8566,8 +8580,13 @@ function renderGoalStrip(opts) {
 </svg>`;
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
+function formatTaskStats(done, total) {
+    if (total === 0)
+        return "No tasks";
+    return `${done} of ${total} done`;
+}
 function renderProjectKey(opts) {
-    const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0 } = opts;
+    const { title, progress, colorHex, goalTitle, overview = false, avgProgress = 0, tasksDone = 0, tasksTotal = 0 } = opts;
     const pct = overview ? avgProgress : Math.round(progress);
     const arc = arcPath(72, 72, 42, pct);
     const arcEl = arc
@@ -8576,16 +8595,16 @@ function renderProjectKey(opts) {
     let centerEl;
     let bottomEl;
     if (overview) {
-        centerEl = `
-  <text x="72" y="69" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${projectCount}</text>
-  <text x="72" y="86" font-family="${FONT}" font-size="13" fill="white" fill-opacity="0.45" text-anchor="middle">projects</text>`;
-        bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.45" text-anchor="middle">${pct}% avg</text>`;
+        centerEl = `<text x="72" y="80" font-family="${FONT}" font-size="26" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>`;
+        bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${formatTaskStats(tasksDone, tasksTotal)}</text>`;
     }
     else {
-        const goalLine = goalTitle
+        // Goal-linked projects show the parent goal under the pct%; standalone
+        // projects show task stats in the same slot instead of a redundant pct.
+        const subLine = goalTitle
             ? `<text x="72" y="91" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.38" text-anchor="middle" font-style="italic">↳ ${escape(truncate(goalTitle, 14))}</text>`
-            : "";
-        centerEl = `<text x="72" y="78" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>${goalLine}`;
+            : `<text x="72" y="91" font-family="${FONT}" font-size="10" fill="white" fill-opacity="0.55" text-anchor="middle">${formatTaskStats(tasksDone, tasksTotal)}</text>`;
+        centerEl = `<text x="72" y="78" font-family="${FONT}" font-size="22" fill="white" fill-opacity="0.95" text-anchor="middle" font-weight="700">${pct}%</text>${subLine}`;
         bottomEl = `<text x="72" y="130" font-family="${FONT}" font-size="12" fill="white" fill-opacity="0.55" text-anchor="middle">${escape(truncate(title, 15))}</text>`;
     }
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
@@ -8599,7 +8618,7 @@ function renderProjectKey(opts) {
     return "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64");
 }
 function renderProjectStrip(opts) {
-    const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0 } = opts;
+    const { title, progress, colorHex, goalTitle, overview = false, projectCount = 0, avgProgress = 0, tasksDone = 0, tasksTotal = 0 } = opts;
     const pct = overview ? avgProgress : Math.round(progress);
     const arc = arcPath(48, 50, 30, pct);
     const arcEl = arc
@@ -8607,8 +8626,8 @@ function renderProjectStrip(opts) {
         : "";
     const mainText = overview ? `${projectCount} Project${projectCount !== 1 ? "s" : ""}` : escape(truncate(title, 11));
     const subText = overview
-        ? `${pct}% avg`
-        : goalTitle ? `↳ ${escape(truncate(goalTitle, 12))}` : `${pct}% done`;
+        ? formatTaskStats(tasksDone, tasksTotal)
+        : goalTitle ? `↳ ${escape(truncate(goalTitle, 12))}` : formatTaskStats(tasksDone, tasksTotal);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH}">
   <rect width="${SW}" height="${SH}" fill="#111"/>
   <rect width="${SW}" height="4" fill="${colorHex}"/>
@@ -9174,20 +9193,21 @@ let GoalProgressAction = (() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async renderOne(act, state) {
             const isEncoder = this.encoderRefs.has(act);
-            const goals = state.goals ?? [];
+            const goals = sortGoals(state.goals ?? []);
+            const linkedProjectCount = (state.projects ?? []).filter(p => p.goalTitle).length;
             let keyImg;
             let stripImg;
             if (this.viewIndex === 0 || goals.length === 0) {
                 const avgProgress = goals.length > 0
                     ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length)
                     : 0;
-                const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, goalCount: goals.length, avgProgress };
+                const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, goalCount: goals.length, avgProgress, linkedProjectCount };
                 keyImg = renderGoalKey(opts);
                 stripImg = renderGoalStrip(opts);
             }
             else {
                 const goal = goals[this.viewIndex - 1];
-                const opts = { title: goal.title, progress: goal.progress, colorHex: goal.colorHex };
+                const opts = { title: goal.title, progress: goal.progress, colorHex: goal.colorHex, daysLeft: goal.daysLeft };
                 keyImg = renderGoalKey(opts);
                 stripImg = renderGoalStrip(opts);
             }
@@ -9202,6 +9222,19 @@ let GoalProgressAction = (() => {
     });
     return _classThis;
 })();
+// Sort by target date asc (soonest first); goals without a target go last,
+// ordered by progress desc so unstarted ones sit at the bottom.
+function sortGoals(goals) {
+    return [...goals].sort((a, b) => {
+        if (a.daysLeft !== null && b.daysLeft !== null)
+            return a.daysLeft - b.daysLeft;
+        if (a.daysLeft !== null)
+            return -1;
+        if (b.daysLeft !== null)
+            return 1;
+        return b.progress - a.progress;
+    });
+}
 
 let ProjectProgressAction = (() => {
     let _classDecorators = [action({ UUID: "com.dayglance.streamdeck.project-progress" })];
@@ -9296,20 +9329,26 @@ let ProjectProgressAction = (() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async renderOne(act, state) {
             const isEncoder = this.encoderRefs.has(act);
-            const projects = state.projects ?? [];
+            const projects = sortProjects(state.projects ?? []);
             let keyImg;
             let stripImg;
             if (this.viewIndex === 0 || projects.length === 0) {
                 const avgProgress = projects.length > 0
                     ? Math.round(projects.reduce((s, p) => s + p.progress, 0) / projects.length)
                     : 0;
-                const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, projectCount: projects.length, avgProgress };
+                const tasksDone = projects.reduce((s, p) => s + (p.tasksDone ?? 0), 0);
+                const tasksTotal = projects.reduce((s, p) => s + (p.tasksTotal ?? 0), 0);
+                const opts = { title: "", progress: 0, colorHex: "#f97316", overview: true, projectCount: projects.length, avgProgress, tasksDone, tasksTotal };
                 keyImg = renderProjectKey(opts);
                 stripImg = renderProjectStrip(opts);
             }
             else {
                 const project = projects[this.viewIndex - 1];
-                const opts = { title: project.title, progress: project.progress, colorHex: project.colorHex, goalTitle: project.goalTitle };
+                const opts = {
+                    title: project.title, progress: project.progress, colorHex: project.colorHex,
+                    goalTitle: project.goalTitle,
+                    tasksDone: project.tasksDone, tasksTotal: project.tasksTotal,
+                };
                 keyImg = renderProjectKey(opts);
                 stripImg = renderProjectStrip(opts);
             }
@@ -9324,6 +9363,20 @@ let ProjectProgressAction = (() => {
     });
     return _classThis;
 })();
+// Sort by parent goal's days-until-target asc (soonest first); projects with
+// no parent or whose parent has no target sink to the bottom, ordered by
+// progress desc so unstarted ones come last.
+function sortProjects(projects) {
+    return [...projects].sort((a, b) => {
+        if (a.goalDaysLeft !== null && b.goalDaysLeft !== null)
+            return a.goalDaysLeft - b.goalDaysLeft;
+        if (a.goalDaysLeft !== null)
+            return -1;
+        if (b.goalDaysLeft !== null)
+            return 1;
+        return b.progress - a.progress;
+    });
+}
 
 let HabitAction = (() => {
     let _classDecorators = [action({ UUID: "com.dayglance.streamdeck.habit" })];
@@ -9978,6 +10031,10 @@ let HyperGlanceAction = (() => {
         LONG_PRESS_MS = 400;
         pulseOn = false;
         pulseTimer = null;
+        // Keypad-only: cursor into hg.scheduled[] for previewing/starting sessions
+        // when there's no encoder column to drive the slot.
+        keypadCursor = 0;
+        keyLongPressTimer = null;
         async onWillAppear(ev) {
             this.visibleCount++;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9990,6 +10047,8 @@ let HyperGlanceAction = (() => {
             if (!this.unsubscribe) {
                 this.unsubscribe = onState((s) => {
                     this.lastState = s;
+                    if (this.keypadCursor >= s.hg.scheduled.length)
+                        this.keypadCursor = 0;
                     this.updatePulse(s);
                     this.renderAll(s).catch(e => console.error("[dayGLANCE] hg render:", e));
                 });
@@ -10064,7 +10123,7 @@ let HyperGlanceAction = (() => {
                 send({ type: MSG_DAY_HG_SET_DURATION, longBreakMinutes: Math.max(1, Math.min(60, longBreakMinutes + ev.payload.ticks)) });
             }
         }
-        async onKeyDown(ev) {
+        async onKeyDown(_ev) {
             const hg = this.lastState?.hg;
             if (!hg)
                 return;
@@ -10078,12 +10137,28 @@ let HyperGlanceAction = (() => {
                 send({ type: MSG_DAY_HG_TIMER_START });
             }
             else {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const slotIndex = this.slotIndexMap.get(ev.action) ?? 0;
-                const session = hg.scheduled[slotIndex];
-                if (session)
-                    send({ type: MSG_DAY_HG_START, projectId: session.projectId, date: session.date });
+                // Idle: short release cycles the cursor; 500ms hold starts the session
+                // currently under the cursor. Keypads have no slot mapping, so without
+                // this every key press would always start hg.scheduled[0].
+                this.keyLongPressTimer = setTimeout(() => {
+                    this.keyLongPressTimer = null;
+                    const session = this.lastState?.hg.scheduled[this.keypadCursor];
+                    if (session)
+                        send({ type: MSG_DAY_HG_START, projectId: session.projectId, date: session.date });
+                }, 500);
             }
+        }
+        async onKeyUp(_ev) {
+            if (this.keyLongPressTimer === null)
+                return;
+            clearTimeout(this.keyLongPressTimer);
+            this.keyLongPressTimer = null;
+            const count = this.lastState?.hg.scheduled.length ?? 0;
+            if (count === 0)
+                return;
+            this.keypadCursor = (this.keypadCursor + 1) % count;
+            if (this.lastState)
+                await this.renderAll(this.lastState);
         }
         async onTouchTap(ev) {
             if (ev.payload.hold) {
@@ -10104,7 +10179,9 @@ let HyperGlanceAction = (() => {
                 send({ type: MSG_DAY_HG_TIMER_START });
             }
             else {
-                const session = hg.scheduled[0];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const slotIndex = this.slotIndexMap.get(ev.action) ?? 0;
+                const session = hg.scheduled[slotIndex];
                 if (session)
                     send({ type: MSG_DAY_HG_START, projectId: session.projectId, date: session.date });
             }
@@ -10190,7 +10267,7 @@ let HyperGlanceAction = (() => {
                 await act.setImage(renderKey({ value, sub: "press to start", barColor }));
             }
             else {
-                const session = hg.scheduled[0] ?? null;
+                const session = hg.scheduled[this.keypadCursor] ?? null;
                 await act.setImage(renderHGIdleKey(session, session?.reachable && this.pulseOn));
             }
             await act.setTitle("");

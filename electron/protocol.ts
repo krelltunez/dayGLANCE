@@ -116,9 +116,12 @@ export type Goal = {
 export type Project = {
   id: string;
   title: string;
-  progress: number;   // 0-100 integer
+  progress: number;   // 0-100 integer (duration-weighted)
   colorHex: string;
-  goalTitle: string | null;  // parent goal name, null if standalone
+  goalTitle: string | null;     // parent goal name, null if standalone
+  goalDaysLeft: number | null;  // parent goal's days-until-target, null if no parent or no target
+  tasksDone: number;            // count of completed, non-archived tasks
+  tasksTotal: number;           // count of non-archived tasks
 };
 
 export type DayGlanceState = {

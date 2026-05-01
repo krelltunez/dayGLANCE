@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Pass an empty string to unregister. Returns true if registration succeeded.
   setGlobalHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register', accelerator),
 
+  // Registers (or clears) a system-wide hotkey that shows the main app window.
+  setMainWindowHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register-main-window', accelerator),
+
   // Tray popup listens for the signal to focus the quick-add input.
   onFocusQuickAdd: (callback: () => void) => {
     const handler = () => callback();
