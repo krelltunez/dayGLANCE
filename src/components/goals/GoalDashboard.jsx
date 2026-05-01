@@ -939,6 +939,21 @@ const DesktopDashboard = ({
     return () => ro.disconnect();
   }, [recalc]);
 
+  // ── Arrow-key carousel navigation ────────────────────────────────────────────
+  useEffect(() => {
+    if (sortedGoals.length <= 1) return;
+    const handler = (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+      e.preventDefault();
+      if (e.key === 'ArrowLeft')  setActiveGoalIdx(i => Math.max(0, i - 1));
+      if (e.key === 'ArrowRight') setActiveGoalIdx(i => Math.min(sortedGoals.length - 1, i + 1));
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [sortedGoals.length]);
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div ref={containerRef} className="relative min-h-[200px]">
