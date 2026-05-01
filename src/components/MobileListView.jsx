@@ -21,7 +21,7 @@ const TIME_COL_W     = 56;   // w-14
 const CONNECTOR_W    = 16;   // half of spine col — reaches spine centre
 const TASK_H         = 72;
 const ROUTINE_H      = 38;
-const HG_SESSION_H   = 84;
+const HG_SESSION_H   = 64;
 const ALLDAY_H       = 44;
 
 // ─── Spine colour gradient (orange→green→blue, 6 am→noon→6 pm) ───────────────
@@ -93,9 +93,7 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
   }
   if (kind === 'hg-session') {
     return (
-      <div style={{ ...base, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: completed ? 0.5 : 1 }}>
-        <Zap size={8} color="#fff" strokeWidth={2.5} />
-      </div>
+      <Zap size={14} strokeWidth={2.5} style={{ color: colour, opacity: completed ? 0.4 : 1, flexShrink: 0 }} />
     );
   }
   if (kind === 'calendar-event') {
@@ -142,7 +140,7 @@ function Connector({ colour }) {
 const TaskCard = React.memo(({
   item, accentHex, isCalendarEvent, darkMode, textPrimary, textSecondary,
   formatTime, minutesToTime, timeToMinutes,
-  toggleComplete, setExpandedNotesTaskId, postponeTask, moveToInbox, openMobileEditTask,
+  setExpandedNotesTaskId, postponeTask, moveToInbox, openMobileEditTask,
   dateStr,
 }) => {
   const endMin = timeToMinutes(item.startTime) + (item.duration || 30);
@@ -167,32 +165,15 @@ const TaskCard = React.memo(({
       <div style={barStyle} />
       {/* Text content */}
       <div style={{ flex: 1, minWidth: 0, padding: '7px 0 7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-          {/* Completion circle (tasks only) */}
-          {!isCalendarEvent && (
-            <button
-              onClick={e => { e.stopPropagation(); toggleComplete(item.id); }}
-              style={{
-                flexShrink: 0, marginTop: 2,
-                width: 16, height: 16, borderRadius: '50%',
-                border: `2px solid ${accentHex}`,
-                background: item.completed ? accentHex : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              {item.completed && <Check size={8} strokeWidth={3} color="#fff" />}
-            </button>
-          )}
-          {/* Title */}
-          <div
-            className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
-            style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
-          >
-            {renderTitle(item.title)}
-          </div>
+        {/* Title */}
+        <div
+          className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
+          style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+        >
+          {renderTitle(item.title)}
         </div>
         {/* Time meta */}
-        <div className={`text-[10px] leading-none ${textSecondary}`} style={{ paddingLeft: isCalendarEvent ? 0 : 22 }}>
+        <div className={`text-[10px] leading-none ${textSecondary}`}>
           {timeStr}
         </div>
       </div>
@@ -303,10 +284,32 @@ const HGSessionCard = React.memo(({
   };
   const barStyle = { width: 4, flexShrink: 0, background: accentHex, borderRadius: '6px 0 0 6px' };
 
+  const hgControl = isCompleted ? (
+    <span className="text-[9px] font-semibold opacity-50" style={{ color: accentHex }}>✓</span>
+  ) : canEnter ? (
+    <button
+      onClick={e => { e.stopPropagation(); enterHyperGlanceMode(project.id, date); }}
+      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse flex-shrink-0"
+      style={{ background: accentHex }}
+    >
+      <Zap size={8} />hyperGLANCE
+    </button>
+  ) : isOverdue ? (
+    <button
+      onClick={e => { e.stopPropagation(); enterHyperGlanceMode(project.id, date); }}
+      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold opacity-80 flex-shrink-0"
+      style={{ background: accentHex }}
+    >
+      <Zap size={8} />Start
+    </button>
+  ) : (
+    <span className="text-[9px] font-bold opacity-30 flex-shrink-0" style={{ color: accentHex }}>hG</span>
+  );
+
   return (
     <div style={cardStyle}>
       <div style={barStyle} />
-      <div style={{ flex: 1, minWidth: 0, padding: '7px 6px 7px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ flex: 1, minWidth: 0, padding: '7px 6px 7px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5 }}>
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <IconComp size={13} style={{ color: accentHex, flexShrink: 0 }} />
@@ -324,41 +327,15 @@ const HGSessionCard = React.memo(({
             <Edit2 size={12} style={{ color: accentHex, opacity: 0.7 }} />
           </button>
         </div>
-        {/* Time + task count */}
-        <div className={`text-[10px] leading-none ${textSecondary}`}>
-          {timeStr}
-          {taskLabel && <span className="ml-1.5">· {taskLabel}</span>}
-          {isOverdue && <span className="ml-1.5 text-orange-500 font-semibold">overdue</span>}
+        {/* Time + task count + hG control on one row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span className={`text-[10px] leading-none ${textSecondary}`}>
+            {timeStr}
+            {taskLabel && <span className="ml-1.5">· {taskLabel}</span>}
+            {isOverdue && <span className="ml-1.5 text-orange-500 font-semibold">overdue</span>}
+          </span>
+          {hgControl}
         </div>
-        {/* hG button row */}
-        {!isCompleted && (
-          <div style={{ marginTop: 2 }}>
-            {canEnter ? (
-              <button
-                onClick={e => { e.stopPropagation(); enterHyperGlanceMode(project.id, date); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white text-[10px] font-bold animate-pulse"
-                style={{ background: accentHex }}
-              >
-                <Zap size={9} />
-                hyperGLANCE
-              </button>
-            ) : isOverdue ? (
-              <button
-                onClick={e => { e.stopPropagation(); enterHyperGlanceMode(project.id, date); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white text-[10px] font-bold opacity-80"
-                style={{ background: accentHex }}
-              >
-                <Zap size={9} />
-                Start
-              </button>
-            ) : (
-              <span className="text-[10px] font-bold opacity-30" style={{ color: accentHex }}>hG</span>
-            )}
-          </div>
-        )}
-        {isCompleted && (
-          <span className="text-[10px] font-semibold opacity-50" style={{ color: accentHex }}>✓ Completed</span>
-        )}
       </div>
     </div>
   );
@@ -367,7 +344,7 @@ HGSessionCard.displayName = 'HGSessionCard';
 
 // ─── Row wrapper (3 columns) ──────────────────────────────────────────────────
 
-function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg }) {
+function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg, onMarkerClick }) {
   return (
     <div style={{ display: 'flex', minHeight: cardHeight }}>
       {/* Col 1 — time */}
@@ -389,13 +366,15 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
         {isNow && <Clock size={11} style={{ color: timeColour, marginLeft: 'auto', marginTop: 2 }} />}
       </div>
 
-      {/* Col 2 — spine: background spine handles the line; just render the marker here */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      {/* Col 2 — spine marker; tappable for completion when onMarkerClick is provided */}
+      <div
+        style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: onMarkerClick ? 'pointer' : undefined }}
+        onClick={onMarkerClick}
+      >
         {marker}
       </div>
 
-      {/* Col 3 — no padding; card provides its own internal padding so top:50% on
-          the connector always matches the spine marker's vertical centre */}
+      {/* Col 3 — card area */}
       <div style={{ flex: 1, minWidth: 0, position: 'relative', paddingRight: 8 }}>
         {accentHex && <Connector colour={accentHex} />}
         {children}
@@ -1087,6 +1066,7 @@ const MobileListView = () => {
               cardHeight={TASK_H}
               accentHex={accentHex}
               pageBg={pageBg}
+              onMarkerClick={isCalendarEvent ? undefined : e => { e.stopPropagation(); toggleComplete(item.id); }}
             >
               <div style={{ opacity: isPast ? 0.5 : 1, marginTop: 4, marginBottom: 4 }}>
                 <TaskCard
@@ -1099,7 +1079,6 @@ const MobileListView = () => {
                   formatTime={formatTime}
                   minutesToTime={minutesToTime}
                   timeToMinutes={timeToMinutes}
-                  toggleComplete={toggleComplete}
                   setExpandedNotesTaskId={setExpandedNotesTaskId}
                   postponeTask={postponeTask}
                   moveToInbox={moveToInbox}
