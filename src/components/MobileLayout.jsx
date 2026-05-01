@@ -33,6 +33,7 @@ import MobileAllDaySection from './MobileAllDaySection.jsx';
 import MobileBottomSheets from './MobileBottomSheets.jsx';
 import MobileGlanceSection from './MobileGlanceSection.jsx';
 import MobileViewToggle from './MobileViewToggle.jsx';
+import MobileListView from './MobileListView.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -754,11 +755,11 @@ const MobileLayout = () => {
                     })}
                   </div>
 
-                  <MobileAllDaySection />
+                  {mobileViewMode === 'grid' && <MobileAllDaySection />}
                   </div>{/* end sticky header group */}
 
-                  {/* Time grid — hidden in LIST mode; LIST view content added in a later step */}
                   {mobileViewMode === 'grid' && <MobileTimeGrid />}
+                  {mobileViewMode === 'list' && <MobileListView />}
                 </div>
 
                 {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
