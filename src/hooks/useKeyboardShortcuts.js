@@ -45,7 +45,7 @@ export default function useKeyboardShortcuts({
   // backup menu ('b')
   setShowBackupMenu,
   // panel tabs (',', '.')
-  isMobile, setTabletActiveTab,
+  isMobile, tabletActiveTab, setTabletActiveTab,
   // voice input ('v')
   aiConfig, setShowVoiceInput,
   // habits ('h')
@@ -182,8 +182,8 @@ export default function useKeyboardShortcuts({
         setShowMonthView(prev => !prev);
       }
 
-      // '/' to toggle tag filter
-      if (e.key === '/' && noModifiers) {
+      // '/' to toggle tag filter — only when GLANCE is active
+      if (e.key === '/' && noModifiers && (isMobile || tabletActiveTab === 'glance')) {
         e.preventDefault();
         setShowMobileTagFilter(prev => !prev);
       }
@@ -198,12 +198,14 @@ export default function useKeyboardShortcuts({
       if (e.key === ',' && noModifiers && !isMobile) {
         e.preventDefault();
         setTabletActiveTab('glance');
+        setShowMobileTagFilter(false);
       }
 
       // '.' to switch side panel to Inbox
       if (e.key === '.' && noModifiers && !isMobile) {
         e.preventDefault();
         setTabletActiveTab('inbox');
+        setShowMobileTagFilter(false);
       }
 
       // 'v' for voice task input
