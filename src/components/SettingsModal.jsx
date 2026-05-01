@@ -65,8 +65,9 @@ const SettingsModal = () => {
   const storageWarning = storageUsage.totalBytes > 4 * 1024 * 1024;
 
   const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
+  const [mainWindowHotkey, setMainWindowHotkey] = useState(() => localStorage.getItem('dg-main-window-hotkey') || '');
 
-  const handleHotkeyRecord = (e) => {
+  const makeHotkeyRecorder = (storageKey, stateSetter, apiMethod) => (e) => {
     e.preventDefault();
     const ignored = new Set(['Meta', 'Shift', 'Alt', 'Control']);
     if (ignored.has(e.key)) return;
@@ -77,16 +78,25 @@ const SettingsModal = () => {
     if (e.shiftKey) mods.push('Shift');
     const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
     const accelerator = [...mods, key].join('+');
-    setTrayHotkey(accelerator);
-    localStorage.setItem('dg-tray-hotkey', accelerator);
-    window.electronAPI?.setGlobalHotkey?.(accelerator);
+    stateSetter(accelerator);
+    localStorage.setItem(storageKey, accelerator);
+    apiMethod?.(accelerator);
     e.target.blur();
   };
+
+  const handleHotkeyRecord = makeHotkeyRecorder('dg-tray-hotkey', setTrayHotkey, (acc) => window.electronAPI?.setGlobalHotkey?.(acc));
+  const handleMainWindowHotkeyRecord = makeHotkeyRecorder('dg-main-window-hotkey', setMainWindowHotkey, (acc) => window.electronAPI?.setMainWindowHotkey?.(acc));
 
   const clearHotkey = () => {
     setTrayHotkey('');
     localStorage.removeItem('dg-tray-hotkey');
     window.electronAPI?.setGlobalHotkey?.('');
+  };
+
+  const clearMainWindowHotkey = () => {
+    setMainWindowHotkey('');
+    localStorage.removeItem('dg-main-window-hotkey');
+    window.electronAPI?.setMainWindowHotkey?.('');
   };
 
   return (
@@ -327,6 +337,26 @@ const SettingsModal = () => {
                         {trayHotkey && (
                           <button
                             onClick={clearHotkey}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <p className={`text-sm ${textSecondary} mt-3`}>
+                        Show the main app window from anywhere on your Mac.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          placeholder="Click, then press shortcut…"
+                          value={mainWindowHotkey}
+                          onKeyDown={handleMainWindowHotkeyRecord}
+                          className={`flex-1 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'} text-sm cursor-pointer font-mono`}
+                        />
+                        {mainWindowHotkey && (
+                          <button
+                            onClick={clearMainWindowHotkey}
                             className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
                           >
                             Clear

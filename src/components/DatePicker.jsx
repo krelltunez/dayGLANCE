@@ -53,6 +53,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
         >
           <div className="flex items-center justify-between mb-4">
             <button
+              type="button"
               onClick={() => changeMonth(-1)}
               className={`p-2 rounded ${hoverBg}`}
             >
@@ -62,6 +63,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
               {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
             </h3>
             <button
+              type="button"
               onClick={() => changeMonth(1)}
               className={`p-2 rounded ${hoverBg}`}
             >
@@ -88,6 +90,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
 
               return (
                 <button
+                  type="button"
                   key={index}
                   onClick={() => {
                     onChange(dayStr);
@@ -111,6 +114,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
 
           <div className="flex gap-2 mt-4">
             <button
+              type="button"
               onClick={() => {
                 onChange(dateToString(new Date()));
                 onClose();
@@ -120,6 +124,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
               Today
             </button>
             <button
+              type="button"
               onClick={onClose}
               className={`flex-1 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
             >

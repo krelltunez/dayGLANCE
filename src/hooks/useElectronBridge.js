@@ -348,11 +348,13 @@ export default function useElectronBridge({
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-register the stored global hotkey after the main window (re)loads.
+  // Re-register the stored global hotkeys after the main window (re)loads.
   useEffect(() => {
     if (isTrayMode || !window.electronAPI?.setGlobalHotkey) return;
     const stored = localStorage.getItem('dg-tray-hotkey');
     if (stored) window.electronAPI.setGlobalHotkey(stored);
+    const storedMain = localStorage.getItem('dg-main-window-hotkey');
+    if (storedMain) window.electronAPI.setMainWindowHotkey?.(storedMain);
   }, []);
 
   // Push active reminders to tray popup whenever they change. Guarded to main window only.
