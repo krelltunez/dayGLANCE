@@ -94,13 +94,13 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
   if (kind === 'hg-session') {
     return (
       <div style={{ ...base, overflow: 'visible' }}>
-        {/* Line extending right from icon centre to Col2/Col3 boundary */}
+        {/* Line from icon right edge to Col2/Col3 boundary — avoids drawing through hollow icon */}
         <div style={{
-          position: 'absolute', left: '50%', top: '50%', marginTop: -1,
-          width: CONNECTOR_W, height: 2, background: colour,
+          position: 'absolute', left: '100%', top: '50%', marginTop: -1,
+          width: 8, height: 2, background: colour,
           opacity: completed ? 0.4 : 1, zIndex: 1,
         }} />
-        <Zap size={18} strokeWidth={2.5}
+        <Zap size={20} strokeWidth={2.5}
           style={{ color: colour, opacity: completed ? 0.4 : 1, position: 'relative', zIndex: 2 }}
         />
       </div>
@@ -488,17 +488,25 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       <div style={{ width: TIME_COL_W, flexShrink: 0, paddingRight: 8, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{nowLabel}</span>
       </div>
-      {/* Spine col: background spine handles the line; just render the marker */}
+      {/* Spine col: bare Clock icon with line emerging from its right edge */}
       <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 2 }}>
-          <Clock size={9} color="#fff" />
+        <div style={{ width: 16, height: 16, flexShrink: 0, position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+          <div style={{
+            position: 'absolute', left: '100%', top: '50%', marginTop: -1,
+            width: 8, height: 2, background: '#ef4444', zIndex: 1,
+          }} />
+          <Clock size={20} strokeWidth={2} color="#ef4444" style={{ position: 'relative', zIndex: 2 }} />
         </div>
       </div>
-      {/* Countdown */}
+      {/* Countdown pill */}
       <div style={{ flex: 1, minWidth: 0, paddingLeft: 4, paddingRight: 8 }}>
         <span
-          className="text-xs font-medium"
-          style={{ color: darkMode ? '#fca5a5' : '#991b1b' }}
+          className="text-xs font-medium px-2 py-0.5 rounded-full"
+          style={{
+            color: darkMode ? '#fca5a5' : '#991b1b',
+            border: '1px solid #ef444466',
+            background: darkMode ? '#ef444415' : '#fef2f2',
+          }}
         >
           {countdownStr}
         </span>
