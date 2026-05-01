@@ -21,7 +21,7 @@ const TIME_COL_W     = 56;   // w-14
 const CONNECTOR_W    = 16;   // half of spine col — reaches spine centre
 const TASK_H         = 72;
 const ROUTINE_H      = 38;
-const HG_SESSION_H   = 64;
+const HG_SESSION_H   = TASK_H;
 const ALLDAY_H       = 44;
 
 // ─── Spine colour gradient (orange→green→blue, 6 am→noon→6 pm) ───────────────
@@ -183,7 +183,6 @@ const TaskCard = React.memo(({
           style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr',
             flexShrink: 0, alignSelf: 'stretch', width: 72,
-            borderLeft: `1px solid ${accentHex}22`,
           }}
         >
           {/* Notes */}
@@ -284,57 +283,59 @@ const HGSessionCard = React.memo(({
   };
   const barStyle = { width: 4, flexShrink: 0, background: accentHex, borderRadius: '6px 0 0 6px' };
 
-  const hgControl = isCompleted ? (
-    <span className="text-[9px] font-semibold opacity-50" style={{ color: accentHex }}>✓</span>
+  const hgButton = isCompleted ? (
+    <span className="text-[10px] font-semibold opacity-50" style={{ color: accentHex }}>✓</span>
   ) : canEnter ? (
     <button
       onClick={e => { e.stopPropagation(); enterHyperGlanceMode(project.id, date); }}
-      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse flex-shrink-0"
+      className="flex items-center gap-0.5 px-2 py-1 rounded-full text-white text-[10px] font-bold animate-pulse"
       style={{ background: accentHex }}
     >
-      <Zap size={8} />hyperGLANCE
+      <Zap size={10} />hG
     </button>
   ) : isOverdue ? (
     <button
       onClick={e => { e.stopPropagation(); enterHyperGlanceMode(project.id, date); }}
-      className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold opacity-80 flex-shrink-0"
+      className="flex items-center gap-0.5 px-2 py-1 rounded-full text-white text-[10px] font-bold opacity-80"
       style={{ background: accentHex }}
     >
-      <Zap size={8} />Start
+      <Zap size={10} />Start
     </button>
   ) : (
-    <span className="text-[9px] font-bold opacity-30 flex-shrink-0" style={{ color: accentHex }}>hG</span>
+    <span className="text-[10px] font-bold opacity-30" style={{ color: accentHex }}>hG</span>
   );
 
   return (
     <div style={cardStyle}>
       <div style={barStyle} />
-      <div style={{ flex: 1, minWidth: 0, padding: '7px 6px 7px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5 }}>
-        {/* Title row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <IconComp size={13} style={{ color: accentHex, flexShrink: 0 }} />
+      {/* Left: icon + title, then time meta */}
+      <div style={{ flex: 1, minWidth: 0, padding: '7px 0 7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <IconComp size={16} style={{ color: accentHex, flexShrink: 0 }} />
           <span
             className={`text-sm font-semibold flex-1 min-w-0 truncate ${isCompleted ? 'line-through opacity-60' : ''}`}
             style={{ color: accentHex }}
           >
             {project.title}
           </span>
-          <button
-            onClick={e => { e.stopPropagation(); setPendingEditProjectId(project.id); }}
-            className={`flex items-center justify-center rounded p-1 flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
-            title="Edit project"
-          >
-            <Edit2 size={12} style={{ color: accentHex, opacity: 0.7 }} />
-          </button>
         </div>
-        {/* Time + task count + hG control on one row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span className={`text-[10px] leading-none ${textSecondary}`}>
-            {timeStr}
-            {taskLabel && <span className="ml-1.5">· {taskLabel}</span>}
-            {isOverdue && <span className="ml-1.5 text-orange-500 font-semibold">overdue</span>}
-          </span>
-          {hgControl}
+        <div className={`text-[10px] leading-none ${textSecondary}`}>
+          {timeStr}
+          {taskLabel && <span className="ml-1.5">· {taskLabel}</span>}
+          {isOverdue && <span className="ml-1.5 text-orange-500 font-semibold">overdue</span>}
+        </div>
+      </div>
+      {/* Right column: pencil (top) + hG control (bottom) — mirrors task card action grid */}
+      <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', flexShrink: 0, alignSelf: 'stretch', width: 72 }}>
+        <button
+          onClick={e => { e.stopPropagation(); setPendingEditProjectId(project.id); }}
+          className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
+          title="Edit project"
+        >
+          <Edit2 size={14} style={{ color: accentHex, opacity: 0.7 }} />
+        </button>
+        <div className="flex items-center justify-center">
+          {hgButton}
         </div>
       </div>
     </div>
@@ -344,7 +345,7 @@ HGSessionCard.displayName = 'HGSessionCard';
 
 // ─── Row wrapper (3 columns) ──────────────────────────────────────────────────
 
-function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg, onMarkerClick }) {
+function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg, onMarkerClick, noConnector }) {
   return (
     <div style={{ display: 'flex', minHeight: cardHeight }}>
       {/* Col 1 — time */}
@@ -376,7 +377,7 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 
       {/* Col 3 — card area */}
       <div style={{ flex: 1, minWidth: 0, position: 'relative', paddingRight: 8 }}>
-        {accentHex && <Connector colour={accentHex} />}
+        {accentHex && !noConnector && <Connector colour={accentHex} />}
         {children}
       </div>
     </div>
@@ -1032,6 +1033,7 @@ const MobileListView = () => {
                 cardHeight={HG_SESSION_H}
                 accentHex={accentHex}
                 pageBg={pageBg}
+                noConnector
               >
                 <div style={{ opacity: isPast && !item.isCompleted ? 0.5 : 1, marginTop: 4, marginBottom: 4 }}>
                   <HGSessionCard
