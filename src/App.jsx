@@ -248,6 +248,10 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-day-view-mode');
     return saved ? JSON.parse(saved) : 'calendar-day';
   });
+  const [mobileViewMode, setMobileViewMode] = useState(() => {
+    const saved = localStorage.getItem('day-planner-mobile-view-mode');
+    return saved ? JSON.parse(saved) : 'grid';
+  });
   const [weekViewMode, setWeekViewMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-view-mode');
     return saved ? JSON.parse(saved) : 'strict';
@@ -1061,6 +1065,9 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-week-view-mode', JSON.stringify(weekViewMode));
   }, [weekViewMode]);
+  useEffect(() => {
+    localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify(mobileViewMode));
+  }, [mobileViewMode]);
 
   // Lock body/html scrolling to prevent scroll chaining (all devices incl. desktop PWA)
   useEffect(() => {
@@ -7146,6 +7153,7 @@ const DayPlanner = () => {
     // ── Layout / navigation ───────────────────────────────────────────────────
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
+    mobileViewMode, setMobileViewMode,
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
