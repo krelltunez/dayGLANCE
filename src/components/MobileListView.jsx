@@ -309,7 +309,7 @@ function FrameCard({ frame, darkMode, textPrimary, textSecondary, openFrameAdjus
 
 // ─── Row wrapper (3 columns) ──────────────────────────────────────────────────
 
-function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow }) {
+function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg }) {
   return (
     <div style={{ display: 'flex', minHeight: cardHeight }}>
       {/* Col 1 — time */}
@@ -331,8 +331,18 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
         {isNow && <Clock size={11} style={{ color: timeColour, marginLeft: 'auto', marginTop: 2 }} />}
       </div>
 
-      {/* Col 2 — spine (line drawn by container; only marker here) */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      {/* Col 2 — spine (background line drawn by container; halo + marker here) */}
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        {/* Gradient halo: fades the background spine into the marker */}
+        {pageBg && (
+          <div style={{
+            position: 'absolute',
+            top: '50%', transform: 'translateY(-50%)',
+            left: '50%', marginLeft: -1,
+            width: 2, height: 28, zIndex: 1, pointerEvents: 'none',
+            background: `linear-gradient(to bottom, transparent, ${pageBg} 30%, ${pageBg} 70%, transparent)`,
+          }} />
+        )}
         {marker}
       </div>
 
@@ -409,7 +419,7 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
 
 // ─── NowRow ───────────────────────────────────────────────────────────────────
 
-function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24HourClock }) {
+function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24HourClock, pageBg }) {
   const nowLabel = (() => {
     const h = Math.floor(nowMin / 60);
     const m = nowMin % 60;
@@ -433,8 +443,17 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       <div style={{ width: TIME_COL_W, flexShrink: 0, paddingRight: 8, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{nowLabel}</span>
       </div>
-      {/* Spine col (line drawn by container) */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Spine col (line drawn by container; halo + marker here) */}
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {pageBg && (
+          <div style={{
+            position: 'absolute',
+            top: '50%', transform: 'translateY(-50%)',
+            left: '50%', marginLeft: -1,
+            width: 2, height: 28, zIndex: 1, pointerEvents: 'none',
+            background: `linear-gradient(to bottom, transparent, ${pageBg} 30%, ${pageBg} 70%, transparent)`,
+          }} />
+        )}
         {/* Red clock marker */}
         <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, position: 'relative' }}>
           <Clock size={9} color="#fff" />
@@ -830,6 +849,7 @@ const MobileListView = () => {
               textSecondary={textSecondary}
               darkMode={darkMode}
               use24HourClock={use24HourClock}
+              pageBg={pageBg}
             />
           </div>
         )}
@@ -881,6 +901,7 @@ const MobileListView = () => {
                 marker={<SpineMarker kind="routine" colour="#14b8a6" completed={completed} pageBg={pageBg} />}
                 cardHeight={ROUTINE_H}
                 accentHex="#14b8a6"
+                pageBg={pageBg}
               >
                 <div style={{ marginTop: 4, marginBottom: 4 }}>
                   <RoutineChip
@@ -904,6 +925,7 @@ const MobileListView = () => {
                 marker={<SpineMarker kind="frame" colour={accentHex} pageBg={pageBg} />}
                 cardHeight={FRAME_H}
                 accentHex={accentHex}
+                pageBg={pageBg}
               >
                 <div style={{ marginTop: 4, marginBottom: 4 }}>
                   <FrameCard
@@ -938,6 +960,7 @@ const MobileListView = () => {
               }
               cardHeight={TASK_H}
               accentHex={accentHex}
+              pageBg={pageBg}
             >
               <div style={{ opacity: isPast ? 0.5 : 1, marginTop: 4, marginBottom: 4 }}>
                 <TaskCard
