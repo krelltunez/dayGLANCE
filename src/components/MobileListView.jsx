@@ -79,7 +79,7 @@ function countdownText(diffMin) {
 
 // ─── SpineMarker ─────────────────────────────────────────────────────────────
 
-function SpineMarker({ kind, completed, colour }) {
+function SpineMarker({ kind, completed, colour, pageBg }) {
   const base = {
     width: 16, height: 16, flexShrink: 0, position: 'relative', zIndex: 2,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -92,7 +92,7 @@ function SpineMarker({ kind, completed, colour }) {
   }
   if (kind === 'frame') {
     return (
-      <div style={{ ...base, borderRadius: '50%', border: `2px solid ${colour}`, background: 'transparent' }} />
+      <div style={{ ...base, borderRadius: '50%', border: `2px solid ${colour}`, background: pageBg }} />
     );
   }
   if (kind === 'calendar-event') {
@@ -100,14 +100,14 @@ function SpineMarker({ kind, completed, colour }) {
       <div style={{ ...base, borderRadius: 2, background: colour }} />
     );
   }
-  // task / calendar-task
+  // task
   return (
     <div
       style={{
         ...base,
         borderRadius: 4,
         border: `2px solid ${colour}`,
-        background: completed ? colour : 'transparent',
+        background: completed ? colour : pageBg,
       }}
     >
       {completed && <Check size={9} strokeWidth={3} color="#fff" />}
@@ -333,29 +333,17 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 
       {/* Col 2 — spine */}
       <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* Top spine segment — fades to transparent near the marker */}
+        {/* Full-height line; marker (zIndex 2, opaque bg) sits on top of it */}
         <div
           style={{
-            position: 'absolute', top: 0, bottom: 'calc(50% + 9px)',
+            position: 'absolute', top: 0, bottom: 0,
             left: '50%', transform: 'translateX(-50%)',
-            width: 2,
+            width: 2, zIndex: 0,
             background: spineStyle === 'dashed'
               ? dashedGradient(spineColour + '88')
-              : `linear-gradient(to bottom, ${spineColour}, ${spineColour} calc(100% - 10px), transparent)`,
+              : spineColour,
           }}
         />
-        {/* Bottom spine segment — fades in from transparent below the marker */}
-        <div
-          style={{
-            position: 'absolute', top: 'calc(50% + 9px)', bottom: 0,
-            left: '50%', transform: 'translateX(-50%)',
-            width: 2,
-            background: spineStyle === 'dashed'
-              ? dashedGradient(spineColour + '88')
-              : `linear-gradient(to bottom, transparent, ${spineColour} 10px, ${spineColour})`,
-          }}
-        />
-        {/* Marker */}
         {marker}
       </div>
 
@@ -458,8 +446,7 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
       </div>
       {/* Spine col */}
       <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ position: 'absolute', top: 0, bottom: 'calc(50% + 9px)', left: '50%', transform: 'translateX(-50%)', width: 2, background: 'linear-gradient(to bottom, #ef444466, transparent)' }} />
-        <div style={{ position: 'absolute', top: 'calc(50% + 9px)', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, background: 'linear-gradient(to bottom, transparent, #ef444466)' }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, zIndex: 0, background: '#ef444440' }} />
         {/* Red clock marker */}
         <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, position: 'relative' }}>
           <Clock size={9} color="#fff" />
@@ -762,6 +749,9 @@ const MobileListView = () => {
     return segs;
   }, [visibleItems, isToday, nowMin, timeToMinutes]);
 
+  // Page background colour — used as opaque fill behind spine markers so they cover the line
+  const pageBg = darkMode ? '#1f2937' : '#ffffff';
+
   // ── Render helpers ─────────────────────────────────────────────────────────
   const getAccentHex = (item) => {
     if (item._kind === 'calendar-event') {
@@ -887,7 +877,7 @@ const MobileListView = () => {
                 timeLabel={formatTime(item.startTime)}
                 spineColour={sc}
                 spineStyle="solid"
-                marker={<SpineMarker kind="routine" colour="#14b8a6" completed={completed} />}
+                marker={<SpineMarker kind="routine" colour="#14b8a6" completed={completed} pageBg={pageBg} />}
                 cardHeight={ROUTINE_H}
                 accentHex="#14b8a6"
               >
@@ -908,7 +898,7 @@ const MobileListView = () => {
                 timeLabel={formatTime(item.startTime)}
                 spineColour={sc}
                 spineStyle="solid"
-                marker={<SpineMarker kind="frame" colour={accentHex} />}
+                marker={<SpineMarker kind="frame" colour={accentHex} pageBg={pageBg} />}
                 cardHeight={FRAME_H}
                 accentHex={accentHex}
               >
@@ -938,6 +928,7 @@ const MobileListView = () => {
                   kind={isCalendarEvent ? 'calendar-event' : 'task'}
                   completed={item.completed}
                   colour={accentHex}
+                  pageBg={pageBg}
                 />
               }
               cardHeight={TASK_H}
