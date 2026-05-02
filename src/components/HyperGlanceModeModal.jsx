@@ -83,15 +83,20 @@ const HyperGlanceModeModal = () => {
     prevPhaseRef.current = hgTimerPhase;
   }, [hgTimerPhase]);
 
-  // Sync the Android notification center with hyperGLANCE timer state.
+  // Ref so the notification effect can read current seconds without depending on them —
+  // only fire on meaningful transitions, not every tick (which resets the chronometer).
+  const hgTimerSecondsRef = useRef(hgTimerSeconds);
+  useEffect(() => { hgTimerSecondsRef.current = hgTimerSeconds; }, [hgTimerSeconds]);
+
+  // Sync the Android notification on state transitions only (start, pause, resume, phase change).
   useEffect(() => {
     if (!isNativeAndroid()) return;
     if (hgShowSettings) {
       nativeDismissFocusTimerNotification();
       return;
     }
-    nativeShowFocusTimerNotification(hgTimerPhase, hgTimerSeconds, !hgTimerRunning);
-  }, [hgTimerRunning, hgTimerPhase, hgShowSettings, hgTimerSeconds]);
+    nativeShowFocusTimerNotification(hgTimerPhase, hgTimerSecondsRef.current, !hgTimerRunning);
+  }, [hgTimerRunning, hgTimerPhase, hgShowSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dismiss notification when this modal unmounts (session ended / exited).
   useEffect(() => () => { if (isNativeAndroid()) nativeDismissFocusTimerNotification(); }, []);

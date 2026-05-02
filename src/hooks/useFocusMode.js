@@ -53,18 +53,23 @@ const useFocusMode = () => {
     }
   }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings]);
 
-  // Sync the Android notification center with timer state.
-  // focusTimerSeconds is included in deps so Kotlin always gets a fresh remainingSeconds
-  // to compute setWhen(now + remainingMs) — keeping the native chronometer accurate even
-  // if there's any small JS/native clock drift.
+  // Keep a ref to the current remaining seconds so the notification effect can read
+  // it without depending on it — we only want to fire on meaningful transitions,
+  // not every 1-second tick (which would reset the native chronometer and cause flicker).
+  const focusTimerSecondsRef = useRef(focusTimerSeconds);
+  useEffect(() => { focusTimerSecondsRef.current = focusTimerSeconds; }, [focusTimerSeconds]);
+
+  // Sync the Android notification on state transitions only: start, pause, resume,
+  // phase change, and session end. The native chronometer ticks independently between
+  // these calls — calling notify() every second would reset it and cause flicker.
   useEffect(() => {
     if (!isNativeAndroid()) return;
     if (!showFocusMode || focusShowSettings || focusShowStats) {
       nativeDismissFocusTimerNotification();
       return;
     }
-    nativeShowFocusTimerNotification(focusPhase, focusTimerSeconds, !focusTimerRunning);
-  }, [showFocusMode, focusTimerRunning, focusPhase, focusShowSettings, focusShowStats, focusTimerSeconds]);
+    nativeShowFocusTimerNotification(focusPhase, focusTimerSecondsRef.current, !focusTimerRunning);
+  }, [showFocusMode, focusTimerRunning, focusPhase, focusShowSettings, focusShowStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll for notification button actions while a focus session is active.
   // visibilitychange doesn't fire when the app is already in the foreground, so polling
