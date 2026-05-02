@@ -256,6 +256,7 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-glance-page');
     return saved !== null ? parseInt(saved, 10) : 0;
   });
+  const [goalsDashboardFocusId, setGoalsDashboardFocusId] = useState(null);
   const [weekViewMode, setWeekViewMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-view-mode');
     return saved ? JSON.parse(saved) : 'strict';
@@ -7590,6 +7591,7 @@ const DayPlanner = () => {
     goals, setGoals,
     projects, setProjects,
     showGoalsDashboard, setShowGoalsDashboard,
+    goalsDashboardFocusId, setGoalsDashboardFocusId,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject, deleteProject, moveProject,

@@ -72,6 +72,7 @@ const MobileGlanceSection = () => {
     tagFilterBtnRef,
     goToDate, scrollToHour,
     showGoalsDashboard, setShowGoalsDashboard,
+    goalsDashboardFocusId, setGoalsDashboardFocusId,
     glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
@@ -309,7 +310,7 @@ const MobileGlanceSection = () => {
                   progressPct={g.progressPct}
                   daysLeft={g.daysLeft}
                   darkMode={darkMode}
-                  onClick={() => setShowGoalsDashboard(true)}
+                  onClick={() => { setGoalsDashboardFocusId(g.id); setMobileActiveTab('goals'); }}
                 />
               ))}
               {activeGoalsList.length > 4 && (

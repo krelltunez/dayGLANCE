@@ -852,7 +852,7 @@ const DesktopDashboard = ({
   goalCardRefs,
   projectCardRefs,
 }) => {
-  const { darkMode, textPrimary, textSecondary, borderClass, hoverBg } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, borderClass, hoverBg, goalsDashboardFocusId, setGoalsDashboardFocusId } = useDayPlannerCtx();
   const { moveProject } = useFeaturesCtx();
 
   const containerRef = useRef(null);
@@ -885,6 +885,13 @@ const DesktopDashboard = ({
   const [activeGoalIdx, setActiveGoalIdx] = useState(
     () => findDefaultActiveIdx(sortedGoals)
   );
+
+  useEffect(() => {
+    if (!goalsDashboardFocusId) return;
+    const idx = sortedGoals.findIndex(g => g.id === goalsDashboardFocusId);
+    if (idx !== -1) setActiveGoalIdx(idx);
+    setGoalsDashboardFocusId(null);
+  }, [goalsDashboardFocusId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clamp index whenever the goals list changes length
   const safeIdx = sortedGoals.length > 0
@@ -1332,7 +1339,7 @@ const MobileDashboard = ({
   onNewProject,
   isActive = false,
 }) => {
-  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks, goalsDashboardFocusId, setGoalsDashboardFocusId } = useDayPlannerCtx();
   const { updateGoal, moveProject } = useFeaturesCtx();
 
   const scrollRef = useRef(null);
@@ -1361,6 +1368,16 @@ const MobileDashboard = ({
   const totalPagesRef = useRef(totalPages);
   useEffect(() => { totalPagesRef.current = totalPages; }, [totalPages]);
   useEffect(() => { pageRef.current = page; }, [page]);
+
+  useEffect(() => {
+    if (!goalsDashboardFocusId || !isActive) return;
+    const idx = sortedGoals.findIndex(g => g.id === goalsDashboardFocusId);
+    if (idx !== -1) {
+      setPage(idx);
+      requestAnimationFrame(() => goToPage(idx));
+    }
+    setGoalsDashboardFocusId(null);
+  }, [goalsDashboardFocusId, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to the main goal on mount (instant, no animation)
   useLayoutEffect(() => {
