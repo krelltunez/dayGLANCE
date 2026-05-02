@@ -4,11 +4,11 @@ import React, {
 } from 'react';
 import ReactDOM from 'react-dom';
 import {
-  Check, ChevronDown, ChevronRight, ChevronUp,
-  Clock, Edit2, ExternalLink, FileText, Inbox, SkipForward, Zap,
+  BookOpen, Check, CheckSquare, ChevronDown, ChevronRight, ChevronUp,
+  Clock, Edit2, ExternalLink, FileText, Inbox, RefreshCw, SkipForward, Zap,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks } from '../utils/textFormatting.jsx';
+import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { taskColorToHex } from '../utils/colorUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -156,6 +156,7 @@ const TaskCard = React.memo(({
 }) => {
   const endMin = timeToMinutes(item.startTime) + (item.duration || 30);
   const timeStr = `${formatTime(item.startTime)}–${formatTime(minutesToTime(endMin))} · ${durLabel(item.duration)}`;
+  const isRecurring = typeof item.id === 'string' && item.id.startsWith('recurring-');
 
   const cardBg   = `${accentHex}30`;
   const barStyle = { width: 4, flexShrink: 0, background: accentHex, borderRadius: '6px 0 0 6px' };
@@ -166,8 +167,10 @@ const TaskCard = React.memo(({
     minHeight: TASK_H,
   };
 
-  const noteIcon = isLinkOnlyTask(item) ? ExternalLink : FileText;
-  const NoteIcon = noteIcon;
+  const NoteIcon = isLinkOnlyTask(item) ? ExternalLink
+    : hasOnlySubtasks(item)      ? CheckSquare
+    : isObsidianNoteOnlyTask(item) ? BookOpen
+    : FileText;
   const hasNotes = hasNotesOrSubtasks(item) || isLinkOnlyTask(item);
 
   return (
@@ -183,10 +186,18 @@ const TaskCard = React.memo(({
         >
           {renderTitle(item.title)}
         </div>
-        {/* Time meta */}
-        <div className={`text-[10px] leading-none ${textSecondary}`}>
+        {/* Time + recurring indicator */}
+        <div className={`text-[10px] leading-none ${textSecondary} flex items-center gap-1`}>
           {timeStr}
+          {isRecurring && <RefreshCw size={9} className="flex-shrink-0 opacity-60" />}
         </div>
+        {/* Calendar name / location (calendar events only) */}
+        {isCalendarEvent && (item.calendarName || item.location) && (
+          <div className={`text-[10px] leading-none ${textSecondary} opacity-70 flex gap-2`}>
+            {item.calendarName && <span className="truncate">{item.calendarName}</span>}
+            {item.location && <span className="truncate">{item.location}</span>}
+          </div>
+        )}
       </div>
       {/* Full-height 2×2 action grid (tasks only) */}
       {!isCalendarEvent && (
