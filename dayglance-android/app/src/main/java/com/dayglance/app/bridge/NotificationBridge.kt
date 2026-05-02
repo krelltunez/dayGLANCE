@@ -343,6 +343,8 @@ class NotificationBridge(private val context: Context) {
      * @param isPaused         true while the timer is paused
      */
     fun showFocusTimerNotification(phase: String, remainingSeconds: Int, isPaused: Boolean) {
+        android.util.Log.d("DayGlanceFocus", "showFocusTimerNotification: phase=$phase remainingSeconds=$remainingSeconds isPaused=$isPaused")
+
         val phaseLabel = when (phase) {
             "shortBreak" -> "Short Break"
             "longBreak"  -> "Long Break"
@@ -367,7 +369,9 @@ class NotificationBridge(private val context: Context) {
                 .addAction(0, "Resume", focusActionPendingIntent(
                     NotificationActionReceiver.ACTION_FOCUS_RESUME, FOCUS_RESUME_REQUEST))
         } else {
-            val endAtMillis = System.currentTimeMillis() + remainingSeconds * 1000L
+            val now = System.currentTimeMillis()
+            val endAtMillis = now + remainingSeconds * 1000L
+            android.util.Log.d("DayGlanceFocus", "  now=$now endAtMillis=$endAtMillis deltaMs=${endAtMillis - now} (should equal remainingSeconds*1000=${remainingSeconds * 1000L})")
             builder
                 .setWhen(endAtMillis)
                 .setUsesChronometer(true)
