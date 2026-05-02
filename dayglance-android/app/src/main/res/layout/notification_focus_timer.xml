@@ -10,14 +10,18 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:singleLine="true" />
+        android:singleLine="true"
+        android:textAppearance="@style/TextAppearance.Compat.Notification" />
 
-    <!-- Shown while timer is running: counts down using elapsedRealtime base -->
+    <!-- Shown while timer is running: counts down using elapsedRealtime base.
+         setCountDown(true) is also called programmatically via RemoteViews.setBoolean()
+         because the XML attribute may not propagate to the remote process. -->
     <Chronometer
         android:id="@+id/notif_chronometer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:countDown="true"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
         android:visibility="gone" />
 
     <!-- Shown while timer is paused: static remaining time -->
@@ -25,6 +29,7 @@
         android:id="@+id/notif_paused_time"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
         android:visibility="gone" />
 
 </LinearLayout>

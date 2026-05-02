@@ -369,6 +369,9 @@ class NotificationBridge(private val context: Context) {
             val base = SystemClock.elapsedRealtime() + remainingSeconds * 1000L
             android.util.Log.d("DayGlanceFocus", "  elapsedRealtime=${SystemClock.elapsedRealtime()} base=$base remainingMs=${remainingSeconds * 1000L}")
             views.setTextViewText(R.id.notif_status, "In progress")
+            // setBoolean calls Chronometer.setCountDown(true) in the remote process —
+            // the XML android:countDown attribute may not survive RemoteViews inflation.
+            views.setBoolean(R.id.notif_chronometer, "setCountDown", true)
             views.setChronometer(R.id.notif_chronometer, base, null, true)
             views.setViewVisibility(R.id.notif_chronometer, View.VISIBLE)
             views.setViewVisibility(R.id.notif_paused_time, View.GONE)
