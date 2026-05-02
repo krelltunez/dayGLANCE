@@ -11,6 +11,7 @@ import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from 
 import { calculateGoalProgress } from '../utils/goalProgress.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { HabitRing } from './HabitRing.jsx';
+import GoalRing from './GoalRing.jsx';
 import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import FrameNudgeCard from './FrameNudgeCard.jsx';
@@ -70,6 +71,8 @@ const MobileGlanceSection = () => {
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     tagFilterBtnRef,
     goToDate, scrollToHour,
+    showGoalsDashboard, setShowGoalsDashboard,
+    glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
@@ -140,109 +143,201 @@ const MobileGlanceSection = () => {
       </button>
     )}
   </div>
-  {/* Habit rings row — pinned to top */}
-  {habitsEnabled && (() => {
+  {/* Habits / Goals carousel */}
+  {(() => {
     const todayDow = new Date().getDay();
-    const todayHabits = activeHabits.filter(h => (h.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6]).includes(todayDow));
-    if (activeHabits.length === 0) return (
-      <div className={`mb-4 rounded-lg border ${borderClass} p-3 cursor-pointer active:opacity-70 transition-opacity`} onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}>
-        <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs ${textSecondary} italic`}>None added</span>
-          <span className="text-xs text-teal-500 font-medium">+ Add</span>
-        </div>
-      </div>
-    );
-    if (todayHabits.length === 0) return null;
+    const todayHabits = habitsEnabled
+      ? activeHabits.filter(h => (h.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6]).includes(todayDow))
+      : [];
+    const allTasksCombined = [...tasks, ...unscheduledTasks];
+    const activeGoalsList = goalsProjectsEnabled
+      ? goals.filter(g => g.status === 'active').map(g => {
+          const progressPct = Math.round(calculateGoalProgress(g.id, projects, allTasksCombined) * 100);
+          const daysLeft = g.targetDate
+            ? Math.ceil((new Date(g.targetDate + 'T00:00:00') - new Date(getTodayStr() + 'T00:00:00')) / 86400000)
+            : null;
+          return { ...g, progressPct, daysLeft };
+        }).sort((a, b) => {
+          if (a.daysLeft === null && b.daysLeft === null) return 0;
+          if (a.daysLeft === null) return 1;
+          if (b.daysLeft === null) return -1;
+          return a.daysLeft - b.daysLeft;
+        })
+      : [];
+
+    const hasGoals = goalsProjectsEnabled && activeGoalsList.length > 0;
+    const showCarousel = habitsEnabled && hasGoals;
+    const effectivePage = showCarousel ? glancePage : (hasGoals ? 1 : 0);
+
+    if (!habitsEnabled && !hasGoals) return null;
+
+    const handleSwipe = (() => {
+      let startX = 0;
+      return {
+        onTouchStart: (e) => { startX = e.touches[0].clientX; },
+        onTouchEnd: (e) => {
+          if (!showCarousel) return;
+          const dx = e.changedTouches[0].clientX - startX;
+          if (dx < -50) setGlancePage(1);
+          else if (dx > 50) setGlancePage(0);
+        },
+      };
+    })();
+
     return (
-      <div className="mb-4 relative">
-        <button
-          onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}
-          className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
-          title="Manage habits"
-        >
-          <Settings size={11} />
-        </button>
-        <div className="flex items-start gap-1 justify-center">
-        {todayHabits.slice(0, 5).map((habit, habitIdx) => (
-          <div key={habit.id} className="relative">
-            <HabitRing
-              size={44}
-              habit={habit}
-              count={getTodayHabitCount(habit.id)}
-              darkMode={darkMode}
-              autoSynced={!!habit.source}
-              onClick={habit.source ? undefined : () => incrementHabit(habit.id)}
-              onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); clearTimeout(habitLongPressTimer.current); setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }}
-              onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}
-              onMouseUp={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-              onMouseLeave={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-              onTouchStart={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}
-              onTouchEnd={habit.source ? undefined : (e) => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); if (habitLongPressOpenedAt.current && Date.now() - habitLongPressOpenedAt.current < 300) e.preventDefault(); }}
-            />
-            {habitLongPressId === habit.id && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => { if (habitLongPressOpenedAt.current && Date.now() - habitLongPressOpenedAt.current < 300) return; setHabitLongPressId(null); setHabitEditingCountId(null); }} />
-                <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(todayHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
-                  <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
-                  <div className="flex items-center justify-center gap-3">
-                    <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
-                    {habitEditingCountId === habit.id ? (
-                      <input
-                        type="number"
-                        autoFocus
-                        defaultValue={getTodayHabitCount(habit.id)}
-                        onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-                        onFocus={(e) => e.target.select()}
-                      />
-                    ) : (
-                      <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
-                    )}
-                    <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
-                  </div>
-                  <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+      <div className="mb-4" {...handleSwipe}>
+        {/* Habits page */}
+        {habitsEnabled && (!showCarousel || effectivePage === 0) && (() => {
+          if (activeHabits.length === 0) return (
+            <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer active:opacity-70 transition-opacity`} onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}>
+              <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${textSecondary} italic`}>None added</span>
+                <span className="text-xs text-teal-500 font-medium">+ Add</span>
+              </div>
+            </div>
+          );
+          if (todayHabits.length === 0) return null;
+          return (
+            <div className="relative">
+              <button
+                onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}
+                className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
+                title="Manage habits"
+              >
+                <Settings size={11} />
+              </button>
+              <div className="flex items-start gap-1 justify-center">
+              {todayHabits.slice(0, 5).map((habit, habitIdx) => (
+                <div key={habit.id} className="relative">
+                  <HabitRing
+                    size={44}
+                    habit={habit}
+                    count={getTodayHabitCount(habit.id)}
+                    darkMode={darkMode}
+                    autoSynced={!!habit.source}
+                    onClick={habit.source ? undefined : () => incrementHabit(habit.id)}
+                    onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); clearTimeout(habitLongPressTimer.current); setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }}
+                    onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}
+                    onMouseUp={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                    onMouseLeave={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                    onTouchStart={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}
+                    onTouchEnd={habit.source ? undefined : (e) => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); if (habitLongPressOpenedAt.current && Date.now() - habitLongPressOpenedAt.current < 300) e.preventDefault(); }}
+                  />
+                  {habitLongPressId === habit.id && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => { if (habitLongPressOpenedAt.current && Date.now() - habitLongPressOpenedAt.current < 300) return; setHabitLongPressId(null); setHabitEditingCountId(null); }} />
+                      <div className={`absolute top-full mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-3 min-w-[140px] ${habitIdx === 0 ? 'left-0' : habitIdx === Math.min(todayHabits.length, 5) - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
+                        <div className={`text-xs font-semibold mb-2 text-center ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</div>
+                        <div className="flex items-center justify-center gap-3">
+                          <button onClick={() => { setHabitCount(habit.id, getTodayHabitCount(habit.id) - 1); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Minus size={16} /></button>
+                          {habitEditingCountId === habit.id ? (
+                            <input
+                              type="number"
+                              autoFocus
+                              defaultValue={getTodayHabitCount(habit.id)}
+                              onBlur={(e) => { setHabitCount(habit.id, parseInt(e.target.value) || 0); setHabitEditingCountId(null); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`w-16 text-lg font-bold text-center rounded-lg border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-stone-50 text-stone-900 border-stone-300'} outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                              onFocus={(e) => e.target.select()}
+                            />
+                          ) : (
+                            <span onClick={(e) => { e.stopPropagation(); setHabitEditingCountId(habit.id); }} className={`text-lg font-bold min-w-[2ch] text-center cursor-pointer hover:opacity-70 ${darkMode ? 'text-white' : 'text-stone-900'}`}>{getTodayHabitCount(habit.id)}</span>
+                          )}
+                          <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
+                        </div>
+                        <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </>
-            )}
-          </div>
-        ))}
-        {todayHabits.length > 5 && (
+              ))}
+              {todayHabits.length > 5 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setHabitOverflowOpen(prev => !prev)}
+                    className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
+                  >
+                    +{todayHabits.length - 5}
+                  </button>
+                  {habitOverflowOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
+                      <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
+                        {todayHabits.slice(5).map(habit => {
+                          const count = getTodayHabitCount(habit.id);
+                          const IconComp = HABIT_ICONS[habit.icon] || Target;
+                          const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                          return (
+                            <button
+                              key={habit.id}
+                              onClick={habit.source ? undefined : () => { incrementHabit(habit.id); }}
+                              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${habit.source ? 'cursor-default' : `${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'}`} transition-colors`}
+                            >
+                              <IconComp size={16} style={{ color: colorObj.ring }} />
+                              <span className={`text-sm flex-1 text-left ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</span>
+                              <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{count}/{habit.target}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Goals page */}
+        {hasGoals && (!showCarousel || effectivePage === 1) && (
           <div className="relative">
             <button
-              onClick={() => setHabitOverflowOpen(prev => !prev)}
-              className={`w-[52px] h-[44px] flex items-center justify-center rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700 text-gray-400 active:bg-gray-600' : 'bg-stone-100 text-stone-500 active:bg-stone-200'} transition-colors`}
+              onClick={() => setShowGoalsDashboard(true)}
+              className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
+              title="Manage goals"
             >
-              +{todayHabits.length - 5}
+              <Settings size={11} />
             </button>
-            {habitOverflowOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setHabitOverflowOpen(false)} />
-                <div className={`absolute top-full right-0 mt-1 z-50 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-xl p-2 min-w-[180px]`}>
-                  {todayHabits.slice(5).map(habit => {
-                    const count = getTodayHabitCount(habit.id);
-                    const IconComp = HABIT_ICONS[habit.icon] || Target;
-                    const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
-                    return (
-                      <button
-                        key={habit.id}
-                        onClick={habit.source ? undefined : () => { incrementHabit(habit.id); }}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg ${habit.source ? 'cursor-default' : `${darkMode ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-stone-50 active:bg-stone-100'}`} transition-colors`}
-                      >
-                        <IconComp size={16} style={{ color: colorObj.ring }} />
-                        <span className={`text-sm flex-1 text-left ${darkMode ? 'text-gray-300' : 'text-stone-700'}`}>{habit.name}</span>
-                        <span className={`text-xs font-semibold ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{count}/{habit.target}</span>
-                      </button>
-                    );
-                  })}
+            <div className="flex items-start gap-1 justify-center flex-wrap">
+              {activeGoalsList.slice(0, 4).map(g => (
+                <GoalRing
+                  key={g.id}
+                  goal={g}
+                  progressPct={g.progressPct}
+                  daysLeft={g.daysLeft}
+                  darkMode={darkMode}
+                  size={64}
+                  onClick={() => setShowGoalsDashboard(true)}
+                />
+              ))}
+              {activeGoalsList.length > 4 && (
+                <div className={`flex items-center justify-center text-xs font-bold ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}
+                  style={{ width: 80, height: 64 }}>
+                  +{activeGoalsList.length - 4}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         )}
-        </div>
+
+        {/* Carousel dots */}
+        {showCarousel && (
+          <div className="flex justify-center gap-1.5 mt-2">
+            {[0, 1].map(i => (
+              <button
+                key={i}
+                onClick={() => setGlancePage(i)}
+                className={`rounded-full transition-all duration-200 ${i === glancePage
+                  ? 'w-4 h-2.5 bg-blue-500'
+                  : `w-2.5 h-2.5 ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   })()}
