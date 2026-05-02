@@ -10,6 +10,7 @@ import { renderTitle } from '../utils/textFormatting.jsx';
 import GoalRing from './GoalRing.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import { calculateGoalProgress } from '../utils/goalProgress.js';
+import { calculateProjectProgress } from '../utils/projectProgress.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { HabitRing } from './HabitRing.jsx';
 import GettingStartedChecklist from './GettingStartedChecklist.jsx';
@@ -248,7 +249,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           const daysLeft = g.targetDate
             ? Math.ceil((new Date(g.targetDate + 'T00:00:00') - new Date(getTodayStr() + 'T00:00:00')) / 86400000)
             : null;
-          return { ...g, progressPct, daysLeft };
+          const childProjects = projects
+            .filter(p => p.goalId === g.id && p.status !== 'archived')
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+          const projectBars = childProjects.map(p => ({
+            id: p.id,
+            progress: Math.round(calculateProjectProgress(p.id, allTasksCombined) * 100),
+          }));
+          return { ...g, progressPct, daysLeft, projectBars };
         }).sort((a, b) => {
           if (a.daysLeft === null && b.daysLeft === null) return 0;
           if (a.daysLeft === null) return 1;
@@ -380,6 +388,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   goal={g}
                   progressPct={g.progressPct}
                   daysLeft={g.daysLeft}
+                  projectBars={g.projectBars}
                   darkMode={darkMode}
                   onClick={() => { setGoalsDashboardFocusId(g.id); setShowGoalsDashboard(true); }}
                 />

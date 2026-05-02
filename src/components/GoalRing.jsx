@@ -1,7 +1,7 @@
 import React from 'react';
 import { TAILWIND_TO_HEX } from '../utils/colorUtils.js';
 
-const GoalRing = ({ goal, progressPct, daysLeft, darkMode, onClick }) => {
+const GoalRing = ({ goal, progressPct, daysLeft, projectBars = [], darkMode, onClick }) => {
   const hex = goal.color?.startsWith('#')
     ? goal.color
     : (TAILWIND_TO_HEX[goal.color] || '#3b82f6');
@@ -57,12 +57,28 @@ const GoalRing = ({ goal, progressPct, daysLeft, darkMode, onClick }) => {
           {goal.title}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <div className={`flex-1 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${progressPct}%`, backgroundColor: hex }}
-            />
-          </div>
+          {projectBars.length > 1 ? (
+            <div className="flex flex-1 gap-0.5">
+              {projectBars.map(bar => (
+                <div
+                  key={bar.id}
+                  className={`flex-1 h-1 rounded-sm overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}
+                >
+                  <div
+                    className="h-full rounded-sm transition-all duration-300"
+                    style={{ width: `${bar.progress}%`, backgroundColor: hex }}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={`flex-1 h-1 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${projectBars.length === 1 ? projectBars[0].progress : progressPct}%`, backgroundColor: hex }}
+              />
+            </div>
+          )}
           {daysLabel && (
             <span
               className="text-[10px] flex-shrink-0 font-medium"
