@@ -525,16 +525,26 @@ function timeToMinutes_pure(t) {
 
 // ─── AllDayCard ───────────────────────────────────────────────────────────────
 
-function AllDayPill({ item, accentHex, textPrimary, toggleComplete }) {
+function AllDayPill({ item, textPrimary, toggleComplete, toggleRoutineCompletion, onTouchStart, onTouchMove, onTouchEnd }) {
+  const isRoutine = item._kind === 'routine';
+  const accentHex = isRoutine ? '#0d9488' : (taskColorToHex(item.color) || '#3b82f6');
+  const completed = isRoutine ? !!item._completed : !!item.completed;
   return (
     <button
-      onClick={e => { e.stopPropagation(); toggleComplete(item.id); }}
-      className={`flex items-center gap-1.5 flex-shrink-0 rounded-full px-2.5 ${item.completed ? 'opacity-50' : ''}`}
+      onClick={e => {
+        e.stopPropagation();
+        if (isRoutine) toggleRoutineCompletion?.(item._routineId);
+        else toggleComplete?.(item.id);
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      className={`flex items-center gap-1.5 flex-shrink-0 rounded-full px-2.5 ${completed ? 'opacity-50' : ''}`}
       style={{ height: 28, border: `1px solid ${accentHex}55`, background: `${accentHex}20`, maxWidth: 150 }}
     >
       <div style={{ width: 6, height: 6, borderRadius: '50%', background: accentHex, flexShrink: 0 }} />
-      <span className={`text-xs font-medium truncate ${item.completed ? 'line-through' : ''} ${textPrimary}`}>
-        {renderTitle(item.title)}
+      <span className={`text-xs font-medium truncate ${completed ? 'line-through' : ''} ${textPrimary}`}>
+        {renderTitle(item.title || item.name || '')}
       </span>
     </button>
   );
@@ -597,13 +607,14 @@ const MobileListView = () => {
   const [dragTargetMin, setDragTargetMin] = useState(null);
   const [dragBlocked, setDragBlocked] = useState(false);
   const [activeDragTask, setActiveDragTask] = useState(null);
-  const [listDragItem, setListDragItem]     = useState(null);   // item being dragged from list
-  const [listDragGhost, setListDragGhost]   = useState({ x: 0, y: 0 });
-  const [allDayExpanded, setAllDayExpanded] = useState(false);
+  const [listDragItem, setListDragItem]           = useState(null);
+  const [listDragGhost, setListDragGhost]         = useState({ x: 0, y: 0 });
+  const [listDragTargetAllDay, setListDragTargetAllDay] = useState(false);
+  const [allDayExpanded, setAllDayExpanded]       = useState(false);
 
   const nowRowRef     = useRef(null);
   const inboxPanelTop = useRef(0); // captured at open-time; used only for expanded panel
-  const listDragRef   = useRef({ active: false, item: null, startX: 0, startY: 0, timer: null, ignoreRoutineId: null });
+  const listDragRef   = useRef({ active: false, item: null, startX: 0, startY: 0, timer: null, ignoreRoutineId: null, targetAllDay: false });
   const dragRef    = useRef({ active: false, task: null, startX: 0, startY: 0 });
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -616,6 +627,26 @@ const MobileListView = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedDate, tasks, expandedRecurringTasks],
   );
+
+  const allDayRoutines = useMemo(() =>
+    routinesEnabled && isToday
+      ? todayRoutines.filter(r => r.isAllDay && !String(r.id).startsWith('example-'))
+      : [],
+    [routinesEnabled, isToday, todayRoutines],
+  );
+
+  const allDayAll = useMemo(() => [
+    ...allDayItems.map(t => ({ ...t, _kind: t.imported && !t.isTaskCalendar ? 'calendar-event' : 'task' })),
+    ...allDayRoutines.map(r => ({
+      ...r,
+      _kind: 'routine',
+      _routineId: r.id,
+      _completed: routineCompletions[r.id],
+      id: `allday-routine-${r.id}`,
+      title: r.name,
+      isAllDay: true,
+    })),
+  ], [allDayItems, allDayRoutines, routineCompletions]);
 
   const scheduledTasks = useMemo(() =>
     getTasksForDate(selectedDate).filter(t => !t.isAllDay && !t.isExample),
@@ -733,7 +764,7 @@ const MobileListView = () => {
     if (!state.active) return;
     e.preventDefault();
 
-    // Find which gap segment the finger is over
+    // Find drop target — gap row preferred, item row fallback (tasks can conflict freely)
     const el = document.elementFromPoint(t.clientX, t.clientY);
     const gapEl = el?.closest('[data-gap-from]');
     if (gapEl) {
@@ -747,8 +778,14 @@ const MobileListView = () => {
       setDragTargetMin(snapped);
       setDragBlocked(isBlockedByRoutine(snapped, durMin));
     } else {
-      setDragTargetMin(null);
-      setDragBlocked(false);
+      const itemEl = el?.closest('[data-item-startmin]');
+      if (itemEl) {
+        setDragTargetMin(parseInt(itemEl.dataset.itemStartmin, 10));
+        setDragBlocked(false); // tasks can conflict with any existing item
+      } else {
+        setDragTargetMin(null);
+        setDragBlocked(false);
+      }
     }
   }, [getSnapMin, isBlockedByRoutine]);
 
@@ -815,6 +852,8 @@ const MobileListView = () => {
     const el = document.elementFromPoint(t.clientX, t.clientY);
     const gapEl = el?.closest('[data-gap-from]');
     if (gapEl) {
+      listDragRef.current.targetAllDay = false;
+      setListDragTargetAllDay(false);
       const rect = gapEl.getBoundingClientRect();
       const fromMin = parseInt(gapEl.dataset.gapFrom, 10);
       const toMin   = parseInt(gapEl.dataset.gapTo, 10);
@@ -825,8 +864,26 @@ const MobileListView = () => {
       setDragTargetMin(snapped);
       setDragBlocked(isBlockedByRoutine(snapped, durMin, state.ignoreRoutineId));
     } else {
-      setDragTargetMin(null);
-      setDragBlocked(false);
+      const itemEl = el?.closest('[data-item-startmin]');
+      if (itemEl) {
+        listDragRef.current.targetAllDay = false;
+        setListDragTargetAllDay(false);
+        const targetMin = parseInt(itemEl.dataset.itemStartmin, 10);
+        const durMin = state.item.duration || 30;
+        const isRoutine = state.item._kind === 'routine';
+        setDragTargetMin(targetMin);
+        setDragBlocked(isRoutine && isBlockedByRoutine(targetMin, durMin, state.ignoreRoutineId));
+      } else {
+        // Check all-day drop zone — only for non-allday tasks and routines
+        const allDayEl = el?.closest('[data-allday-drop]');
+        const canDropAllDay = allDayEl
+          && !state.item.isAllDay
+          && (state.item._kind === 'task' || state.item._kind === 'routine');
+        listDragRef.current.targetAllDay = !!canDropAllDay;
+        setListDragTargetAllDay(!!canDropAllDay);
+        setDragTargetMin(null);
+        setDragBlocked(false);
+      }
     }
   }, [getSnapMin, isBlockedByRoutine]);
 
@@ -834,12 +891,33 @@ const MobileListView = () => {
     const state = listDragRef.current;
     clearTimeout(state.timer);
 
-    if (state.active && dragTargetMin !== null && !dragBlocked) {
+    if (state.active && state.targetAllDay) {
+      // Timed item dropped onto all-day zone
+      const item = state.item;
+      pushUndo();
+      if (item._kind === 'task') {
+        setTasks(prev => prev.map(t => t.id === item.id
+          ? { ...t, isAllDay: true, startTime: undefined }
+          : t
+        ));
+      } else if (item._kind === 'routine') {
+        setTodayRoutines(prev => prev.map(r =>
+          r.id === item._routineId
+            ? { ...r, isAllDay: true, startTime: undefined, lastModified: new Date().toISOString() }
+            : r
+        ));
+      }
+      playUISound('pop');
+    } else if (state.active && dragTargetMin !== null && !dragBlocked) {
+      // Item dropped onto a timed slot (from either timed or all-day)
       const item = state.item;
       const newTime = minutesToTime(dragTargetMin);
       pushUndo();
       if (item._kind === 'task') {
-        setTasks(prev => prev.map(t => t.id === item.id ? { ...t, startTime: newTime } : t));
+        setTasks(prev => prev.map(t => t.id === item.id
+          ? { ...t, startTime: newTime, isAllDay: false, date: item.date || dateStr }
+          : t
+        ));
       } else if (item._kind === 'routine') {
         setTodayRoutines(prev => prev.map(r =>
           r.id === item._routineId
@@ -858,12 +936,13 @@ const MobileListView = () => {
       playUISound('pop');
     }
 
-    listDragRef.current = { active: false, item: null, startX: 0, startY: 0, timer: null, ignoreRoutineId: null };
+    listDragRef.current = { active: false, item: null, startX: 0, startY: 0, timer: null, ignoreRoutineId: null, targetAllDay: false };
     setListDragItem(null);
+    setListDragTargetAllDay(false);
     setDragTargetMin(null);
     setDragBlocked(false);
   }, [dragTargetMin, dragBlocked, minutesToTime, pushUndo,
-      setTasks, setTodayRoutines, updateProject, dateStr, playUISound]);
+      setTasks, setTodayRoutines, updateProject, dateStr, playUISound, setListDragTargetAllDay]);
 
   // ── Scroll to "now" on mount / date change ─────────────────────────────────
   useEffect(() => {
@@ -991,46 +1070,71 @@ const MobileListView = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* ── All-day section — condensed pill row ── */}
-      {allDayItems.length > 0 && (
-        <div className={`border-b ${borderClass} px-2 py-2`}>
-          {/* Pill row (always visible) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: TIME_COL_W, flexShrink: 0, textAlign: 'right', paddingRight: 8 }}>
-              <span className={`text-[9px] font-bold uppercase tracking-widest ${textSecondary}`}>All day</span>
-            </div>
-            <div style={{ width: SPINE_COL_W, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
-              {allDayItems.slice(0, 3).map(item => {
-                const hex = taskColorToHex(item.color) || '#3b82f6';
-                return (
-                  <AllDayPill key={item.id} item={item} accentHex={hex} textPrimary={textPrimary} toggleComplete={toggleComplete} />
-                );
-              })}
-              {allDayItems.length > 3 && (
+    <div style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
+      {/* ── All-day section — compact pill row ── */}
+      {(allDayAll.length > 0 || listDragItem) && (
+        <div className={`border-b ${borderClass} px-3 py-2`}>
+          {/* Pill row + drop zone */}
+          <div
+            data-allday-drop="true"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              borderRadius: 6, padding: '2px 0',
+              outline: listDragTargetAllDay ? '2px solid #22c55e' : undefined,
+              transition: 'outline 0.1s',
+            }}
+          >
+            <span className={`text-[9px] font-bold uppercase tracking-widest flex-shrink-0 ${textSecondary}`}
+              style={{ marginRight: 2 }}>
+              All day
+            </span>
+            {/* Pills — paddingRight reserves space for the INBOX tab */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, paddingRight: 38 }}>
+              {allDayAll.slice(0, 3).map(item => (
+                <AllDayPill
+                  key={item.id}
+                  item={item}
+                  textPrimary={textPrimary}
+                  toggleComplete={toggleComplete}
+                  toggleRoutineCompletion={toggleRoutineCompletion}
+                  onTouchStart={e => handleListItemTouchStart(e, item)}
+                  onTouchMove={handleListItemTouchMove}
+                  onTouchEnd={handleListItemTouchEnd}
+                />
+              ))}
+              {allDayAll.length > 3 && (
                 <button
                   onClick={() => setAllDayExpanded(v => !v)}
                   className={`flex-shrink-0 text-[11px] font-semibold px-2.5 py-0.5 rounded-full
                     ${darkMode ? 'bg-white/10 text-white/60 hover:bg-white/15' : 'bg-black/[0.08] text-black/50 hover:bg-black/[0.12]'}`}
                 >
-                  {allDayExpanded ? 'Less' : `+${allDayItems.length - 3}`}
+                  {allDayExpanded ? 'Less' : `+${allDayAll.length - 3}`}
                 </button>
+              )}
+              {allDayAll.length === 0 && listDragItem && (
+                <span className={`text-[10px] ${textSecondary} opacity-50`}>Drop here to make all-day</span>
               )}
             </div>
           </div>
           {/* Expanded full-card stack */}
           {allDayExpanded && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {allDayItems.map(item => {
+              {allDayAll.map(item => {
+                if (item._kind === 'routine') {
+                  return (
+                    <div key={item.id} style={{ paddingLeft: 8 }}>
+                      <RoutineChip
+                        routine={item}
+                        completed={!!routineCompletions[item._routineId]}
+                        onToggle={toggleRoutineCompletion}
+                        darkMode={darkMode}
+                      />
+                    </div>
+                  );
+                }
                 const hex = taskColorToHex(item.color) || '#3b82f6';
                 return (
-                  <div key={item.id} style={{ display: 'flex' }}>
-                    <div style={{ width: TIME_COL_W + SPINE_COL_W, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-                      <AllDayCard item={item} accentHex={hex} darkMode={darkMode} textPrimary={textPrimary} toggleComplete={toggleComplete} />
-                    </div>
-                  </div>
+                  <AllDayCard key={item.id} item={item} accentHex={hex} darkMode={darkMode} textPrimary={textPrimary} toggleComplete={toggleComplete} />
                 );
               })}
             </div>
@@ -1130,14 +1234,18 @@ const MobileListView = () => {
 
           if (item._kind === 'routine') {
             const completed = !!routineCompletions[item._routineId];
+            const isPast = isItemPast(item);
             const isDragging = listDragItem?.id === item.id;
+            const isDropTarget = !isDragging && dragTargetMin === startMin;
             return (
               <div
                 key={seg.id}
+                data-item-startmin={startMin}
+                data-item-dur={item.duration || 30}
                 onTouchStart={e => handleListItemTouchStart(e, item)}
                 onTouchMove={handleListItemTouchMove}
                 onTouchEnd={handleListItemTouchEnd}
-                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : undefined, transition: 'opacity 0.15s' }}
+                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
               >
                 <Row
                   timeLabel={formatTime(item.startTime)}
@@ -1147,8 +1255,9 @@ const MobileListView = () => {
                   cardHeight={ROUTINE_H}
                   accentHex="#14b8a6"
                   pageBg={pageBg}
+                  onMarkerClick={e => { e.stopPropagation(); toggleRoutineCompletion(item._routineId); }}
                 >
-                  <div style={{ marginTop: 4, marginBottom: 4 }}>
+                  <div style={{ opacity: isPast ? 0.45 : 1, marginTop: 4, marginBottom: 4, transition: 'opacity 0.15s' }}>
                     <RoutineChip
                       routine={item}
                       completed={completed}
@@ -1178,13 +1287,16 @@ const MobileListView = () => {
             const isInProgress = item.id === inProgressItem?.id;
             const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 60)) - nowMin) : 0;
             const isDragging = listDragItem?.id === item.id;
+            const isDropTarget = !isDragging && dragTargetMin === startMin;
             return (
               <div
                 key={seg.id}
+                data-item-startmin={startMin}
+                data-item-dur={item.duration || 60}
                 onTouchStart={e => handleListItemTouchStart(e, item)}
                 onTouchMove={handleListItemTouchMove}
                 onTouchEnd={handleListItemTouchEnd}
-                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : undefined, transition: 'opacity 0.15s' }}
+                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
               >
                 <Row
                   timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
@@ -1223,13 +1335,16 @@ const MobileListView = () => {
           const isInProgress = item.id === inProgressItem?.id;
           const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 30)) - nowMin) : 0;
           const isDragging = listDragItem?.id === item.id;
+          const isDropTarget = !isDragging && dragTargetMin === startMin;
           return (
             <div
               key={seg.id}
+              data-item-startmin={startMin}
+              data-item-dur={item.duration || 30}
               onTouchStart={e => handleListItemTouchStart(e, item)}
               onTouchMove={handleListItemTouchMove}
               onTouchEnd={handleListItemTouchEnd}
-              style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : undefined, transition: 'opacity 0.15s' }}
+              style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
             >
               <Row
                 timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
@@ -1345,8 +1460,8 @@ const MobileListView = () => {
         mobileDateHeaderRef.current
       )}
 
-      {/* Tap-outside backdrop — dismisses the expanded panel */}
-      {(inboxOpen || inboxPinned) && (
+      {/* Tap-outside backdrop — hidden during active drag so elementFromPoint can reach the timeline */}
+      {(inboxOpen || inboxPinned) && !activeDragTask && !listDragItem && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 39 }}
           onClick={() => { setInboxOpen(false); setInboxPinned(false); }}
@@ -1420,7 +1535,7 @@ const MobileListView = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
