@@ -196,6 +196,31 @@ class NativeBridge(
     @JavascriptInterface
     fun cancelUpNextNotification() = notifications.cancelUpNextNotification()
 
+    /**
+     * Posts or updates the persistent focus timer notification.
+     *
+     * When running: [isPaused] = false, [endEpochMillis] = System.currentTimeMillis() + remainingMs.
+     * Android displays a live native countdown (setChronometerCountDown) — no JS ticking needed.
+     *
+     * When paused: [isPaused] = true, [pausedRemainingSeconds] = seconds left at pause time.
+     * Android displays a static "MM:SS remaining · Paused" string.
+     *
+     * Action buttons (Pause/Resume, Stop) write a pendingFocusAction to SharedPreferences and
+     * bring the app to the foreground. JS reads it via getPendingAction() on the next
+     * visibilitychange event.
+     */
+    @JavascriptInterface
+    fun showFocusTimerNotification(
+        phase: String,
+        endEpochMillis: Long,
+        isPaused: Boolean,
+        pausedRemainingSeconds: Int,
+    ) = notifications.showFocusTimerNotification(phase, endEpochMillis, isPaused, pausedRemainingSeconds)
+
+    /** Cancels the focus timer notification. Call when the session ends or is dismissed. */
+    @JavascriptInterface
+    fun dismissFocusTimerNotification() = notifications.dismissFocusTimerNotification()
+
     // ── Widget snapshot ──────────────────────────────────────────────────────
 
     /**
@@ -417,6 +442,11 @@ class NativeBridge(
             dataStore.pendingSnoozeTaskId = null
             val escaped = snoozeId.replace("\\", "\\\\").replace("\"", "\\\"")
             return """{"action":"snooze","taskId":"$escaped","minutes":15}"""
+        }
+        val focusAction = dataStore.pendingFocusAction
+        if (focusAction != null) {
+            dataStore.pendingFocusAction = null
+            return """{"action":"$focusAction"}"""
         }
         val completeId = dataStore.pendingCompleteTaskId ?: return ""
         dataStore.pendingCompleteTaskId = null

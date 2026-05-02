@@ -155,6 +155,18 @@ class SharedDataStore(context: Context) {
             else remove(KEY_SCHEDULED_REMINDERS)
         }
 
+    /**
+     * Pending focus timer action triggered by a notification action button.
+     * Values: "focus-pause" | "focus-resume" | "focus-stop"
+     * Written by NotificationActionReceiver; read and cleared by NativeBridge.getPendingAction().
+     */
+    var pendingFocusAction: String?
+        get() = prefs.getString(KEY_PENDING_FOCUS_ACTION, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_FOCUS_ACTION, value)
+            else remove(KEY_PENDING_FOCUS_ACTION)
+        }
+
     // ── Step count cache ────────────────────────────────────────────────────
 
     /** Cached step count for today, updated by WidgetUpdateWorker. */
@@ -178,6 +190,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_ADD_TASK = "pending_add_task"
         private const val KEY_PENDING_ADD_INBOX_TASK = "pending_add_inbox_task"
         private const val KEY_PENDING_SHARE = "pending_share_text"
+        private const val KEY_PENDING_FOCUS_ACTION = "pending_focus_action"
         private const val KEY_APP_DARK_MODE = "app_dark_mode"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"

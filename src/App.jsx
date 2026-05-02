@@ -5523,6 +5523,12 @@ const DayPlanner = () => {
         setShowAddTask(true);
       } else if (pending.action === 'complete' && pending.taskId) {
         toggleComplete(pending.taskId);
+      } else if (pending.action === 'focus-pause') {
+        setFocusTimerRunning(false);
+      } else if (pending.action === 'focus-resume') {
+        setFocusTimerRunning(true);
+      } else if (pending.action === 'focus-stop') {
+        exitFocusModeRef.current?.(false);
       } else if (pending.action === 'snooze' && pending.taskId) {
         // Shift the task's start time forward by the snooze duration (default 15 min)
         const snoozeMin = pending.minutes || 15;

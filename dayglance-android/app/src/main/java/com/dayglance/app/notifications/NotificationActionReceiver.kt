@@ -32,6 +32,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_SNOOZE -> handleSnooze(context, intent, notifId)
             ACTION_COMPLETE -> handleComplete(context, intent)
+            ACTION_FOCUS_PAUSE,
+            ACTION_FOCUS_RESUME,
+            ACTION_FOCUS_STOP -> handleFocusAction(context, intent.action ?: return)
         }
     }
 
@@ -80,9 +83,30 @@ class NotificationActionReceiver : BroadcastReceiver() {
         )
     }
 
+    private fun handleFocusAction(context: Context, action: String) {
+        val focusAction = when (action) {
+            ACTION_FOCUS_PAUSE -> "focus-pause"
+            ACTION_FOCUS_RESUME -> "focus-resume"
+            ACTION_FOCUS_STOP -> "focus-stop"
+            else -> return
+        }
+        SharedDataStore(context).pendingFocusAction = focusAction
+
+        // Bring the app to the foreground so JS can read the pending action and
+        // update the timer state (and the notification) via the bridge.
+        context.startActivity(
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+        )
+    }
+
     companion object {
         const val ACTION_SNOOZE = "com.dayglance.app.ACTION_SNOOZE"
         const val ACTION_COMPLETE = "com.dayglance.app.ACTION_COMPLETE"
+        const val ACTION_FOCUS_PAUSE = "com.dayglance.app.ACTION_FOCUS_PAUSE"
+        const val ACTION_FOCUS_RESUME = "com.dayglance.app.ACTION_FOCUS_RESUME"
+        const val ACTION_FOCUS_STOP = "com.dayglance.app.ACTION_FOCUS_STOP"
 
         const val EXTRA_NOTIF_ID = "notif_id"
         const val EXTRA_TASK_ID = "task_id"

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { isNativeAndroid, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification } from '../native.js';
 
 const useFocusMode = () => {
   const [showFocusMode, setShowFocusMode] = useState(false);
@@ -51,6 +52,28 @@ const useFocusMode = () => {
       handleFocusTimerEndRef.current?.();
     }
   }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings]);
+
+  // Keep a ref to the current remaining seconds so the notification effect can
+  // read it without needing to depend on it (we don't want to re-fire every tick).
+  const focusTimerSecondsRef = useRef(focusTimerSeconds);
+  useEffect(() => { focusTimerSecondsRef.current = focusTimerSeconds; }, [focusTimerSeconds]);
+
+  // Sync the Android notification center with the timer state on every meaningful
+  // transition: start, pause, resume, phase change, and session end.
+  // The countdown itself is rendered natively (setChronometerCountDown) — no per-second JS calls.
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+    if (!showFocusMode || focusShowSettings || focusShowStats) {
+      nativeDismissFocusTimerNotification();
+      return;
+    }
+    const remaining = focusTimerSecondsRef.current;
+    if (focusTimerRunning) {
+      nativeShowFocusTimerNotification(focusPhase, Date.now() + remaining * 1000, false, 0);
+    } else {
+      nativeShowFocusTimerNotification(focusPhase, 0, true, remaining);
+    }
+  }, [showFocusMode, focusTimerRunning, focusPhase, focusShowSettings, focusShowStats]);
 
   return {
     showFocusMode, setShowFocusMode,

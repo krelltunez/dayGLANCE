@@ -443,6 +443,31 @@ export const nativeRequestDndPermission = () => {
  * @param content   The file contents as a string
  * @returns         { success: true } or { success: false, error: string }
  */
+// ── Focus timer notification ──────────────────────────────────────────────────
+
+/**
+ * Posts or updates the persistent focus timer notification in the Android
+ * notification drawer. The countdown is handled natively (setChronometerCountDown)
+ * so this only needs to be called on state transitions, not every tick.
+ *
+ * @param phase                 "work" | "shortBreak" | "longBreak"
+ * @param endEpochMillis        Date.now() + remainingMs (ignored when isPaused)
+ * @param isPaused              true while the timer is paused
+ * @param pausedRemainingSeconds seconds left at pause time (ignored when running)
+ */
+export const nativeShowFocusTimerNotification = (phase, endEpochMillis, isPaused, pausedRemainingSeconds) => {
+  const bridge = nativeBridge();
+  if (!bridge?.showFocusTimerNotification) return;
+  bridge.showFocusTimerNotification(phase, endEpochMillis, isPaused, pausedRemainingSeconds);
+};
+
+/** Cancels the focus timer notification. Call when the session ends or is dismissed. */
+export const nativeDismissFocusTimerNotification = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.dismissFocusTimerNotification) return;
+  bridge.dismissFocusTimerNotification();
+};
+
 export const nativeShareFile = (filename, content) => {
   const bridge = nativeBridge();
   if (!bridge?.shareFile) return null;
