@@ -1088,27 +1088,63 @@ const MobileListView = () => {
               style={{ marginRight: 2 }}>
               All day
             </span>
-            {/* Pills — paddingRight reserves space for the INBOX tab */}
+            {/* Pills — routines group + tasks group, each with own overflow; paddingRight reserves space for INBOX tab */}
             <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, paddingRight: 38 }}>
-              {allDayAll.slice(0, 3).map(item => (
-                <AllDayPill
-                  key={item.id}
-                  item={item}
-                  textPrimary={textPrimary}
-                  toggleComplete={toggleComplete}
-                  toggleRoutineCompletion={toggleRoutineCompletion}
-                  onTouchStart={e => handleListItemTouchStart(e, item)}
-                  onTouchMove={handleListItemTouchMove}
-                  onTouchEnd={handleListItemTouchEnd}
-                />
-              ))}
-              {allDayAll.length > 3 && (
+              {/* Routines — show 1, +N for the rest */}
+              {allDayRoutines.length > 0 && (() => {
+                const r = allDayRoutines[0];
+                const pill = { ...r, _kind: 'routine', _routineId: r.id, _completed: routineCompletions[r.id], id: `allday-routine-${r.id}`, title: r.name, isAllDay: true };
+                return (
+                  <>
+                    <AllDayPill
+                      key={pill.id}
+                      item={pill}
+                      textPrimary={textPrimary}
+                      toggleComplete={toggleComplete}
+                      toggleRoutineCompletion={toggleRoutineCompletion}
+                      onTouchStart={e => handleListItemTouchStart(e, pill)}
+                      onTouchMove={handleListItemTouchMove}
+                      onTouchEnd={handleListItemTouchEnd}
+                    />
+                    {allDayRoutines.length > 1 && (
+                      <button
+                        onClick={() => setAllDayExpanded(v => !v)}
+                        className={`flex-shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full
+                          ${darkMode ? 'bg-teal-900/60 text-teal-300 hover:bg-teal-800/60' : 'bg-teal-50 text-teal-700 hover:bg-teal-100'}`}
+                      >
+                        +{allDayRoutines.length - 1}
+                      </button>
+                    )}
+                    {/* Divider between routines and tasks */}
+                    {allDayItems.length > 0 && (
+                      <div style={{ width: 1, height: 16, background: 'currentColor', opacity: 0.2, flexShrink: 0 }} />
+                    )}
+                  </>
+                );
+              })()}
+              {/* Tasks — show 3, +N for the rest */}
+              {allDayItems.slice(0, 3).map(item => {
+                const pill = { ...item, _kind: item.imported && !item.isTaskCalendar ? 'calendar-event' : 'task' };
+                return (
+                  <AllDayPill
+                    key={item.id}
+                    item={pill}
+                    textPrimary={textPrimary}
+                    toggleComplete={toggleComplete}
+                    toggleRoutineCompletion={toggleRoutineCompletion}
+                    onTouchStart={e => handleListItemTouchStart(e, pill)}
+                    onTouchMove={handleListItemTouchMove}
+                    onTouchEnd={handleListItemTouchEnd}
+                  />
+                );
+              })}
+              {allDayItems.length > 3 && (
                 <button
                   onClick={() => setAllDayExpanded(v => !v)}
                   className={`flex-shrink-0 text-[11px] font-semibold px-2.5 py-0.5 rounded-full
                     ${darkMode ? 'bg-white/10 text-white/60 hover:bg-white/15' : 'bg-black/[0.08] text-black/50 hover:bg-black/[0.12]'}`}
                 >
-                  {allDayExpanded ? 'Less' : `+${allDayAll.length - 3}`}
+                  {allDayExpanded ? 'Less' : `+${allDayItems.length - 3}`}
                 </button>
               )}
               {allDayAll.length === 0 && listDragItem && (
