@@ -733,7 +733,7 @@ const MobileListView = () => {
     if (!state.active) return;
     e.preventDefault();
 
-    // Find which gap segment the finger is over
+    // Find drop target — gap row preferred, item row fallback (tasks can conflict freely)
     const el = document.elementFromPoint(t.clientX, t.clientY);
     const gapEl = el?.closest('[data-gap-from]');
     if (gapEl) {
@@ -747,8 +747,14 @@ const MobileListView = () => {
       setDragTargetMin(snapped);
       setDragBlocked(isBlockedByRoutine(snapped, durMin));
     } else {
-      setDragTargetMin(null);
-      setDragBlocked(false);
+      const itemEl = el?.closest('[data-item-startmin]');
+      if (itemEl) {
+        setDragTargetMin(parseInt(itemEl.dataset.itemStartmin, 10));
+        setDragBlocked(false); // tasks can conflict with any existing item
+      } else {
+        setDragTargetMin(null);
+        setDragBlocked(false);
+      }
     }
   }, [getSnapMin, isBlockedByRoutine]);
 
@@ -825,8 +831,18 @@ const MobileListView = () => {
       setDragTargetMin(snapped);
       setDragBlocked(isBlockedByRoutine(snapped, durMin, state.ignoreRoutineId));
     } else {
-      setDragTargetMin(null);
-      setDragBlocked(false);
+      const itemEl = el?.closest('[data-item-startmin]');
+      if (itemEl) {
+        const targetMin = parseInt(itemEl.dataset.itemStartmin, 10);
+        const durMin = state.item.duration || 30;
+        const isRoutine = state.item._kind === 'routine';
+        setDragTargetMin(targetMin);
+        // only block a routine if it conflicts with another routine at that slot
+        setDragBlocked(isRoutine && isBlockedByRoutine(targetMin, durMin, state.ignoreRoutineId));
+      } else {
+        setDragTargetMin(null);
+        setDragBlocked(false);
+      }
     }
   }, [getSnapMin, isBlockedByRoutine]);
 
@@ -1131,13 +1147,16 @@ const MobileListView = () => {
           if (item._kind === 'routine') {
             const completed = !!routineCompletions[item._routineId];
             const isDragging = listDragItem?.id === item.id;
+            const isDropTarget = !isDragging && dragTargetMin === startMin;
             return (
               <div
                 key={seg.id}
+                data-item-startmin={startMin}
+                data-item-dur={item.duration || 30}
                 onTouchStart={e => handleListItemTouchStart(e, item)}
                 onTouchMove={handleListItemTouchMove}
                 onTouchEnd={handleListItemTouchEnd}
-                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : undefined, transition: 'opacity 0.15s' }}
+                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
               >
                 <Row
                   timeLabel={formatTime(item.startTime)}
@@ -1178,13 +1197,16 @@ const MobileListView = () => {
             const isInProgress = item.id === inProgressItem?.id;
             const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 60)) - nowMin) : 0;
             const isDragging = listDragItem?.id === item.id;
+            const isDropTarget = !isDragging && dragTargetMin === startMin;
             return (
               <div
                 key={seg.id}
+                data-item-startmin={startMin}
+                data-item-dur={item.duration || 60}
                 onTouchStart={e => handleListItemTouchStart(e, item)}
                 onTouchMove={handleListItemTouchMove}
                 onTouchEnd={handleListItemTouchEnd}
-                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : undefined, transition: 'opacity 0.15s' }}
+                style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
               >
                 <Row
                   timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
@@ -1223,13 +1245,16 @@ const MobileListView = () => {
           const isInProgress = item.id === inProgressItem?.id;
           const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 30)) - nowMin) : 0;
           const isDragging = listDragItem?.id === item.id;
+          const isDropTarget = !isDragging && dragTargetMin === startMin;
           return (
             <div
               key={seg.id}
+              data-item-startmin={startMin}
+              data-item-dur={item.duration || 30}
               onTouchStart={e => handleListItemTouchStart(e, item)}
               onTouchMove={handleListItemTouchMove}
               onTouchEnd={handleListItemTouchEnd}
-              style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : undefined, transition: 'opacity 0.15s' }}
+              style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
             >
               <Row
                 timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
@@ -1345,8 +1370,8 @@ const MobileListView = () => {
         mobileDateHeaderRef.current
       )}
 
-      {/* Tap-outside backdrop — dismisses the expanded panel */}
-      {(inboxOpen || inboxPinned) && (
+      {/* Tap-outside backdrop — hidden during active drag so elementFromPoint can reach the timeline */}
+      {(inboxOpen || inboxPinned) && !activeDragTask && !listDragItem && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 39 }}
           onClick={() => { setInboxOpen(false); setInboxPinned(false); }}
