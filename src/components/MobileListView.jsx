@@ -587,7 +587,7 @@ function AllDayTaskPill({ item, accentHex, textPrimary, toggleComplete }) {
       <div style={{ width: 4, flexShrink: 0, background: accentHex }} />
       <span
         className={`text-[11px] font-medium truncate ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
-        style={{ padding: '0 8px 0 5px', lineHeight: '26px', maxWidth: 164 }}
+        style={{ padding: '0 8px 0 5px', maxWidth: 164, display: 'flex', alignItems: 'center' }}
       >
         {item.title}
       </span>
