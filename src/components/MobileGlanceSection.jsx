@@ -71,8 +71,6 @@ const MobileGlanceSection = () => {
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     tagFilterBtnRef,
     goToDate, scrollToHour,
-    showGoalsDashboard, setShowGoalsDashboard,
-    goalsDashboardFocusId, setGoalsDashboardFocusId,
     glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
@@ -102,6 +100,8 @@ const MobileGlanceSection = () => {
     editingFrame, setEditingFrame,
     goals, goalsProjectsEnabled, projects,
     projectFilter, setProjectFilter,
+    showGoalsDashboard, setShowGoalsDashboard,
+    goalsDashboardFocusId, setGoalsDashboardFocusId,
     focusModeAvailable, enterFocusMode,
     getTodayHabitCount, incrementHabit, setHabitCount,
     generateFrameNudge, generateMorningSummary, generateEveningReflection,
@@ -294,14 +294,7 @@ const MobileGlanceSection = () => {
 
         {/* Goals page */}
         {hasGoals && (!showCarousel || effectivePage === 1) && (
-          <div className="relative pr-5">
-            <button
-              onClick={() => setShowGoalsDashboard(true)}
-              className={`absolute top-0 right-0 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
-              title="Manage goals"
-            >
-              <Settings size={11} />
-            </button>
+          <div>
             <div className="flex flex-col gap-2">
               {activeGoalsList.slice(0, 4).map(g => (
                 <GoalRing

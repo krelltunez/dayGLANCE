@@ -852,8 +852,8 @@ const DesktopDashboard = ({
   goalCardRefs,
   projectCardRefs,
 }) => {
-  const { darkMode, textPrimary, textSecondary, borderClass, hoverBg, goalsDashboardFocusId, setGoalsDashboardFocusId } = useDayPlannerCtx();
-  const { moveProject } = useFeaturesCtx();
+  const { darkMode, textPrimary, textSecondary, borderClass, hoverBg } = useDayPlannerCtx();
+  const { moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId } = useFeaturesCtx();
 
   const containerRef = useRef(null);
   const [svgLines, setSvgLines] = useState([]);
@@ -1339,8 +1339,8 @@ const MobileDashboard = ({
   onNewProject,
   isActive = false,
 }) => {
-  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks, goalsDashboardFocusId, setGoalsDashboardFocusId } = useDayPlannerCtx();
-  const { updateGoal, moveProject } = useFeaturesCtx();
+  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks } = useDayPlannerCtx();
+  const { updateGoal, moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId } = useFeaturesCtx();
 
   const scrollRef = useRef(null);
   const swipeRef = useRef(null); // { startX, startY, locked }
