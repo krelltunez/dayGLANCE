@@ -245,7 +245,7 @@ TaskCard.displayName = 'TaskCard';
 
 // ─── RoutineChip ──────────────────────────────────────────────────────────────
 
-function RoutineChip({ routine, completed, onToggle, darkMode, compact }) {
+function RoutineChip({ routine, completed, onToggle, darkMode, compact, stretch }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); onToggle(routine.id); }}
@@ -253,7 +253,7 @@ function RoutineChip({ routine, completed, onToggle, darkMode, compact }) {
         ${compact ? 'gap-1 px-2 text-[10px]' : 'gap-1.5 px-3 text-xs'}
         ${darkMode ? 'bg-teal-700 text-teal-100 active:bg-teal-600' : 'bg-teal-600 text-white active:bg-teal-700'}
         ${completed ? 'opacity-50 line-through' : ''}`}
-      style={{ height: compact ? 28 : ROUTINE_H, maxWidth: '100%' }}
+      style={{ height: compact ? 28 : ROUTINE_H, maxWidth: '100%', width: stretch ? '100%' : undefined }}
     >
       <span className="truncate">{routine.name}</span>
       {routine.duration ? (
@@ -1009,7 +1009,8 @@ const MobileListView = () => {
       if (!pendingMultiRoutine) return;
       const { startMin, items: rItems } = pendingMultiRoutine;
       const endMin = rItems.reduce((max, r) => Math.max(max, startMin + (r.duration || 30)), startMin);
-      segs.push({ type: 'multi-routine', id: `mr-${startMin}`, startMin, items: rItems });
+      const rowCount = Math.ceil(rItems.length / 2);
+      segs.push({ type: 'multi-routine', id: `mr-${startMin}`, startMin, items: rItems, rowCount });
       cursor = Math.max(cursor, endMin);
       pendingMultiRoutine = null;
     };
@@ -1088,8 +1089,10 @@ const MobileListView = () => {
         y += 20;
       } else if (seg.type === 'multi-routine') {
         const rowH = ROUTINE_H + 8;
-        ys.push(y + rowH / 2);
-        y += rowH;
+        for (let i = 0; i < seg.rowCount; i++) {
+          ys.push(y + rowH / 2);
+          y += rowH;
+        }
       } else {
         const cardH = seg.item._kind === 'routine'    ? ROUTINE_H
                     : seg.item._kind === 'hg-session' ? HG_SESSION_H
@@ -1341,42 +1344,52 @@ const MobileListView = () => {
         if (seg.type === 'multi-routine') {
           const { startMin, items: rItems } = seg;
           const sc = spineColorAt(startMin);
-          const allCompleted = rItems.every(r => !!routineCompletions[r._routineId]);
+          // Split into rows of 2; each row gets its own spine dot + connector
+          const rows = [];
+          for (let i = 0; i < rItems.length; i += 2) rows.push(rItems.slice(i, i + 2));
           return (
             <div key={seg.id}>
-              <Row
-                timeLabel={formatTime(rItems[0].startTime)}
-                spineColour={sc}
-                spineStyle="solid"
-                marker={<SpineMarker kind="routine" colour="#14b8a6" completed={allCompleted} pageBg={pageBg} />}
-                cardHeight={ROUTINE_H}
-                accentHex="#14b8a6"
-                pageBg={pageBg}
-              >
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4, marginBottom: 4 }}>
-                  {rItems.map(item => {
-                    const isDragging = listDragItem?.id === item.id;
-                    return (
-                      <div
-                        key={item.id}
-                        data-item-startmin={startMin}
-                        data-item-dur={item.duration || 30}
-                        onTouchStart={e => handleListItemTouchStart(e, item)}
-                        onTouchMove={handleListItemTouchMove}
-                        onTouchEnd={handleListItemTouchEnd}
-                        style={{ opacity: isDragging ? 0.25 : 1, transition: 'opacity 0.15s' }}
-                      >
-                        <RoutineChip
-                          routine={item}
-                          completed={!!routineCompletions[item._routineId]}
-                          onToggle={safeToggleRoutine}
-                          darkMode={darkMode}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </Row>
+              {rows.map((rowItems, rowIdx) => {
+                const rowCompleted = rowItems.every(r => !!routineCompletions[r._routineId]);
+                return (
+                  <Row
+                    key={rowIdx}
+                    timeLabel={rowIdx === 0 ? formatTime(rItems[0].startTime) : null}
+                    spineColour={sc}
+                    spineStyle="solid"
+                    marker={<SpineMarker kind="routine" colour="#14b8a6" completed={rowCompleted} pageBg={pageBg} />}
+                    cardHeight={ROUTINE_H}
+                    accentHex="#14b8a6"
+                    pageBg={pageBg}
+                  >
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4, marginBottom: 4, minWidth: 0 }}>
+                      {rowItems.map(item => {
+                        const isDragging = listDragItem?.id === item.id;
+                        return (
+                          <div
+                            key={item.id}
+                            data-item-startmin={startMin}
+                            data-item-dur={item.duration || 30}
+                            onTouchStart={e => handleListItemTouchStart(e, item)}
+                            onTouchMove={handleListItemTouchMove}
+                            onTouchEnd={handleListItemTouchEnd}
+                            style={{ flex: 1, minWidth: 0, opacity: isDragging ? 0.25 : 1, transition: 'opacity 0.15s' }}
+                          >
+                            <RoutineChip
+                              routine={item}
+                              completed={!!routineCompletions[item._routineId]}
+                              onToggle={safeToggleRoutine}
+                              darkMode={darkMode}
+                              stretch
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Row>
+                );
+              })}
+
             </div>
           );
         }
