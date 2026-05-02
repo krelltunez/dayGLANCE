@@ -6,11 +6,11 @@ const GoalRing = ({ goal, progressPct, daysLeft, darkMode, onClick }) => {
     ? goal.color
     : (TAILWIND_TO_HEX[goal.color] || '#3b82f6');
 
-  const size = 36;
+  const size = 44;
   const radius = size * 0.38;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
-  const strokeWidth = 3;
+  const strokeWidth = 3.5;
   const dashOffset = circumference * (1 - Math.min(progressPct / 100, 1));
 
   const urgencyColor = daysLeft !== null && daysLeft <= 0 ? '#ef4444'

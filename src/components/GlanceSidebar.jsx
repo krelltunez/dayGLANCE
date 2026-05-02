@@ -97,6 +97,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     openRoutinesDashboard,
     enterHyperGlanceMode,
     showGoalsDashboard, setShowGoalsDashboard,
+    goalsDashboardFocusId, setGoalsDashboardFocusId,
     glancePage, setGlancePage,
     getFrameInstancesForDate,
     computeAvailableSlots,
@@ -387,7 +388,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   progressPct={g.progressPct}
                   daysLeft={g.daysLeft}
                   darkMode={darkMode}
-                  onClick={() => setShowGoalsDashboard(true)}
+                  onClick={() => { setGoalsDashboardFocusId(g.id); setShowGoalsDashboard(true); }}
                 />
               ))}
               {activeGoalsList.length > 4 && (
