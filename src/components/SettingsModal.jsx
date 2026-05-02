@@ -33,6 +33,7 @@ const SettingsModal = () => {
     dayViewMode, setDayViewMode,
     weekViewMode, setWeekViewMode,
     canShowViewCycler,
+    glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const {
     handleFileUpload,
@@ -251,6 +252,26 @@ const SettingsModal = () => {
                             ))}
                           </div>
                         </div>
+                        {habitsEnabled && goalsProjectsEnabled && (
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1.5`}>GLANCE default</label>
+                            <div className="flex gap-2">
+                              {[{ value: 0, label: 'Habits' }, { value: 1, label: 'Goals' }].map(({ value, label }) => (
+                                <button
+                                  key={value}
+                                  onClick={() => setGlancePage(value)}
+                                  className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                                    glancePage === value
+                                      ? 'bg-blue-600 text-white'
+                                      : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
