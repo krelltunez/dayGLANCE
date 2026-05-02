@@ -66,6 +66,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
     goToDate, scrollToHour, effectiveViewMode,
+    glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const {
     habitLongPressTimer,
@@ -98,7 +99,6 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     enterHyperGlanceMode,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsDashboardFocusId, setGoalsDashboardFocusId,
-    glancePage, setGlancePage,
     getFrameInstancesForDate,
     computeAvailableSlots,
     showVoiceInput, setShowVoiceInput,
@@ -372,14 +372,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
 
         {/* Goals page */}
         {hasGoals && (!showCarousel || effectivePage === 1) && (
-          <div className="relative pr-5">
-            <button
-              onClick={() => setShowGoalsDashboard(true)}
-              className={`absolute top-0 right-0 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
-              title="Manage goals"
-            >
-              <Settings size={11} />
-            </button>
+          <div>
             <div className="flex flex-col gap-2">
               {activeGoalsList.slice(0, 4).map(g => (
                 <GoalRing
