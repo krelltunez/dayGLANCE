@@ -157,6 +157,8 @@ const TaskCard = React.memo(({
   const endMin = timeToMinutes(item.startTime) + (item.duration || 30);
   const timeStr = `${formatTime(item.startTime)}–${formatTime(minutesToTime(endMin))} · ${durLabel(item.duration)}`;
   const isRecurring = typeof item.id === 'string' && item.id.startsWith('recurring-');
+  const notesLongPressTimer = useRef(null);
+  const notesLongPressTriggered = useRef(false);
 
   const cardBg   = `${accentHex}30`;
   const barStyle = { width: 4, flexShrink: 0, background: accentHex, borderRadius: '6px 0 0 6px' };
@@ -209,10 +211,36 @@ const TaskCard = React.memo(({
         >
           {/* Notes */}
           <button
+            onMouseDown={() => {
+              if (isLinkOnlyTask(item)) {
+                notesLongPressTriggered.current = false;
+                notesLongPressTimer.current = setTimeout(() => {
+                  notesLongPressTriggered.current = true;
+                  setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
+                }, 500);
+              }
+            }}
+            onMouseUp={() => clearTimeout(notesLongPressTimer.current)}
+            onMouseLeave={() => clearTimeout(notesLongPressTimer.current)}
+            onTouchStart={e => {
+              e.stopPropagation();
+              if (isLinkOnlyTask(item)) {
+                notesLongPressTriggered.current = false;
+                notesLongPressTimer.current = setTimeout(() => {
+                  notesLongPressTriggered.current = true;
+                  setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
+                }, 500);
+              }
+            }}
+            onTouchEnd={() => clearTimeout(notesLongPressTimer.current)}
             onClick={e => {
               e.stopPropagation();
-              if (isLinkOnlyTask(item)) window.open(getLinkUrl(item), '_blank', 'noopener,noreferrer');
-              else setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
+              if (isLinkOnlyTask(item)) {
+                if (!notesLongPressTriggered.current) window.open(getLinkUrl(item), '_blank', 'noopener,noreferrer');
+                notesLongPressTriggered.current = false;
+              } else {
+                setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);
+              }
             }}
             className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
             style={{ opacity: hasNotes ? 0.85 : 0.35 }}
