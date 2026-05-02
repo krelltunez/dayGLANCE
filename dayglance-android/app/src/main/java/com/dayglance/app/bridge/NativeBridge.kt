@@ -196,37 +196,6 @@ class NativeBridge(
     @JavascriptInterface
     fun cancelUpNextNotification() = notifications.cancelUpNextNotification()
 
-    /**
-     * Posts or updates the persistent focus timer notification.
-     *
-     * [remainingSeconds] is passed as an Int (avoiding JS→Java Long precision issues).
-     * Kotlin computes endEpochMillis = System.currentTimeMillis() + remainingSeconds * 1000L
-     * and uses the native chronometer (setChronometerCountDown) for a live countdown.
-     *
-     * When paused: shows static "MM:SS remaining · Paused" text.
-     *
-     * Action buttons write a pendingFocusAction to SharedPreferences. JS reads it
-     * via getFocusPendingAction() polling every ~500 ms.
-     */
-    @JavascriptInterface
-    fun showFocusTimerNotification(phase: String, remainingSeconds: Int, isPaused: Boolean) =
-        notifications.showFocusTimerNotification(phase, remainingSeconds, isPaused)
-
-    /** Cancels the focus timer notification. Call when the session ends or is dismissed. */
-    @JavascriptInterface
-    fun dismissFocusTimerNotification() = notifications.dismissFocusTimerNotification()
-
-    /**
-     * Returns and clears any pending focus timer action from a notification button tap.
-     * Returns "focus-pause" | "focus-resume" | "focus-stop", or "" if none pending.
-     *
-     * Called by JS at ~500 ms intervals while a focus session is active so that
-     * notification button taps are picked up even when the app is already in the
-     * foreground (visibilitychange doesn't fire in that case).
-     */
-    @JavascriptInterface
-    fun getFocusPendingAction(): String = notifications.getFocusPendingAction()
-
     // ── Widget snapshot ──────────────────────────────────────────────────────
 
     /**
@@ -448,11 +417,6 @@ class NativeBridge(
             dataStore.pendingSnoozeTaskId = null
             val escaped = snoozeId.replace("\\", "\\\\").replace("\"", "\\\"")
             return """{"action":"snooze","taskId":"$escaped","minutes":15}"""
-        }
-        val focusAction = dataStore.pendingFocusAction
-        if (focusAction != null) {
-            dataStore.pendingFocusAction = null
-            return """{"action":"$focusAction"}"""
         }
         val completeId = dataStore.pendingCompleteTaskId ?: return ""
         dataStore.pendingCompleteTaskId = null

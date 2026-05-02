@@ -445,44 +445,6 @@ export const nativeRequestDndPermission = () => {
  */
 // ── Focus timer notification ──────────────────────────────────────────────────
 
-/**
- * Posts or updates the persistent focus timer notification in the Android
- * notification drawer. Kotlin computes endEpochMillis from [remainingSeconds]
- * to avoid JS→Java Long precision issues. The countdown is handled natively
- * (setChronometerCountDown) so it ticks even when the WebView is backgrounded.
- *
- * @param phase            "work" | "shortBreak" | "longBreak"
- * @param remainingSeconds seconds remaining in the current phase
- * @param isPaused         true while the timer is paused
- */
-export const nativeShowFocusTimerNotification = (phase, remainingSeconds, isPaused) => {
-  const bridge = nativeBridge();
-  if (!bridge?.showFocusTimerNotification) return;
-  bridge.showFocusTimerNotification(phase, remainingSeconds, isPaused);
-};
-
-/** Cancels the focus timer notification. Call when the session ends or is dismissed. */
-export const nativeDismissFocusTimerNotification = () => {
-  const bridge = nativeBridge();
-  if (!bridge?.dismissFocusTimerNotification) return;
-  bridge.dismissFocusTimerNotification();
-};
-
-/**
- * Returns and clears any pending focus action from a notification button tap:
- * "focus-pause" | "focus-resume" | "focus-stop", or null if none pending.
- *
- * Poll this at ~500 ms while a focus session is active. Notification button
- * taps won't trigger visibilitychange when the app is already in the foreground,
- * so polling is the only way to pick them up promptly.
- */
-export const nativeGetFocusPendingAction = () => {
-  const bridge = nativeBridge();
-  if (!bridge?.getFocusPendingAction) return null;
-  const raw = bridge.getFocusPendingAction();
-  return raw || null;
-};
-
 export const nativeShareFile = (filename, content) => {
   const bridge = nativeBridge();
   if (!bridge?.shareFile) return null;

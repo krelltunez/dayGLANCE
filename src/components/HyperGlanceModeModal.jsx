@@ -7,7 +7,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
 import { hexToRgba } from '../utils/colorUtils.js';
-import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification, nativeGetFocusPendingAction } from '../native.js';
+import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission } from '../native.js';
 
 const HyperGlanceModeModal = () => {
   const {
@@ -82,37 +82,6 @@ const HyperGlanceModeModal = () => {
     }
     prevPhaseRef.current = hgTimerPhase;
   }, [hgTimerPhase]);
-
-  // Ref so the notification effect can read current seconds without depending on them —
-  // only fire on meaningful transitions, not every tick (which resets the chronometer).
-  const hgTimerSecondsRef = useRef(hgTimerSeconds);
-  useEffect(() => { hgTimerSecondsRef.current = hgTimerSeconds; }, [hgTimerSeconds]);
-
-  // Sync the Android notification on state transitions only (start, pause, resume, phase change).
-  useEffect(() => {
-    if (!isNativeAndroid()) return;
-    if (hgShowSettings) {
-      nativeDismissFocusTimerNotification();
-      return;
-    }
-    nativeShowFocusTimerNotification(hgTimerPhase, hgTimerSecondsRef.current, !hgTimerRunning);
-  }, [hgTimerRunning, hgTimerPhase, hgShowSettings]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Dismiss notification when this modal unmounts (session ended / exited).
-  useEffect(() => () => { if (isNativeAndroid()) nativeDismissFocusTimerNotification(); }, []);
-
-  // Poll for notification button taps (Pause / Resume / Stop) while session is active.
-  useEffect(() => {
-    if (!isNativeAndroid() || hgShowSettings) return;
-    const interval = setInterval(() => {
-      const action = nativeGetFocusPendingAction();
-      if (!action) return;
-      if (action === 'focus-pause') setHgTimerRunning(false);
-      else if (action === 'focus-resume') setHgTimerRunning(true);
-      else if (action === 'focus-stop') exitHyperGlanceMode();
-    }, 500);
-    return () => clearInterval(interval);
-  }, [hgShowSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Timer countdown — supports work / shortBreak / longBreak phases
   useEffect(() => {
