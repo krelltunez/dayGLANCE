@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { isNativeAndroid, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification } from '../native.js';
+import { isNativeAndroid, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification, nativeGetFocusPendingAction } from '../native.js';
 
 const useFocusMode = () => {
   const [showFocusMode, setShowFocusMode] = useState(false);
@@ -53,27 +53,33 @@ const useFocusMode = () => {
     }
   }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings]);
 
-  // Keep a ref to the current remaining seconds so the notification effect can
-  // read it without needing to depend on it (we don't want to re-fire every tick).
-  const focusTimerSecondsRef = useRef(focusTimerSeconds);
-  useEffect(() => { focusTimerSecondsRef.current = focusTimerSeconds; }, [focusTimerSeconds]);
-
-  // Sync the Android notification center with the timer state on every meaningful
-  // transition: start, pause, resume, phase change, and session end.
-  // The countdown itself is rendered natively (setChronometerCountDown) — no per-second JS calls.
+  // Sync the Android notification center with timer state.
+  // focusTimerSeconds is included in deps so Kotlin always gets a fresh remainingSeconds
+  // to compute setWhen(now + remainingMs) — keeping the native chronometer accurate even
+  // if there's any small JS/native clock drift.
   useEffect(() => {
     if (!isNativeAndroid()) return;
     if (!showFocusMode || focusShowSettings || focusShowStats) {
       nativeDismissFocusTimerNotification();
       return;
     }
-    const remaining = focusTimerSecondsRef.current;
-    if (focusTimerRunning) {
-      nativeShowFocusTimerNotification(focusPhase, Date.now() + remaining * 1000, false, 0);
-    } else {
-      nativeShowFocusTimerNotification(focusPhase, 0, true, remaining);
-    }
-  }, [showFocusMode, focusTimerRunning, focusPhase, focusShowSettings, focusShowStats]);
+    nativeShowFocusTimerNotification(focusPhase, focusTimerSeconds, !focusTimerRunning);
+  }, [showFocusMode, focusTimerRunning, focusPhase, focusShowSettings, focusShowStats, focusTimerSeconds]);
+
+  // Poll for notification button actions while a focus session is active.
+  // visibilitychange doesn't fire when the app is already in the foreground, so polling
+  // is needed to pick up Pause / Resume / Stop taps promptly.
+  useEffect(() => {
+    if (!isNativeAndroid() || !showFocusMode || focusShowSettings || focusShowStats) return;
+    const interval = setInterval(() => {
+      const action = nativeGetFocusPendingAction();
+      if (!action) return;
+      if (action === 'focus-pause') setFocusTimerRunning(false);
+      else if (action === 'focus-resume') setFocusTimerRunning(true);
+      else if (action === 'focus-stop') exitFocusModeRef.current?.(false);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [showFocusMode, focusShowSettings, focusShowStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     showFocusMode, setShowFocusMode,

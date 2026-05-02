@@ -199,27 +199,33 @@ class NativeBridge(
     /**
      * Posts or updates the persistent focus timer notification.
      *
-     * When running: [isPaused] = false, [endEpochMillis] = System.currentTimeMillis() + remainingMs.
-     * Android displays a live native countdown (setChronometerCountDown) — no JS ticking needed.
+     * [remainingSeconds] is passed as an Int (avoiding JS→Java Long precision issues).
+     * Kotlin computes endEpochMillis = System.currentTimeMillis() + remainingSeconds * 1000L
+     * and uses the native chronometer (setChronometerCountDown) for a live countdown.
      *
-     * When paused: [isPaused] = true, [pausedRemainingSeconds] = seconds left at pause time.
-     * Android displays a static "MM:SS remaining · Paused" string.
+     * When paused: shows static "MM:SS remaining · Paused" text.
      *
-     * Action buttons (Pause/Resume, Stop) write a pendingFocusAction to SharedPreferences and
-     * bring the app to the foreground. JS reads it via getPendingAction() on the next
-     * visibilitychange event.
+     * Action buttons write a pendingFocusAction to SharedPreferences. JS reads it
+     * via getFocusPendingAction() polling every ~500 ms.
      */
     @JavascriptInterface
-    fun showFocusTimerNotification(
-        phase: String,
-        endEpochMillis: Long,
-        isPaused: Boolean,
-        pausedRemainingSeconds: Int,
-    ) = notifications.showFocusTimerNotification(phase, endEpochMillis, isPaused, pausedRemainingSeconds)
+    fun showFocusTimerNotification(phase: String, remainingSeconds: Int, isPaused: Boolean) =
+        notifications.showFocusTimerNotification(phase, remainingSeconds, isPaused)
 
     /** Cancels the focus timer notification. Call when the session ends or is dismissed. */
     @JavascriptInterface
     fun dismissFocusTimerNotification() = notifications.dismissFocusTimerNotification()
+
+    /**
+     * Returns and clears any pending focus timer action from a notification button tap.
+     * Returns "focus-pause" | "focus-resume" | "focus-stop", or "" if none pending.
+     *
+     * Called by JS at ~500 ms intervals while a focus session is active so that
+     * notification button taps are picked up even when the app is already in the
+     * foreground (visibilitychange doesn't fire in that case).
+     */
+    @JavascriptInterface
+    fun getFocusPendingAction(): String = notifications.getFocusPendingAction()
 
     // ── Widget snapshot ──────────────────────────────────────────────────────
 

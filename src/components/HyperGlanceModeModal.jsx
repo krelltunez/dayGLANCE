@@ -7,7 +7,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
 import { hexToRgba } from '../utils/colorUtils.js';
-import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission } from '../native.js';
+import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification, nativeGetFocusPendingAction } from '../native.js';
 
 const HyperGlanceModeModal = () => {
   const {
@@ -82,6 +82,32 @@ const HyperGlanceModeModal = () => {
     }
     prevPhaseRef.current = hgTimerPhase;
   }, [hgTimerPhase]);
+
+  // Sync the Android notification center with hyperGLANCE timer state.
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+    if (hgShowSettings) {
+      nativeDismissFocusTimerNotification();
+      return;
+    }
+    nativeShowFocusTimerNotification(hgTimerPhase, hgTimerSeconds, !hgTimerRunning);
+  }, [hgTimerRunning, hgTimerPhase, hgShowSettings, hgTimerSeconds]);
+
+  // Dismiss notification when this modal unmounts (session ended / exited).
+  useEffect(() => () => { if (isNativeAndroid()) nativeDismissFocusTimerNotification(); }, []);
+
+  // Poll for notification button taps (Pause / Resume / Stop) while session is active.
+  useEffect(() => {
+    if (!isNativeAndroid() || hgShowSettings) return;
+    const interval = setInterval(() => {
+      const action = nativeGetFocusPendingAction();
+      if (!action) return;
+      if (action === 'focus-pause') setHgTimerRunning(false);
+      else if (action === 'focus-resume') setHgTimerRunning(true);
+      else if (action === 'focus-stop') exitHyperGlanceMode();
+    }, 500);
+    return () => clearInterval(interval);
+  }, [hgShowSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Timer countdown — supports work / shortBreak / longBreak phases
   useEffect(() => {
