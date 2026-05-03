@@ -371,17 +371,16 @@ StoreKit 2 integration is required on both platforms and unlocks Universal Purch
 - Founder offer: batch of **offer codes** generated in App Store Connect and distributed to early adopters — this is the correct mechanism for a date-gated discount since introductory offers are per-user, not date-gated
 - Enable Universal Purchase: link iOS and macOS apps in App Store Connect under the same bundle ID family
 
-**iOS (`StoreKitBridge.swift`)**
-- `nativeGetSubscriptionStatus()` → calls `Transaction.currentEntitlements` via StoreKit 2; returns `{ active: bool, productId: string, expiresAt: string }` JSON
-- `nativePurchase(productId)` → `Product.purchase()`; returns `{ success: bool, error: string? }` JSON
-- `nativeRestorePurchases()` → `AppStore.sync()`
-- `nativeGetProducts()` → fetches both products and their localised pricing
-- Transaction listener started at app launch to catch renewals and cross-device purchases pushed by Apple
-
-**macOS (Electron)**
-- StoreKit APIs are not available in Electron directly — use a lightweight Swift helper process (`dayglance-storekit-helper`) spawned by the Electron main process via IPC, or migrate the macOS app to an Electron + Swift hybrid for this feature only
-- Alternative (simpler): use the same `WKWebView`-based approach as iOS for the paywall screen only (a native `NSWindow` with WKWebView), deferring to StoreKit from there
-- Decision needed before Phase 9 implementation begins; the iOS side is straightforward regardless
+**iOS + macOS via RevenueCat**
+- **RevenueCat** is used as the subscription management layer across all platforms (iOS, macOS, Android)
+- iOS and macOS both use the RevenueCat SDK (`purchases-ios`, which supports macOS 10.13+); Electron's renderer uses the RevenueCat JS/web SDK or calls through to the native SDK via Electron IPC
+- RevenueCat maps the App Store subscription products to a single "Pro" entitlement — no raw StoreKit calls needed in app code
+- `Purchases.shared.getCustomerInfo()` returns entitlement status; works identically on iOS and macOS
+- Purchases, restores, and renewals all go through `Purchases.shared.purchase(package:)` / `Purchases.shared.restorePurchases()`
+- Transaction listener and renewal handling managed by RevenueCat SDK — no manual `Transaction.currentEntitlements` loop needed
+- RevenueCat dashboard provides customer lookup, manual entitlement grants, and webhook events (subscription started, cancelled, churned) for support and analytics
+- Android billing (Google Play) can be added to the same RevenueCat project later with no changes to the web layer
+- Free tier covers up to $2,500 MRR; 1% fee above that
 
 **Web layer (`src/subscription.js`)**
 - New module wrapping `nativeGetSubscriptionStatus()` / `nativePurchase()` / `nativeRestorePurchases()`
@@ -472,6 +471,6 @@ export const isCloudSyncAvailable = () =>
 
 7. **iCloud sync phase timing**: iCloud sync touches both the macOS Electron app and the iOS shell simultaneously. Should Phase 7 be gated behind a working iOS Phase 1 shell, or developed and tested on macOS first (where the container path can be inspected directly in Finder)?
 
-8. **StoreKit on macOS / Electron**: StoreKit 2 Swift APIs are not directly callable from Electron. Options are (a) a lightweight Swift helper process spawned by Electron, or (b) a native `NSWindow` + WKWebView for the paywall only, delegating to StoreKit from there. Which direction before Phase 9 begins?
+8. ~~**StoreKit on macOS / Electron**~~: **Resolved** — using RevenueCat across iOS, macOS, and Android. Avoids the MAS sandbox XPC complexity; adds customer dashboard, webhooks, and future Android billing support.
 
 9. **macOS MAS sandbox**: The macOS Electron app has not been tested under App Sandbox entitlements. This is a parallel workstream to the iOS build — sandbox breakage in Obsidian file access, WebDAV, or other APIs needs to be found and fixed before the macOS App Store submission. When should this audit begin relative to the iOS phases?
