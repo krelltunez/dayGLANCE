@@ -11,8 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "dev:electron": "npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && concurrently -n renderer,main,preload,electron -c cyan,yellow,magenta,green \"vite\" \"npx tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"npx tsc -p tsconfig.electron.preload.json -w --preserveWatchOutput\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",
-    "build:electron": "vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder",
-    "build:electron:release": "vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --publish never"
+    "build:electron": "vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
+    "build:electron:release": "vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never"
   },
   "dependencies": {
     "lucide-react": "^0.564.0",
