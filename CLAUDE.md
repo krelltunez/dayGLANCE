@@ -26,26 +26,9 @@ Always create a PR after pushing a branch. Use the GitHub MCP tools (`mcp__githu
 
 This check is mandatory — even mid-task, even for "small fixes", even when you just created the PR moments ago. PRs can be merged at any time.
 
-## Keeping `develop` in sync with `main`
-
-`develop` is the long-lived branch for hyperGLANCE. After every PR merges to `main`, sync it:
-
-```bash
-git checkout develop
-git fetch origin main
-git merge origin/main
-git push origin develop
-```
-
-Use **merge, not rebase** — rebasing rewrites history and breaks branches cut from `develop`.
-
-The files most likely to need conflict resolution during syncs are `App.jsx`, `GlanceSidebar.jsx`, and `MobileGlanceSection.jsx` (all touched by hyperGLANCE).
-
 ## Electron desktop app + Stream Deck plugin
 
 The Electron main process lives in `electron/` (compiled to `dist-electron/`). The renderer is the existing Vite/React app. The WebSocket server (`electron/ws-server.ts`) runs on `ws://localhost:7892` and is the integration point for the Stream Deck plugin. The plugin lives in `stream-deck-plugin/` and is built separately with Rollup. `electron/protocol.ts` is the canonical WS protocol contract — all message types and wire-format types live there.
-
-Feature branches for Electron/Stream Deck work are cut from `main` and PRs target `main`.
 
 ## GitHub Issues
 
