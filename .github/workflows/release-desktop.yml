@@ -33,7 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build desktop app
+      - name: Build desktop app (macOS — signed + notarized)
+        if: matrix.os == 'macos-latest'
+        run: npm run build:electron -- --publish never
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Build desktop app (Windows / Linux)
+        if: matrix.os != 'macos-latest'
         run: npm run build:electron -- --publish never
 
       - name: Upload artifacts
