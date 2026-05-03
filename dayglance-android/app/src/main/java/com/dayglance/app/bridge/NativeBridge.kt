@@ -372,20 +372,24 @@ class NativeBridge(
         // Persist so MainActivity.applyStatusBarAppearance() can use the app
         // preference instead of the system night-mode on future onResume/onPageFinished calls.
         dataStore.appDarkMode = isDark
-        (context as? android.app.Activity)?.runOnUiThread {
+        val activity = context as? android.app.Activity ?: return
+        activity.runOnUiThread {
+            // isStatusBarContrastEnforced is deprecated in API 35 (ignored in edge-to-edge
+            // mode), but there is no replacement — suppress rather than remove the call.
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                (context as android.app.Activity).window.isStatusBarContrastEnforced = false
+                @Suppress("DEPRECATION")
+                activity.window.isStatusBarContrastEnforced = false
             }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 val appearance = if (!isDark) android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS else 0
-                (context as android.app.Activity).window.insetsController?.setSystemBarsAppearance(
+                activity.window.insetsController?.setSystemBarsAppearance(
                     appearance,
                     android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
                 )
             } else {
                 androidx.core.view.WindowCompat.getInsetsController(
-                    (context as android.app.Activity).window,
-                    (context as android.app.Activity).window.decorView,
+                    activity.window,
+                    activity.window.decorView,
                 ).isAppearanceLightStatusBars = !isDark
             }
         }

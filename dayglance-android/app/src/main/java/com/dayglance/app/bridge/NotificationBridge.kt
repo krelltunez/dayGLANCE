@@ -107,7 +107,7 @@ class NotificationBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun showTaskNotification(
-        reminderId: String,
+        _reminderId: String,
         taskId: String,
         title: String,
         body: String,

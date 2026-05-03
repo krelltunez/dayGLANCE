@@ -177,8 +177,8 @@ class CalendarRepository(private val context: Context) {
             )?.use { cursor ->
                 val idIdx      = cursor.getColumnIndex(CalendarContract.Events._ID)
                 val titleIdx   = cursor.getColumnIndex(CalendarContract.Events.TITLE)
-                val startIdx   = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
-                val dueIdx     = cursor.getColumnIndex(colDue)
+                val _startIdx  = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
+                val _dueIdx    = cursor.getColumnIndex(colDue)
                 val descIdx    = cursor.getColumnIndex(CalendarContract.Events.DESCRIPTION)
                 val locIdx     = cursor.getColumnIndex(CalendarContract.Events.EVENT_LOCATION)
                 val calIdIdx   = cursor.getColumnIndex(CalendarContract.Events.CALENDAR_ID)

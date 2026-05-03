@@ -100,7 +100,7 @@ class GoalWidget : AppWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
-    private fun showEmpty(views: RemoteViews, title: String, subtitle: String) {
+    private fun showEmpty(views: RemoteViews, _title: String, subtitle: String) {
         views.setViewVisibility(R.id.layout_goal_content, View.GONE)
         views.setViewVisibility(R.id.layout_goal_empty, View.VISIBLE)
         views.setTextViewText(R.id.tv_goal_empty_sub, subtitle)

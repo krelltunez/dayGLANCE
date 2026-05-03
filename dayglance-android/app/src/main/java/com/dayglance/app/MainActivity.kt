@@ -21,6 +21,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -143,6 +144,17 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(0, 0, 0, navBottom)
             insets
         }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
 
         configureWebView()
         requestRuntimePermissions()
@@ -351,7 +363,10 @@ class MainActivity : AppCompatActivity() {
         // Prefer the app's saved preference; fall back to system night mode on first launch.
         val isNightMode = dataStore.appDarkMode ?: systemNightMode
         // Disable automatic contrast enforcement so our flag isn't overridden.
+        // isStatusBarContrastEnforced is deprecated in API 35 (ignored in edge-to-edge mode),
+        // but there is no replacement — suppress the warning rather than remove the call.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            @Suppress("DEPRECATION")
             window.isStatusBarContrastEnforced = false
         }
         // isAppearanceLightStatusBars = true  → dark (black) icons → light mode
@@ -408,14 +423,6 @@ class MainActivity : AppCompatActivity() {
                 "document.dispatchEvent(new Event('visibilitychange')); })();",
                 null
             )
-        }
-    }
-
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
         }
     }
 

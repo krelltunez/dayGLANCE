@@ -101,6 +101,7 @@ class DayGlanceWidget : AppWidgetProvider() {
         // ── Scrollable agenda list ─────────────────────────────────────────
         try {
             val serviceIntent = Intent(context, DayGlanceWidgetListService::class.java)
+            @Suppress("DEPRECATION")
             views.setRemoteAdapter(R.id.lv_agenda, serviceIntent)
             views.setEmptyView(R.id.lv_agenda, android.R.id.empty)
 
@@ -139,6 +140,7 @@ class DayGlanceWidget : AppWidgetProvider() {
 
         // Notify the list service that data may have changed so it calls onDataSetChanged
         try {
+            @Suppress("DEPRECATION")
             appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.lv_agenda)
         } catch (_: Throwable) { }
     }
