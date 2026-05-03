@@ -129,7 +129,7 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
 
 // ─── Connector (horizontal line from spine to card) ───────────────────────────
 
-function Connector({ colour }) {
+function Connector({ colour, opacity = 1 }) {
   return (
     <div
       style={{
@@ -140,6 +140,7 @@ function Connector({ colour }) {
         top: '50%',
         marginTop: -1,
         background: colour,
+        opacity,
         pointerEvents: 'none',
       }}
     />
@@ -411,7 +412,7 @@ HGSessionCard.displayName = 'HGSessionCard';
 
 // ─── Row wrapper (3 columns) ──────────────────────────────────────────────────
 
-function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg, onMarkerClick, noConnector }) {
+function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg, onMarkerClick, noConnector, connectorOpacity }) {
   return (
     <div style={{ display: 'flex', minHeight: cardHeight }}>
       {/* Col 1 — time */}
@@ -443,7 +444,7 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 
       {/* Col 3 — card area */}
       <div style={{ flex: 1, minWidth: 0, position: 'relative', paddingRight: 8 }}>
-        {accentHex && !noConnector && <Connector colour={accentHex} />}
+        {accentHex && !noConnector && <Connector colour={accentHex} opacity={connectorOpacity} />}
         {children}
       </div>
     </div>
@@ -1434,6 +1435,7 @@ const MobileListView = () => {
                     cardHeight={ROUTINE_H}
                     accentHex="#14b8a6"
                     pageBg={pageBg}
+                    connectorOpacity={rowCompleted ? 0.5 : 1}
                   >
                     <div style={{ display: 'flex', gap: 4, marginTop: 4, marginBottom: 4, minWidth: 0 }}>
                       {rowItems.map(item => {
@@ -1451,7 +1453,7 @@ const MobileListView = () => {
                             <RoutineChip
                               routine={item}
                               completed={!!routineCompletions[item._routineId]}
-                              onToggle={safeToggleRoutine}
+                              onToggle={() => safeToggleRoutine(item._routineId)}
                               darkMode={darkMode}
                               stretch
                             />
@@ -1496,12 +1498,13 @@ const MobileListView = () => {
                   accentHex="#14b8a6"
                   pageBg={pageBg}
                   onMarkerClick={e => { e.stopPropagation(); toggleRoutineCompletion(item._routineId); }}
+                  connectorOpacity={completed ? 0.5 : 1}
                 >
                   <div style={{ opacity: isPast ? 0.45 : 1, marginTop: 4, marginBottom: 4, transition: 'opacity 0.15s' }}>
                     <RoutineChip
                       routine={item}
                       completed={completed}
-                      onToggle={toggleRoutineCompletion}
+                      onToggle={() => toggleRoutineCompletion(item._routineId)}
                       darkMode={darkMode}
                     />
                   </div>
