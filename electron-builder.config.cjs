@@ -28,6 +28,7 @@ module.exports = {
     // Developer ID Application cert from Keychain when CSC_LINK is set.
     identity: hasCert ? undefined : null,
     hardenedRuntime: hasCert,
+    notarize: false, // handled by afterSign hook (scripts/notarize.cjs)
     category: 'public.app-category.productivity',
     entitlements: 'electron/entitlements.mac.plist',
     entitlementsInherit: 'electron/entitlements.mac.plist',
