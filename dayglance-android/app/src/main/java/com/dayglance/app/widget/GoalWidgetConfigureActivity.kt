@@ -121,7 +121,6 @@ class GoalWidgetConfigureActivity : AppCompatActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             val dp8 = dp(8)
-            val dp12 = dp(12)
             setPadding(0, dp8, 0, dp8)
             isClickable = true
             isFocusable = true
