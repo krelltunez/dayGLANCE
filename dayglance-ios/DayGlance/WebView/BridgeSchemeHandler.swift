@@ -56,7 +56,23 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             guard let date = args.first as? String else { return #"{"durationMinutes":0,"stages":[]}"# }
             return HealthBridge.shared.getSleep(date: date)
 
-        // Phase 3+: CalendarBridge, NotificationBridge, etc.
+        // Phase 3 — EventKit
+        case "getCalendars":
+            return CalendarBridge.shared.getCalendars()
+        case "getEvents":
+            guard let date = args.first as? String else { return "[]" }
+            return CalendarBridge.shared.getEvents(date: date)
+        case "createEvent":
+            guard let json = args.first as? String else { return #"{"success":false,"error":"missing args"}"# }
+            return CalendarBridge.shared.createEvent(json: json)
+        case "updateEvent":
+            guard let json = args.first as? String else { return #"{"success":false,"error":"missing args"}"# }
+            return CalendarBridge.shared.updateEvent(json: json)
+        case "deleteEvent":
+            guard let eventId = args.first as? String else { return #"{"success":false}"# }
+            return CalendarBridge.shared.deleteEvent(eventId: eventId)
+
+        // Phase 4+: NotificationBridge, etc.
         default:
             return "null"
         }

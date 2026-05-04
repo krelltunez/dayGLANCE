@@ -6,6 +6,7 @@ struct ContentView: View {
             .ignoresSafeArea()
             .task {
                 HealthBridge.shared.requestAuthorization()
+                CalendarBridge.shared.requestAuthorization { }
             }
     }
 }

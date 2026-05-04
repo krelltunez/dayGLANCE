@@ -67,3 +67,5 @@ targets:
         UIStatusBarStyle: UIStatusBarStyleDefault
         UIViewControllerBasedStatusBarAppearance: false
         NSHealthShareUsageDescription: "dayGLANCE reads your step count and sleep data to show your daily activity and recovery on the home screen."
+        NSCalendarsUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen."
+        NSCalendarsWriteOnlyAccessUsageDescription: "dayGLANCE can create calendar events from your tasks."
