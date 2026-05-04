@@ -23,6 +23,10 @@ targets:
       - path: DayGlance
         excludes:
           - Resources/web/**
+    entitlements:
+      path: DayGlance/DayGlance.entitlements
+      properties:
+        com.apple.developer.healthkit: true
     postBuildScripts:
       - name: Copy Web Assets
         script: |
@@ -62,3 +66,4 @@ targets:
         UIRequiresFullScreen: false
         UIStatusBarStyle: UIStatusBarStyleDefault
         UIViewControllerBasedStatusBarAppearance: false
+        NSHealthShareUsageDescription: "dayGLANCE reads your step count and sleep data to show your daily activity and recovery on the home screen."

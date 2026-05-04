@@ -46,8 +46,20 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     private func dispatchNative(method: String, args: [Any]) -> String {
-        // Phase 2+: HealthBridge, CalendarBridge, NotificationBridge, etc.
-        return "null"
+        switch method {
+
+        // Phase 2 — HealthKit
+        case "getSteps":
+            guard let date = args.first as? String else { return #"{"steps":0,"goal":10000}"# }
+            return HealthBridge.shared.getSteps(date: date)
+        case "getSleep":
+            guard let date = args.first as? String else { return #"{"durationMinutes":0,"stages":[]}"# }
+            return HealthBridge.shared.getSleep(date: date)
+
+        // Phase 3+: CalendarBridge, NotificationBridge, etc.
+        default:
+            return "null"
+        }
     }
 
     private func dispatchObsidian(method: String, args: [Any]) -> String {
