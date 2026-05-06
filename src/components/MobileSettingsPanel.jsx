@@ -43,6 +43,7 @@ const MobileSettingsPanel = () => {
     formatTime,
     toggleSettingsSection,
     mobileViewMode, setMobileViewMode,
+    listEndOfDayTime, setListEndOfDayTime,
     glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const {
@@ -324,6 +325,38 @@ const MobileSettingsPanel = () => {
             </button>
           ))}
         </div>
+
+        {/* End of day (LIST view only) */}
+        {mobileViewMode === 'list' && (
+          <div className="mt-3 space-y-1.5">
+            <label className={`block text-xs font-medium ${textSecondary}`}>End of day (LIST view)</label>
+            <p className={`text-xs ${textSecondary} opacity-70`}>Extends the spine to this time so you can drag items there</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[{ label: 'Off', value: null }, ...Array.from({ length: 13 }, (_, i) => {
+                const totalMin = 18 * 60 + i * 30;
+                const hh = String(Math.floor(totalMin / 60) % 24).padStart(2, '0');
+                const mm = String(totalMin % 60).padStart(2, '0');
+                const val = `${hh}:${mm}`;
+                return { label: formatTime(val), value: val };
+              })].map(({ label, value }) => {
+                const active = (listEndOfDayTime ?? null) === value;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setListEndOfDayTime(value)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : `${darkMode ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-stone-300 text-stone-700'}`
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* GLANCE default */}
