@@ -330,23 +330,31 @@ const MobileSettingsPanel = () => {
         {mobileViewMode === 'list' && (
           <div className="mt-3 space-y-1.5">
             <label className={`block text-xs font-medium ${textSecondary}`}>End of day (LIST view)</label>
-            <p className={`text-xs ${textSecondary} opacity-70`}>Extends the timeline spine to this time so you can drag items there</p>
-            <select
-              value={listEndOfDayTime ?? ''}
-              onChange={e => setListEndOfDayTime(e.target.value || null)}
-              className={`w-full py-2 px-3 rounded-lg text-sm border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-stone-300 text-stone-900'}`}
-            >
-              <option value="">Off</option>
-              {Array.from({ length: 13 }, (_, i) => {
+            <p className={`text-xs ${textSecondary} opacity-70`}>Extends the spine to this time so you can drag items there</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[{ label: 'Off', value: null }, ...Array.from({ length: 13 }, (_, i) => {
                 const totalMin = 18 * 60 + i * 30;
                 const hh = String(Math.floor(totalMin / 60) % 24).padStart(2, '0');
                 const mm = String(totalMin % 60).padStart(2, '0');
                 const val = `${hh}:${mm}`;
+                return { label: formatTime(val), value: val };
+              })].map(({ label, value }) => {
+                const active = (listEndOfDayTime ?? null) === value;
                 return (
-                  <option key={val} value={val}>{formatTime(val)}</option>
+                  <button
+                    key={label}
+                    onClick={() => setListEndOfDayTime(value)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : `${darkMode ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-white border-stone-300 text-stone-700'}`
+                    }`}
+                  >
+                    {label}
+                  </button>
                 );
               })}
-            </select>
+            </div>
           </div>
         )}
       </div>

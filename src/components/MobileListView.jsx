@@ -476,7 +476,7 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
         )}
         {eodFrac !== null && (
           <span className={`text-[9px] leading-none ${textSecondary}`} style={{ opacity: 0.4, position: 'absolute', top: `${eodFrac * 100}%`, right: 8, transform: 'translateY(-50%)', whiteSpace: 'nowrap' }}>
-            {formatTime(minutesToTime(eodMarkerMin))}
+            {formatTime(eodMarkerMin === 1440 ? '00:00' : minutesToTime(eodMarkerMin))}
           </span>
         )}
       </div>
@@ -1111,7 +1111,22 @@ const MobileListView = () => {
   const segments = useMemo(() => {
     const segs = [];
     const items = visibleItems;
-    if (items.length === 0) return segs;
+
+    // '00:00' means midnight = end of day, treat as 1440 min
+    const eodMin = listEndOfDayTime
+      ? (listEndOfDayTime === '00:00' ? 1440 : timeToMinutes(listEndOfDayTime))
+      : null;
+
+    if (items.length === 0) {
+      // Empty day: still emit a trailing gap so the EOD marker (and draggable
+      // area) appears even when nothing is scheduled.
+      const cursor = isToday ? nowMin : 0;
+      const trailEnd = eodMin !== null && eodMin > cursor + 30
+        ? (eodMin === 1440 ? eodMin : eodMin + 30)
+        : cursor + 30;
+      segs.push({ type: 'gap', id: 'gap-trail', fromMin: cursor, toMin: trailEnd });
+      return segs;
+    }
 
     let cursor = isToday ? Math.min(nowMin, timeToMinutes(items[0]?.startTime ?? '00:00')) : timeToMinutes(items[0]?.startTime ?? '00:00');
     let pendingMultiRoutine = null;
@@ -1159,10 +1174,10 @@ const MobileListView = () => {
     flushMultiRoutine();
 
 
-    // Trailing gap: extend to end-of-day time if set, otherwise 30-min buffer
-    const eodMin = listEndOfDayTime ? timeToMinutes(listEndOfDayTime) : null;
+    // Trailing gap: extend to end-of-day time if set, otherwise 30-min buffer.
+    // Midnight (1440) gets no trailing buffer — nothing to schedule after midnight.
     const trailEnd = eodMin !== null && eodMin > cursor + 30
-      ? eodMin + 30
+      ? (eodMin === 1440 ? eodMin : eodMin + 30)
       : cursor + 30;
     segs.push({ type: 'gap', id: 'gap-trail', fromMin: cursor, toMin: trailEnd });
     return segs;
@@ -1430,7 +1445,9 @@ const MobileListView = () => {
 
         {/* Segment list */}
         {(() => {
-          const eodMin = listEndOfDayTime ? timeToMinutes(listEndOfDayTime) : null;
+          const eodMin = listEndOfDayTime
+            ? (listEndOfDayTime === '00:00' ? 1440 : timeToMinutes(listEndOfDayTime))
+            : null;
           return segments.map(seg => {
         if (seg.type === 'gap') {
           const midMin = Math.round((seg.fromMin + seg.toMin) / 2);
