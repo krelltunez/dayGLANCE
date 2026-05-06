@@ -457,7 +457,7 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
   const h = gapHeight(toMin - fromMin);
   const showLabel = (toMin - fromMin) >= 45;
   const isTarget = dragTargetMin !== null && dragTargetMin >= fromMin && dragTargetMin < toMin;
-  const eodFrac = (eodMarkerMin != null && eodMarkerMin > fromMin && eodMarkerMin < toMin)
+  const eodFrac = (eodMarkerMin != null && eodMarkerMin > fromMin && eodMarkerMin <= toMin)
     ? (eodMarkerMin - fromMin) / (toMin - fromMin)
     : null;
 
