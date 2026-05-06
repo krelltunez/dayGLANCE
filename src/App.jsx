@@ -256,6 +256,10 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-glance-page');
     return saved !== null ? parseInt(saved, 10) : 0;
   });
+  // null = off (default 30-min trailing buffer). Otherwise a "HH:MM" string.
+  const [listEndOfDayTime, setListEndOfDayTime] = useState(() => {
+    return localStorage.getItem('day-planner-list-end-of-day') || null;
+  });
   const [goalsDashboardFocusId, setGoalsDashboardFocusId] = useState(null);
   const [weekViewMode, setWeekViewMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-view-mode');
@@ -1075,8 +1079,21 @@ const DayPlanner = () => {
     localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify(mobileViewMode));
   }, [mobileViewMode]);
   useEffect(() => {
+    if (listEndOfDayTime === null) {
+      localStorage.removeItem('day-planner-list-end-of-day');
+    } else {
+      localStorage.setItem('day-planner-list-end-of-day', listEndOfDayTime);
+    }
+  }, [listEndOfDayTime]);
+  useEffect(() => {
     localStorage.setItem('day-planner-glance-page', String(glancePage));
   }, [glancePage]);
+
+  // Clear any stale history state left from a previous session so Android back
+  // button interception works correctly from the first navigation.
+  useEffect(() => {
+    window.history.replaceState(null, '');
+  }, []);
 
   // Lock body/html scrolling to prevent scroll chaining (all devices incl. desktop PWA)
   useEffect(() => {
@@ -7170,6 +7187,7 @@ const DayPlanner = () => {
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
     mobileViewMode, setMobileViewMode,
+    listEndOfDayTime, setListEndOfDayTime,
     glancePage, setGlancePage,
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,

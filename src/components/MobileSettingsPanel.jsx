@@ -43,6 +43,7 @@ const MobileSettingsPanel = () => {
     formatTime,
     toggleSettingsSection,
     mobileViewMode, setMobileViewMode,
+    listEndOfDayTime, setListEndOfDayTime,
     glancePage, setGlancePage,
   } = useDayPlannerCtx();
   const {
@@ -324,6 +325,30 @@ const MobileSettingsPanel = () => {
             </button>
           ))}
         </div>
+
+        {/* End of day (LIST view only) */}
+        {mobileViewMode === 'list' && (
+          <div className="mt-3 space-y-1.5">
+            <label className={`block text-xs font-medium ${textSecondary}`}>End of day (LIST view)</label>
+            <p className={`text-xs ${textSecondary} opacity-70`}>Extends the timeline spine to this time so you can drag items there</p>
+            <select
+              value={listEndOfDayTime ?? ''}
+              onChange={e => setListEndOfDayTime(e.target.value || null)}
+              className={`w-full py-2 px-3 rounded-lg text-sm border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-stone-300 text-stone-900'}`}
+            >
+              <option value="">Off</option>
+              {Array.from({ length: 13 }, (_, i) => {
+                const totalMin = 18 * 60 + i * 30;
+                const hh = String(Math.floor(totalMin / 60) % 24).padStart(2, '0');
+                const mm = String(totalMin % 60).padStart(2, '0');
+                const val = `${hh}:${mm}`;
+                return (
+                  <option key={val} value={val}>{formatTime(val)}</option>
+                );
+              })}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* GLANCE default */}

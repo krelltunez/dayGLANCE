@@ -453,10 +453,13 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 
 // ─── GapRow ───────────────────────────────────────────────────────────────────
 
-function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minutesToTime, dragTargetMin, dragBlocked, darkMode, pageBg }) {
+function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minutesToTime, dragTargetMin, dragBlocked, darkMode, pageBg, eodMarkerMin }) {
   const h = gapHeight(toMin - fromMin);
   const showLabel = (toMin - fromMin) >= 45;
   const isTarget = dragTargetMin !== null && dragTargetMin >= fromMin && dragTargetMin < toMin;
+  const eodFrac = (eodMarkerMin != null && eodMarkerMin > fromMin && eodMarkerMin < toMin)
+    ? (eodMarkerMin - fromMin) / (toMin - fromMin)
+    : null;
 
   return (
     <div
@@ -465,10 +468,15 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
       style={{ display: 'flex', height: h }}
     >
       {/* Time col */}
-      <div style={{ width: TIME_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8 }}>
+      <div style={{ width: TIME_COL_W, flexShrink: 0, position: 'relative', paddingRight: 8 }}>
         {showLabel && (
-          <span className={`text-[9px] leading-none ${textSecondary}`} style={{ opacity: 0.5 }}>
+          <span className={`text-[9px] leading-none ${textSecondary}`} style={{ opacity: 0.5, position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)' }}>
             {formatTime(minutesToTime(fromMin))}
+          </span>
+        )}
+        {eodFrac !== null && (
+          <span className={`text-[9px] leading-none ${textSecondary}`} style={{ opacity: 0.4, position: 'absolute', top: `${eodFrac * 100}%`, right: 8, transform: 'translateY(-50%)', whiteSpace: 'nowrap' }}>
+            {formatTime(minutesToTime(eodMarkerMin))}
           </span>
         )}
       </div>
@@ -480,6 +488,13 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', marginLeft: -1, width: 2, background: pageBg, zIndex: 1, pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', marginLeft: -1, width: 2, background: dashedGradient(spineColour), zIndex: 2, pointerEvents: 'none' }} />
           </>
+        )}
+        {eodFrac !== null && (
+          <div style={{
+            position: 'absolute', top: `${eodFrac * 100}%`, left: 0, right: 0,
+            height: 1, background: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+            transform: 'translateY(-50%)', zIndex: 4, pointerEvents: 'none',
+          }} />
         )}
         {/* Drag preview indicator on spine */}
         {isTarget && (
@@ -496,7 +511,7 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
         )}
       </div>
       {/* Content col */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+      <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
         {isTarget ? (
           <span
             className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
@@ -513,6 +528,24 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
               {durLabel(toMin - fromMin)} free
             </span>
           )
+        )}
+        {eodFrac !== null && (
+          <div
+            style={{
+              position: 'absolute',
+              top: `${eodFrac * 100}%`,
+              left: 0, right: 8,
+              display: 'flex', alignItems: 'center', gap: 6,
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ flex: 1, height: 1, background: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }} />
+            <LucideIcons.Moon size={10} style={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)', flexShrink: 0 }} />
+            <span style={{ fontSize: 10, color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              Good work · rest up
+            </span>
+          </div>
         )}
       </div>
     </div>
@@ -649,6 +682,7 @@ const MobileListView = () => {
     toggleComplete, postponeTask, moveToInbox, openMobileEditTask,
     setExpandedNotesTaskId,
     pushUndo, playUISound,
+    listEndOfDayTime,
   } = useDayPlannerCtx();
 
   const {
@@ -1125,10 +1159,14 @@ const MobileListView = () => {
     flushMultiRoutine();
 
 
-    // Trailing gap so last item isn't at very bottom
-    segs.push({ type: 'gap', id: 'gap-trail', fromMin: cursor, toMin: cursor + 30 });
+    // Trailing gap: extend to end-of-day time if set, otherwise 30-min buffer
+    const eodMin = listEndOfDayTime ? timeToMinutes(listEndOfDayTime) : null;
+    const trailEnd = eodMin !== null && eodMin > cursor + 30
+      ? eodMin + 30
+      : cursor + 30;
+    segs.push({ type: 'gap', id: 'gap-trail', fromMin: cursor, toMin: trailEnd });
     return segs;
-  }, [visibleItems, isToday, nowMin, timeToMinutes]);
+  }, [visibleItems, isToday, nowMin, timeToMinutes, listEndOfDayTime]);
 
   // Page background colour — used behind markers (checkbox fill) and long-gap dashed overlays
   const pageBg = darkMode ? '#1f2937' : '#ffffff';
@@ -1391,7 +1429,9 @@ const MobileListView = () => {
         )}
 
         {/* Segment list */}
-        {segments.map(seg => {
+        {(() => {
+          const eodMin = listEndOfDayTime ? timeToMinutes(listEndOfDayTime) : null;
+          return segments.map(seg => {
         if (seg.type === 'gap') {
           const midMin = Math.round((seg.fromMin + seg.toMin) / 2);
           return (
@@ -1407,6 +1447,7 @@ const MobileListView = () => {
               dragBlocked={dragBlocked}
               darkMode={darkMode}
               pageBg={pageBg}
+              eodMarkerMin={seg.id === 'gap-trail' ? eodMin : null}
             />
           );
         }
@@ -1435,7 +1476,7 @@ const MobileListView = () => {
                     cardHeight={ROUTINE_H}
                     accentHex="#14b8a6"
                     pageBg={pageBg}
-                    connectorOpacity={rowCompleted ? 0.5 : 1}
+                    noConnector={rowCompleted}
                   >
                     <div style={{ display: 'flex', gap: 4, marginTop: 4, marginBottom: 4, minWidth: 0 }}>
                       {rowItems.map(item => {
@@ -1498,7 +1539,7 @@ const MobileListView = () => {
                   accentHex="#14b8a6"
                   pageBg={pageBg}
                   onMarkerClick={e => { e.stopPropagation(); toggleRoutineCompletion(item._routineId); }}
-                  connectorOpacity={completed ? 0.5 : 1}
+                  noConnector={completed}
                 >
                   <div style={{ opacity: isPast ? 0.45 : 1, marginTop: 4, marginBottom: 4, transition: 'opacity 0.15s' }}>
                     <RoutineChip
@@ -1632,7 +1673,8 @@ const MobileListView = () => {
         }
 
         return null;
-      })}
+      });
+        })()}
       </div>{/* end timed body */}
 
       {/* ── Ghost card (follows touch during list-item drag) ── */}
