@@ -63,6 +63,22 @@ class SubscriptionBridge(
     }
 
     /**
+     * Returns the localized prices fetched from Play as JSON.
+     * Values are null-safe empty strings until the billing client has connected
+     * and queried product details at least once.
+     *
+     * Response: `{"monthly": "£2.99", "annual": "£19.99"}`
+     */
+    @JavascriptInterface
+    fun getProductPrices(): String {
+        val monthly = (dataStore.productPriceMonthly ?: "")
+            .replace("\\", "\\\\").replace("\"", "\\\"")
+        val annual = (dataStore.productPriceAnnual ?: "")
+            .replace("\\", "\\\\").replace("\"", "\\\"")
+        return """{"monthly":"$monthly","annual":"$annual"}"""
+    }
+
+    /**
      * Convenience: returns "dayglance_pro_monthly" and "dayglance_pro_annual" as a
      * JSON array so JS knows exactly which product IDs to pass to purchase().
      */

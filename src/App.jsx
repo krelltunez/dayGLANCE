@@ -176,7 +176,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
-  const { isPro, isLoading: subLoading, isAndroidApp, subscribe, restore } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, subscribe, restore, prices: subPrices } = useSubscription();
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -9160,6 +9160,7 @@ const DayPlanner = () => {
       {isAndroidApp && (subLoading || !isPro) && (
         <SubscriptionWall
           isLoading={subLoading}
+          prices={subPrices}
           onSubscribeMonthly={() => subscribe('dayglance_pro_monthly')}
           onSubscribeAnnual={() => subscribe('dayglance_pro_annual')}
           onRestore={restore}

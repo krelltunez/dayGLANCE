@@ -62,12 +62,51 @@ class BillingManager(
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     queryPurchases()
+                    queryProductPrices()
                 }
             }
             override fun onBillingServiceDisconnected() {
                 // Play will retry automatically; we reconnect on next connect() call.
             }
         })
+    }
+
+    /**
+     * Fetches the base (non-trial) price for each subscription product from Play
+     * and caches it in SharedPreferences so the subscription wall can display it.
+     *
+     * Filters for the INFINITE_RECURRING pricing phase (recurrenceMode == 1),
+     * which is the regular recurring charge — not the free-trial phase.
+     */
+    fun queryProductPrices() {
+        if (!billingClient.isReady) return
+        val params = QueryProductDetailsParams.newBuilder()
+            .setProductList(
+                ALL_PRODUCTS.map { id ->
+                    QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(id)
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build()
+                }
+            )
+            .build()
+
+        scope.launch {
+            billingClient.queryProductDetailsAsync(params) { result, detailsList ->
+                if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
+                for (details in detailsList) {
+                    // Find the base recurring price phase (recurrenceMode 1 = INFINITE_RECURRING).
+                    val price = details.subscriptionOfferDetails
+                        ?.flatMap { it.pricingPhases.pricingPhaseList }
+                        ?.firstOrNull { it.recurrenceMode == 1 }
+                        ?.formattedPrice ?: continue
+                    when (details.productId) {
+                        PRODUCT_MONTHLY -> dataStore.productPriceMonthly = price
+                        PRODUCT_ANNUAL  -> dataStore.productPriceAnnual  = price
+                    }
+                }
+            }
+        }
     }
 
     fun disconnect() {

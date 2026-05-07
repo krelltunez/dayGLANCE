@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import { Loader } from 'lucide-react';
 
 /**
- * Full-screen paywall shown on Android when the user has no active subscription
- * (trial expired or never started).
+ * Full-screen paywall shown on Android when the user has no active subscription.
  *
- * The 14-day free trial period is configured in Play Console as a free-trial
- * offer on the base plan — no code change needed to adjust it.
+ * The 14-day free trial and pricing are configured in Google Play Console.
+ * `prices` contains the localized amounts fetched live from Play — they update
+ * automatically if you change the price in Play Console, with no code change needed.
+ *
+ * The "Founder pricing" badge is intentional during launch. Remove it (or change
+ * the copy) when you raise prices.
  */
-export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual, onRestore, isLoading }) {
+export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual, onRestore, isLoading, prices }) {
   const dark = (() => {
     try { return JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'); }
     catch { return false; }
@@ -18,8 +21,8 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
 
   const handleSubscribe = (productId, label) => {
     setPending(label);
-    onSubscribeMonthly && label === 'monthly' && onSubscribeMonthly();
-    onSubscribeAnnual  && label === 'annual'  && onSubscribeAnnual();
+    if (label === 'monthly') onSubscribeMonthly?.();
+    if (label === 'annual')  onSubscribeAnnual?.();
   };
 
   const handleRestore = () => {
@@ -27,14 +30,10 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
     onRestore?.();
   };
 
-  const bg    = dark ? 'bg-gray-950' : 'bg-white';
-  const text  = dark ? 'text-gray-100' : 'text-gray-900';
-  const sub   = dark ? 'text-gray-400' : 'text-gray-500';
-  const card  = dark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200';
-  const btnPrimary = 'bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white';
-  const btnSecondary = dark
-    ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700'
-    : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300';
+  const bg   = dark ? 'bg-gray-950' : 'bg-white';
+  const text = dark ? 'text-gray-100' : 'text-gray-900';
+  const sub  = dark ? 'text-gray-400' : 'text-gray-500';
+  const card = dark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200';
 
   if (isLoading) {
     return (
@@ -46,8 +45,9 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
 
   return (
     <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6 ${bg}`}>
-      {/* Logo / wordmark */}
-      <div className="mb-8 flex flex-col items-center gap-2">
+
+      {/* Logo */}
+      <div className="mb-6 flex flex-col items-center gap-2">
         <img
           src="/dayglance-dark.svg"
           alt="dayGLANCE"
@@ -57,26 +57,37 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
         <span className={`text-2xl font-bold tracking-tight ${text}`}>dayGLANCE</span>
       </div>
 
+      {/* Founder badge */}
+      <div className="mb-5 flex items-center gap-2 rounded-full bg-amber-500/15 border border-amber-500/30 px-4 py-1.5">
+        <span className="text-amber-500 text-xs font-semibold tracking-wide uppercase">Founder pricing</span>
+        <span className={`text-xs ${sub}`}>· price will increase at launch</span>
+      </div>
+
       {/* Headline */}
       <h1 className={`text-xl font-semibold text-center mb-2 ${text}`}>
         Your free trial has ended
       </h1>
-      <p className={`text-sm text-center mb-8 max-w-xs ${sub}`}>
+      <p className={`text-sm text-center mb-7 max-w-xs ${sub}`}>
         Subscribe to keep using dayGLANCE. Your data is safe and waiting.
       </p>
 
       {/* Plan cards */}
-      <div className="w-full max-w-xs space-y-3 mb-6">
+      <div className="w-full max-w-xs space-y-3 mb-5">
+
         <button
           onClick={() => handleSubscribe('dayglance_pro_monthly', 'monthly')}
           disabled={!!pending}
           className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'monthly' ? 'opacity-60' : ''}`}
         >
-          <div className={`font-semibold text-sm mb-0.5 ${text}`}>Monthly</div>
-          <div className={`text-xs ${sub}`}>Billed monthly · cancel any time</div>
-          {pending === 'monthly' && (
-            <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />
-          )}
+          <div className="flex items-baseline justify-between">
+            <span className={`font-semibold text-sm ${text}`}>Monthly</span>
+            {prices?.monthly
+              ? <span className={`text-sm font-medium ${text}`}>{prices.monthly}<span className={`text-xs ${sub}`}>/mo</span></span>
+              : <span className={`text-xs ${sub}`}>See price in Play</span>
+            }
+          </div>
+          <div className={`text-xs mt-0.5 ${sub}`}>Billed monthly · cancel any time</div>
+          {pending === 'monthly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
 
         <button
@@ -84,24 +95,26 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
           disabled={!!pending}
           className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'annual' ? 'opacity-60' : ''}`}
         >
-          <div className="flex items-center gap-2">
-            <span className={`font-semibold text-sm ${text}`}>Annual</span>
-            <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5">Best value</span>
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`font-semibold text-sm ${text}`}>Annual</span>
+              <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
+            </div>
+            {prices?.annual
+              ? <span className={`text-sm font-medium ${text}`}>{prices.annual}<span className={`text-xs ${sub}`}>/yr</span></span>
+              : <span className={`text-xs ${sub}`}>See price in Play</span>
+            }
           </div>
           <div className={`text-xs mt-0.5 ${sub}`}>Billed yearly · cancel any time</div>
-          {pending === 'annual' && (
-            <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />
-          )}
+          {pending === 'annual' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
+
       </div>
 
-      {/* CTA */}
       <p className={`text-xs text-center mb-6 max-w-xs ${sub}`}>
-        Prices shown in the next screen. Payment charged via Google Play.
-        Cancel any time from Play Store.
+        14-day free trial included. Payment via Google Play. Cancel any time.
       </p>
 
-      {/* Restore */}
       <button
         onClick={handleRestore}
         disabled={!!pending}
@@ -109,6 +122,7 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
       >
         {pending === 'restore' ? 'Checking…' : 'Restore purchase'}
       </button>
+
     </div>
   );
 }

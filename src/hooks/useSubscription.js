@@ -4,39 +4,49 @@ const BILLING = typeof window !== 'undefined' ? window.DayGlanceBilling : null;
 
 function readStatus() {
   if (!BILLING) return { active: false, productId: null };
+  try { return JSON.parse(BILLING.getStatus()); }
+  catch { return { active: false, productId: null }; }
+}
+
+function readPrices() {
+  if (!BILLING) return { monthly: null, annual: null };
   try {
-    return JSON.parse(BILLING.getStatus());
-  } catch {
-    return { active: false, productId: null };
-  }
+    const p = JSON.parse(BILLING.getProductPrices());
+    return {
+      monthly: p.monthly || null,
+      annual:  p.annual  || null,
+    };
+  } catch { return { monthly: null, annual: null }; }
 }
 
 /**
  * Exposes Google Play subscription state to the React app.
  *
  * Only meaningful inside the Android WebView — `isAndroidApp` is false on
- * web and Electron, and `isPro` will always be true there (no wall shown).
+ * web and Electron, where `isPro` is always true (no wall shown).
  *
- * isLoading is true for up to 5 s on first render while the billing client
- * connects to Play and refreshes the local cache. This prevents a false wall
+ * `isLoading` is true for up to 5 s on first open while the billing client
+ * connects to Play and refreshes the local cache, preventing a false-wall
  * flash on cold start for users who are already subscribed.
  *
- * Usage:
- *   const { isPro, isLoading, isAndroidApp, subscribe, refresh } = useSubscription();
+ * `prices` contains the localized Play prices, e.g. { monthly: "£2.99", annual: "£19.99" }.
+ * These are null until the billing client has connected at least once.
  */
 export function useSubscription() {
   const cached = readStatus();
-  // If the cache already says active, no need to show a loading state.
   const [status, setStatus] = useState(cached);
+  const [prices, setPrices] = useState(readPrices);
+  // Only show a loading state if we don't already know the user is active.
   const [isLoading, setIsLoading] = useState(!cached.active && !!BILLING);
   const pollRef = useRef(null);
 
-  // On mount: ask the billing client to re-query Play, then settle after 5 s.
+  // On mount: ask Play to refresh, then settle after 5 s.
   useEffect(() => {
     if (!BILLING) return;
     BILLING.refresh?.();
     const timer = setTimeout(() => {
       setStatus(readStatus());
+      setPrices(readPrices());
       setIsLoading(false);
     }, 5000);
     return () => clearTimeout(timer);
@@ -45,10 +55,13 @@ export function useSubscription() {
   const refresh = useCallback(() => {
     if (!BILLING) return;
     BILLING.refresh?.();
-    setTimeout(() => setStatus(readStatus()), 2000);
+    setTimeout(() => {
+      setStatus(readStatus());
+      setPrices(readPrices());
+    }, 2000);
   }, []);
 
-  // Re-read when the user comes back from the Play purchase sheet.
+  // Re-read when the user returns from the Play purchase sheet.
   useEffect(() => {
     if (!BILLING) return;
     const onVisible = () => {
@@ -61,9 +74,6 @@ export function useSubscription() {
   /**
    * Opens the Google Play subscription / free-trial sheet.
    * productId: 'dayglance_pro_monthly' | 'dayglance_pro_annual'
-   *
-   * The visibilitychange handler above picks up the result when the user
-   * returns. Polling here is a belt-and-suspenders fallback.
    */
   const subscribe = useCallback((productId = 'dayglance_pro_monthly') => {
     if (!BILLING) return;
@@ -91,6 +101,7 @@ export function useSubscription() {
     setIsLoading(true);
     setTimeout(() => {
       setStatus(readStatus());
+      setPrices(readPrices());
       setIsLoading(false);
     }, 4000);
   }, []);
@@ -100,6 +111,7 @@ export function useSubscription() {
   return {
     isPro: status.active,
     productId: status.productId,
+    prices,
     isAndroidApp: !!BILLING,
     isLoading,
     subscribe,
