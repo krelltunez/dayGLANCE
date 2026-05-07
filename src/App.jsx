@@ -116,6 +116,8 @@ import MobileWelcomeModal from './components/MobileWelcomeModal.jsx';
 import DesktopWelcomeModal from './components/DesktopWelcomeModal.jsx';
 import SpotlightModal from './components/SpotlightModal.jsx';
 import HabitModal from './components/HabitModal.jsx';
+import SubscriptionWall from './components/SubscriptionWall.jsx';
+import { useSubscription } from './hooks/useSubscription.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -174,6 +176,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
+  const { isPro, isLoading: subLoading, isAndroidApp, subscribe, restore, prices: subPrices } = useSubscription();
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -9152,6 +9155,17 @@ const DayPlanner = () => {
       <VoiceInputModal />
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
+
+      {/* Subscription wall — Android only, shown when trial/subscription is inactive */}
+      {isAndroidApp && (subLoading || !isPro) && (
+        <SubscriptionWall
+          isLoading={subLoading}
+          prices={subPrices}
+          onSubscribeMonthly={() => subscribe('dayglance_pro_monthly')}
+          onSubscribeAnnual={() => subscribe('dayglance_pro_annual')}
+          onRestore={restore}
+        />
+      )}
     </div>
     </FeaturesContext.Provider>
     </SyncContext.Provider>

@@ -13,12 +13,13 @@ const GoalRing = ({ goal, progressPct, daysLeft, projectBars = [], darkMode, onC
   const strokeWidth = 3.5;
   const dashOffset = circumference * (1 - Math.min(progressPct / 100, 1));
 
-  const urgencyColor = daysLeft !== null && daysLeft <= 0 ? '#ef4444'
+  const urgencyColor = daysLeft !== null && daysLeft < 0 ? '#ef4444'
     : daysLeft !== null && daysLeft <= 3 ? '#f59e0b'
     : null;
 
   const daysLabel = daysLeft === null ? null
-    : daysLeft <= 0 ? 'overdue'
+    : daysLeft < 0 ? 'overdue'
+    : daysLeft === 0 ? 'due today'
     : daysLeft === 1 ? '1d left'
     : `${daysLeft}d left`;
 

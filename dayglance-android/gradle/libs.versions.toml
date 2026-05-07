@@ -14,6 +14,7 @@ lifecycleViewmodel = "2.8.2"
 webkit = "1.11.0"
 splashscreen = "1.0.1"
 documentfile = "1.0.1"
+billing = "6.2.1"
 junit = "4.13.2"
 junitExt = "1.2.1"
 espresso = "3.6.1"
@@ -49,6 +50,9 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 
 # DocumentFile (Storage Access Framework — Obsidian vault file I/O)
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
+
+# Google Play Billing
+billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

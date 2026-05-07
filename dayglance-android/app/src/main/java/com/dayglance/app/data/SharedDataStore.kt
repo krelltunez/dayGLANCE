@@ -167,6 +167,45 @@ class SharedDataStore(context: Context) {
             else remove(KEY_PENDING_FOCUS_ACTION)
         }
 
+    // ── Subscription ────────────────────────────────────────────────────────
+
+    /** True when Google Play confirms an active subscription. Cached locally. */
+    var subscriptionActive: Boolean
+        get() = prefs.getBoolean(KEY_SUBSCRIPTION_ACTIVE, false)
+        set(value) = prefs.edit { putBoolean(KEY_SUBSCRIPTION_ACTIVE, value) }
+
+    /** Product ID of the active subscription, e.g. "dayglance_pro_monthly". */
+    var subscriptionProductId: String?
+        get() = prefs.getString(KEY_SUBSCRIPTION_PRODUCT_ID, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_SUBSCRIPTION_PRODUCT_ID, value)
+            else remove(KEY_SUBSCRIPTION_PRODUCT_ID)
+        }
+
+    /** Purchase token for the active subscription (used for server-side validation if needed). */
+    var subscriptionToken: String?
+        get() = prefs.getString(KEY_SUBSCRIPTION_TOKEN, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_SUBSCRIPTION_TOKEN, value)
+            else remove(KEY_SUBSCRIPTION_TOKEN)
+        }
+
+    /** Localized price string for the monthly plan, e.g. "£2.99". Null until first Play query. */
+    var productPriceMonthly: String?
+        get() = prefs.getString(KEY_PRODUCT_PRICE_MONTHLY, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PRODUCT_PRICE_MONTHLY, value)
+            else remove(KEY_PRODUCT_PRICE_MONTHLY)
+        }
+
+    /** Localized price string for the annual plan, e.g. "£19.99". Null until first Play query. */
+    var productPriceAnnual: String?
+        get() = prefs.getString(KEY_PRODUCT_PRICE_ANNUAL, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PRODUCT_PRICE_ANNUAL, value)
+            else remove(KEY_PRODUCT_PRICE_ANNUAL)
+        }
+
     // ── Step count cache ────────────────────────────────────────────────────
 
     /** Cached step count for today, updated by WidgetUpdateWorker. */
@@ -201,6 +240,11 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_FOCUS_ACTION = "pending_focus_action"
         private const val KEY_APP_DARK_MODE = "app_dark_mode"
         private const val KEY_LAST_UP_NEXT_BODY = "last_up_next_body"
+        private const val KEY_SUBSCRIPTION_ACTIVE = "subscription_active"
+        private const val KEY_SUBSCRIPTION_PRODUCT_ID = "subscription_product_id"
+        private const val KEY_SUBSCRIPTION_TOKEN = "subscription_token"
+        private const val KEY_PRODUCT_PRICE_MONTHLY = "product_price_monthly"
+        private const val KEY_PRODUCT_PRICE_ANNUAL = "product_price_annual"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
         const val DEFAULT_NEW_NOTES_FOLDER = "dayGLANCE"

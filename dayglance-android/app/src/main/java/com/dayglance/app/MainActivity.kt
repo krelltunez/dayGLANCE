@@ -33,6 +33,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.health.connect.client.PermissionController
 import androidx.webkit.WebViewAssetLoader
+import com.dayglance.app.billing.BillingManager
+import com.dayglance.app.billing.SubscriptionBridge
 import com.dayglance.app.bridge.NativeBridge
 import com.dayglance.app.bridge.ObsidianBridge
 import com.dayglance.app.data.HealthRepository
@@ -59,6 +61,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var obsidianBridge: ObsidianBridge
     private lateinit var healthRepository: HealthRepository
     private lateinit var dataStore: com.dayglance.app.data.SharedDataStore
+    private lateinit var billingManager: BillingManager
+    private lateinit var subscriptionBridge: SubscriptionBridge
+
+    // Stored so onResume() can re-enable it after the app returns from background.
+    // The callback sets isEnabled = false when the WebView has no back history, which
+    // lets the system handle that specific press. Without re-enabling it, the callback
+    // stays dark and back button does nothing on all subsequent resumes (Android 13+).
+    private lateinit var backCallback: OnBackPressedCallback
 
     // Splash screen: held until both conditions are true:
     //   1. WebView has finished its first page load (webViewReady)
@@ -117,6 +127,9 @@ class MainActivity : AppCompatActivity() {
             Intent.ACTION_SEND    -> storeShareIntent(intent, store)
         }
 
+        billingManager = BillingManager(this, dataStore)
+        subscriptionBridge = SubscriptionBridge(billingManager, dataStore)
+
         webView = binding.webView
         healthRepository = HealthRepository(this)
         obsidianBridge = ObsidianBridge(this)
@@ -145,7 +158,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+        backCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
                     webView.goBack()
@@ -154,7 +167,8 @@ class MainActivity : AppCompatActivity() {
                     onBackPressedDispatcher.onBackPressed()
                 }
             }
-        })
+        }
+        onBackPressedDispatcher.addCallback(this, backCallback)
 
         configureWebView()
         requestRuntimePermissions()
@@ -264,6 +278,8 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(nativeBridge, "DayGlanceNative")
         // Expose Obsidian vault methods on the same interface name (separate object)
         webView.addJavascriptInterface(obsidianBridge, "DayGlanceObsidian")
+        // Expose subscription/billing methods — window.DayGlanceBilling
+        webView.addJavascriptInterface(subscriptionBridge, "DayGlanceBilling")
     }
 
     private fun requestRuntimePermissions() {
@@ -296,8 +312,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        billingManager.activity = this
+        billingManager.connect()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        billingManager.activity = null
+        billingManager.disconnect()
+    }
+
     override fun onResume() {
         super.onResume()
+        // Re-enable so back button works after returning from background or SettingsActivity.
+        // The callback disables itself when the WebView has no back history; without this
+        // reset it stays disabled for the rest of the session (Android 13+ behaviour).
+        backCallback.isEnabled = true
         applyStatusBarAppearance()
         maybePromptExactAlarmPermission()
     }
