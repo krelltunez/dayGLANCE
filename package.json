@@ -1,7 +1,7 @@
 {
   "name": "dayglance",
   "private": true,
-  "version": "2.9.2",
+  "version": "3.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
