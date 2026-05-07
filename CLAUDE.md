@@ -26,10 +26,6 @@ Always create a PR after pushing a branch. Use the GitHub MCP tools (`mcp__githu
 
 This check is mandatory — even mid-task, even for "small fixes", even when you just created the PR moments ago. PRs can be merged at any time.
 
-## Electron desktop app + Stream Deck plugin
-
-The Electron main process lives in `electron/` (compiled to `dist-electron/`). The renderer is the existing Vite/React app. The WebSocket server (`electron/ws-server.ts`) runs on `ws://localhost:7892` and is the integration point for the Stream Deck plugin. The plugin lives in `stream-deck-plugin/` and is built separately with Rollup. `electron/protocol.ts` is the canonical WS protocol contract — all message types and wire-format types live there.
-
 ## GitHub Issues
 
 Do **not** post comments to GitHub issues directly using `mcp__github__add_issue_comment`. Instead, draft the proposed response and present it to the user so they can review and post it themselves.
