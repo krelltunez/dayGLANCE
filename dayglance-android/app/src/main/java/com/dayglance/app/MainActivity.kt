@@ -64,6 +64,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var billingManager: BillingManager
     private lateinit var subscriptionBridge: SubscriptionBridge
 
+    // Stored so onResume() can re-enable it after the app returns from background.
+    // The callback sets isEnabled = false when the WebView has no back history, which
+    // lets the system handle that specific press. Without re-enabling it, the callback
+    // stays dark and back button does nothing on all subsequent resumes (Android 13+).
+    private lateinit var backCallback: OnBackPressedCallback
+
     // Splash screen: held until both conditions are true:
     //   1. WebView has finished its first page load (webViewReady)
     //   2. JS has signalled the app is interactive — i.e. the initial Obsidian
@@ -152,7 +158,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+        backCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
                     webView.goBack()
@@ -161,7 +167,8 @@ class MainActivity : AppCompatActivity() {
                     onBackPressedDispatcher.onBackPressed()
                 }
             }
-        })
+        }
+        onBackPressedDispatcher.addCallback(this, backCallback)
 
         configureWebView()
         requestRuntimePermissions()
@@ -319,6 +326,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Re-enable so back button works after returning from background or SettingsActivity.
+        // The callback disables itself when the WebView has no back history; without this
+        // reset it stays disabled for the rest of the session (Android 13+ behaviour).
+        backCallback.isEnabled = true
         applyStatusBarAppearance()
         maybePromptExactAlarmPermission()
     }
