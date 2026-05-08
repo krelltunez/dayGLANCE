@@ -70,13 +70,17 @@ class MainActivity : AppCompatActivity() {
     // stays dark and back button does nothing on all subsequent resumes (Android 13+).
     private lateinit var backCallback: OnBackPressedCallback
 
-    // Splash screen: held until both conditions are true:
+    // Splash screen: held until all three conditions are true:
     //   1. WebView has finished its first page load (webViewReady)
     //   2. JS has signalled the app is interactive — i.e. the initial Obsidian
     //      sync (which blocks the JS thread) has completed (appReady).
     //      A fallback timer sets appReady after 10 s in case JS never calls back.
+    //   3. Billing client has completed its first queryPurchases() so the
+    //      subscription cache is current before the WebView reads it (billingReady).
+    //      A 3 s fallback ensures billing never extends the splash beyond the WebView.
     @Volatile private var webViewReady = false
     @Volatile private var appReady = false
+    @Volatile private var billingReady = false
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
@@ -105,7 +109,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
-        splashScreen.setKeepOnScreenCondition { !webViewReady || !appReady }
+        splashScreen.setKeepOnScreenCondition { !webViewReady || !appReady || !billingReady }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -129,6 +133,14 @@ class MainActivity : AppCompatActivity() {
 
         billingManager = BillingManager(this, dataStore)
         subscriptionBridge = SubscriptionBridge(billingManager, dataStore)
+
+        // Fast path: if the cache already confirms an active subscription, don't wait.
+        if (dataStore.subscriptionActive) {
+            billingReady = true
+        } else {
+            billingManager.onPurchasesQueried = { billingReady = true }
+            Handler(Looper.getMainLooper()).postDelayed({ billingReady = true }, 3_000)
+        }
 
         webView = binding.webView
         healthRepository = HealthRepository(this)

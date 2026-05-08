@@ -36,20 +36,15 @@ export function useSubscription() {
   const cached = readStatus();
   const [status, setStatus] = useState(cached);
   const [prices, setPrices] = useState(readPrices);
-  // Only show a loading state if we don't already know the user is active.
-  const [isLoading, setIsLoading] = useState(!cached.active && !!BILLING);
+  // No initial loading state — the Android splash screen holds until queryPurchases()
+  // completes, so the SharedPreferences cache is correct before the WebView is visible.
+  const [isLoading, setIsLoading] = useState(false);
   const pollRef = useRef(null);
 
-  // On mount: ask Play to refresh, then settle after 5 s.
+  // On mount: trigger a background refresh to catch any changes since last open.
   useEffect(() => {
     if (!BILLING) return;
     BILLING.refresh?.();
-    const timer = setTimeout(() => {
-      setStatus(readStatus());
-      setPrices(readPrices());
-      setIsLoading(false);
-    }, 5000);
-    return () => clearTimeout(timer);
   }, []);
 
   const refresh = useCallback(() => {
