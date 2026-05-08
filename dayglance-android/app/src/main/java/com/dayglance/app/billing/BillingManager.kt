@@ -19,11 +19,11 @@ import kotlinx.coroutines.launch
 /**
  * Manages the Google Play Billing client lifecycle for dayGLANCE subscriptions.
  *
- * Product IDs must be created in the Google Play Console under
- * Monetize → Subscriptions before they will resolve here.
+ * Monthly plan → Play Console: Monetize → Subscriptions (product type SUBS).
+ * Lifetime plan → Play Console: Monetize → In-app products (product type INAPP).
  *
  * Call [connect] from Activity.onStart() and [disconnect] from Activity.onStop().
- * Set [activity] before calling [launchSubscriptionFlow].
+ * Set [activity] before calling [launchPurchaseFlow].
  */
 class BillingManager(
     private val context: Context,
@@ -32,9 +32,11 @@ class BillingManager(
 
     companion object {
         // These IDs must match what you create in the Play Console exactly.
-        const val PRODUCT_MONTHLY = "dayglance_pro_monthly"
-        const val PRODUCT_ANNUAL  = "dayglance_pro_annual"
-        val ALL_PRODUCTS = listOf(PRODUCT_MONTHLY, PRODUCT_ANNUAL)
+        const val PRODUCT_MONTHLY  = "dayglance_pro_monthly"
+        const val PRODUCT_LIFETIME = "dayglance_pro_lifetime"
+        val SUBSCRIPTION_PRODUCTS = listOf(PRODUCT_MONTHLY)
+        val INAPP_PRODUCTS        = listOf(PRODUCT_LIFETIME)
+        val ALL_PRODUCTS          = SUBSCRIPTION_PRODUCTS + INAPP_PRODUCTS
     }
 
     var activity: Activity? = null
@@ -67,38 +69,48 @@ class BillingManager(
     }
 
     /**
-     * Fetches the base (non-trial) price for each subscription product from Play
-     * and caches it in SharedPreferences so the subscription wall can display it.
+     * Fetches prices for all products and caches them in SharedPreferences.
      *
-     * Filters for the INFINITE_RECURRING pricing phase (recurrenceMode == 1),
-     * which is the regular recurring charge — not the free-trial phase.
+     * Monthly (SUBS): filters for the INFINITE_RECURRING phase (recurrenceMode 1).
+     * Lifetime (INAPP): reads oneTimePurchaseOfferDetails.formattedPrice directly.
      */
     fun queryProductPrices() {
         if (!billingClient.isReady) return
-        val params = QueryProductDetailsParams.newBuilder()
-            .setProductList(
-                ALL_PRODUCTS.map { id ->
-                    QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(id)
-                        .setProductType(BillingClient.ProductType.SUBS)
-                        .build()
-                }
-            )
+
+        val subsParams = QueryProductDetailsParams.newBuilder()
+            .setProductList(SUBSCRIPTION_PRODUCTS.map { id ->
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(id)
+                    .setProductType(BillingClient.ProductType.SUBS)
+                    .build()
+            })
+            .build()
+
+        val inappParams = QueryProductDetailsParams.newBuilder()
+            .setProductList(INAPP_PRODUCTS.map { id ->
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(id)
+                    .setProductType(BillingClient.ProductType.INAPP)
+                    .build()
+            })
             .build()
 
         scope.launch {
-            billingClient.queryProductDetailsAsync(params) { result, detailsList ->
+            billingClient.queryProductDetailsAsync(subsParams) { result, detailsList ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
                 for (details in detailsList) {
-                    // Find the base recurring price phase (recurrenceMode 1 = INFINITE_RECURRING).
                     val price = details.subscriptionOfferDetails
                         ?.flatMap { it.pricingPhases.pricingPhaseList }
                         ?.firstOrNull { it.recurrenceMode == 1 }
                         ?.formattedPrice ?: continue
-                    when (details.productId) {
-                        PRODUCT_MONTHLY -> dataStore.productPriceMonthly = price
-                        PRODUCT_ANNUAL  -> dataStore.productPriceAnnual  = price
-                    }
+                    if (details.productId == PRODUCT_MONTHLY) dataStore.productPriceMonthly = price
+                }
+            }
+            billingClient.queryProductDetailsAsync(inappParams) { result, detailsList ->
+                if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
+                for (details in detailsList) {
+                    val price = details.oneTimePurchaseOfferDetails?.formattedPrice ?: continue
+                    if (details.productId == PRODUCT_LIFETIME) dataStore.productPriceLifetime = price
                 }
             }
         }
@@ -110,14 +122,30 @@ class BillingManager(
 
     fun queryPurchases() {
         if (!billingClient.isReady) return
-        billingClient.queryPurchasesAsync(
-            QueryPurchasesParams.newBuilder()
-                .setProductType(BillingClient.ProductType.SUBS)
-                .build()
-        ) { _, purchases ->
-            val active = purchases.firstOrNull {
-                it.purchaseState == Purchase.PurchaseState.PURCHASED
+        scope.launch {
+            var activePurchase: Purchase? = null
+
+            // Check subscriptions first.
+            billingClient.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder()
+                    .setProductType(BillingClient.ProductType.SUBS)
+                    .build()
+            ) { _, purchases ->
+                activePurchase = purchases.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
             }
+
+            // If no active subscription, check one-time (lifetime) purchases.
+            if (activePurchase == null) {
+                billingClient.queryPurchasesAsync(
+                    QueryPurchasesParams.newBuilder()
+                        .setProductType(BillingClient.ProductType.INAPP)
+                        .build()
+                ) { _, purchases ->
+                    activePurchase = purchases.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+                }
+            }
+
+            val active = activePurchase
             if (active != null) {
                 if (!active.isAcknowledged) acknowledgePurchase(active)
                 dataStore.subscriptionActive = true
@@ -132,42 +160,45 @@ class BillingManager(
     }
 
     /**
-     * Launches the Google Play subscription purchase sheet for [productId].
-     * Must be called from a thread where [activity] is available; the billing
-     * flow itself is dispatched to the main thread.
+     * Launches the Google Play purchase sheet for [productId].
+     * Routes to SUBS or INAPP depending on the product. Must be called with
+     * [activity] set; the billing flow is dispatched to the main thread.
      */
-    fun launchSubscriptionFlow(productId: String) {
+    fun launchPurchaseFlow(productId: String) {
         val act = activity ?: return
         if (!billingClient.isReady) return
 
+        val productType = if (productId in INAPP_PRODUCTS) BillingClient.ProductType.INAPP
+                          else BillingClient.ProductType.SUBS
+
         val params = QueryProductDetailsParams.newBuilder()
-            .setProductList(
-                listOf(
-                    QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(productId)
-                        .setProductType(BillingClient.ProductType.SUBS)
-                        .build()
-                )
-            )
+            .setProductList(listOf(
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(productId)
+                    .setProductType(productType)
+                    .build()
+            ))
             .build()
 
         scope.launch {
             billingClient.queryProductDetailsAsync(params) { result, detailsList ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
                 val details = detailsList.firstOrNull() ?: return@queryProductDetailsAsync
-                // Use the first available offer (base plan or cheapest trial offer).
-                val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken
-                    ?: return@queryProductDetailsAsync
+
+                val productDetailsParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+                    .setProductDetails(details)
+                    .apply {
+                        if (productType == BillingClient.ProductType.SUBS) {
+                            // Use the first available offer (base plan or cheapest trial offer).
+                            val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken
+                                ?: return@queryProductDetailsAsync
+                            setOfferToken(offerToken)
+                        }
+                    }
+                    .build()
 
                 val flowParams = BillingFlowParams.newBuilder()
-                    .setProductDetailsParamsList(
-                        listOf(
-                            BillingFlowParams.ProductDetailsParams.newBuilder()
-                                .setProductDetails(details)
-                                .setOfferToken(offerToken)
-                                .build()
-                        )
-                    )
+                    .setProductDetailsParamsList(listOf(productDetailsParams))
                     .build()
 
                 act.runOnUiThread {

@@ -11,7 +11,7 @@ import { Loader } from 'lucide-react';
  * The "Founder pricing" badge is intentional during launch. Remove it (or change
  * the copy) when you raise prices.
  */
-export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual, onRestore, isLoading, prices }) {
+export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeLifetime, onRestore, isLoading, prices }) {
   const dark = (() => {
     try { return JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'); }
     catch { return false; }
@@ -21,8 +21,8 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
 
   const handleSubscribe = (productId, label) => {
     setPending(label);
-    if (label === 'monthly') onSubscribeMonthly?.();
-    if (label === 'annual')  onSubscribeAnnual?.();
+    if (label === 'monthly')  onSubscribeMonthly?.();
+    if (label === 'lifetime') onSubscribeLifetime?.();
   };
 
   const handleRestore = () => {
@@ -91,28 +91,28 @@ export default function SubscriptionWall({ onSubscribeMonthly, onSubscribeAnnual
         </button>
 
         <button
-          onClick={() => handleSubscribe('dayglance_pro_annual', 'annual')}
+          onClick={() => handleSubscribe('dayglance_pro_lifetime', 'lifetime')}
           disabled={!!pending}
-          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'annual' ? 'opacity-60' : ''}`}
+          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'lifetime' ? 'opacity-60' : ''}`}
         >
           <div className="flex items-baseline justify-between">
             <div className="flex items-center gap-2">
-              <span className={`font-semibold text-sm ${text}`}>Annual</span>
+              <span className={`font-semibold text-sm ${text}`}>Lifetime</span>
               <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
             </div>
-            {prices?.annual
-              ? <span className={`text-sm font-medium ${text}`}>{prices.annual}<span className={`text-xs ${sub}`}>/yr</span></span>
+            {prices?.lifetime
+              ? <span className={`text-sm font-medium ${text}`}>{prices.lifetime}</span>
               : <span className={`text-xs ${sub}`}>See price in Play</span>
             }
           </div>
-          <div className={`text-xs mt-0.5 ${sub}`}>Billed yearly · cancel any time</div>
-          {pending === 'annual' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
+          <div className={`text-xs mt-0.5 ${sub}`}>One-time purchase · yours forever</div>
+          {pending === 'lifetime' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
 
       </div>
 
       <p className={`text-xs text-center mb-6 max-w-xs ${sub}`}>
-        14-day free trial included. Payment via Google Play. Cancel any time.
+        Monthly plan includes a 14-day free trial. Payment via Google Play.
       </p>
 
       <button

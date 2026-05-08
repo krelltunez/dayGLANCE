@@ -9162,7 +9162,7 @@ const DayPlanner = () => {
           isLoading={subLoading}
           prices={subPrices}
           onSubscribeMonthly={() => subscribe('dayglance_pro_monthly')}
-          onSubscribeAnnual={() => subscribe('dayglance_pro_annual')}
+          onSubscribeLifetime={() => subscribe('dayglance_pro_lifetime')}
           onRestore={restore}
         />
       )}

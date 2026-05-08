@@ -25,7 +25,7 @@ class SubscriptionBridge(
      * Returns the cached subscription status as JSON.
      * Reads from SharedPreferences — always fast and safe to call on the JS thread.
      *
-     * Response: `{"active": bool, "productId": "dayglance_pro_monthly" | "dayglance_pro_annual" | ""}`
+     * Response: `{"active": bool, "productId": "dayglance_pro_monthly" | "dayglance_pro_lifetime" | ""}`
      */
     @JavascriptInterface
     fun getStatus(): String {
@@ -46,11 +46,11 @@ class SubscriptionBridge(
     }
 
     /**
-     * Launches the Google Play subscription purchase sheet for the given product ID.
+     * Launches the Google Play purchase sheet for the given product ID.
      *
      * Valid product IDs:
-     *   - "dayglance_pro_monthly"
-     *   - "dayglance_pro_annual"
+     *   - "dayglance_pro_monthly"  (subscription)
+     *   - "dayglance_pro_lifetime" (one-time purchase)
      *
      * The purchase result is delivered asynchronously. JS should listen for
      * visibilitychange and re-call getStatus() when the app comes back to the foreground.
@@ -59,7 +59,7 @@ class SubscriptionBridge(
     fun purchase(productId: String) {
         val safeId = if (productId in BillingManager.ALL_PRODUCTS) productId
                      else BillingManager.PRODUCT_MONTHLY
-        billingManager.launchSubscriptionFlow(safeId)
+        billingManager.launchPurchaseFlow(safeId)
     }
 
     /**
@@ -67,22 +67,22 @@ class SubscriptionBridge(
      * Values are null-safe empty strings until the billing client has connected
      * and queried product details at least once.
      *
-     * Response: `{"monthly": "£2.99", "annual": "£19.99"}`
+     * Response: `{"monthly": "£2.99", "lifetime": "£49.99"}`
      */
     @JavascriptInterface
     fun getProductPrices(): String {
-        val monthly = (dataStore.productPriceMonthly ?: "")
+        val monthly  = (dataStore.productPriceMonthly  ?: "")
             .replace("\\", "\\\\").replace("\"", "\\\"")
-        val annual = (dataStore.productPriceAnnual ?: "")
+        val lifetime = (dataStore.productPriceLifetime ?: "")
             .replace("\\", "\\\\").replace("\"", "\\\"")
-        return """{"monthly":"$monthly","annual":"$annual"}"""
+        return """{"monthly":"$monthly","lifetime":"$lifetime"}"""
     }
 
     /**
-     * Convenience: returns "dayglance_pro_monthly" and "dayglance_pro_annual" as a
-     * JSON array so JS knows exactly which product IDs to pass to purchase().
+     * Convenience: returns product IDs as a JSON array so JS knows exactly
+     * which IDs to pass to purchase().
      */
     @JavascriptInterface
     fun getProductIds(): String =
-        """["${BillingManager.PRODUCT_MONTHLY}","${BillingManager.PRODUCT_ANNUAL}"]"""
+        """["${BillingManager.PRODUCT_MONTHLY}","${BillingManager.PRODUCT_LIFETIME}"]"""
 }
