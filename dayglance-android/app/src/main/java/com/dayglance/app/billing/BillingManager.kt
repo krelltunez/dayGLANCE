@@ -15,6 +15,8 @@ import com.dayglance.app.data.SharedDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * Manages the Google Play Billing client lifecycle for dayGLANCE subscriptions.
@@ -123,32 +125,21 @@ class BillingManager(
         billingClient.endConnection()
     }
 
+    private suspend fun queryPurchasesForType(productType: String): List<Purchase> =
+        suspendCancellableCoroutine { cont ->
+            billingClient.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder().setProductType(productType).build()
+            ) { _, purchases -> cont.resume(purchases) }
+        }
+
     fun queryPurchases() {
         if (!billingClient.isReady) return
         scope.launch {
-            // Use suspend queryPurchasesAsync (billing-ktx) so INAPP query only
-            // runs after SUBS query has actually completed — avoids a race condition
-            // where the callback-based version would always fire both queries in
-            // parallel and let whichever finished last win.
-            val subsResult = billingClient.queryPurchasesAsync(
-                QueryPurchasesParams.newBuilder()
-                    .setProductType(BillingClient.ProductType.SUBS)
-                    .build()
-            )
-            val activeSub = if (subsResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                subsResult.purchasesList.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-            } else null
+            val activeSub = queryPurchasesForType(BillingClient.ProductType.SUBS)
+                .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
 
-            val active = activeSub ?: run {
-                val inappResult = billingClient.queryPurchasesAsync(
-                    QueryPurchasesParams.newBuilder()
-                        .setProductType(BillingClient.ProductType.INAPP)
-                        .build()
-                )
-                if (inappResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    inappResult.purchasesList.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-                } else null
-            }
+            val active = activeSub ?: queryPurchasesForType(BillingClient.ProductType.INAPP)
+                .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
 
             if (active != null) {
                 if (!active.isAcknowledged) acknowledgePurchase(active)
