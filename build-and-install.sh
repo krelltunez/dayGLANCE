@@ -42,14 +42,16 @@ if $RELEASE; then
   cd "$SCRIPT_DIR"
   npm run build:android
 
-  echo "==> Building Android APK + AAB..."
+  echo "==> Building Android APK + AAB (play) and GitHub APK..."
   cd "$ANDROID_DIR"
-  ./gradlew assembleRelease bundleRelease
+  ./gradlew assemblePlayRelease bundlePlayRelease assembleGithubRelease
 
-  cp "app/build/outputs/apk/release/dayglance.apk" "$OUT_DIR/dayglance.apk"
-  echo "    APK  → outputs/dayglance.apk"
-  cp "app/build/outputs/bundle/release/app-release.aab" "$OUT_DIR/dayglance.aab"
-  echo "    AAB  → outputs/dayglance.aab"
+  cp "app/build/outputs/apk/play/release/dayglance.apk" "$OUT_DIR/dayglance.apk"
+  echo "    APK (Play)   → outputs/dayglance.apk"
+  cp "app/build/outputs/bundle/playRelease/app-play-release.aab" "$OUT_DIR/dayglance.aab"
+  echo "    AAB (Play)   → outputs/dayglance.aab"
+  cp "app/build/outputs/apk/github/release/dayglance.apk" "$OUT_DIR/dayglance-github.apk"
+  echo "    APK (GitHub) → outputs/dayglance-github.apk"
 
   echo ""
   echo "==> Android release build complete. outputs/:"
@@ -61,12 +63,12 @@ else
   cd "$SCRIPT_DIR"
   npm run build:android
 
-  APK_SRC="$ANDROID_DIR/app/build/outputs/apk/debug/app-debug.apk"
+  APK_SRC="$ANDROID_DIR/app/build/outputs/apk/play/debug/app-play-debug.apk"
   APK_DEST="$OUT_DIR/dayglance-debug.apk"
 
   echo "==> Building debug APK..."
   cd "$ANDROID_DIR"
-  ./gradlew assembleDebug
+  ./gradlew assemblePlayDebug
 
   cp "$APK_SRC" "$APK_DEST"
   echo "==> Installing on connected device..."
