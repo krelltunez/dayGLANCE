@@ -149,8 +149,19 @@ export const nativeBuildNoteIndex = () => {
 };
 
 /**
- * Clears the stored vault URI on the Android side, resetting the integration
- * to unconfigured state. The SAF permission is not revoked.
+ * Opens the system folder picker so the user can select an Obsidian vault.
+ * On Android this launches SAF; on iOS it presents UIDocumentPickerViewController.
+ * The bridge posts a webview reload notification after the user picks a folder.
+ */
+export const nativePickVault = () => {
+  const bridge = obsidianBridge();
+  if (!bridge?.pickVault) return;
+  bridge.pickVault();
+};
+
+/**
+ * Clears the stored vault URI, resetting the integration to unconfigured state.
+ * The SAF permission is not revoked on Android.
  */
 export const nativeClearVault = () => {
   const bridge = obsidianBridge();

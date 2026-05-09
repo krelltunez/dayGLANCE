@@ -9,7 +9,7 @@ import {
   Undo2, Upload, Volume2, VolumeX, Wifi, Zap,
 } from 'lucide-react';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
-import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeGetCalendars, nativePickVault } from '../native.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes } from '../obsidian.js';
@@ -1204,7 +1204,7 @@ const MobileSettingsPanel = () => {
       <p className={`text-xs ${textSecondary}`}>
         Import tasks and sync daily notes with your Obsidian vault.
       </p>
-      {!isNativeAndroid() && !isFileSystemAccessSupported() && (
+      {!isNativeApp() && !isFileSystemAccessSupported() && (
         <p className={`text-xs text-amber-500`}>
           Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
         </p>
@@ -1224,13 +1224,23 @@ const MobileSettingsPanel = () => {
           )}
           {/* Vault path + new notes folder — configured in native SettingsActivity */}
           <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => window.DayGlanceNative.openSettings()}
-              className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
-            >
-              <FolderOpen size={14} />
-              Vault Settings
-            </button>
+            {isNativeAndroid() ? (
+              <button
+                onClick={() => window.DayGlanceNative.openSettings()}
+                className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
+              >
+                <FolderOpen size={14} />
+                Vault Settings
+              </button>
+            ) : (
+              <button
+                onClick={() => nativePickVault()}
+                className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
+              >
+                <FolderOpen size={14} />
+                {obsidianConfig?.enabled ? 'Change Vault' : 'Connect Vault'}
+              </button>
+            )}
             {obsidianConfig?.enabled && (
               <>
                 <button
