@@ -4789,6 +4789,20 @@ const DayPlanner = () => {
         const localOnly = (localData.tasks || []).filter(t => !remoteIds.has(String(t.id)));
         if (localOnly.length) console.log('[sync] local-only tasks (not in remote):', JSON.stringify(localOnly.map(t => ({ id: t.id, title: t.title, imported: t.imported, isTaskCalendar: t.isTaskCalendar, importSource: t.importSource, _native: t._native }))));
       }
+      if (remoteChanged || localChanged) {
+        const fields = ['tasks','unscheduledTasks','recycleBin','recurringTasks','completedTaskUids','dailyNotes','habits','habitLogs','routineDefinitions','todayRoutines','gtdFrames','goals','projects'];
+        const diffs = fields.filter(f => {
+          const l = Array.isArray(localData[f]) ? localData[f].length : Object.keys(localData[f] || {}).length;
+          const r = Array.isArray(remote.data[f]) ? remote.data[f].length : Object.keys(remote.data[f] || {}).length;
+          return l !== r;
+        }).map(f => {
+          const l = Array.isArray(localData[f]) ? localData[f].length : Object.keys(localData[f] || {}).length;
+          const r = Array.isArray(remote.data[f]) ? remote.data[f].length : Object.keys(remote.data[f] || {}).length;
+          return `${f}: local=${l} remote=${r}`;
+        });
+        if (diffs.length) console.log('[sync] field size diffs:', diffs.join(', '));
+        else console.log('[sync] no field size diffs (timestamp-only or tombstone difference)');
+      }
 
       if (localChanged) {
         applyRemoteData(mergedData);
