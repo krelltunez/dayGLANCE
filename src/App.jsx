@@ -1177,7 +1177,9 @@ const DayPlanner = () => {
   useEffect(() => {
     if (isTrayMode) return;
     const handleVisibility = () => {
-      if (!document.hidden) {
+      // iOS uses the dayglanceForeground custom event instead (see below) to
+      // avoid a double-sync from both the native visibilitychange and our Swift dispatch.
+      if (!document.hidden && !window.DayGlanceIOS) {
         setCurrentTime(new Date());
         if (Date.now() >= cloudSyncBackoffUntilRef.current) {
           cloudSyncDownloadRef.current?.();
