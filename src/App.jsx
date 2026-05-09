@@ -4484,8 +4484,14 @@ const DayPlanner = () => {
       version: 2,
       lastModified: new Date().toISOString(),
       data: {
-        tasks: stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks'),
-        unscheduledTasks: stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled'),
+        tasks: stampTaskTimestamps(
+          tasks.filter(t => !t._native && !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          'day-planner-tasks'
+        ),
+        unscheduledTasks: stampTaskTimestamps(
+          unscheduledTasks.filter(t => !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          'day-planner-unscheduled'
+        ),
         unscheduledOrderTimestamp,
         recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
         syncUrl,
