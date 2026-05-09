@@ -20,19 +20,6 @@ struct WebView: UIViewRepresentable {
         )
         config.userContentController.addUserScript(shim)
 
-        // Prevent pinch-to-zoom by overriding the viewport meta after the page loads.
-        // WKWebView ignores min/maxZoomScale and pinchGestureRecognizer.isEnabled — the
-        // viewport user-scalable=no flag is the only approach it reliably honours.
-        let noZoom = WKUserScript(
-            source: """
-            var m = document.querySelector('meta[name="viewport"]');
-            if (m) m.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
-            """,
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(noZoom)
-
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
 
