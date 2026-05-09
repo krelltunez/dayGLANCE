@@ -1,4 +1,5 @@
 import UIKit
+import AVFoundation
 import UserNotifications
 
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -7,6 +8,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Configure audio session up front so WKWebView's Web Audio API doesn't
+        // trigger AVAudioSession routing warnings on first sound. Ambient mixes
+        // with other audio and respects the silent switch — correct for UI sounds.
+        try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
+
         NotificationBridge.shared.registerCategories()
         UNUserNotificationCenter.current().delegate = self
         return true
