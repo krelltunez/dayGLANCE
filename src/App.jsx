@@ -4807,8 +4807,40 @@ const DayPlanner = () => {
           const mergedDiffFields = Object.keys(mergedData).filter(f => {
             return JSON.stringify(mergedData[f]) !== JSON.stringify(remote.data[f]);
           });
-          if (mergedDiffFields.length) console.log('[sync] merged≠remote fields:', mergedDiffFields.join(', '));
-          else console.log('[sync] merged === remote on all fields (tombstone size difference)');
+          if (mergedDiffFields.length) {
+            console.log('[sync] merged≠remote fields:', mergedDiffFields.join(', '));
+            // Per-task diff: show which tasks differ and whether it's timestamp-only or content
+            if (mergedDiffFields.includes('tasks')) {
+              const remoteTaskMap = new Map((remote.data.tasks || []).map(t => [String(t.id), t]));
+              for (const t of (mergedData.tasks || [])) {
+                const rt = remoteTaskMap.get(String(t.id));
+                if (!rt) { console.log('[sync] task in merged not in remote:', t.id, t.title); continue; }
+                if (JSON.stringify(t) === JSON.stringify(rt)) continue;
+                const { lastModified: lm1, ...tRest } = t;
+                const { lastModified: lm2, ...rtRest } = rt;
+                const contentDiffers = JSON.stringify(tRest) !== JSON.stringify(rtRest);
+                console.log('[sync] task diff id=' + t.id + ' "' + t.title + '"',
+                  contentDiffers ? 'CONTENT differs' : 'timestamp-only',
+                  'merged.lm=' + lm1, 'remote.lm=' + lm2);
+              }
+            }
+            // Per-date habitLog diff
+            if (mergedDiffFields.includes('habitLogs')) {
+              const rLogs = remote.data.habitLogs || {};
+              for (const [date, mDay] of Object.entries(mergedData.habitLogs || {})) {
+                const rDay = rLogs[date];
+                if (!rDay) { console.log('[sync] habitLog date in merged not in remote:', date); continue; }
+                if (JSON.stringify(mDay) === JSON.stringify(rDay)) continue;
+                const allHabitIds = new Set([...Object.keys(mDay), ...Object.keys(rDay)]);
+                for (const hid of allHabitIds) {
+                  if ((mDay[hid] ?? 0) !== (rDay[hid] ?? 0)) {
+                    console.log('[sync] habitLog diff date=' + date + ' habit=' + hid,
+                      'merged=' + (mDay[hid] ?? 0), 'remote=' + (rDay[hid] ?? 0));
+                  }
+                }
+              }
+            }
+          } else console.log('[sync] merged === remote on all fields (tombstone size difference)');
         }
       }
 
