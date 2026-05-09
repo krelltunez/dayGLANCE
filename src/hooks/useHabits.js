@@ -188,7 +188,14 @@ const useHabits = ({ playUISound }) => {
       setHabitLogs(prev => {
         const next = { ...prev };
         for (const [dateStr, entries] of Object.entries(updates)) {
-          next[dateStr] = { ...next[dateStr], ...entries };
+          const prevDay = next[dateStr] || {};
+          const merged = { ...prevDay };
+          for (const [habitId, count] of Object.entries(entries)) {
+            // Never downgrade a count already in state (e.g. a value that arrived
+            // via cloud sync from the other device's health platform).
+            merged[habitId] = Math.max(prevDay[habitId] || 0, count);
+          }
+          next[dateStr] = merged;
         }
         return next;
       });
