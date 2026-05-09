@@ -61,7 +61,7 @@ const MobileSettingsPanel = () => {
     autoBackupStatus, autoBackupHistory,
     setAutoBackupRestoreConfirm,
     cloudSyncConfig, setCloudSyncConfig,
-    cloudSyncStatus, cloudSyncLastSynced,
+    cloudSyncStatus, cloudSyncLastSynced, cloudSyncError,
     syncKeyReady, setSyncKeyReady,
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
@@ -227,7 +227,15 @@ const MobileSettingsPanel = () => {
                 (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
               }`} />
             </div>
-            <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+            <div className="flex-1 text-left">
+              <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+              {cloudSyncStatus === 'error' && cloudSyncError && (
+                <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
+              )}
+              {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
+                <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
+              )}
+            </div>
           </button>
         )}
         {isNativeApp() && (
