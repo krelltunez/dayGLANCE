@@ -27,6 +27,9 @@ targets:
       path: DayGlance/DayGlance.entitlements
       properties:
         com.apple.developer.healthkit: true
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.dayglance
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.dayglance
     postBuildScripts:
       - name: Copy Web Assets
         script: |
@@ -42,7 +45,7 @@ targets:
           fi
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.dayglance.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.dayglance
         INFOPLIST_FILE: DayGlance/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
