@@ -1185,8 +1185,21 @@ const DayPlanner = () => {
         syncHealthConnectHabitsRef.current?.();
       }
     };
+    // Native iOS fires a custom event to bypass the document.hidden timing gap
+    // that occurs when scenePhase fires before WKWebView updates visibility state.
+    const handleNativeForeground = () => {
+      setCurrentTime(new Date());
+      if (Date.now() >= cloudSyncBackoffUntilRef.current) {
+        cloudSyncDownloadRef.current?.();
+      }
+      syncHealthConnectHabitsRef.current?.();
+    };
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('dayglanceForeground', handleNativeForeground);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('dayglanceForeground', handleNativeForeground);
+    };
   }, []);
 
   // Auto-refresh page at midnight (00:00:01) to reset the timeline to the new day
@@ -4764,6 +4777,10 @@ const DayPlanner = () => {
       if (localChanged) {
         applyRemoteData(mergedData);
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+        // On first sync the setState calls from applyRemoteData don't always
+        // propagate visibly before the user notices the empty screen. A reload
+        // guarantees a clean render from localStorage. Only do this once.
+        if (hasNeverSynced) setTimeout(() => window.location.reload(), 500);
       }
 
       if (remoteChanged) {

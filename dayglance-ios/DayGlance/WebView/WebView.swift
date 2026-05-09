@@ -41,15 +41,18 @@ struct WebView: UIViewRepresentable {
             webView?.reload()
         }
 
-        // Fire visibilitychange in JS whenever the app comes to foreground so
-        // the cloud sync download handler runs even if WKWebView didn't emit it.
+        // Fire a custom event whenever the app comes to foreground so the
+        // cloud sync download handler runs immediately. We use a custom event
+        // rather than visibilitychange because scenePhase fires before WKWebView
+        // updates document.hidden, so the visibilitychange handler's
+        // !document.hidden guard would incorrectly skip the sync.
         NotificationCenter.default.addObserver(
             forName: .dayGlanceForeground,
             object: nil,
             queue: .main
         ) { [weak webView] _ in
             webView?.evaluateJavaScript(
-                "document.dispatchEvent(new Event('visibilitychange'))",
+                "document.dispatchEvent(new Event('dayglanceForeground'))",
                 completionHandler: nil
             )
         }
