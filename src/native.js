@@ -106,7 +106,7 @@ export const nativeGetCalendars = () => {
   }
 };
 
-export const nativeGetEvents = async (date) => {
+export const nativeGetEvents = (date) => {
   const bridge = nativeBridge();
   if (!bridge?.getEvents) return null;
   try {

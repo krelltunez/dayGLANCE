@@ -2857,70 +2857,72 @@ const DayPlanner = () => {
       dates.push(dateToString(d));
     }
 
-    Promise.all(dates.map(d => nativeGetEvents(d))).then(results => {
-      // Tag each event with the date it was queried for so multi-day all-day events
-      // can be shown on every day they span, not just their start date.
-      const allEvents = results.flatMap((result, i) =>
-        Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
-      );
+    // nativeGetEvents uses synchronous XHR under the hood (iOS bridge). Calling it
+    // inside Promise.then() blocks the XHR on WKWebView, so we fetch synchronously.
+    const results = dates.map(d => nativeGetEvents(d));
 
-      // Discover calendars that appear in events but weren't returned by getCalendars()
-      // (e.g. task-only calendars that some providers omit from the calendars list).
-      setAvailableCalendars(prev => {
-        const knownIds = new Set(prev.map(c => c.id));
-        const newCals = [];
-        allEvents.forEach(e => {
-          if (e.calendarId && !knownIds.has(e.calendarId)) {
-            knownIds.add(e.calendarId);
-            newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
-          }
-        });
-        if (newCals.length === 0) return prev;
-        // Extend any active calendarFilter so newly discovered calendars show as checked.
-        setCalendarFilter(f => {
-          if (f.length === 0) return f;
-          const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
-          return toAdd.length > 0 ? [...f, ...toAdd] : f;
-        });
-        return [...prev, ...newCals];
+    // Tag each event with the date it was queried for so multi-day all-day events
+    // can be shown on every day they span, not just their start date.
+    const allEvents = results.flatMap((result, i) =>
+      Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
+    );
+
+    // Discover calendars that appear in events but weren't returned by getCalendars()
+    // (e.g. task-only calendars that some providers omit from the calendars list).
+    setAvailableCalendars(prev => {
+      const knownIds = new Set(prev.map(c => c.id));
+      const newCals = [];
+      allEvents.forEach(e => {
+        if (e.calendarId && !knownIds.has(e.calendarId)) {
+          knownIds.add(e.calendarId);
+          newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
+        }
       });
-
-      const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
-
-      // Deduplicate by task id: CalendarContract can return the same all-day event
-      // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
-      const seen = new Set();
-      const fetched = allEvents
-        .filter(e => !filterSet || filterSet.has(e.calendarId))
-        .map(e => nativeEventToTask(e))
-        .filter(t => {
-          if (seen.has(t.id)) return false;
-          seen.add(t.id);
-          return true;
-        });
-
-      // Apply any stored time overrides (from dragging all-day events to the timeline)
-      // so the scheduled position survives date navigation and native calendar re-fetches.
-      const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
-      const fetchedWithOverrides = fetched.map(t => {
-        const override = t.nativeEventId && overrides[String(t.nativeEventId)];
-        if (!override) return t;
-        return {
-          ...t,
-          ...(override.date !== undefined ? { date: override.date } : {}),
-          ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
-          ...(override.duration !== undefined ? { duration: override.duration } : {}),
-          ...(override.title !== undefined ? { title: override.title } : {}),
-          ...(override.notes !== undefined ? { notes: override.notes } : {}),
-          ...(override.color !== undefined ? { color: override.color } : {}),
-        };
+      if (newCals.length === 0) return prev;
+      // Extend any active calendarFilter so newly discovered calendars show as checked.
+      setCalendarFilter(f => {
+        if (f.length === 0) return f;
+        const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
+        return toAdd.length > 0 ? [...f, ...toAdd] : f;
       });
-
-      setTasks(prev => [
-        ...prev.filter(t => !t._native),
-        ...fetchedWithOverrides,
-      ]);
+      return [...prev, ...newCals];
     });
+
+    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
+
+    // Deduplicate by task id: CalendarContract can return the same all-day event
+    // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
+    const seen = new Set();
+    const fetched = allEvents
+      .filter(e => !filterSet || filterSet.has(e.calendarId))
+      .map(e => nativeEventToTask(e))
+      .filter(t => {
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+      });
+
+    // Apply any stored time overrides (from dragging all-day events to the timeline)
+    // so the scheduled position survives date navigation and native calendar re-fetches.
+    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+    const fetchedWithOverrides = fetched.map(t => {
+      const override = t.nativeEventId && overrides[String(t.nativeEventId)];
+      if (!override) return t;
+      return {
+        ...t,
+        ...(override.date !== undefined ? { date: override.date } : {}),
+        ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
+        ...(override.duration !== undefined ? { duration: override.duration } : {}),
+        ...(override.title !== undefined ? { title: override.title } : {}),
+        ...(override.notes !== undefined ? { notes: override.notes } : {}),
+        ...(override.color !== undefined ? { color: override.color } : {}),
+      };
+    });
+
+    setTasks(prev => [
+      ...prev.filter(t => !t._native),
+      ...fetchedWithOverrides,
+    ]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter, nativeCalendarKey]);
 
