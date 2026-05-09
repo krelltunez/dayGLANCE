@@ -9,7 +9,7 @@ import {
   Undo2, Upload, Volume2, VolumeX, Wifi, Zap,
 } from 'lucide-react';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
-import { isNativeAndroid, nativeGetCalendars } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes } from '../obsidian.js';
@@ -198,7 +198,7 @@ const MobileSettingsPanel = () => {
     </div>
 
     {/* Sync buttons */}
-    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeAndroid()) && (
+    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeApp()) && (
       <div className="space-y-2">
         <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
         {calSyncConfigured && (
@@ -230,7 +230,7 @@ const MobileSettingsPanel = () => {
             <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
           </button>
         )}
-        {isNativeAndroid() && (
+        {isNativeApp() && (
           <button
             onClick={() => setMobileSettingsView('obsidian')}
             className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
@@ -1209,7 +1209,7 @@ const MobileSettingsPanel = () => {
           Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
         </p>
       )}
-      {isNativeAndroid() ? (
+      {isNativeApp() ? (
         <div className="space-y-3">
           {obsidianConfig?.enabled ? (
             <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
