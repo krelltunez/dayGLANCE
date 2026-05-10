@@ -481,6 +481,8 @@ const DayPlanner = () => {
     cloudSyncBackoffUntilRef,
     cloudSyncDownloadErrorCountRef,
     cloudSyncDownloadBackoffUntilRef,
+    cloudSyncPendingUploadRef,
+    iCloudPendingRef,
   } = useCloudSync();
 
   // Ref so interval/timeout callbacks can read the current syncKeyReady without stale closure
@@ -1324,7 +1326,10 @@ const DayPlanner = () => {
     const onMac = !onIOS && isElectronMac();
     if (!onIOS && !onMac) return;
     if (!dataLoaded) return;
-    if (cloudSyncInProgressRef.current) return;
+    if (cloudSyncInProgressRef.current) {
+      iCloudPendingRef.current = true;
+      return;
+    }
 
     // If encryption is configured but the key isn't ready yet (passphrase not entered),
     // skip — we must not read an encrypted file we can't decrypt, or write plaintext.
@@ -1366,7 +1371,13 @@ const DayPlanner = () => {
       let remote;
       try { remote = JSON.parse(str); } catch { return; }
       if (remote?.downloading) return;
-      if (remote?.error) { console.error('iCloud unavailable:', remote.error); return; }
+      if (remote?.error) {
+        console.error('iCloud unavailable:', remote.error);
+        setCloudSyncError(`iCloud unavailable: ${remote.error}`);
+        setCloudSyncStatus('error');
+        setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
+        return;
+      }
 
       // Decrypt if the file is an encrypted envelope.
       if (isEncryptedEnvelope(remote)) {
@@ -1378,7 +1389,7 @@ const DayPlanner = () => {
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
       if (localChanged) {
-        applyRemoteData(mergedData);
+        applyRemoteData(mergedData, { allowEmpty: !!remote.lastModified });
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
       if (remoteChanged || localChanged) {
@@ -4711,7 +4722,12 @@ const DayPlanner = () => {
   };
 
   const cloudSyncUpload = async (prebuiltPayload, { skipLockCheck = false, etag = null } = {}) => {
-    if (!cloudSyncConfig?.enabled || (!skipLockCheck && cloudSyncInProgressRef.current)) return;
+    if (!cloudSyncConfig?.enabled || (!skipLockCheck && cloudSyncInProgressRef.current)) {
+      // A download is in flight. Mark that a local change needs uploading
+      // so the download cycle schedules a follow-up upload on completion.
+      if (!skipLockCheck && cloudSyncInProgressRef.current) cloudSyncPendingUploadRef.current = true;
+      return;
+    }
     const provider = cloudSyncProviders[cloudSyncConfig.provider];
     if (!provider) return;
 
@@ -4771,13 +4787,15 @@ const DayPlanner = () => {
     }
   };
 
-  const applyRemoteData = (data) => {
+  const applyRemoteData = (data, { allowEmpty = false } = {}) => {
     // Safety check: if remote/merged data has zero tasks but local has data,
     // something went wrong in the merge — skip applying to avoid data wipe.
+    // Exception: if the remote had a valid lastModified, an empty result is an
+    // intentional "delete everything" propagation (allowEmpty=true) and must go through.
     const localTaskCount = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]').length;
     const localInboxCount = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]').length;
     const remoteTaskCount = (data.tasks?.length || 0) + (data.unscheduledTasks?.length || 0);
-    if (localTaskCount + localInboxCount > 0 && remoteTaskCount === 0) {
+    if (!allowEmpty && localTaskCount + localInboxCount > 0 && remoteTaskCount === 0) {
       console.error('applyRemoteData aborted: remote has 0 tasks but local has', localTaskCount + localInboxCount);
       return;
     }
@@ -4955,6 +4973,18 @@ const DayPlanner = () => {
     // Flag for the save effect to clear suppress after the initial (merged-data) save pass.
     // This avoids a fixed 500ms window that could swallow user actions.
     suppressClearPendingRef.current = true;
+
+    // Safety net: if none of the conditional state setters above fired (all data
+    // was already identical), useSaveOnChange never re-runs and the suppress flags
+    // remain stuck. Clear them unconditionally after a short delay so subsequent
+    // user actions are never permanently blocked.
+    setTimeout(() => {
+      if (suppressClearPendingRef.current) {
+        suppressClearPendingRef.current = false;
+        suppressCloudUploadRef.current = false;
+        suppressTimestampRef.current = false;
+      }
+    }, 500);
   };
 
   const cloudSyncDownload = async () => {
@@ -4992,7 +5022,7 @@ const DayPlanner = () => {
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
       if (localChanged) {
-        applyRemoteData(mergedData);
+        applyRemoteData(mergedData, { allowEmpty: !!remote.lastModified });
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
 
@@ -5068,6 +5098,17 @@ const DayPlanner = () => {
       if (!conflictShown) {
         cloudSyncInProgressRef.current = false;
         if (!passphraseRequired) cloudSyncInitialDoneRef.current = true;
+
+        // If a local change arrived while the download held the lock, upload it now.
+        if (cloudSyncPendingUploadRef.current) {
+          cloudSyncPendingUploadRef.current = false;
+          setTimeout(() => cloudSyncUpload(), 0);
+        }
+        // If iCloudSync was skipped because the lock was held, run it now.
+        if (iCloudPendingRef.current) {
+          iCloudPendingRef.current = false;
+          setTimeout(() => iCloudSyncRef.current?.(), 0);
+        }
       }
     }
   };

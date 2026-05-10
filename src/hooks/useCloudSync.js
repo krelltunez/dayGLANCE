@@ -31,6 +31,12 @@ const useCloudSync = () => {
   // Download-specific backoff (separate so upload failures don't block downloads and vice versa)
   const cloudSyncDownloadErrorCountRef  = useRef(0);
   const cloudSyncDownloadBackoffUntilRef = useRef(0);
+  // Set to true when a debounced upload fires while a download holds the lock,
+  // so the download cycle can trigger a follow-up upload on completion (H1).
+  const cloudSyncPendingUploadRef = useRef(false);
+  // Set to true when iCloudSync is skipped because WebDAV holds the lock,
+  // so the download cycle can re-run iCloud on completion (H2).
+  const iCloudPendingRef = useRef(false);
 
   // Persist cloud sync config
   useEffect(() => {
@@ -80,6 +86,8 @@ const useCloudSync = () => {
     cloudSyncBackoffUntilRef,
     cloudSyncDownloadErrorCountRef,
     cloudSyncDownloadBackoffUntilRef,
+    cloudSyncPendingUploadRef,
+    iCloudPendingRef,
   };
 };
 

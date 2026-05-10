@@ -25,7 +25,10 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       ok: result.ok,
       statusText: result.error || '',
       headers: { get: (h) => (h.toLowerCase() === 'etag' ? result.headers?.etag ?? null : null) },
-      json: async () => JSON.parse(result.body),
+      json: async () => {
+        try { return JSON.parse(result.body); }
+        catch { throw new Error(`Server returned non-JSON response (status ${result.status})`); }
+      },
       text: async () => result.body,
     };
   }
@@ -47,7 +50,10 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       ok: result.ok,
       statusText: result.statusText,
       headers: { get: (h) => (h.toLowerCase() === 'etag' ? result.headers?.etag ?? null : null) },
-      json: async () => JSON.parse(result.body),
+      json: async () => {
+        try { return JSON.parse(result.body); }
+        catch { throw new Error(`Server returned non-JSON response (status ${result.status})`); }
+      },
       text: async () => result.body,
     };
   }
