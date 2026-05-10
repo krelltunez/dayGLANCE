@@ -3,7 +3,7 @@ import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey } from '../utils/crypto.js';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
-const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced, onSyncKeyReady }) => {
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, onSyncKeyReady }) => {
   const [formData, setFormData] = useState(() => {
     const initial = { provider: currentProvider };
     // Populate fields from all providers so switching preserves filled values
@@ -180,11 +180,13 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         )}
       </div>
 
-      {cloudSyncLastSynced && (
+      {cloudSyncStatus === 'error' && cloudSyncError ? (
+        <p className="text-xs text-red-500">{cloudSyncError}</p>
+      ) : cloudSyncLastSynced ? (
         <p className={`text-xs ${textSecondary}`}>
           Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
         </p>
-      )}
+      ) : null}
 
       <div className="flex justify-end gap-2 pt-2">
         <button
