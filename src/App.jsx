@@ -4344,7 +4344,7 @@ const DayPlanner = () => {
     };
 
     try {
-      const getRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
+      const getRes = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(resourceUrl)}`, {
         method: 'GET',
         headers: authHeaders
       });
@@ -4560,7 +4560,7 @@ const DayPlanner = () => {
       }
 
       // PUT the updated resource back
-      const putRes = await fetch(`/api/webdav-proxy/?url=${resourceUrl}`, {
+      const putRes = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(resourceUrl)}`, {
         method: 'PUT',
         headers: { ...authHeaders, 'Content-Type': 'text/calendar; charset=utf-8' },
         body: icsContent
@@ -4748,6 +4748,15 @@ const DayPlanner = () => {
       setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
     } catch (err) {
       console.error('Cloud sync upload error:', err);
+      if (err.message === 'PRECONDITION_FAILED') {
+        // Another device wrote between our download and upload.
+        // Re-throw so the download cycle can retry the full download→merge→upload.
+        // When called from the debounced upload path (not inside a download cycle),
+        // the next download poll will reconcile — just let it pass quietly.
+        if (skipLockCheck) throw err;
+        setCloudSyncStatus('idle');
+        return;
+      }
       cloudSyncErrorCountRef.current += 1;
       const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), 15 * 60) * 1000;
       cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
@@ -5029,6 +5038,8 @@ const DayPlanner = () => {
       if (err.message === 'PRECONDITION_FAILED') {
         try {
           await doDownloadMergeUpload(null);
+          cloudSyncDownloadErrorCountRef.current = 0;
+          cloudSyncDownloadBackoffUntilRef.current = 0;
         } catch (retryErr) {
           console.error('Cloud sync retry after 412 failed:', retryErr);
         }
