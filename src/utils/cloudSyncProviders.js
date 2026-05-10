@@ -24,7 +24,7 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       status: result.status,
       ok: result.ok,
       statusText: result.error || '',
-      headers: { get: () => null }, // Android bridge doesn't return response headers
+      headers: { get: (h) => (h.toLowerCase() === 'etag' ? result.headers?.etag ?? null : null) },
       json: async () => JSON.parse(result.body),
       text: async () => result.body,
     };
@@ -46,13 +46,13 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       status: result.status,
       ok: result.ok,
       statusText: result.statusText,
-      headers: { get: () => null }, // Electron bridge doesn't return response headers
+      headers: { get: (h) => (h.toLowerCase() === 'etag' ? result.headers?.etag ?? null : null) },
       json: async () => JSON.parse(result.body),
       text: async () => result.body,
     };
   }
   // On web: route through the server-side CORS proxy.
-  return fetch(`/api/webdav-proxy/?url=${targetUrl}`, {
+  return fetch(`/api/webdav-proxy/?url=${encodeURIComponent(targetUrl)}`, {
     method,
     headers: { ...authHeaders, ...extraHeaders },
     ...(body !== undefined && body !== null ? { body } : {}),

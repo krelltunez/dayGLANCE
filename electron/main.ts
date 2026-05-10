@@ -357,7 +357,7 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
     ...(body != null ? { body } : {}),
   });
   const text = await response.text();
-  return { status: response.status, ok: response.ok, statusText: response.statusText, body: text };
+  return { status: response.status, ok: response.ok, statusText: response.statusText, body: text, headers: { etag: response.headers.get('etag') || null } };
 });
 
 // Dock badge — macOS only
