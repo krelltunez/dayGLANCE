@@ -1379,9 +1379,16 @@ const DayPlanner = () => {
 
   // On Electron/macOS, sync immediately when the main process detects the iCloud
   // file was changed by the iOS app (fs.watch → icloud:changed IPC event).
+  // If a sync is already in progress, schedule a retry so the change isn't lost.
   useEffect(() => {
     if (!isElectronMac()) return;
-    return window.electronAPI.onICloudChanged?.(() => iCloudSyncRef.current?.());
+    return window.electronAPI.onICloudChanged?.(() => {
+      if (cloudSyncInProgressRef.current) {
+        setTimeout(() => iCloudSyncRef.current?.(), 2000);
+      } else {
+        iCloudSyncRef.current?.();
+      }
+    });
   }, []);
 
   // Cloud sync: download on app load or when sync is first enabled.
@@ -4841,7 +4848,10 @@ const DayPlanner = () => {
       const mergedIds = new Set(normalizedTasks.map(t => String(t.id)));
       return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported))];
     });
-    if (normalizedUnsched) setUnscheduledTasks(normalizedUnsched);
+    if (normalizedUnsched) setUnscheduledTasks(prev => {
+      const mergedIds = new Set(normalizedUnsched.map(t => String(t.id)));
+      return [...normalizedUnsched, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported))];
+    });
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);
@@ -4880,6 +4890,7 @@ const DayPlanner = () => {
     setCloudSyncStatus('downloading');
     setCloudSyncError(null);
     let conflictShown = false;
+    let passphraseRequired = false;
     try {
       const remote = await provider.download(cloudSyncConfig);
       if (!remote) {
@@ -4908,10 +4919,6 @@ const DayPlanner = () => {
       if (localChanged) {
         applyRemoteData(mergedData);
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
-        // On first sync the setState calls from applyRemoteData don't always
-        // propagate visibly before the user notices the empty screen. A reload
-        // guarantees a clean render from localStorage. Only do this once.
-        if (hasNeverSynced) setTimeout(() => window.location.reload(), 500);
       }
 
       if (remoteChanged || localChanged) {
@@ -4933,7 +4940,11 @@ const DayPlanner = () => {
         // Hold the lock through the upload (skipLockCheck) so no concurrent
         // sync can start between the download and its paired upload.
         await cloudSyncUpload(mergedPayload, { skipLockCheck: true });
-        // cloudSyncUpload sets its own success status
+        // On first sync, reload after the upload completes so the full merged
+        // dataset renders cleanly from localStorage. Reloading before the upload
+        // (the old setTimeout approach) could lose the merged result if the network
+        // round-trip took more than 500ms.
+        if (hasNeverSynced && localChanged) window.location.reload();
         return;
       }
 
@@ -4951,6 +4962,7 @@ const DayPlanner = () => {
       // If the file's encryption salt doesn't match the cached key and no passphrase
       // is in memory, re-show the passphrase modal so the user can re-enter it.
       if (err.code === 'PASSPHRASE_REQUIRED') {
+        passphraseRequired = true;
         setSyncKeyReady(false);
         setCloudSyncStatus('idle');
         return;
@@ -4972,11 +4984,12 @@ const DayPlanner = () => {
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
     } finally {
-      // Don't release the lock or mark initial sync done when the conflict modal is
-      // shown — the dialog button handlers do that explicitly.
+      // conflictShown: leave lock held — dialog button handlers release it and set initialDone.
+      // passphraseRequired: release lock but don't mark initial sync done — user must re-enter passphrase.
+      // Normal path: release lock and mark initial sync done.
       if (!conflictShown) {
         cloudSyncInProgressRef.current = false;
-        cloudSyncInitialDoneRef.current = true;
+        if (!passphraseRequired) cloudSyncInitialDoneRef.current = true;
       }
     }
   };

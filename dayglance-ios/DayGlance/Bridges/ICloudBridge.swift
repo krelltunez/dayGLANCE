@@ -17,7 +17,7 @@ final class ICloudBridge {
 
     // Suppress query callbacks that fire immediately after our own local write.
     private var lastLocalWriteDate: Date?
-    private let writeSuppressionInterval: TimeInterval = 3.0
+    private let writeSuppressionInterval: TimeInterval = 5.0
 
     // MARK: - Public API
 
@@ -29,6 +29,16 @@ final class ICloudBridge {
         }
         let fileURL = syncFileURL(in: container)
 
+        // On older iOS versions, a cloud-only file appears as a hidden .filename.icloud
+        // placeholder whose body is metadata, not JSON. Detect it before fileExists() so
+        // we never accidentally read placeholder bytes as sync data.
+        let placeholderURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("." + fileURL.lastPathComponent + ".icloud")
+        if FileManager.default.fileExists(atPath: placeholderURL.path) {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+            return #"{"downloading":true}"#
+        }
+
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return "null"
         }
@@ -36,8 +46,8 @@ final class ICloudBridge {
         // Trigger download if the file exists in cloud but hasn't been fetched locally yet.
         try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
 
-        // If it's still a cloud-only placeholder, signal "downloading" so the caller
-        // doesn't mistake it for "no remote file" and accidentally seed with empty data.
+        // If it's still a cloud-only placeholder per the ubiquitous status API, signal
+        // "downloading" so the caller doesn't seed iCloud with empty/stale data.
         if let values = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
            let status = values.ubiquitousItemDownloadingStatus,
            status == .notDownloaded {
