@@ -478,6 +478,8 @@ const DayPlanner = () => {
     cloudSyncDownloadRef,
     cloudSyncErrorCountRef,
     cloudSyncBackoffUntilRef,
+    cloudSyncDownloadErrorCountRef,
+    cloudSyncDownloadBackoffUntilRef,
   } = useCloudSync();
 
   // Ref so interval/timeout callbacks can read the current syncKeyReady without stale closure
@@ -1181,9 +1183,9 @@ const DayPlanner = () => {
       // avoid a double-sync from both the native visibilitychange and our Swift dispatch.
       if (!document.hidden && !window.DayGlanceIOS) {
         setCurrentTime(new Date());
-        if (Date.now() >= cloudSyncBackoffUntilRef.current) {
-          cloudSyncDownloadRef.current?.();
-        }
+        // Reset download backoff when user returns to the app so retries happen promptly.
+        cloudSyncDownloadBackoffUntilRef.current = 0;
+        cloudSyncDownloadRef.current?.();
         syncHealthConnectHabitsRef.current?.();
       }
     };
@@ -1191,11 +1193,10 @@ const DayPlanner = () => {
     // that occurs when scenePhase fires before WKWebView updates visibility state.
     const handleNativeForeground = () => {
       setCurrentTime(new Date());
+      cloudSyncDownloadBackoffUntilRef.current = 0;
       // iCloud runs first (fast local file I/O), then WebDAV (network)
       iCloudSyncRef.current?.();
-      if (Date.now() >= cloudSyncBackoffUntilRef.current) {
-        cloudSyncDownloadRef.current?.();
-      }
+      cloudSyncDownloadRef.current?.();
       syncHealthConnectHabitsRef.current?.();
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -1275,10 +1276,23 @@ const DayPlanner = () => {
   const isElectronMac = () =>
     !!(window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin');
 
+  const iCloudWriteSync = async (onIOS, payloadStr) => {
+    if (onIOS) {
+      try {
+        const r = JSON.parse(window.DayGlanceNative.writeICloudSync(payloadStr));
+        if (!r.ok) console.error('iCloud write failed:', r.error);
+      } catch { console.error('iCloud write failed'); }
+    } else {
+      const ok = await window.electronAPI.writeICloud(payloadStr);
+      if (!ok) console.error('iCloud write failed');
+    }
+  };
+
   const iCloudSync = async () => {
     const onIOS = isNativeIOS();
     const onMac = !onIOS && isElectronMac();
     if (!onIOS && !onMac) return;
+    if (!dataLoaded) return;
     if (cloudSyncInProgressRef.current) return;
 
     // iOS: check iCloud availability once and cache.
@@ -1299,18 +1313,23 @@ const DayPlanner = () => {
         : await window.electronAPI.readICloud();
 
       if (!str || str === 'null') {
-        // No remote file yet — seed it with local data.
-        const payload = JSON.stringify(buildSyncPayload());
-        if (onIOS) window.DayGlanceNative.writeICloudSync(payload);
-        else await window.electronAPI.writeICloud(payload);
+        // No remote file yet — seed it with local data, but only if state is hydrated.
+        // If React state is empty but localStorage has tasks, we'd wipe the cloud file.
+        const localTaskCount = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]').length;
+        const localInboxCount = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]').length;
+        const payload = buildSyncPayload();
+        const payloadTaskCount = (payload.data?.tasks?.length || 0) + (payload.data?.unscheduledTasks?.length || 0);
+        if (localTaskCount + localInboxCount > 0 && payloadTaskCount === 0) return;
+        await iCloudWriteSync(onIOS, JSON.stringify(payload));
         return;
       }
 
       // iCloud file exists but is still downloading from the cloud — skip this
-      // cycle and let the 60-second poll retry once it's available locally.
+      // cycle and let the 15-second poll retry once it's available locally.
       let remote;
       try { remote = JSON.parse(str); } catch { return; }
       if (remote?.downloading) return;
+      if (remote?.error) { console.error('iCloud unavailable:', remote.error); return; }
       if (!remote?.data) return;
 
       const localData = buildSyncPayload().data;
@@ -1321,9 +1340,8 @@ const DayPlanner = () => {
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
       if (remoteChanged || localChanged) {
-        const payload = JSON.stringify({ version: 2, lastModified: new Date().toISOString(), data: mergedData });
-        if (onIOS) window.DayGlanceNative.writeICloudSync(payload);
-        else await window.electronAPI.writeICloud(payload);
+        const payloadStr = JSON.stringify({ version: 2, lastModified: new Date().toISOString(), data: mergedData });
+        await iCloudWriteSync(onIOS, payloadStr);
       }
     } finally {
       cloudSyncInProgressRef.current = false;
@@ -1383,7 +1401,7 @@ const DayPlanner = () => {
   useEffect(() => {
     if (isTrayMode || !cloudSyncConfig?.enabled) return;
     const pollTimer = setInterval(() => {
-      if (syncKeyReadyRef.current && Date.now() >= cloudSyncBackoffUntilRef.current) {
+      if (syncKeyReadyRef.current && Date.now() >= cloudSyncDownloadBackoffUntilRef.current) {
         cloudSyncDownloadRef.current?.();
       }
     }, 60 * 1000);
@@ -4634,12 +4652,12 @@ const DayPlanner = () => {
     };
   };
 
-  const cloudSyncUpload = async (prebuiltPayload) => {
-    if (!cloudSyncConfig?.enabled || cloudSyncInProgressRef.current) return;
+  const cloudSyncUpload = async (prebuiltPayload, { skipLockCheck = false } = {}) => {
+    if (!cloudSyncConfig?.enabled || (!skipLockCheck && cloudSyncInProgressRef.current)) return;
     const provider = cloudSyncProviders[cloudSyncConfig.provider];
     if (!provider) return;
 
-    cloudSyncInProgressRef.current = true;
+    if (!skipLockCheck) cloudSyncInProgressRef.current = true;
     const syncStart = Date.now();
     setCloudSyncStatus('uploading');
     setCloudSyncError(null);
@@ -4682,7 +4700,7 @@ const DayPlanner = () => {
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
     } finally {
-      cloudSyncInProgressRef.current = false;
+      if (!skipLockCheck) cloudSyncInProgressRef.current = false;
     }
   };
 
@@ -4861,12 +4879,12 @@ const DayPlanner = () => {
     const syncStart = Date.now();
     setCloudSyncStatus('downloading');
     setCloudSyncError(null);
+    let conflictShown = false;
     try {
       const remote = await provider.download(cloudSyncConfig);
       if (!remote) {
-        // No remote file yet — do initial upload
-        cloudSyncInProgressRef.current = false;
-        await cloudSyncUpload();
+        // No remote file yet — do initial upload (hold lock through upload)
+        await cloudSyncUpload(undefined, { skipLockCheck: true });
         return;
       }
 
@@ -4874,11 +4892,12 @@ const DayPlanner = () => {
       const hasNeverSynced = !localStorage.getItem('day-planner-cloud-sync-last-synced');
 
       if (hasNeverSynced && remoteModified) {
-        // First sync on this device — ask user what to do
-        // Keep inProgressRef locked so poll timer doesn't re-trigger
+        // First sync on this device — ask user what to do.
+        // Set conflictShown so the finally block doesn't release the lock;
+        // conflict dialog handlers release it explicitly.
+        conflictShown = true;
         setCloudSyncConflict({ remoteData: remote.data, remoteModified });
         setCloudSyncStatus('idle');
-        // Don't release lock — conflict dialog handlers will release it
         return;
       }
 
@@ -4911,14 +4930,15 @@ const DayPlanner = () => {
           lastModified: new Date().toISOString(),
           data: mergedData,
         };
-        cloudSyncInProgressRef.current = false;
-        await cloudSyncUpload(mergedPayload);
+        // Hold the lock through the upload (skipLockCheck) so no concurrent
+        // sync can start between the download and its paired upload.
+        await cloudSyncUpload(mergedPayload, { skipLockCheck: true });
         // cloudSyncUpload sets its own success status
         return;
       }
 
-      cloudSyncErrorCountRef.current = 0; // reset error backoff on success
-      cloudSyncBackoffUntilRef.current = 0;
+      cloudSyncDownloadErrorCountRef.current = 0;
+      cloudSyncDownloadBackoffUntilRef.current = 0;
       const elapsed = Date.now() - syncStart;
       if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
@@ -4935,19 +4955,29 @@ const DayPlanner = () => {
         setCloudSyncStatus('idle');
         return;
       }
-      cloudSyncErrorCountRef.current += 1;
-      // Exponential backoff: 30s, 60s, 2m, 4m … capped at 15 min
-      const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), 15 * 60) * 1000;
-      cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
+      // 423 Locked = another client is writing right now.
+      // Use a short fixed retry rather than escalating backoff — the lock clears quickly.
+      if (err.message?.includes('423')) {
+        cloudSyncDownloadBackoffUntilRef.current = Date.now() + 30_000;
+      } else {
+        cloudSyncDownloadErrorCountRef.current += 1;
+        // Exponential backoff: 30s, 60s, 2m, 4m … capped at 5 min
+        const backoffMs = Math.min(30 * Math.pow(2, cloudSyncDownloadErrorCountRef.current - 1), 5 * 60) * 1000;
+        cloudSyncDownloadBackoffUntilRef.current = Date.now() + backoffMs;
+      }
       const errMsg = err.message === 'FORBIDDEN'
-        ? 'Sync blocked (403) — your server may be blocking Vercel\'s IP addresses.'
+        ? 'Sync blocked (403) — your server may be blocking requests.'
         : err.message;
       setCloudSyncError(errMsg);
       setCloudSyncStatus('error');
       setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
     } finally {
-      cloudSyncInProgressRef.current = false;
-      cloudSyncInitialDoneRef.current = true;
+      // Don't release the lock or mark initial sync done when the conflict modal is
+      // shown — the dialog button handlers do that explicitly.
+      if (!conflictShown) {
+        cloudSyncInProgressRef.current = false;
+        cloudSyncInitialDoneRef.current = true;
+      }
     }
   };
 

@@ -268,20 +268,36 @@ const ICLOUD_SYNC_PATH = path.join(
 ipcMain.handle('icloud:read', () => {
   if (process.platform !== 'darwin') return null;
   try {
-    if (!fs.existsSync(ICLOUD_SYNC_PATH)) return null;
+    const dir = path.dirname(ICLOUD_SYNC_PATH);
+    const base = path.basename(ICLOUD_SYNC_PATH);
+    // iCloud daemon stores cloud-only files as hidden .filename.icloud placeholders.
+    // Detect this case and tell JS to wait rather than treating it as "no remote file".
+    if (!fs.existsSync(ICLOUD_SYNC_PATH)) {
+      if (fs.existsSync(path.join(dir, '.' + base + '.icloud'))) {
+        return JSON.stringify({ downloading: true });
+      }
+      return null;
+    }
     return fs.readFileSync(ICLOUD_SYNC_PATH, 'utf-8');
   } catch { return null; }
 });
 
 // Track our own writes so the fs.watch callback can ignore them.
 let lastMacOSWriteTime = 0;
-const ICLOUD_WRITE_SUPPRESSION_MS = 3000;
+// 5s suppression: iCloud daemon can take longer than 3s to propagate a write
+// back through fs.watch, causing self-echo sync cycles.
+const ICLOUD_WRITE_SUPPRESSION_MS = 5000;
 
 ipcMain.handle('icloud:write', (_event, json: string) => {
   if (process.platform !== 'darwin') return false;
   try {
-    fs.mkdirSync(path.dirname(ICLOUD_SYNC_PATH), { recursive: true });
-    fs.writeFileSync(ICLOUD_SYNC_PATH, json, { encoding: 'utf-8' });
+    const dir = path.dirname(ICLOUD_SYNC_PATH);
+    fs.mkdirSync(dir, { recursive: true });
+    // Atomic write: write to a temp file then rename so the iCloud daemon never
+    // picks up a partially-written file.
+    const tmp = ICLOUD_SYNC_PATH + '.tmp';
+    fs.writeFileSync(tmp, json, { encoding: 'utf-8' });
+    fs.renameSync(tmp, ICLOUD_SYNC_PATH);
     lastMacOSWriteTime = Date.now();
     return true;
   } catch { return false; }
@@ -289,7 +305,7 @@ ipcMain.handle('icloud:write', (_event, json: string) => {
 
 // Watch the iCloud container directory for changes written by the iOS app.
 // Sends 'icloud:changed' to the renderer so it can run a sync cycle immediately
-// instead of waiting for the 60-second poll.
+// instead of waiting for the 15-second poll.
 function startICloudWatch(win: BrowserWindow): void {
   if (process.platform !== 'darwin') return;
   const dir = path.dirname(ICLOUD_SYNC_PATH);
@@ -298,20 +314,30 @@ function startICloudWatch(win: BrowserWindow): void {
 
   let debounce: ReturnType<typeof setTimeout> | null = null;
 
-  try {
-    fs.watch(dir, (_eventType, filename) => {
-      if (filename !== file) return;
-      if (Date.now() - lastMacOSWriteTime < ICLOUD_WRITE_SUPPRESSION_MS) return;
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        try {
-          if (!fs.existsSync(ICLOUD_SYNC_PATH)) return;
-          const content = fs.readFileSync(ICLOUD_SYNC_PATH, 'utf-8');
-          live(win)?.webContents.send('icloud:changed', content);
-        } catch {}
-      }, 500);
-    });
-  } catch {}
+  // Re-attachable watcher: iCloud daemon can recreate the directory (e.g. on
+  // Sonoma+), which kills the watcher silently. Re-attach on error or close.
+  const attach = () => {
+    try {
+      const watcher = fs.watch(dir, (_eventType, filename) => {
+        if (filename !== file) return;
+        if (Date.now() - lastMacOSWriteTime < ICLOUD_WRITE_SUPPRESSION_MS) return;
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          try {
+            if (!fs.existsSync(ICLOUD_SYNC_PATH)) return;
+            const content = fs.readFileSync(ICLOUD_SYNC_PATH, 'utf-8');
+            live(win)?.webContents.send('icloud:changed', content);
+          } catch {}
+        }, 1000);
+      });
+      watcher.on('error', () => setTimeout(attach, 5000));
+      watcher.on('close', () => setTimeout(attach, 5000));
+    } catch {
+      setTimeout(attach, 5000);
+    }
+  };
+
+  attach();
 }
 
 // Proxy outbound HTTP requests from the renderer so they aren't subject to

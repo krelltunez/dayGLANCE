@@ -18,15 +18,19 @@ const useCloudSync = () => {
   // false = passphrase required (encryption enabled, no cached key)
   const [syncKeyReady, setSyncKeyReady] = useState(null);
 
-  const cloudSyncDebounceRef       = useRef(null);
-  const suppressCloudUploadRef     = useRef(false);
-  const suppressTimestampRef       = useRef(false);
-  const suppressClearPendingRef    = useRef(false);
-  const cloudSyncInProgressRef     = useRef(false);
-  const cloudSyncInitialDoneRef    = useRef(false);
-  const cloudSyncDownloadRef       = useRef(null);
-  const cloudSyncErrorCountRef     = useRef(0);
-  const cloudSyncBackoffUntilRef   = useRef(0);
+  const cloudSyncDebounceRef            = useRef(null);
+  const suppressCloudUploadRef          = useRef(false);
+  const suppressTimestampRef            = useRef(false);
+  const suppressClearPendingRef         = useRef(false);
+  const cloudSyncInProgressRef          = useRef(false);
+  const cloudSyncInitialDoneRef         = useRef(false);
+  const cloudSyncDownloadRef            = useRef(null);
+  // Upload-specific backoff (used by cloudSyncUpload)
+  const cloudSyncErrorCountRef          = useRef(0);
+  const cloudSyncBackoffUntilRef        = useRef(0);
+  // Download-specific backoff (separate so upload failures don't block downloads and vice versa)
+  const cloudSyncDownloadErrorCountRef  = useRef(0);
+  const cloudSyncDownloadBackoffUntilRef = useRef(0);
 
   // Persist cloud sync config
   useEffect(() => {
@@ -74,6 +78,8 @@ const useCloudSync = () => {
     cloudSyncDownloadRef,
     cloudSyncErrorCountRef,
     cloudSyncBackoffUntilRef,
+    cloudSyncDownloadErrorCountRef,
+    cloudSyncDownloadBackoffUntilRef,
   };
 };
 
