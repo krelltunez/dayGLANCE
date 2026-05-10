@@ -4688,6 +4688,7 @@ const DayPlanner = () => {
         dailyNotes,
         habits,
         habitLogs,
+        habitLogTimestamps: JSON.parse(localStorage.getItem('day-planner-habit-log-timestamps') || '{}'),
         habitsEnabled,
         habitsEnabledUpdatedAt: localStorage.getItem('day-planner-habits-enabled-updated-at') || null,
         deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
@@ -4837,6 +4838,15 @@ const DayPlanner = () => {
     if (data.habitLogs) {
       localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
       setHabitLogs(data.habitLogs);
+    }
+    if (data.habitLogTimestamps) {
+      // Merge with local timestamps, keeping the newer of each entry.
+      const localTs = JSON.parse(localStorage.getItem('day-planner-habit-log-timestamps') || '{}');
+      const merged = { ...localTs };
+      for (const [k, v] of Object.entries(data.habitLogTimestamps)) {
+        if (!merged[k] || new Date(v) > new Date(merged[k])) merged[k] = v;
+      }
+      localStorage.setItem('day-planner-habit-log-timestamps', JSON.stringify(merged));
     }
     if (data.habitsEnabled !== undefined) {
       localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
