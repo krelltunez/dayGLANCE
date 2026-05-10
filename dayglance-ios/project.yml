@@ -75,5 +75,6 @@ targets:
         NSCalendarsUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen."
         NSCalendarsFullAccessUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen and can create calendar events from your tasks."
         NSCalendarsWriteOnlyAccessUsageDescription: "dayGLANCE can create calendar events from your tasks."
+        NSMicrophoneUsageDescription: "dayGLANCE uses the microphone to record voice input for AI task parsing."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true

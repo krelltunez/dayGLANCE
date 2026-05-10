@@ -141,6 +141,12 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         case "iCloudAvailable":
             return ICloudBridge.shared.isAvailable()
 
+        // Phase 8 — Audio recording
+        case "startRecording":
+            return AudioBridge.shared.startRecording()
+        case "stopRecording":
+            return AudioBridge.shared.stopRecording()
+
         default:
             return "null"
         }
