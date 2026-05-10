@@ -1339,11 +1339,13 @@ const DayPlanner = () => {
     iCloudSyncRef.current?.();
   }, [dataLoaded]);
 
-  // Poll every 60 seconds — iCloud daemon handles actual network sync;
-  // we just read/write the local container file.
+  // Poll every 15 seconds — iCloud daemon handles actual network sync;
+  // we just read/write the local container file. 15s ensures changes appear
+  // promptly even when the real-time watchers (NSMetadataQuery / fs.watch)
+  // don't fire, which is common for iCloud-daemon-managed files.
   useEffect(() => {
     if (!isNativeIOS() && !isElectronMac()) return;
-    const timer = setInterval(() => iCloudSyncRef.current?.(), 60 * 1000);
+    const timer = setInterval(() => iCloudSyncRef.current?.(), 15 * 1000);
     return () => clearInterval(timer);
   }, []);
 
