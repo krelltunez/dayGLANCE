@@ -1,7 +1,7 @@
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './crypto.js';
 
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
-const toBase64 = (str) => btoa(unescape(encodeURIComponent(str)));
+const toBase64 = (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
 
 // Routes a WebDAV request through the Electron main process on desktop (no CORS
 // restrictions) or through the server-side proxy on web. Translates X-WebDAV-Auth

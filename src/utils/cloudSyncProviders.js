@@ -2,7 +2,7 @@ import { nativeHttpRequest } from '../native.js';
 import { encryptData, decryptData, isEncryptedEnvelope } from './crypto.js';
 
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
-const toBase64 = (str) => btoa(unescape(encodeURIComponent(str)));
+const toBase64 = (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
 
 // Routes WebDAV requests through the server-side CORS proxy on web, or
 // directly via the Android HTTP bridge on native.
