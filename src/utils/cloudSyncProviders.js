@@ -82,7 +82,16 @@ const parseDownloadResponse = async (res) => {
 const mkcolWithParents = async (dirUrl, authHeaders) => {
   const res = await webdavFetch('MKCOL', dirUrl, authHeaders);
   if (res.status === 409 || res.status === 404) {
-    const parent = dirUrl.replace(/\/+$/, '').replace(/\/[^/]+$/, '/');
+    // Derive the parent by stripping the last path segment using URL() so we
+    // never produce malformed strings like "https:/" on root-level inputs.
+    let parent;
+    try {
+      const u = new URL(dirUrl);
+      const stripped = u.pathname.replace(/\/+$/, '').replace(/\/[^/]+$/, '/');
+      if (!stripped || stripped === u.pathname.replace(/\/+$/, '')) return; // already at root
+      u.pathname = stripped;
+      parent = u.toString();
+    } catch { return; }
     if (parent && parent !== dirUrl) {
       await mkcolWithParents(parent, authHeaders);
       await webdavFetch('MKCOL', dirUrl, authHeaders);

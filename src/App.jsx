@@ -1356,6 +1356,12 @@ const DayPlanner = () => {
       if (!str || str === 'null') {
         // No remote file yet — seed it with local data, but only if state is hydrated.
         // If React state is empty but localStorage has tasks, we'd wipe the cloud file.
+        //
+        // On iOS, iCloud can temporarily evict a file and report it as absent without
+        // placing a .icloud placeholder. If we have a previous sync record, the file
+        // almost certainly exists but is just not downloaded yet — skip seeding and
+        // let the next 15-second poll retry after iCloud restores it.
+        if (onIOS && localStorage.getItem('day-planner-cloud-sync-last-synced')) return;
         const localTaskCount = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]').length;
         const localInboxCount = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]').length;
         const payload = buildSyncPayload();
@@ -4366,7 +4372,11 @@ const DayPlanner = () => {
         return;
       }
 
+      const icsEtag = getRes.headers.get('etag') || null;
       let icsContent = await getRes.text();
+      // RFC 5545 §3.1 unfold: remove CRLF/LF followed by a whitespace continuation
+      // so that line-folded properties match our single-line regexes reliably.
+      icsContent = icsContent.replace(/\r?\n[ \t]/g, '');
       const now = new Date();
       const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
@@ -4405,8 +4415,10 @@ const DayPlanner = () => {
               targetDate = new Date(completedDate);
               targetDate.setDate(targetDate.getDate() + interval);
             } else if (rule.FREQ === 'WEEKLY') {
+              // M5: parse WKST — RFC 5545 default is MO (Monday=1), not SU.
+              const wkst = rule.WKST ? (dayMap[rule.WKST] ?? 1) : 1;
               const byDays = rule.BYDAY
-                ? rule.BYDAY.split(',').map(d => dayMap[d.trim()]).filter(d => d !== undefined).sort((a, b) => a - b)
+                ? rule.BYDAY.split(',').map(d => dayMap[d.trim().replace(/^-?\d+/, '')]).filter(d => d !== undefined).sort((a, b) => a - b)
                 : [completedDate.getDay()];
               const currentDow = completedDate.getDay();
               const nextDow = byDays.find(d => d > currentDow);
@@ -4414,17 +4426,20 @@ const DayPlanner = () => {
               if (nextDow !== undefined) {
                 targetDate.setDate(targetDate.getDate() + (nextDow - currentDow));
               } else {
-                // Wrap to first BYDAY of next interval-week
-                const daysToNextSunday = 7 - currentDow;
-                targetDate.setDate(targetDate.getDate() + daysToNextSunday + (interval - 1) * 7 + byDays[0]);
+                // Wrap to first BYDAY of the next occurrence-week, anchored to WKST.
+                const daysToWeekStart = ((wkst - currentDow) % 7 + 7) % 7 || 7;
+                targetDate.setDate(targetDate.getDate() + daysToWeekStart + (interval - 1) * 7 + (byDays[0] - wkst + 7) % 7);
               }
             } else if (rule.FREQ === 'MONTHLY') {
               targetDate = new Date(completedDate);
               if (rule.BYDAY) {
-                const m = rule.BYDAY.match(/^(-?\d*)([A-Z]{2})$/);
-                if (m && dayMap[m[2]] !== undefined) {
-                  const nth = m[1] ? parseInt(m[1]) : 1;
-                  const targetDow = dayMap[m[2]];
+                // M4: BYDAY may contain multiple values (e.g. "MO,WE,FR") — try ordinal
+                // single-value form first, then fall back to multi-value next-occurrence search.
+                const singleMatch = rule.BYDAY.match(/^(-?\d+)([A-Z]{2})$/);
+                if (singleMatch && dayMap[singleMatch[2]] !== undefined) {
+                  // Ordinal form: e.g. "1MO" = first Monday, "-1FR" = last Friday.
+                  const nth = parseInt(singleMatch[1]);
+                  const targetDow = dayMap[singleMatch[2]];
                   targetDate.setMonth(targetDate.getMonth() + interval);
                   if (nth > 0) {
                     const firstDow = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1).getDay();
@@ -4435,7 +4450,27 @@ const DayPlanner = () => {
                       last.getDate() - ((last.getDay() - targetDow + 7) % 7) + (nth + 1) * 7);
                   }
                 } else {
-                  targetDate.setMonth(targetDate.getMonth() + interval);
+                  // Multi-value or bare day form: find the next matching weekday after completedDate.
+                  const byDows = rule.BYDAY.split(',')
+                    .map(d => dayMap[d.trim().replace(/^-?\d+/, '')])
+                    .filter(d => d !== undefined)
+                    .sort((a, b) => a - b);
+                  if (byDows.length > 0) {
+                    const currentDow = completedDate.getDay();
+                    const nextDow = byDows.find(d => d > currentDow);
+                    targetDate = new Date(completedDate);
+                    if (nextDow !== undefined) {
+                      targetDate.setDate(targetDate.getDate() + (nextDow - currentDow));
+                    } else {
+                      // No matching day this week — advance by interval months and use first byDow.
+                      targetDate.setMonth(targetDate.getMonth() + interval);
+                      targetDate.setDate(1);
+                      const firstDow = targetDate.getDay();
+                      targetDate.setDate(1 + ((byDows[0] - firstDow + 7) % 7));
+                    }
+                  } else {
+                    targetDate.setMonth(targetDate.getMonth() + interval);
+                  }
                 }
               } else {
                 const targetDay = rule.BYMONTHDAY ? parseInt(rule.BYMONTHDAY) : completedDay;
@@ -4496,14 +4531,14 @@ const DayPlanner = () => {
             }
 
             // Ensure STATUS is NEEDS-ACTION (the next instance is not yet completed)
-            if (/^STATUS:/m.test(icsContent)) {
-              icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
+            if (/^STATUS[^:]*:/m.test(icsContent)) {
+              icsContent = icsContent.replace(/^STATUS[^:]*:.*$/m, 'STATUS:NEEDS-ACTION');
             }
             // Remove any COMPLETED timestamp
-            icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
+            icsContent = icsContent.replace(/^COMPLETED[^:]*:[^\r\n]*\r?\n?/m, '');
             // Reset PERCENT-COMPLETE
-            if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-              icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
+            if (/^PERCENT-COMPLETE[^:]*:/m.test(icsContent)) {
+              icsContent = icsContent.replace(/^PERCENT-COMPLETE[^:]*:.*$/m, 'PERCENT-COMPLETE:0');
             }
 
           } else if (completed) {
@@ -4517,18 +4552,18 @@ const DayPlanner = () => {
             // Uncomplete with no targetDate shouldn't happen, but be safe
           } else {
             // completed && !targetDate => series ended, use non-recurring completion
-            if (/^STATUS:/m.test(icsContent)) {
-              icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
+            if (/^STATUS[^:]*:/m.test(icsContent)) {
+              icsContent = icsContent.replace(/^STATUS[^:]*:.*$/m, 'STATUS:COMPLETED');
             } else {
               icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
             }
-            if (/^COMPLETED:/m.test(icsContent)) {
-              icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${timestamp}`);
+            if (/^COMPLETED[^:]*:/m.test(icsContent)) {
+              icsContent = icsContent.replace(/^COMPLETED[^:]*:.*$/m, `COMPLETED:${timestamp}`);
             } else {
               icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${timestamp}\r\n$1`);
             }
-            if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-              icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
+            if (/^PERCENT-COMPLETE[^:]*:/m.test(icsContent)) {
+              icsContent = icsContent.replace(/^PERCENT-COMPLETE[^:]*:.*$/m, 'PERCENT-COMPLETE:100');
             } else {
               icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
             }
@@ -4539,41 +4574,43 @@ const DayPlanner = () => {
       if (!isRecurring || !date || !icsContent.match(/^RRULE:/m)) {
         // --- Non-recurring (or recurring without RRULE fallback): update STATUS directly ---
         if (completed) {
-          if (/^STATUS:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:COMPLETED');
+          if (/^STATUS[^:]*:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^STATUS[^:]*:.*$/m, 'STATUS:COMPLETED');
           } else {
             icsContent = icsContent.replace(/^(END:VTODO)/m, 'STATUS:COMPLETED\r\n$1');
           }
-          if (/^COMPLETED:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^COMPLETED:.*$/m, `COMPLETED:${timestamp}`);
+          if (/^COMPLETED[^:]*:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^COMPLETED[^:]*:.*$/m, `COMPLETED:${timestamp}`);
           } else {
             icsContent = icsContent.replace(/^(END:VTODO)/m, `COMPLETED:${timestamp}\r\n$1`);
           }
-          if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:100');
+          if (/^PERCENT-COMPLETE[^:]*:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^PERCENT-COMPLETE[^:]*:.*$/m, 'PERCENT-COMPLETE:100');
           } else {
             icsContent = icsContent.replace(/^(END:VTODO)/m, 'PERCENT-COMPLETE:100\r\n$1');
           }
         } else {
-          if (/^STATUS:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^STATUS:.*$/m, 'STATUS:NEEDS-ACTION');
+          if (/^STATUS[^:]*:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^STATUS[^:]*:.*$/m, 'STATUS:NEEDS-ACTION');
           }
-          icsContent = icsContent.replace(/^COMPLETED:.*\r?\n/m, '');
-          if (/^PERCENT-COMPLETE:/m.test(icsContent)) {
-            icsContent = icsContent.replace(/^PERCENT-COMPLETE:.*$/m, 'PERCENT-COMPLETE:0');
+          icsContent = icsContent.replace(/^COMPLETED[^:]*:[^\r\n]*\r?\n?/m, '');
+          if (/^PERCENT-COMPLETE[^:]*:/m.test(icsContent)) {
+            icsContent = icsContent.replace(/^PERCENT-COMPLETE[^:]*:.*$/m, 'PERCENT-COMPLETE:0');
           }
         }
       }
 
       // Update LAST-MODIFIED on the master component
-      if (/^LAST-MODIFIED:/m.test(icsContent)) {
-        icsContent = icsContent.replace(/^LAST-MODIFIED:.*$/m, `LAST-MODIFIED:${timestamp}`);
+      if (/^LAST-MODIFIED[^:]*:/m.test(icsContent)) {
+        icsContent = icsContent.replace(/^LAST-MODIFIED[^:]*:.*$/m, `LAST-MODIFIED:${timestamp}`);
       }
 
       // PUT the updated resource back
+      const putHeaders = { ...authHeaders, 'Content-Type': 'text/calendar; charset=utf-8' };
+      if (icsEtag) putHeaders['If-Match'] = icsEtag;
       const putRes = await fetch(`/api/webdav-proxy/?url=${encodeURIComponent(resourceUrl)}`, {
         method: 'PUT',
-        headers: { ...authHeaders, 'Content-Type': 'text/calendar; charset=utf-8' },
+        headers: putHeaders,
         body: icsContent
       });
 
@@ -5013,7 +5050,7 @@ const DayPlanner = () => {
 
       if (hasNeverSynced && remoteModified) {
         conflictShown = true;
-        setCloudSyncConflict({ remoteData: remote.data, remoteModified });
+        setCloudSyncConflict({ remoteData: remote.data, remoteModified, etag: etag || null });
         setCloudSyncStatus('idle');
         return false;
       }
@@ -8291,7 +8328,7 @@ const DayPlanner = () => {
                   if (remoteChanged) {
                     // Pass merged data directly — React state is stale after applyRemoteData
                     const mergedPayload = { version: 2, lastModified: now, data: mergedData };
-                    await cloudSyncUpload(mergedPayload);
+                    await cloudSyncUpload(mergedPayload, { etag: cloudSyncConflict.etag });
                   } else {
                     setCloudSyncStatus('success');
                     setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
@@ -8328,7 +8365,7 @@ const DayPlanner = () => {
                   const now = new Date().toISOString();
                   localStorage.setItem('day-planner-cloud-sync-last-synced', now);
                   setCloudSyncLastSynced(now);
-                  await cloudSyncUpload();
+                  await cloudSyncUpload(undefined, { etag: cloudSyncConflict.etag });
                 }}
                 className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >

@@ -289,18 +289,13 @@ export async function decryptData(envelope) {
     if (!saltMatch) key = null;
   }
 
+  let keyWasDerived = false;
   if (!key) {
     if (_sessionPassphrase) {
       // Cross-device recovery or salt mismatch: derive key from passphrase + salt from file.
-      key          = await deriveKey(_sessionPassphrase, salt);
-      _sessionKey  = key;
-      _sessionSalt = salt;
-      // Cache so subsequent sessions don't need the passphrase.
-      if (isAndroidKeystore()) {
-        await saveKeyToAndroid(key, salt);
-      } else {
-        await saveKeyToIndexedDB(key, salt);
-      }
+      // Do NOT cache yet — only persist after we confirm the key actually decrypts the file.
+      key = await deriveKey(_sessionPassphrase, salt);
+      keyWasDerived = true;
     } else {
       // Signal to the caller that the passphrase must be collected from the user.
       const err = new Error('Encryption key not available. Please enter your sync passphrase.');
@@ -311,6 +306,16 @@ export async function decryptData(envelope) {
 
   try {
     const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    // Decryption succeeded — safe to promote and cache the derived key.
+    if (keyWasDerived) {
+      _sessionKey  = key;
+      _sessionSalt = salt;
+      if (isAndroidKeystore()) {
+        await saveKeyToAndroid(key, salt);
+      } else {
+        await saveKeyToIndexedDB(key, salt);
+      }
+    }
     return JSON.parse(new TextDecoder().decode(plaintext));
   } catch (err) {
     if (err.name === 'OperationError') {

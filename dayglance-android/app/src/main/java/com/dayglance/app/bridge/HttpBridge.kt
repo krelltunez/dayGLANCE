@@ -76,10 +76,14 @@ class HttpBridge {
             } catch (_: Exception) { "" }
             connection.disconnect()
 
+            val etag = connection.getHeaderField("ETag")
             JSONObject().apply {
                 put("status", statusCode)
                 put("ok", statusCode in 200..299)
                 put("body", responseBody)
+                put("headers", JSONObject().apply {
+                    if (etag != null) put("etag", etag)
+                })
             }.toString()
         } catch (e: Exception) {
             JSONObject().apply {
