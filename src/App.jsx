@@ -1294,6 +1294,10 @@ const DayPlanner = () => {
   // Only track obsidianConfig on non-native apps; native apps auto-populate fields from the vault.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!isNativeApp()) writeConfigTimestamp('day-planner-obsidian-config-updated-at'); }, [obsidianConfig]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-sync-url-updated-at'); }, [syncUrl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-task-calendar-url-updated-at'); }, [taskCalendarUrl]);
 
   // ── iCloud sync ──────────────────────────────────────────────────────────
   // Runs independently alongside any configured WebDAV/Nextcloud sync so that
@@ -4653,7 +4657,9 @@ const DayPlanner = () => {
         unscheduledOrderTimestamp,
         recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
         syncUrl,
+        syncUrlUpdatedAt: localStorage.getItem('day-planner-sync-url-updated-at') || null,
         taskCalendarUrl,
+        taskCalendarUrlUpdatedAt: localStorage.getItem('day-planner-task-calendar-url-updated-at') || null,
         // taskCalendarAuth is intentionally excluded — credentials must not be written
         // to the shared sync file on the WebDAV server.
         completedTaskUids: prunedUids,
@@ -4784,10 +4790,15 @@ const DayPlanner = () => {
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
     if (normalizedUnsched) localStorage.setItem('day-planner-unscheduled', JSON.stringify(normalizedUnsched));
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
-    // Calendar URLs: only overwrite if remote provides a non-empty value
-    // (prevents a device without URLs from wiping one that has them configured).
-    if (data.syncUrl) localStorage.setItem('day-planner-sync-url', data.syncUrl);
-    if (data.taskCalendarUrl) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+    // Calendar URLs: apply merged value unconditionally (empty string = intentional clear).
+    if (data.syncUrl !== undefined) {
+      localStorage.setItem('day-planner-sync-url', data.syncUrl);
+      if (data.syncUrlUpdatedAt) localStorage.setItem('day-planner-sync-url-updated-at', data.syncUrlUpdatedAt);
+    }
+    if (data.taskCalendarUrl !== undefined) {
+      localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+      if (data.taskCalendarUrlUpdatedAt) localStorage.setItem('day-planner-task-calendar-url-updated-at', data.taskCalendarUrlUpdatedAt);
+    }
     // taskCalendarAuth is not applied from sync — credentials are device-local only.
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
@@ -4900,8 +4911,8 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);
     }
     if (data.recycleBin) setRecycleBin(data.recycleBin);
-    if (data.syncUrl) setSyncUrl(data.syncUrl);
-    if (data.taskCalendarUrl) setTaskCalendarUrl(data.taskCalendarUrl);
+    if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
+    if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(data.recurringTasks);
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);

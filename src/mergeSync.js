@@ -732,14 +732,26 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   if (JSON.stringify(mergedObsidianConfig) !== JSON.stringify(localData.obsidianConfig ?? null)) localChanged = true;
   if (JSON.stringify(mergedObsidianConfig) !== JSON.stringify(remoteData.obsidianConfig ?? null)) remoteChanged = true;
 
-  // Detect calendar URL changes so the sync cycle completes even when URLs
-  // are the only difference between local and remote.
-  const mergedSyncUrl = remoteData.syncUrl || localData.syncUrl || '';
-  const mergedTaskCalUrl = remoteData.taskCalendarUrl || localData.taskCalendarUrl || '';
-  if (mergedSyncUrl !== (localData.syncUrl || '')) localChanged = true;
-  if (mergedSyncUrl !== (remoteData.syncUrl || '')) remoteChanged = true;
-  if (mergedTaskCalUrl !== (localData.taskCalendarUrl || '')) localChanged = true;
-  if (mergedTaskCalUrl !== (remoteData.taskCalendarUrl || '')) remoteChanged = true;
+  // Calendar URLs: last-writer-wins so a device that clears a URL propagates the clear.
+  // Falls back to remote-wins for legacy payloads that lack timestamps (empty string
+  // means "not set" in legacy, so we keep the non-empty side as a safe default).
+  const localSyncUrl = localData.syncUrl ?? '';
+  const remoteSyncUrl = remoteData.syncUrl ?? '';
+  const mergedSyncUrl = (localData.syncUrlUpdatedAt || remoteData.syncUrlUpdatedAt)
+    ? pickConfigByTs(localSyncUrl, localData.syncUrlUpdatedAt, remoteSyncUrl, remoteData.syncUrlUpdatedAt, '')
+    : (remoteSyncUrl || localSyncUrl);
+  const mergedSyncUrlUpdatedAt = newerTs(localData.syncUrlUpdatedAt, remoteData.syncUrlUpdatedAt);
+  if (mergedSyncUrl !== localSyncUrl) localChanged = true;
+  if (mergedSyncUrl !== remoteSyncUrl) remoteChanged = true;
+
+  const localTaskCalUrl = localData.taskCalendarUrl ?? '';
+  const remoteTaskCalUrl = remoteData.taskCalendarUrl ?? '';
+  const mergedTaskCalUrl = (localData.taskCalendarUrlUpdatedAt || remoteData.taskCalendarUrlUpdatedAt)
+    ? pickConfigByTs(localTaskCalUrl, localData.taskCalendarUrlUpdatedAt, remoteTaskCalUrl, remoteData.taskCalendarUrlUpdatedAt, '')
+    : (remoteTaskCalUrl || localTaskCalUrl);
+  const mergedTaskCalUrlUpdatedAt = newerTs(localData.taskCalendarUrlUpdatedAt, remoteData.taskCalendarUrlUpdatedAt);
+  if (mergedTaskCalUrl !== localTaskCalUrl) localChanged = true;
+  if (mergedTaskCalUrl !== remoteTaskCalUrl) remoteChanged = true;
 
   // Prune tombstones older than the retention window so they don't grow forever.
   // Pruning happens after merge resolution so stale tombstones still participate
@@ -767,10 +779,10 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       deletedRoutineChipIds: prunedDeletedChipIds,
       deletedFrameIds: prunedDeletedFrameIds,
       removedTodayRoutineIds: prunedRemovedTodayIds,
-      // Calendar URLs: prefer non-empty value (don't let a device without URLs configured wipe one that has them).
-      // If both are non-empty and differ, prefer remote so a URL change propagates across devices.
-      syncUrl: (remoteData.syncUrl || localData.syncUrl || ''),
-      taskCalendarUrl: (remoteData.taskCalendarUrl || localData.taskCalendarUrl || ''),
+      syncUrl: mergedSyncUrl,
+      syncUrlUpdatedAt: mergedSyncUrlUpdatedAt,
+      taskCalendarUrl: mergedTaskCalUrl,
+      taskCalendarUrlUpdatedAt: mergedTaskCalUrlUpdatedAt,
       routineDefinitions: routineMerge.merged,
       todayRoutines: todayRoutinesMerge.merged,
       routinesDate: mergedRoutinesDate,
