@@ -7,6 +7,21 @@
  * tombstones for permanently deleted tasks.
  */
 
+// Last-writer-wins for scalar config fields using per-field updatedAt timestamps.
+// Falls back to remote-wins when neither side has a timestamp (legacy payloads).
+const pickConfigByTs = (localVal, localTs, remoteVal, remoteTs, defaultVal) => {
+  const lTime = localTs ? new Date(localTs).getTime() : 0;
+  const rTime = remoteTs ? new Date(remoteTs).getTime() : 0;
+  const winner = rTime >= lTime ? remoteVal : localVal;
+  return winner !== undefined ? winner : defaultVal;
+};
+const newerTs = (a, b) => {
+  if (!a && !b) return null;
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+};
+
 /**
  * Merges two task arrays by ID, preserving local ordering and appending
  * remote-only tasks at the end.
@@ -595,22 +610,20 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     localChanged = true;
   }
 
-  // Check if habitsEnabled setting differs
+  // habitsEnabled / routinesEnabled: last-writer-wins via per-field timestamps.
   const localHabitsEnabled = localData.habitsEnabled !== undefined ? localData.habitsEnabled : true;
   const remoteHabitsEnabled = remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : true;
-  if (localHabitsEnabled !== remoteHabitsEnabled) {
-    // Prefer remote (propagates the toggle across devices).
-    // Only set localChanged — remote already has the value we're adopting,
-    // so remoteChanged must not be cleared here (earlier merges may have set it).
-    localChanged = true;
-  }
+  const mergedHabitsEnabled = pickConfigByTs(localHabitsEnabled, localData.habitsEnabledUpdatedAt, remoteHabitsEnabled, remoteData.habitsEnabledUpdatedAt, true);
+  const mergedHabitsEnabledUpdatedAt = newerTs(localData.habitsEnabledUpdatedAt, remoteData.habitsEnabledUpdatedAt);
+  if (mergedHabitsEnabled !== localHabitsEnabled) localChanged = true;
+  if (mergedHabitsEnabled !== remoteHabitsEnabled) remoteChanged = true;
 
-  // Check if routinesEnabled setting differs
   const localRoutinesEnabled = localData.routinesEnabled !== undefined ? localData.routinesEnabled : true;
   const remoteRoutinesEnabled = remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : true;
-  if (localRoutinesEnabled !== remoteRoutinesEnabled) {
-    localChanged = true;
-  }
+  const mergedRoutinesEnabled = pickConfigByTs(localRoutinesEnabled, localData.routinesEnabledUpdatedAt, remoteRoutinesEnabled, remoteData.routinesEnabledUpdatedAt, true);
+  const mergedRoutinesEnabledUpdatedAt = newerTs(localData.routinesEnabledUpdatedAt, remoteData.routinesEnabledUpdatedAt);
+  if (mergedRoutinesEnabled !== localRoutinesEnabled) localChanged = true;
+  if (mergedRoutinesEnabled !== remoteRoutinesEnabled) remoteChanged = true;
 
   // Combine goal and project tombstones from both sides
   const localDeletedGoalIds = localData.deletedGoalIds || {};
@@ -706,12 +719,18 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     localChanged = true;
   }
 
-  // Check if goalsProjectsEnabled setting differs
+  // goalsProjectsEnabled: last-writer-wins
   const localGoalsProjectsEnabled = localData.goalsProjectsEnabled !== undefined ? localData.goalsProjectsEnabled : false;
   const remoteGoalsProjectsEnabled = remoteData.goalsProjectsEnabled !== undefined ? remoteData.goalsProjectsEnabled : false;
-  if (localGoalsProjectsEnabled !== remoteGoalsProjectsEnabled) {
-    localChanged = true;
-  }
+  const mergedGoalsProjectsEnabled = pickConfigByTs(localGoalsProjectsEnabled, localData.goalsProjectsEnabledUpdatedAt, remoteGoalsProjectsEnabled, remoteData.goalsProjectsEnabledUpdatedAt, false);
+  const mergedGoalsProjectsEnabledUpdatedAt = newerTs(localData.goalsProjectsEnabledUpdatedAt, remoteData.goalsProjectsEnabledUpdatedAt);
+  if (mergedGoalsProjectsEnabled !== localGoalsProjectsEnabled) localChanged = true;
+  if (mergedGoalsProjectsEnabled !== remoteGoalsProjectsEnabled) remoteChanged = true;
+
+  // obsidianConfig change detection (merge happens in return object via pickConfigByTs above)
+  const mergedObsidianConfig = pickConfigByTs(localData.obsidianConfig, localData.obsidianConfigUpdatedAt, remoteData.obsidianConfig, remoteData.obsidianConfigUpdatedAt, null);
+  if (JSON.stringify(mergedObsidianConfig) !== JSON.stringify(localData.obsidianConfig ?? null)) localChanged = true;
+  if (JSON.stringify(mergedObsidianConfig) !== JSON.stringify(remoteData.obsidianConfig ?? null)) remoteChanged = true;
 
   // Detect calendar URL changes so the sync cycle completes even when URLs
   // are the only difference between local and remote.
@@ -760,17 +779,21 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       habits: habitsMerge.merged,
       deletedHabitIds: prunedDeletedHabitIds,
       habitLogs: habitLogsMerge.merged,
-      habitsEnabled: remoteData.habitsEnabled !== undefined ? remoteData.habitsEnabled : localData.habitsEnabled,
-      routinesEnabled: remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : localData.routinesEnabled,
+      habitsEnabled: mergedHabitsEnabled,
+      habitsEnabledUpdatedAt: mergedHabitsEnabledUpdatedAt,
+      routinesEnabled: mergedRoutinesEnabled,
+      routinesEnabledUpdatedAt: mergedRoutinesEnabledUpdatedAt,
       gtdFrames: mergedFrames,
       goals: mergedGoals,
       deletedGoalIds: prunedDeletedGoalIds,
       projects: mergedProjects,
       deletedProjectIds: prunedDeletedProjectIds,
-      goalsProjectsEnabled: remoteData.goalsProjectsEnabled !== undefined ? remoteData.goalsProjectsEnabled : localData.goalsProjectsEnabled,
-      // obsidianConfig: remote wins if present, preserving all app-level settings across devices.
-      // On Android, applyRemoteData only applies the non-native fields.
-      obsidianConfig: remoteData.obsidianConfig ?? localData.obsidianConfig ?? null,
+      goalsProjectsEnabled: mergedGoalsProjectsEnabled,
+      goalsProjectsEnabledUpdatedAt: mergedGoalsProjectsEnabledUpdatedAt,
+      // obsidianConfig: last-writer-wins via per-field timestamp.
+      // On Android/iOS, applyRemoteData only applies the non-native fields.
+      obsidianConfig: pickConfigByTs(localData.obsidianConfig, localData.obsidianConfigUpdatedAt, remoteData.obsidianConfig, remoteData.obsidianConfigUpdatedAt, null),
+      obsidianConfigUpdatedAt: newerTs(localData.obsidianConfigUpdatedAt, remoteData.obsidianConfigUpdatedAt),
       minimizedSections: localData.minimizedSections, // UI pref — keep local
       use24HourClock: localData.use24HourClock // device pref — keep local
     },

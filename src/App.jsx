@@ -1265,6 +1265,36 @@ const DayPlanner = () => {
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
 
+  // ── Config field timestamp tracking ──────────────────────────────────────
+  // Tracks when habitsEnabled/routinesEnabled/goalsProjectsEnabled/obsidianConfig
+  // last changed on this device, so mergeSyncData can do last-writer-wins instead
+  // of remote-always-wins.
+  const configTrackingActiveRef = useRef(false); // false until after initial loadData
+  const applyingRemoteDataRef   = useRef(false); // true while applyRemoteData is running
+
+  useEffect(() => {
+    if (dataLoaded) {
+      // Schedule after all current-render effects so initial setState calls
+      // from loadData() don't trigger spurious timestamp updates.
+      Promise.resolve().then(() => { configTrackingActiveRef.current = true; });
+    }
+  }, [dataLoaded]);
+
+  const writeConfigTimestamp = (key) => {
+    if (!configTrackingActiveRef.current || applyingRemoteDataRef.current) return;
+    localStorage.setItem(key, new Date().toISOString());
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-habits-enabled-updated-at'); }, [habitsEnabled]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-routines-enabled-updated-at'); }, [routinesEnabled]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-goals-projects-enabled-updated-at'); }, [goalsProjectsEnabled]);
+  // Only track obsidianConfig on non-native apps; native apps auto-populate fields from the vault.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!isNativeApp()) writeConfigTimestamp('day-planner-obsidian-config-updated-at'); }, [obsidianConfig]);
+
   // ── iCloud sync ──────────────────────────────────────────────────────────
   // Runs independently alongside any configured WebDAV/Nextcloud sync so that
   // Apple-only users (Mac + iPhone/iPad) get zero-config sync, while
@@ -4646,15 +4676,19 @@ const DayPlanner = () => {
         habits,
         habitLogs,
         habitsEnabled,
+        habitsEnabledUpdatedAt: localStorage.getItem('day-planner-habits-enabled-updated-at') || null,
         deletedHabitIds: JSON.parse(localStorage.getItem('day-planner-deleted-habit-ids') || '{}'),
         routinesEnabled,
+        routinesEnabledUpdatedAt: localStorage.getItem('day-planner-routines-enabled-updated-at') || null,
         gtdFrames,
         goals,
         deletedGoalIds: JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}'),
         projects,
         deletedProjectIds: JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}'),
         goalsProjectsEnabled,
+        goalsProjectsEnabledUpdatedAt: localStorage.getItem('day-planner-goals-projects-enabled-updated-at') || null,
         obsidianConfig: obsidianConfig ?? null,
+        obsidianConfigUpdatedAt: localStorage.getItem('day-planner-obsidian-config-updated-at') || null,
       }
     };
   };
@@ -4721,6 +4755,11 @@ const DayPlanner = () => {
       console.error('applyRemoteData aborted: remote has 0 tasks but local has', localTaskCount + localInboxCount);
       return;
     }
+
+    // Suppress config timestamp tracking effects during remote data application so
+    // they don't overwrite the remote timestamps with Date.now().
+    applyingRemoteDataRef.current = true;
+    setTimeout(() => { applyingRemoteDataRef.current = false; }, 0);
 
     suppressCloudUploadRef.current = true;
     suppressTimestampRef.current = true;
@@ -4789,10 +4828,12 @@ const DayPlanner = () => {
     if (data.habitsEnabled !== undefined) {
       localStorage.setItem('day-planner-habits-enabled', JSON.stringify(data.habitsEnabled));
       setHabitsEnabled(data.habitsEnabled);
+      if (data.habitsEnabledUpdatedAt) localStorage.setItem('day-planner-habits-enabled-updated-at', data.habitsEnabledUpdatedAt);
     }
     if (data.routinesEnabled !== undefined) {
       localStorage.setItem('day-planner-routines-enabled', JSON.stringify(data.routinesEnabled));
       setRoutinesEnabled(data.routinesEnabled);
+      if (data.routinesEnabledUpdatedAt) localStorage.setItem('day-planner-routines-enabled-updated-at', data.routinesEnabledUpdatedAt);
     }
     if (data.gtdFrames) {
       localStorage.setItem('day-planner-gtd-frames', JSON.stringify(data.gtdFrames));
@@ -4809,6 +4850,7 @@ const DayPlanner = () => {
     if (data.goalsProjectsEnabled !== undefined) {
       localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
       setGoalsProjectsEnabled(data.goalsProjectsEnabled);
+      if (data.goalsProjectsEnabledUpdatedAt) localStorage.setItem('day-planner-goals-projects-enabled-updated-at', data.goalsProjectsEnabledUpdatedAt);
     }
     if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
     if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
@@ -4834,6 +4876,7 @@ const DayPlanner = () => {
         localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
         setObsidianConfig(data.obsidianConfig);
       }
+      if (data.obsidianConfigUpdatedAt) localStorage.setItem('day-planner-obsidian-config-updated-at', data.obsidianConfigUpdatedAt);
     }
     // darkMode, reminderSettings, and soundEnabled are device-specific — not synced
 
