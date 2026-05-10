@@ -243,39 +243,5 @@ export const cloudSyncProviders = {
       { key: 'appPassword', label: 'Password / App Password', type: 'password', placeholder: 'your-password' }
     ],
     helpText: 'Enter the full URL of the WebDAV folder where dayGLANCE should store its sync file. pCloud, Seafile, and most self-hosted WebDAV providers are supported.'
-  },
-  icloud: {
-    name: 'iCloud',
-    async upload(config, data) {
-      const payload = config.encryptionEnabled ? await encryptData(data) : data;
-      const resultStr = window.DayGlanceNative.writeICloudSync(JSON.stringify(payload));
-      const result = JSON.parse(resultStr);
-      if (!result.ok) throw new Error(result.error || 'iCloud write failed');
-      return true;
-    },
-    async download(config) {
-      const str = window.DayGlanceNative.readICloudSync();
-      if (!str || str === 'null') return null;
-      try {
-        const parsed = JSON.parse(str);
-        if (parsed.error) return null;
-        if (isEncryptedEnvelope(parsed)) return decryptData(parsed);
-        return parsed;
-      } catch {
-        return null;
-      }
-    },
-    async test(config) {
-      try {
-        const result = JSON.parse(window.DayGlanceNative.iCloudAvailable());
-        return result.available
-          ? { success: true }
-          : { success: false, error: 'iCloud is not available. Please sign in to iCloud in Settings.' };
-      } catch {
-        return { success: false, error: 'iCloud bridge unavailable.' };
-      }
-    },
-    configFields: [],
-    helpText: 'Syncs automatically across all your iOS and iPadOS devices signed into the same Apple ID.',
   }
 };

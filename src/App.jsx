@@ -1191,6 +1191,8 @@ const DayPlanner = () => {
     // that occurs when scenePhase fires before WKWebView updates visibility state.
     const handleNativeForeground = () => {
       setCurrentTime(new Date());
+      // iCloud runs first (fast local file I/O), then WebDAV (network)
+      iCloudSyncRef.current?.();
       if (Date.now() >= cloudSyncBackoffUntilRef.current) {
         cloudSyncDownloadRef.current?.();
       }
@@ -1262,18 +1264,74 @@ const DayPlanner = () => {
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
 
-  // iCloud auto-configure: on iOS, silently enable iCloud sync the first time
-  // the app loads if no cloud sync provider is already configured.
-  // iCloud is zero-config — no credentials needed, just an Apple ID.
-  useEffect(() => {
-    if (!dataLoaded || !isNativeIOS() || cloudSyncConfig?.enabled) return;
+  // ── iCloud sync ──────────────────────────────────────────────────────────
+  // Runs independently alongside any configured WebDAV/Nextcloud sync so that
+  // Apple-only users (Mac + iPhone/iPad) get zero-config sync, while
+  // cross-platform users (+ Android) keep WebDAV for that leg.
+  // Uses the same cloudSyncInProgressRef lock to serialise with WebDAV.
+  const iCloudSyncRef = useRef(null);
+  const iCloudAvailableRef = useRef(null); // null=unchecked, true/false=result
+
+  const iCloudSync = () => {
+    if (!isNativeIOS() || cloudSyncInProgressRef.current) return;
+
+    // Check iCloud availability once; cache the result.
+    if (iCloudAvailableRef.current === null) {
+      try {
+        const r = JSON.parse(window.DayGlanceNative.iCloudAvailable());
+        iCloudAvailableRef.current = r.available === true;
+      } catch { iCloudAvailableRef.current = false; }
+    }
+    if (!iCloudAvailableRef.current) return;
+
+    cloudSyncInProgressRef.current = true;
     try {
-      const result = JSON.parse(window.DayGlanceNative.iCloudAvailable());
-      if (result.available) {
-        setCloudSyncConfig({ enabled: true, provider: 'icloud', encryptionEnabled: false });
+      const str = window.DayGlanceNative.readICloudSync();
+      if (!str || str === 'null') {
+        // No remote file yet — upload local data as the seed.
+        window.DayGlanceNative.writeICloudSync(JSON.stringify(buildSyncPayload()));
+        return;
       }
-    } catch {}
+
+      let remote;
+      try { remote = JSON.parse(str); } catch { return; }
+      if (!remote?.data) return;
+
+      const localData = buildSyncPayload().data;
+      const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
+
+      if (localChanged) {
+        applyRemoteData(mergedData);
+        localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+      }
+      if (remoteChanged || localChanged) {
+        window.DayGlanceNative.writeICloudSync(JSON.stringify({
+          version: 2,
+          lastModified: new Date().toISOString(),
+          data: mergedData,
+        }));
+      }
+    } finally {
+      cloudSyncInProgressRef.current = false;
+    }
+  };
+
+  // Keep ref fresh so interval and event listeners always call the latest closure.
+  iCloudSyncRef.current = iCloudSync;
+
+  // Run once on startup after data is loaded.
+  useEffect(() => {
+    if (!dataLoaded || !isNativeIOS()) return;
+    iCloudSyncRef.current?.();
   }, [dataLoaded]);
+
+  // Poll every 60 seconds — iCloud daemon handles actual network sync;
+  // we just read/write the local container file.
+  useEffect(() => {
+    if (!isNativeIOS()) return;
+    const timer = setInterval(() => iCloudSyncRef.current?.(), 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Cloud sync: download on app load or when sync is first enabled.
   // If encryption is enabled, wait until the session key is ready (either
