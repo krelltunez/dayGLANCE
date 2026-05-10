@@ -100,6 +100,12 @@ const useHabits = ({ playUISound }) => {
     return habitLogs[todayStr]?.[habitId] || 0;
   };
 
+  const stampHabitLogTs = (dateStr, habitId) => {
+    const ts = JSON.parse(localStorage.getItem('day-planner-habit-log-timestamps') || '{}');
+    ts[`${dateStr}:${habitId}`] = new Date().toISOString();
+    localStorage.setItem('day-planner-habit-log-timestamps', JSON.stringify(ts));
+  };
+
   const incrementHabit = (habitId) => {
     const todayStr = dateToString(new Date());
     playUISound('click');
@@ -110,6 +116,7 @@ const useHabits = ({ playUISound }) => {
         [habitId]: (prev[todayStr]?.[habitId] || 0) + 1
       }
     }));
+    stampHabitLogTs(todayStr, habitId);
   };
 
   const setHabitCount = (habitId, count) => {
@@ -121,6 +128,7 @@ const useHabits = ({ playUISound }) => {
         [habitId]: Math.max(0, count)
       }
     }));
+    stampHabitLogTs(todayStr, habitId);
   };
 
   const addHabit = (habit) => {
