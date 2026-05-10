@@ -1272,24 +1272,37 @@ const DayPlanner = () => {
   const iCloudSyncRef = useRef(null);
   const iCloudAvailableRef = useRef(null); // null=unchecked, true/false=result
 
-  const iCloudSync = () => {
-    if (!isNativeIOS() || cloudSyncInProgressRef.current) return;
+  const isElectronMac = () =>
+    !!(window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin');
 
-    // Check iCloud availability once; cache the result.
-    if (iCloudAvailableRef.current === null) {
-      try {
-        const r = JSON.parse(window.DayGlanceNative.iCloudAvailable());
-        iCloudAvailableRef.current = r.available === true;
-      } catch { iCloudAvailableRef.current = false; }
+  const iCloudSync = async () => {
+    const onIOS = isNativeIOS();
+    const onMac = !onIOS && isElectronMac();
+    if (!onIOS && !onMac) return;
+    if (cloudSyncInProgressRef.current) return;
+
+    // iOS: check iCloud availability once and cache.
+    if (onIOS) {
+      if (iCloudAvailableRef.current === null) {
+        try {
+          const r = JSON.parse(window.DayGlanceNative.iCloudAvailable());
+          iCloudAvailableRef.current = r.available === true;
+        } catch { iCloudAvailableRef.current = false; }
+      }
+      if (!iCloudAvailableRef.current) return;
     }
-    if (!iCloudAvailableRef.current) return;
 
     cloudSyncInProgressRef.current = true;
     try {
-      const str = window.DayGlanceNative.readICloudSync();
+      const str = onIOS
+        ? window.DayGlanceNative.readICloudSync()
+        : await window.electronAPI.readICloud();
+
       if (!str || str === 'null') {
-        // No remote file yet — upload local data as the seed.
-        window.DayGlanceNative.writeICloudSync(JSON.stringify(buildSyncPayload()));
+        // No remote file yet — seed it with local data.
+        const payload = JSON.stringify(buildSyncPayload());
+        if (onIOS) window.DayGlanceNative.writeICloudSync(payload);
+        else await window.electronAPI.writeICloud(payload);
         return;
       }
 
@@ -1305,11 +1318,9 @@ const DayPlanner = () => {
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
       if (remoteChanged || localChanged) {
-        window.DayGlanceNative.writeICloudSync(JSON.stringify({
-          version: 2,
-          lastModified: new Date().toISOString(),
-          data: mergedData,
-        }));
+        const payload = JSON.stringify({ version: 2, lastModified: new Date().toISOString(), data: mergedData });
+        if (onIOS) window.DayGlanceNative.writeICloudSync(payload);
+        else await window.electronAPI.writeICloud(payload);
       }
     } finally {
       cloudSyncInProgressRef.current = false;
@@ -1321,16 +1332,26 @@ const DayPlanner = () => {
 
   // Run once on startup after data is loaded.
   useEffect(() => {
-    if (!dataLoaded || !isNativeIOS()) return;
+    if (!dataLoaded || (!isNativeIOS() && !isElectronMac())) return;
     iCloudSyncRef.current?.();
   }, [dataLoaded]);
 
   // Poll every 60 seconds — iCloud daemon handles actual network sync;
   // we just read/write the local container file.
   useEffect(() => {
-    if (!isNativeIOS()) return;
+    if (!isNativeIOS() && !isElectronMac()) return;
     const timer = setInterval(() => iCloudSyncRef.current?.(), 60 * 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // On Electron/macOS, also sync when the window comes back to the foreground.
+  useEffect(() => {
+    if (!isElectronMac()) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') iCloudSyncRef.current?.();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   // Cloud sync: download on app load or when sync is first enabled.

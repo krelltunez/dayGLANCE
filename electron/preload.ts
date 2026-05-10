@@ -88,6 +88,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Registers (or clears) a system-wide hotkey that shows the main app window.
   setMainWindowHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register-main-window', accelerator),
 
+  // iCloud sync — reads/writes dayglance-sync.json in the shared ubiquitous container.
+  // macOS only; returns null/false on other platforms.
+  readICloud: (): Promise<string | null> => ipcRenderer.invoke('icloud:read'),
+  writeICloud: (json: string): Promise<boolean> => ipcRenderer.invoke('icloud:write', json),
+
   // Tray popup listens for the signal to focus the quick-add input.
   onFocusQuickAdd: (callback: () => void) => {
     const handler = () => callback();
