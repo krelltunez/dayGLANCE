@@ -65,6 +65,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useCloudSync from './hooks/useCloudSync.js';
+import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
@@ -1295,6 +1296,11 @@ const DayPlanner = () => {
     if (!dataLoaded) return;
     if (cloudSyncInProgressRef.current) return;
 
+    // If encryption is configured but the key isn't ready yet (passphrase not entered),
+    // skip — we must not read an encrypted file we can't decrypt, or write plaintext.
+    const encEnabled = cloudSyncConfig?.encryptionEnabled && hasEncryptionReady();
+    if (cloudSyncConfig?.encryptionEnabled && !hasEncryptionReady()) return;
+
     // iOS: check iCloud availability once and cache.
     if (onIOS) {
       if (iCloudAvailableRef.current === null) {
@@ -1320,7 +1326,8 @@ const DayPlanner = () => {
         const payload = buildSyncPayload();
         const payloadTaskCount = (payload.data?.tasks?.length || 0) + (payload.data?.unscheduledTasks?.length || 0);
         if (localTaskCount + localInboxCount > 0 && payloadTaskCount === 0) return;
-        await iCloudWriteSync(onIOS, JSON.stringify(payload));
+        const toWrite = encEnabled ? await encryptData(payload) : payload;
+        await iCloudWriteSync(onIOS, JSON.stringify(toWrite));
         return;
       }
 
@@ -1330,6 +1337,11 @@ const DayPlanner = () => {
       try { remote = JSON.parse(str); } catch { return; }
       if (remote?.downloading) return;
       if (remote?.error) { console.error('iCloud unavailable:', remote.error); return; }
+
+      // Decrypt if the file is an encrypted envelope.
+      if (isEncryptedEnvelope(remote)) {
+        try { remote = await decryptData(remote); } catch { return; }
+      }
       if (!remote?.data) return;
 
       const localData = buildSyncPayload().data;
@@ -1340,8 +1352,9 @@ const DayPlanner = () => {
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
       if (remoteChanged || localChanged) {
-        const payloadStr = JSON.stringify({ version: 2, lastModified: new Date().toISOString(), data: mergedData });
-        await iCloudWriteSync(onIOS, payloadStr);
+        const outPayload = { version: 2, lastModified: new Date().toISOString(), data: mergedData };
+        const toWrite = encEnabled ? await encryptData(outPayload) : outPayload;
+        await iCloudWriteSync(onIOS, JSON.stringify(toWrite));
       }
     } finally {
       cloudSyncInProgressRef.current = false;
