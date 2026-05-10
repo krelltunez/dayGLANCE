@@ -18,7 +18,19 @@
  * Returns true when running inside the DayGlance Android WebView.
  */
 export const isNativeAndroid = () =>
-  typeof window !== 'undefined' && !!window.DayGlanceNative;
+  typeof window !== 'undefined' && !!window.DayGlanceNative && !window.DayGlanceIOS;
+
+/**
+ * Returns true when running inside the DayGlance iOS WKWebView shell.
+ * Swift injects window.DayGlanceIOS = true at document start.
+ */
+export const isNativeIOS = () =>
+  typeof window !== 'undefined' && !!window.DayGlanceIOS;
+
+/**
+ * Returns true when running inside any native shell (Android or iOS).
+ */
+export const isNativeApp = () => isNativeAndroid() || isNativeIOS();
 
 /**
  * Returns the native bridge object (Health, Calendar, Notifications), or null when running as a PWA.
@@ -41,7 +53,7 @@ export const isNativeAndroid = () =>
  *     showNotification(title: string, body: string): void
  */
 export const nativeBridge = () =>
-  isNativeAndroid() ? window.DayGlanceNative : null;
+  (isNativeAndroid() || isNativeIOS()) ? window.DayGlanceNative : null;
 
 /**
  * Returns the Obsidian vault bridge object (Phase 4), or null when running as a PWA.
@@ -94,7 +106,7 @@ export const nativeGetCalendars = () => {
   }
 };
 
-export const nativeGetEvents = async (date) => {
+export const nativeGetEvents = (date) => {
   const bridge = nativeBridge();
   if (!bridge?.getEvents) return null;
   try {
@@ -137,8 +149,30 @@ export const nativeBuildNoteIndex = () => {
 };
 
 /**
- * Clears the stored vault URI on the Android side, resetting the integration
- * to unconfigured state. The SAF permission is not revoked.
+ * Opens the system folder picker so the user can select an Obsidian vault.
+ * On Android this launches SAF; on iOS it presents UIDocumentPickerViewController.
+ * The bridge posts a webview reload notification after the user picks a folder.
+ */
+export const nativePickVault = () => {
+  const bridge = obsidianBridge();
+  if (!bridge?.pickVault) return;
+  bridge.pickVault();
+};
+
+/**
+ * Persists daily-notes folder, date pattern, and new-notes folder to native storage
+ * (UserDefaults on iOS) so getDailyNote/writeDailyNote use the correct paths.
+ * No-op on Android where these are set via SettingsActivity.
+ */
+export const nativeSetVaultSettings = (folder, pattern, newNotesFolder) => {
+  const bridge = obsidianBridge();
+  if (!bridge?.setVaultSettings) return;
+  bridge.setVaultSettings(folder ?? '', pattern ?? 'yyyy-MM-dd', newNotesFolder ?? 'dayGLANCE');
+};
+
+/**
+ * Clears the stored vault URI, resetting the integration to unconfigured state.
+ * The SAF permission is not revoked on Android.
  */
 export const nativeClearVault = () => {
   const bridge = obsidianBridge();

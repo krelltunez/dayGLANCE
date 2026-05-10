@@ -11,5 +11,18 @@
     <!-- Outbound network access (CalDAV, AI APIs, WebSocket, etc.) -->
     <key>com.apple.security.network.client</key>
     <true/>
+    <!-- iCloud Drive access — shares the dayglance-sync.json container with iOS -->
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array>
+      <string>iCloud.com.dayglance</string>
+    </array>
+    <key>com.apple.developer.icloud-services</key>
+    <array>
+      <string>CloudDocuments</string>
+    </array>
+    <key>com.apple.developer.ubiquity-container-identifiers</key>
+    <array>
+      <string>iCloud.com.dayglance</string>
+    </array>
   </dict>
 </plist>

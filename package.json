@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:android": "./node_modules/.bin/vite build --config vite.config.android.js",
+    "build:ios": "./node_modules/.bin/vite build --config vite.config.ios.js",
     "preview": "vite preview",
     "test": "vitest run",
     "dev:electron": "npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && concurrently -n renderer,main,preload,electron -c cyan,yellow,magenta,green \"vite\" \"npx tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"npx tsc -p tsconfig.electron.preload.json -w --preserveWatchOutput\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",

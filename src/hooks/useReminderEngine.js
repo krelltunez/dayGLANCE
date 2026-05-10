@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
-import { isNativeAndroid, nativeShowNotification, nativeShowTaskNotification, nativeSyncReminders } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeShowNotification, nativeShowTaskNotification, nativeSyncReminders } from '../native.js';
 
 // The tray popup runs the same App tree — skip the reminder engine there so
 // sounds and notifications don't fire twice (once per renderer process).
@@ -152,8 +152,8 @@ export default function useReminderEngine({
       if (hgFires.length > 0) {
         playUISound('reminder');
         if (window.electronAPI?.isElectron) window.electronAPI.setTrayIndicator(true);
-        // Android: AlarmManager already fires showTaskNotification (with Snooze) — don't duplicate.
-        if (!isNativeAndroid() && reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        // Native apps: bridge already fires showTaskNotification (with Snooze) — don't duplicate.
+        if (!isNativeApp() && reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           if (window.electronAPI?.isElectron) {
             for (const { title, body } of hgFires) {
               try { new Notification(title, { body }); } catch {}
@@ -245,8 +245,8 @@ export default function useReminderEngine({
           });
         }
       }
-      // Native Android: show rich notifications with Snooze / Mark Complete action buttons
-      if (isNativeAndroid()) {
+      // Native app: show rich notifications with Snooze / Mark Complete action buttons
+      if (isNativeApp()) {
         for (const r of newReminders) {
           nativeShowTaskNotification(r);
         }
@@ -269,12 +269,11 @@ export default function useReminderEngine({
     return () => clearInterval(timer);
   }, [activeReminders.length]);
 
-  // Native Android: pre-schedule background reminder alarms via AlarmManager so
-  // notifications fire even when the app is closed. Runs whenever tasks, settings,
-  // or HG sessions change. On device reboot, ReminderReceiver.BOOT_COMPLETED
-  // re-registers from the persisted list stored by nativeSyncReminders.
+  // Native app: pre-schedule background reminder alarms so notifications fire even
+  // when the app is closed. On Android uses AlarmManager (re-registered on reboot);
+  // on iOS uses UNCalendarNotificationTrigger (restored automatically by the OS).
   useEffect(() => {
-    if (isTrayMode || !isNativeAndroid()) return;
+    if (isTrayMode || !isNativeApp()) return;
 
     const todayStr = dateToString(new Date());
     const todayMidnight = new Date();

@@ -80,6 +80,13 @@ async function clearKeyFromIndexedDB() {
 // ---------------------------------------------------------------------------
 // Android Keystore bridge
 // ---------------------------------------------------------------------------
+
+// iOS uses a Proxy for DayGlanceNative that makes every property lookup truthy,
+// so we must explicitly exclude iOS before treating the native bridge as Android.
+function isAndroidKeystore() {
+  return typeof window !== 'undefined' && !window.DayGlanceIOS && !!window.DayGlanceNative?.getSyncKey;
+}
+
 async function loadKeyFromAndroid() {
   try {
     if (!window.DayGlanceNative?.getSyncKey) return null;
@@ -141,7 +148,7 @@ async function deriveKey(passphrase, salt) {
 export async function initSessionKey() {
   try {
     let result;
-    if (typeof window !== 'undefined' && window.DayGlanceNative?.getSyncKey) {
+    if (isAndroidKeystore()) {
       result = await loadKeyFromAndroid();
     } else {
       result = await loadKeyFromIndexedDB();
@@ -165,7 +172,7 @@ export async function setupEncryptionKey(passphrase) {
   const key  = await deriveKey(passphrase, salt);  // extractable: true (needed to export for storage)
   _sessionPassphrase = passphrase;
   _sessionSalt       = salt;
-  if (typeof window !== 'undefined' && window.DayGlanceNative?.storeSyncKey) {
+  if (isAndroidKeystore()) {
     await saveKeyToAndroid(key, salt);
   } else {
     await saveKeyToIndexedDB(key, salt);
@@ -185,7 +192,7 @@ export async function clearEncryptionKey() {
   _sessionPassphrase = null;
   _sessionKey        = null;
   _sessionSalt       = null;
-  if (typeof window !== 'undefined' && window.DayGlanceNative?.storeSyncKey) {
+  if (isAndroidKeystore()) {
     await clearKeyFromAndroid();
   } else {
     await clearKeyFromIndexedDB();
@@ -289,7 +296,7 @@ export async function decryptData(envelope) {
       _sessionKey  = key;
       _sessionSalt = salt;
       // Cache so subsequent sessions don't need the passphrase.
-      if (typeof window !== 'undefined' && window.DayGlanceNative?.storeSyncKey) {
+      if (isAndroidKeystore()) {
         await saveKeyToAndroid(key, salt);
       } else {
         await saveKeyToIndexedDB(key, salt);

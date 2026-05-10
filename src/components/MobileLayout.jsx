@@ -9,7 +9,7 @@ import {
   Sun, Target, Trash2, TrendingUp, Trophy, Undo2, Upload, Volume2, VolumeX,
   Wifi, X, Zap,
 } from 'lucide-react';
-import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask, renderFormattedText } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDate, formatDateRange, formatDeadlineDate, formatShortDate } from '../utils/taskUtils.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
@@ -798,7 +798,7 @@ const MobileLayout = () => {
                                   const newNotes = e.target.value;
                                   if (newNotes === (noteTask.notes || '')) return;
                                   setTasks(prev => prev.map(t => t.id === noteTask.id ? { ...t, notes: newNotes } : t));
-                                  if (isNativeAndroid() && noteTask.nativeEventId) {
+                                  if (isNativeApp() && noteTask.nativeEventId) {
                                     await nativeUpdateEvent({
                                       id: noteTask.nativeEventId,
                                       title: noteTask.title,

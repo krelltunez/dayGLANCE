@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { isNativeAndroid } from '../native.js';
+import { isNativeAndroid, isNativeApp } from '../native.js';
 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
@@ -14,7 +14,7 @@ export default function useAppInit({
   useEffect(() => {
     loadData();
     if (isTrayMode) return;
-    if (dailyContentEnabled && !isNativeAndroid()) {
+    if (dailyContentEnabled && !isNativeApp()) {
       fetchAllDailyContent();
     }
 

@@ -7,7 +7,7 @@ import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { getStorageUsage } from '../utils/storage.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { isNativeAndroid, nativeGetCalendars } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
 
 const SettingsModal = () => {
@@ -616,7 +616,7 @@ const SettingsModal = () => {
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
-                      {!isNativeAndroid() && (
+                      {!isNativeApp() && (
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           Calendar URL (iCal/CalDAV)
@@ -637,7 +637,7 @@ const SettingsModal = () => {
                         </p>
                       </div>
                       )}
-                      {!isNativeAndroid() && syncUrl && (
+                      {!isNativeApp() && syncUrl && (
                         <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
                           <p className={`text-xs font-medium ${textSecondary}`}>Basic auth (optional — for private calendars)</p>
                           <div className="flex gap-2">
@@ -664,7 +664,7 @@ const SettingsModal = () => {
                           </div>
                         </div>
                       )}
-                      {isNativeAndroid() && (
+                      {isNativeApp() && (
                         <p className={`text-xs ${textSecondary}`}>
                           Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
                         </p>
@@ -763,7 +763,7 @@ const SettingsModal = () => {
                           Last synced: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
                       )}
-                      {isNativeAndroid() && (
+                      {isNativeApp() && (
                         <div className="space-y-2 pt-1">
                           <div className="flex items-center justify-between">
                             <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>

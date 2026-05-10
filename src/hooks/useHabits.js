@@ -156,11 +156,17 @@ const useHabits = ({ playUISound }) => {
   // Ref kept current so the visibilitychange handler always calls the latest version
   const syncHealthConnectHabitsRef = useRef(null);
 
-  // Pull Health Connect data into habits that have source === 'healthConnect'.
+  // Pull native health data into habits that belong to this platform.
+  // iOS reads from HealthKit (source:'healthKit'); Android reads from
+  // HealthConnect (source:'healthConnect'). Habits synced from the other
+  // platform carry the opposite source tag and are intentionally skipped,
+  // preventing cross-platform overwriting of health counts.
   // Backfills the last 7 days so historical rings are accurate on first setup.
   const syncHealthConnectHabits = () => {
     if (!window.DayGlanceNative) return;
-    const healthHabits = habits.filter(h => !h.archived && h.source === 'healthConnect');
+    const isIOS = !!window.DayGlanceIOS;
+    const platformSource = isIOS ? 'healthKit' : 'healthConnect';
+    const healthHabits = habits.filter(h => !h.archived && h.source === platformSource);
     if (!healthHabits.length) return;
 
     const today = new Date();
@@ -188,7 +194,14 @@ const useHabits = ({ playUISound }) => {
       setHabitLogs(prev => {
         const next = { ...prev };
         for (const [dateStr, entries] of Object.entries(updates)) {
-          next[dateStr] = { ...next[dateStr], ...entries };
+          const prevDay = next[dateStr] || {};
+          const merged = { ...prevDay };
+          for (const [habitId, count] of Object.entries(entries)) {
+            // Never downgrade a count already in state (e.g. a value that arrived
+            // via cloud sync from the other device's health platform).
+            merged[habitId] = Math.max(prevDay[habitId] || 0, count);
+          }
+          next[dateStr] = merged;
         }
         return next;
       });
@@ -203,10 +216,10 @@ const useHabits = ({ playUISound }) => {
     syncHealthConnectHabitsRef.current?.();
   }, [habits]);
 
-  // Create the steps habit pre-configured for Health Connect auto-sync
+  // Create the steps habit pre-configured for the platform's health bridge.
   const addStepsHabit = () => {
     if (!window.DayGlanceNative) return;
-    // Request permission — stub returns "granted", real impl launches HC permission dialog
+    // Request permission — stub returns "granted", real impl launches HC/HK permission dialog
     try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
     addHabit({
       name: 'Steps',
@@ -215,12 +228,12 @@ const useHabits = ({ playUISound }) => {
       type: 'doMore',
       target: 10000,
       unit: 'steps',
-      source: 'healthConnect',
+      source: window.DayGlanceIOS ? 'healthKit' : 'healthConnect',
       scheduledDays: [0, 1, 2, 3, 4, 5, 6],
     });
   };
 
-  // Create the sleep habit pre-configured for Health Connect auto-sync
+  // Create the sleep habit pre-configured for the platform's health bridge.
   const addSleepHabit = () => {
     if (!window.DayGlanceNative) return;
     try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
@@ -231,7 +244,7 @@ const useHabits = ({ playUISound }) => {
       type: 'doMore',
       target: 480,
       unit: 'min',
-      source: 'healthConnect',
+      source: window.DayGlanceIOS ? 'healthKit' : 'healthConnect',
       scheduledDays: [0, 1, 2, 3, 4, 5, 6],
     });
   };

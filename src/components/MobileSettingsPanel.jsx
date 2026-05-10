@@ -9,7 +9,7 @@ import {
   Undo2, Upload, Volume2, VolumeX, Wifi, Zap,
 } from 'lucide-react';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
-import { isNativeAndroid, nativeGetCalendars } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeGetCalendars, nativePickVault } from '../native.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes } from '../obsidian.js';
@@ -61,7 +61,7 @@ const MobileSettingsPanel = () => {
     autoBackupStatus, autoBackupHistory,
     setAutoBackupRestoreConfirm,
     cloudSyncConfig, setCloudSyncConfig,
-    cloudSyncStatus, cloudSyncLastSynced,
+    cloudSyncStatus, cloudSyncLastSynced, cloudSyncError,
     syncKeyReady, setSyncKeyReady,
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
@@ -198,7 +198,7 @@ const MobileSettingsPanel = () => {
     </div>
 
     {/* Sync buttons */}
-    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeAndroid()) && (
+    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeApp()) && (
       <div className="space-y-2">
         <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
         {calSyncConfigured && (
@@ -227,10 +227,18 @@ const MobileSettingsPanel = () => {
                 (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
               }`} />
             </div>
-            <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+            <div className="flex-1 text-left">
+              <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+              {cloudSyncStatus === 'error' && cloudSyncError && (
+                <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
+              )}
+              {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
+                <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
+              )}
+            </div>
           </button>
         )}
-        {isNativeAndroid() && (
+        {isNativeApp() && (
           <button
             onClick={() => setMobileSettingsView('obsidian')}
             className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
@@ -399,7 +407,7 @@ const MobileSettingsPanel = () => {
           <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
         </button>
         {!collapsedSettings.calSync && (<>
-        {!isNativeAndroid() && (
+        {!isNativeApp() && (
         <div>
           <label className={`block text-sm ${textSecondary} mb-1`}>Calendar URL (iCal/CalDAV)</label>
           <input
@@ -411,7 +419,7 @@ const MobileSettingsPanel = () => {
           />
         </div>
         )}
-        {!isNativeAndroid() && syncUrl && (
+        {!isNativeApp() && syncUrl && (
           <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
             <p className={`text-xs font-medium ${textSecondary}`}>Basic auth (optional — for private calendars)</p>
             <div>
@@ -436,7 +444,7 @@ const MobileSettingsPanel = () => {
             </div>
           </div>
         )}
-        {isNativeAndroid() && (
+        {isNativeApp() && (
           <p className={`text-xs ${textSecondary}`}>
             Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
           </p>
@@ -523,7 +531,7 @@ const MobileSettingsPanel = () => {
         {calSyncLastSynced && (
           <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(calSyncLastSynced).toLocaleString()}</p>
         )}
-        {isNativeAndroid() && (
+        {isNativeApp() && (
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
               <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
@@ -1204,12 +1212,12 @@ const MobileSettingsPanel = () => {
       <p className={`text-xs ${textSecondary}`}>
         Import tasks and sync daily notes with your Obsidian vault.
       </p>
-      {!isNativeAndroid() && !isFileSystemAccessSupported() && (
+      {!isNativeApp() && !isFileSystemAccessSupported() && (
         <p className={`text-xs text-amber-500`}>
           Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
         </p>
       )}
-      {isNativeAndroid() ? (
+      {isNativeApp() ? (
         <div className="space-y-3">
           {obsidianConfig?.enabled ? (
             <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
@@ -1224,13 +1232,23 @@ const MobileSettingsPanel = () => {
           )}
           {/* Vault path + new notes folder — configured in native SettingsActivity */}
           <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => window.DayGlanceNative.openSettings()}
-              className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
-            >
-              <FolderOpen size={14} />
-              Vault Settings
-            </button>
+            {isNativeAndroid() ? (
+              <button
+                onClick={() => window.DayGlanceNative.openSettings()}
+                className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
+              >
+                <FolderOpen size={14} />
+                Vault Settings
+              </button>
+            ) : (
+              <button
+                onClick={() => nativePickVault()}
+                className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
+              >
+                <FolderOpen size={14} />
+                {obsidianConfig?.enabled ? 'Change Vault' : 'Connect Vault'}
+              </button>
+            )}
             {obsidianConfig?.enabled && (
               <>
                 <button

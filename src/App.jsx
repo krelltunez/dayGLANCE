@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
+import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -200,8 +200,9 @@ const DayPlanner = () => {
     // an artefact of the edge-to-edge layout (not a real keyboard), and applying
     // a translateY here creates a persistent gap below the content on every tab.
     // The tab bar is fixed bottom-0 and is already in the right place — skip the
-    // listener entirely on Android native.
-    if (!isMobile || !window.visualViewport || isNativeAndroid()) return;
+    // listener entirely on native apps (Android edge-to-edge / iOS WKWebView both
+    // produce unreliable visualViewport resize signals for the keyboard).
+    if (!isMobile || !window.visualViewport || isNativeApp()) return;
     let timer = null;
     const updateTabBar = () => {
       if (!tabBarRef.current || suppressTabBarRef.current) return;
@@ -393,8 +394,8 @@ const DayPlanner = () => {
   const [calendarFilter, setCalendarFilter] = useState(() => {
     try { return JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'); } catch { return []; }
   });
-  // On Android, calendar events come from the native bridge — only task calendar URL matters for sync
-  const calSyncConfigured = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+  // On native apps, calendar events come from the native bridge — only task calendar URL matters for sync
+  const calSyncConfigured = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
   const [calendarUrlAuth, setCalendarUrlAuth] = useState(() => {
     const saved = localStorage.getItem('day-planner-calendar-url-auth');
     return saved ? JSON.parse(saved) : { username: '', password: '' };
@@ -539,7 +540,7 @@ const DayPlanner = () => {
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
-  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: !isNativeAndroid(), ai: true, obsidian: !isNativeAndroid(), trmnl: true });
+  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: !isNativeApp(), ai: true, obsidian: !isNativeApp(), trmnl: true });
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1176,7 +1177,9 @@ const DayPlanner = () => {
   useEffect(() => {
     if (isTrayMode) return;
     const handleVisibility = () => {
-      if (!document.hidden) {
+      // iOS uses the dayglanceForeground custom event instead (see below) to
+      // avoid a double-sync from both the native visibilitychange and our Swift dispatch.
+      if (!document.hidden && !window.DayGlanceIOS) {
         setCurrentTime(new Date());
         if (Date.now() >= cloudSyncBackoffUntilRef.current) {
           cloudSyncDownloadRef.current?.();
@@ -1184,8 +1187,23 @@ const DayPlanner = () => {
         syncHealthConnectHabitsRef.current?.();
       }
     };
+    // Native iOS fires a custom event to bypass the document.hidden timing gap
+    // that occurs when scenePhase fires before WKWebView updates visibility state.
+    const handleNativeForeground = () => {
+      setCurrentTime(new Date());
+      // iCloud runs first (fast local file I/O), then WebDAV (network)
+      iCloudSyncRef.current?.();
+      if (Date.now() >= cloudSyncBackoffUntilRef.current) {
+        cloudSyncDownloadRef.current?.();
+      }
+      syncHealthConnectHabitsRef.current?.();
+    };
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('dayglanceForeground', handleNativeForeground);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('dayglanceForeground', handleNativeForeground);
+    };
   }, []);
 
   // Auto-refresh page at midnight (00:00:01) to reset the timeline to the new day
@@ -1223,10 +1241,10 @@ const DayPlanner = () => {
   }, []); // Run once on app start
 
   // Auto-sync calendars every 15 minutes when URLs are configured.
-  // On Android, only the task calendar matters — calendar events come from the native bridge.
+  // On native apps, only the task calendar matters — calendar events come from the native bridge.
   useEffect(() => {
     if (isTrayMode) return;
-    const hasSyncTarget = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) return;
 
     const syncTimer = setInterval(() => {
@@ -1245,6 +1263,96 @@ const DayPlanner = () => {
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
+
+  // ── iCloud sync ──────────────────────────────────────────────────────────
+  // Runs independently alongside any configured WebDAV/Nextcloud sync so that
+  // Apple-only users (Mac + iPhone/iPad) get zero-config sync, while
+  // cross-platform users (+ Android) keep WebDAV for that leg.
+  // Uses the same cloudSyncInProgressRef lock to serialise with WebDAV.
+  const iCloudSyncRef = useRef(null);
+  const iCloudAvailableRef = useRef(null); // null=unchecked, true/false=result
+
+  const isElectronMac = () =>
+    !!(window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin');
+
+  const iCloudSync = async () => {
+    const onIOS = isNativeIOS();
+    const onMac = !onIOS && isElectronMac();
+    if (!onIOS && !onMac) return;
+    if (cloudSyncInProgressRef.current) return;
+
+    // iOS: check iCloud availability once and cache.
+    if (onIOS) {
+      if (iCloudAvailableRef.current === null) {
+        try {
+          const r = JSON.parse(window.DayGlanceNative.iCloudAvailable());
+          iCloudAvailableRef.current = r.available === true;
+        } catch { iCloudAvailableRef.current = false; }
+      }
+      if (!iCloudAvailableRef.current) return;
+    }
+
+    cloudSyncInProgressRef.current = true;
+    try {
+      const str = onIOS
+        ? window.DayGlanceNative.readICloudSync()
+        : await window.electronAPI.readICloud();
+
+      if (!str || str === 'null') {
+        // No remote file yet — seed it with local data.
+        const payload = JSON.stringify(buildSyncPayload());
+        if (onIOS) window.DayGlanceNative.writeICloudSync(payload);
+        else await window.electronAPI.writeICloud(payload);
+        return;
+      }
+
+      let remote;
+      try { remote = JSON.parse(str); } catch { return; }
+      if (!remote?.data) return;
+
+      const localData = buildSyncPayload().data;
+      const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
+
+      if (localChanged) {
+        applyRemoteData(mergedData);
+        localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+      }
+      if (remoteChanged || localChanged) {
+        const payload = JSON.stringify({ version: 2, lastModified: new Date().toISOString(), data: mergedData });
+        if (onIOS) window.DayGlanceNative.writeICloudSync(payload);
+        else await window.electronAPI.writeICloud(payload);
+      }
+    } finally {
+      cloudSyncInProgressRef.current = false;
+    }
+  };
+
+  // Keep ref fresh so interval and event listeners always call the latest closure.
+  iCloudSyncRef.current = iCloudSync;
+
+  // Run once on startup after data is loaded.
+  useEffect(() => {
+    if (!dataLoaded || (!isNativeIOS() && !isElectronMac())) return;
+    iCloudSyncRef.current?.();
+  }, [dataLoaded]);
+
+  // Poll every 60 seconds — iCloud daemon handles actual network sync;
+  // we just read/write the local container file.
+  useEffect(() => {
+    if (!isNativeIOS() && !isElectronMac()) return;
+    const timer = setInterval(() => iCloudSyncRef.current?.(), 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // On Electron/macOS, also sync when the window comes back to the foreground.
+  useEffect(() => {
+    if (!isElectronMac()) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') iCloudSyncRef.current?.();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   // Cloud sync: download on app load or when sync is first enabled.
   // If encryption is enabled, wait until the session key is ready (either
@@ -1316,8 +1424,8 @@ const DayPlanner = () => {
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
     if (isTrayMode || !dataLoaded) return;
-    if (isNativeAndroid()) {
-      // Android: vault is configured natively — detect and auto-enable
+    if (isNativeApp()) {
+      // Native app: vault is configured natively — detect and auto-enable
       try {
         const cfg = nativeGetVaultConfig();
         if (cfg?.configured) {
@@ -1362,7 +1470,7 @@ const DayPlanner = () => {
     if (isTrayMode) return;
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
-      if (isNativeAndroid()) {
+      if (isNativeApp()) {
         // Re-check in case user just configured the vault in native settings
         try {
           const cfg = nativeGetVaultConfig();
@@ -1503,6 +1611,16 @@ const DayPlanner = () => {
     obsidianPrevTaskStateRef.current = next;
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
 
+  // On iOS, persist Obsidian folder/pattern/newNotesFolder to UserDefaults so
+  // getDailyNote/writeDailyNote use the correct path (iOS has no SettingsActivity).
+  useEffect(() => {
+    if (!isNativeApp() || isNativeAndroid() || !obsidianConfig?.enabled) return;
+    nativeSetVaultSettings(
+      obsidianConfig.dailyNotesPath ?? '',
+      obsidianConfig.dailyNotePattern ?? 'yyyy-MM-dd',
+      obsidianConfig.newNotesFolder ?? 'dayGLANCE',
+    );
+  }, [obsidianConfig?.dailyNotesPath, obsidianConfig?.dailyNotePattern, obsidianConfig?.newNotesFolder, obsidianConfig?.enabled]);
 
   // Auto-backup timer
   useEffect(() => {
@@ -2839,16 +2957,16 @@ const DayPlanner = () => {
     };
   };
 
-  // Fetch available device calendars once on load (Android only)
+  // Fetch available device calendars once on load
   useEffect(() => {
-    if (!isNativeAndroid()) return;
+    if (!isNativeApp()) return;
     const cals = nativeGetCalendars();
     if (cals.length > 0) setAvailableCalendars(cals);
   }, []);
 
 
   useEffect(() => {
-    if (!isNativeAndroid()) return;
+    if (!isNativeApp()) return;
 
     const dates = [];
     for (let offset = -2; offset <= 2; offset++) {
@@ -2857,70 +2975,72 @@ const DayPlanner = () => {
       dates.push(dateToString(d));
     }
 
-    Promise.all(dates.map(d => nativeGetEvents(d))).then(results => {
-      // Tag each event with the date it was queried for so multi-day all-day events
-      // can be shown on every day they span, not just their start date.
-      const allEvents = results.flatMap((result, i) =>
-        Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
-      );
+    // nativeGetEvents uses synchronous XHR under the hood (iOS bridge). Calling it
+    // inside Promise.then() blocks the XHR on WKWebView, so we fetch synchronously.
+    const results = dates.map(d => nativeGetEvents(d));
 
-      // Discover calendars that appear in events but weren't returned by getCalendars()
-      // (e.g. task-only calendars that some providers omit from the calendars list).
-      setAvailableCalendars(prev => {
-        const knownIds = new Set(prev.map(c => c.id));
-        const newCals = [];
-        allEvents.forEach(e => {
-          if (e.calendarId && !knownIds.has(e.calendarId)) {
-            knownIds.add(e.calendarId);
-            newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
-          }
-        });
-        if (newCals.length === 0) return prev;
-        // Extend any active calendarFilter so newly discovered calendars show as checked.
-        setCalendarFilter(f => {
-          if (f.length === 0) return f;
-          const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
-          return toAdd.length > 0 ? [...f, ...toAdd] : f;
-        });
-        return [...prev, ...newCals];
+    // Tag each event with the date it was queried for so multi-day all-day events
+    // can be shown on every day they span, not just their start date.
+    const allEvents = results.flatMap((result, i) =>
+      Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
+    );
+
+    // Discover calendars that appear in events but weren't returned by getCalendars()
+    // (e.g. task-only calendars that some providers omit from the calendars list).
+    setAvailableCalendars(prev => {
+      const knownIds = new Set(prev.map(c => c.id));
+      const newCals = [];
+      allEvents.forEach(e => {
+        if (e.calendarId && !knownIds.has(e.calendarId)) {
+          knownIds.add(e.calendarId);
+          newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
+        }
       });
-
-      const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
-
-      // Deduplicate by task id: CalendarContract can return the same all-day event
-      // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
-      const seen = new Set();
-      const fetched = allEvents
-        .filter(e => !filterSet || filterSet.has(e.calendarId))
-        .map(e => nativeEventToTask(e))
-        .filter(t => {
-          if (seen.has(t.id)) return false;
-          seen.add(t.id);
-          return true;
-        });
-
-      // Apply any stored time overrides (from dragging all-day events to the timeline)
-      // so the scheduled position survives date navigation and native calendar re-fetches.
-      const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
-      const fetchedWithOverrides = fetched.map(t => {
-        const override = t.nativeEventId && overrides[String(t.nativeEventId)];
-        if (!override) return t;
-        return {
-          ...t,
-          ...(override.date !== undefined ? { date: override.date } : {}),
-          ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
-          ...(override.duration !== undefined ? { duration: override.duration } : {}),
-          ...(override.title !== undefined ? { title: override.title } : {}),
-          ...(override.notes !== undefined ? { notes: override.notes } : {}),
-          ...(override.color !== undefined ? { color: override.color } : {}),
-        };
+      if (newCals.length === 0) return prev;
+      // Extend any active calendarFilter so newly discovered calendars show as checked.
+      setCalendarFilter(f => {
+        if (f.length === 0) return f;
+        const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
+        return toAdd.length > 0 ? [...f, ...toAdd] : f;
       });
-
-      setTasks(prev => [
-        ...prev.filter(t => !t._native),
-        ...fetchedWithOverrides,
-      ]);
+      return [...prev, ...newCals];
     });
+
+    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
+
+    // Deduplicate by task id: CalendarContract can return the same all-day event
+    // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
+    const seen = new Set();
+    const fetched = allEvents
+      .filter(e => !filterSet || filterSet.has(e.calendarId))
+      .map(e => nativeEventToTask(e))
+      .filter(t => {
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+      });
+
+    // Apply any stored time overrides (from dragging all-day events to the timeline)
+    // so the scheduled position survives date navigation and native calendar re-fetches.
+    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+    const fetchedWithOverrides = fetched.map(t => {
+      const override = t.nativeEventId && overrides[String(t.nativeEventId)];
+      if (!override) return t;
+      return {
+        ...t,
+        ...(override.date !== undefined ? { date: override.date } : {}),
+        ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
+        ...(override.duration !== undefined ? { duration: override.duration } : {}),
+        ...(override.title !== undefined ? { title: override.title } : {}),
+        ...(override.notes !== undefined ? { notes: override.notes } : {}),
+        ...(override.color !== undefined ? { color: override.color } : {}),
+      };
+    });
+
+    setTasks(prev => [
+      ...prev.filter(t => !t._native),
+      ...fetchedWithOverrides,
+    ]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter, nativeCalendarKey]);
 
@@ -3977,9 +4097,9 @@ const DayPlanner = () => {
 
   // Returns { success: boolean, count?: number, error?: string }
   const syncWithCalendar = async () => {
-    // On Android, calendar events come from the native CalendarBridge (device accounts).
+    // On native apps, calendar events come from the native bridge (EventKit/CalendarBridge).
     // CalDAV iCal sync would duplicate those events, so skip it entirely.
-    if (isNativeAndroid()) return { success: false, error: 'no-url' };
+    if (isNativeApp()) return { success: false, error: 'no-url' };
     if (!syncUrl) {
       return { success: false, error: 'no-url' };
     }
@@ -4059,8 +4179,8 @@ const DayPlanner = () => {
         taskAuthHeaders['Authorization'] = 'Basic ' + toBase64(taskCalendarAuth.username + ':' + taskCalendarAuth.appPassword);
       }
       let effectiveTaskUrl = taskCalendarUrl;
-      if (isNativeAndroid()) {
-        // On Android: fetch directly — no CORS restrictions, no proxy server available
+      if (isNativeApp()) {
+        // On native apps: fetch directly — no CORS restrictions, no proxy server available
         const result = nativeHttpRequest('GET', taskCalendarUrl, taskAuthHeaders, '');
         if (!result || !result.ok) throw new Error('Failed to fetch task calendar');
         icsContent = result.body;
@@ -4378,7 +4498,7 @@ const DayPlanner = () => {
 
   // Combined sync function that shows a single notification
   const syncAll = async ({ silent = false } = {}) => {
-    const hasSyncTarget = isNativeAndroid() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) {
       if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a task calendar URL in sync settings' });
       return;
@@ -4455,8 +4575,14 @@ const DayPlanner = () => {
       version: 2,
       lastModified: new Date().toISOString(),
       data: {
-        tasks: stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks'),
-        unscheduledTasks: stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled'),
+        tasks: stampTaskTimestamps(
+          tasks.filter(t => !t._native && !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          'day-planner-tasks'
+        ),
+        unscheduledTasks: stampTaskTimestamps(
+          unscheduledTasks.filter(t => !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          'day-planner-unscheduled'
+        ),
         unscheduledOrderTimestamp,
         recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
         syncUrl,
@@ -4568,10 +4694,10 @@ const DayPlanner = () => {
     // tasks appear newer than actual remote changes during merge.
     const normalizeTasks = (tasks) => tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
 
-    // On Android, drop imported calendar events that arrived via cloud sync — the native
-    // CalendarBridge already provides those events and syncing them in causes duplicates.
+    // On native apps, drop imported calendar events that arrived via cloud sync — the native
+    // bridge already provides those events and syncing them in causes duplicates.
     // Calendar tasks (isTaskCalendar:true) and file imports are kept as normal.
-    const filterTasks = isNativeAndroid()
+    const filterTasks = isNativeApp()
       ? tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'))
       : tasks => tasks;
 
@@ -4650,10 +4776,10 @@ const DayPlanner = () => {
     if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
     if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
     if (data.obsidianConfig) {
-      // On Android, vault path and pattern are managed by native settings — only apply
+      // On native apps, vault path and pattern are managed via native storage — only apply
       // the app-level fields so a desktop value doesn't break the native integration.
       // The startup useEffect always re-seeds path/pattern from native config anyway.
-      if (isNativeAndroid()) {
+      if (isNativeApp()) {
         setObsidianConfig(prev => prev ? {
           ...prev,
           taskHeading: data.obsidianConfig.taskHeading ?? prev.taskHeading,
@@ -4751,10 +4877,20 @@ const DayPlanner = () => {
       if (localChanged) {
         applyRemoteData(mergedData);
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
+        // On first sync the setState calls from applyRemoteData don't always
+        // propagate visibly before the user notices the empty screen. A reload
+        // guarantees a clean render from localStorage. Only do this once.
+        if (hasNeverSynced) setTimeout(() => window.location.reload(), 500);
       }
 
-      if (remoteChanged) {
+      if (remoteChanged || localChanged) {
         // Upload merged result so both sides converge.
+        // We upload even when only localChanged (remoteChanged is false) because
+        // applyRemoteData's setState calls trigger useSaveOnChange, which clears
+        // the suppress refs, and a subsequent native-calendar re-sync then fires
+        // the debounce upload — producing a spurious second sync event. Uploading
+        // from here keeps cloudSyncInProgressRef locked through the upload so the
+        // debounce cannot fire.
         // Pass the merged data directly as a pre-built payload — reading from
         // React state via buildSyncPayload() would return stale pre-merge data
         // because applyRemoteData's setState calls haven't been processed yet.
@@ -5513,11 +5649,11 @@ const DayPlanner = () => {
     lastWeeklyReviewFiredRef,
   });
 
-  // Native Android: pick up pending actions (e.g. Mark Complete) from notification buttons.
-  // The native side stores the action in SharedPreferences; we read it here via getPendingAction()
+  // Native app: pick up pending actions (e.g. Mark Complete) from notification buttons.
+  // The native side stores the action in UserDefaults/SharedPreferences; we read it via getPendingAction()
   // whenever the app comes back to the foreground (visibilitychange) or on first mount.
   useEffect(() => {
-    if (!isNativeAndroid()) return;
+    if (!isNativeApp()) return;
     const checkPending = () => {
       const pending = nativeGetPendingAction();
       if (!pending) return;
@@ -8793,7 +8929,7 @@ const DayPlanner = () => {
 
       {/* Sync passphrase prompt — shown on app load when encryption is enabled
           but no cached key was found in device storage (e.g. new device). */}
-      {cloudSyncConfig?.encryptionEnabled && !syncKeyReady && (
+      {cloudSyncConfig?.encryptionEnabled && syncKeyReady === false && (
         <SyncPassphraseModal
           darkMode={darkMode}
           textPrimary={textPrimary}

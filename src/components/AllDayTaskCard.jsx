@@ -4,7 +4,7 @@ import {
   FileText, Inbox, MoreHorizontal,
   Pencil, RefreshCw, SkipForward, Trash2,
 } from 'lucide-react';
-import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { extractWikilinks } from '../utils/taskUtils.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
@@ -318,7 +318,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
                   const newNotes = e.target.value;
                   if (newNotes === (task.notes || '')) return;
                   setTasks(prev => prev.map(t => t.id === task.id ? { ...t, notes: newNotes } : t));
-                  if (isNativeAndroid() && task.nativeEventId) {
+                  if (isNativeApp() && task.nativeEventId) {
                     await nativeUpdateEvent({
                       id: task.nativeEventId,
                       title: task.title,

@@ -258,6 +258,30 @@ function validateProxyUrl(urlString: string): void {
   ) throw new Error('Private/reserved address');
 }
 
+// iCloud sync file — shared with the iOS app via the ubiquitous container.
+// The path matches NSFileManager url(forUbiquityContainerIdentifier:) on macOS.
+const ICLOUD_SYNC_PATH = path.join(
+  app.getPath('home'),
+  'Library/Mobile Documents/iCloud~com~dayglance/Documents/dayglance-sync.json'
+);
+
+ipcMain.handle('icloud:read', () => {
+  if (process.platform !== 'darwin') return null;
+  try {
+    if (!fs.existsSync(ICLOUD_SYNC_PATH)) return null;
+    return fs.readFileSync(ICLOUD_SYNC_PATH, 'utf-8');
+  } catch { return null; }
+});
+
+ipcMain.handle('icloud:write', (_event, json: string) => {
+  if (process.platform !== 'darwin') return false;
+  try {
+    fs.mkdirSync(path.dirname(ICLOUD_SYNC_PATH), { recursive: true });
+    fs.writeFileSync(ICLOUD_SYNC_PATH, json, { encoding: 'utf-8' });
+    return true;
+  } catch { return false; }
+});
+
 // Proxy outbound HTTP requests from the renderer so they aren't subject to
 // Chromium's CORS restrictions when the app is loaded from file://.
 ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, headers: Record<string, string>, body: string | null) => {

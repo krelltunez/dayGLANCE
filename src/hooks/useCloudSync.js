@@ -13,9 +13,10 @@ const useCloudSync = () => {
   );
   const [cloudSyncConflict, setCloudSyncConflict] = useState(null); // { remoteData, remoteModified }
 
-  // true once initSessionKey() resolves (either key found or not)
-  // false means "encryption enabled but no cached key — show passphrase prompt"
-  const [syncKeyReady, setSyncKeyReady] = useState(false);
+  // null  = key check pending (initSessionKey not yet resolved — show nothing)
+  // true  = ready (key found in cache, or encryption not enabled)
+  // false = passphrase required (encryption enabled, no cached key)
+  const [syncKeyReady, setSyncKeyReady] = useState(null);
 
   const cloudSyncDebounceRef       = useRef(null);
   const suppressCloudUploadRef     = useRef(false);
