@@ -50,10 +50,13 @@ final class HttpBridge {
                 resultJSON = self.errorJSON(error.localizedDescription)
                 return
             }
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let http   = response as? HTTPURLResponse
+            let status = http?.statusCode ?? 0
             let bodyStr = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             let ok = (200...299).contains(status)
-            resultJSON = #"{"status":\#(status),"ok":\#(ok ? "true" : "false"),"body":"\#(self.esc(bodyStr))"}"#
+            let etag = http?.value(forHTTPHeaderField: "ETag") ?? ""
+            let headersJSON = etag.isEmpty ? "{}" : #"{"etag":"\#(self.esc(etag))"}"#
+            resultJSON = #"{"status":\#(status),"ok":\#(ok ? "true" : "false"),"body":"\#(self.esc(bodyStr))","headers":\#(headersJSON)}"#
         }.resume()
 
         sem.wait()
