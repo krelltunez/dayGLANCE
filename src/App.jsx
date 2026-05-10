@@ -4655,6 +4655,9 @@ const DayPlanner = () => {
         deletedProjectIds: JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}'),
         goalsProjectsEnabled,
         obsidianConfig: obsidianConfig ?? null,
+        tombstonePrunedBefore: syncRetentionDays > 0
+          ? new Date(Date.now() - syncRetentionDays * 86400000).toISOString()
+          : null,
       }
     };
   };
