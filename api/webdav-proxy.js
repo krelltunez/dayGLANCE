@@ -110,6 +110,10 @@ export default async function handler(req, res) {
       headers['Depth'] = req.headers['depth'];
     }
 
+    // Forward optimistic-concurrency header so servers can reject stale writes.
+    if (req.headers['if-match']) {
+      headers['If-Match'] = req.headers['if-match'];
+    }
 
     const fetchOptions = {
       method: req.method,
@@ -128,6 +132,8 @@ export default async function handler(req, res) {
 
     res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
     res.setHeader('Cache-Control', 'no-store');
+    const etag = response.headers.get('etag');
+    if (etag) res.setHeader('ETag', etag);
     res.status(response.status).send(body);
   } catch (err) {
     res.status(502).json({ error: 'Failed to proxy WebDAV request' });

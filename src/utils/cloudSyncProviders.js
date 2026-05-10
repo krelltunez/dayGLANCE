@@ -24,6 +24,7 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       status: result.status,
       ok: result.ok,
       statusText: result.error || '',
+      headers: { get: () => null }, // Android bridge doesn't return response headers
       json: async () => JSON.parse(result.body),
       text: async () => result.body,
     };
@@ -45,6 +46,7 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
       status: result.status,
       ok: result.ok,
       statusText: result.statusText,
+      headers: { get: () => null }, // Electron bridge doesn't return response headers
       json: async () => JSON.parse(result.body),
       text: async () => result.body,
     };
@@ -55,6 +57,15 @@ export const webdavFetch = async (method, targetUrl, authHeaders, body, extraHea
     headers: { ...authHeaders, ...extraHeaders },
     ...(body !== undefined && body !== null ? { body } : {}),
   });
+};
+
+// Parses and decrypts a WebDAV download response.
+// Returns { payload, etag } where etag may be null if the server doesn't supply one.
+const parseDownloadResponse = async (res) => {
+  const parsed = await res.json();
+  const payload = isEncryptedEnvelope(parsed) ? await decryptData(parsed) : parsed;
+  const etag = res.headers.get('etag') || null;
+  return { payload, etag };
 };
 
 // Creates a WebDAV collection and any missing intermediate collections.
@@ -83,15 +94,17 @@ export const cloudSyncProviders = {
     getAuthHeaders: (config) => ({
       'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
     }),
-    async upload(config, data) {
+    async upload(config, data, etag = null) {
       const fileUrl = this.getFileUrl(config);
       const dirUrl = this.getDirUrl(config);
       const authHeaders = this.getAuthHeaders(config);
       const payload = config.encryptionEnabled ? await encryptData(data) : data;
       const body = JSON.stringify(payload);
+      const extraHeaders = { 'Content-Type': 'application/json' };
+      if (etag) extraHeaders['If-Match'] = etag;
 
       const doUpload = () =>
-        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
+        webdavFetch('PUT', fileUrl, authHeaders, body, extraHeaders);
 
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
@@ -99,6 +112,7 @@ export const cloudSyncProviders = {
         res = await doUpload();
       }
       if (res.status === 403) throw new Error('FORBIDDEN');
+      if (res.status === 412) throw new Error('PRECONDITION_FAILED');
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
       return true;
     },
@@ -111,9 +125,7 @@ export const cloudSyncProviders = {
       if (res.status === 404) return null; // No remote file yet
       if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
-      const parsed = await res.json();
-      if (isEncryptedEnvelope(parsed)) return decryptData(parsed);
-      return parsed;
+      return parseDownloadResponse(res);
     },
     async test(config) {
       const dirUrl = this.getDirUrl(config);
@@ -140,20 +152,23 @@ export const cloudSyncProviders = {
     getAuthHeaders: (config) => ({
       'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
     }),
-    async upload(config, data) {
+    async upload(config, data, etag = null) {
       const fileUrl = this.getFileUrl();
       const dirUrl = this.getDirUrl();
       const authHeaders = this.getAuthHeaders(config);
       const payload = config.encryptionEnabled ? await encryptData(data) : data;
       const body = JSON.stringify(payload);
+      const extraHeaders = { 'Content-Type': 'application/json' };
+      if (etag) extraHeaders['If-Match'] = etag;
       const doUpload = () =>
-        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
+        webdavFetch('PUT', fileUrl, authHeaders, body, extraHeaders);
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
         await mkcolWithParents(dirUrl, authHeaders);
         res = await doUpload();
       }
       if (res.status === 403) throw new Error('FORBIDDEN');
+      if (res.status === 412) throw new Error('PRECONDITION_FAILED');
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
       return true;
     },
@@ -164,9 +179,7 @@ export const cloudSyncProviders = {
       if (res.status === 404) return null;
       if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
-      const parsed = await res.json();
-      if (isEncryptedEnvelope(parsed)) return decryptData(parsed);
-      return parsed;
+      return parseDownloadResponse(res);
     },
     async test(config) {
       const dirUrl = this.getDirUrl();
@@ -196,20 +209,23 @@ export const cloudSyncProviders = {
     getAuthHeaders: (config) => ({
       'X-WebDAV-Auth': 'Basic ' + toBase64(config.username + ':' + config.appPassword)
     }),
-    async upload(config, data) {
+    async upload(config, data, etag = null) {
       const fileUrl = this.getFileUrl(config);
       const dirUrl = this.getDirUrl(config);
       const authHeaders = this.getAuthHeaders(config);
       const payload = config.encryptionEnabled ? await encryptData(data) : data;
       const body = JSON.stringify(payload);
+      const extraHeaders = { 'Content-Type': 'application/json' };
+      if (etag) extraHeaders['If-Match'] = etag;
       const doUpload = () =>
-        webdavFetch('PUT', fileUrl, authHeaders, body, { 'Content-Type': 'application/json' });
+        webdavFetch('PUT', fileUrl, authHeaders, body, extraHeaders);
       let res = await doUpload();
       if (res.status === 404 || res.status === 409) {
         await mkcolWithParents(dirUrl, authHeaders);
         res = await doUpload();
       }
       if (res.status === 403) throw new Error('FORBIDDEN');
+      if (res.status === 412) throw new Error('PRECONDITION_FAILED');
       if (!res.ok) throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
       return true;
     },
@@ -220,9 +236,7 @@ export const cloudSyncProviders = {
       if (res.status === 404) return null;
       if (res.status === 403) throw new Error('FORBIDDEN');
       if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
-      const parsed = await res.json();
-      if (isEncryptedEnvelope(parsed)) return decryptData(parsed);
-      return parsed;
+      return parseDownloadResponse(res);
     },
     async test(config) {
       // GET the sync file rather than PROPFIND — Apache mod_dav and other strict

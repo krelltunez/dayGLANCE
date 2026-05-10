@@ -4707,7 +4707,7 @@ const DayPlanner = () => {
     };
   };
 
-  const cloudSyncUpload = async (prebuiltPayload, { skipLockCheck = false } = {}) => {
+  const cloudSyncUpload = async (prebuiltPayload, { skipLockCheck = false, etag = null } = {}) => {
     if (!cloudSyncConfig?.enabled || (!skipLockCheck && cloudSyncInProgressRef.current)) return;
     const provider = cloudSyncProviders[cloudSyncConfig.provider];
     if (!provider) return;
@@ -4732,7 +4732,7 @@ const DayPlanner = () => {
         return;
       }
 
-      await provider.upload(cloudSyncConfig, payload);
+      await provider.upload(cloudSyncConfig, payload, etag);
       const elapsed = Date.now() - syncStart;
       if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
       const now = new Date().toISOString();
@@ -4957,28 +4957,25 @@ const DayPlanner = () => {
     setCloudSyncError(null);
     let conflictShown = false;
     let passphraseRequired = false;
-    try {
-      const remote = await provider.download(cloudSyncConfig);
-      if (!remote) {
-        // No remote file yet — do initial upload (hold lock through upload)
+    // Helper: download, merge, and upload in one pass.
+    // Returns true if we reloaded (caller should return), false otherwise.
+    const doDownloadMergeUpload = async (downloadedEtag) => {
+      const downloaded = await provider.download(cloudSyncConfig);
+      if (!downloaded) {
         await cloudSyncUpload(undefined, { skipLockCheck: true });
-        return;
+        return false;
       }
-
+      const { payload: remote, etag } = downloaded;
       const remoteModified = remote.lastModified;
       const hasNeverSynced = !localStorage.getItem('day-planner-cloud-sync-last-synced');
 
       if (hasNeverSynced && remoteModified) {
-        // First sync on this device — ask user what to do.
-        // Set conflictShown so the finally block doesn't release the lock;
-        // conflict dialog handlers release it explicitly.
         conflictShown = true;
         setCloudSyncConflict({ remoteData: remote.data, remoteModified });
         setCloudSyncStatus('idle');
-        return;
+        return false;
       }
 
-      // Build local snapshot and merge with remote at the task level
       const localData = buildSyncPayload().data;
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
@@ -4988,31 +4985,22 @@ const DayPlanner = () => {
       }
 
       if (remoteChanged || localChanged) {
-        // Upload merged result so both sides converge.
-        // We upload even when only localChanged (remoteChanged is false) because
-        // applyRemoteData's setState calls trigger useSaveOnChange, which clears
-        // the suppress refs, and a subsequent native-calendar re-sync then fires
-        // the debounce upload — producing a spurious second sync event. Uploading
-        // from here keeps cloudSyncInProgressRef locked through the upload so the
-        // debounce cannot fire.
-        // Pass the merged data directly as a pre-built payload — reading from
-        // React state via buildSyncPayload() would return stale pre-merge data
-        // because applyRemoteData's setState calls haven't been processed yet.
         const mergedPayload = {
           version: 2,
           lastModified: new Date().toISOString(),
           data: mergedData,
         };
-        // Hold the lock through the upload (skipLockCheck) so no concurrent
-        // sync can start between the download and its paired upload.
-        await cloudSyncUpload(mergedPayload, { skipLockCheck: true });
-        // On first sync, reload after the upload completes so the full merged
-        // dataset renders cleanly from localStorage. Reloading before the upload
-        // (the old setTimeout approach) could lose the merged result if the network
-        // round-trip took more than 500ms.
+        // Pass the ETag so the server can reject a stale write (412 Precondition Failed).
+        await cloudSyncUpload(mergedPayload, { skipLockCheck: true, etag: etag || downloadedEtag || null });
         if (hasNeverSynced && localChanged) window.location.reload();
-        return;
+        return hasNeverSynced && localChanged;
       }
+      return false;
+    };
+
+    try {
+      let reloaded = await doDownloadMergeUpload(null);
+      if (reloaded || conflictShown) return;
 
       cloudSyncDownloadErrorCountRef.current = 0;
       cloudSyncDownloadBackoffUntilRef.current = 0;
@@ -5031,6 +5019,16 @@ const DayPlanner = () => {
         passphraseRequired = true;
         setSyncKeyReady(false);
         setCloudSyncStatus('idle');
+        return;
+      }
+      // 412 Precondition Failed: another device wrote between our download and upload.
+      // Re-run the full download→merge→upload cycle once to pick up the new version.
+      if (err.message === 'PRECONDITION_FAILED') {
+        try {
+          await doDownloadMergeUpload(null);
+        } catch (retryErr) {
+          console.error('Cloud sync retry after 412 failed:', retryErr);
+        }
         return;
       }
       // 423 Locked = another client is writing right now.
