@@ -4703,6 +4703,9 @@ const DayPlanner = () => {
         goalsProjectsEnabledUpdatedAt: localStorage.getItem('day-planner-goals-projects-enabled-updated-at') || null,
         obsidianConfig: obsidianConfig ?? null,
         obsidianConfigUpdatedAt: localStorage.getItem('day-planner-obsidian-config-updated-at') || null,
+        tombstonePrunedBefore: syncRetentionDays > 0
+          ? new Date(Date.now() - syncRetentionDays * 86400000).toISOString()
+          : null,
       }
     };
   };

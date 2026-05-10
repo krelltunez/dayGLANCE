@@ -49,7 +49,7 @@ const deepEqual = (a, b) => {
  * @param {Object} deletedIds - Map of task ID → deletion timestamp (tombstones)
  * @returns {{ merged: Array, localChanged: boolean, remoteChanged: boolean }}
  */
-export const mergeTaskArrays = (localTasks, remoteTasks, deletedIds) => {
+export const mergeTaskArrays = (localTasks, remoteTasks, deletedIds, syncHorizon = null) => {
   const remoteMap = new Map(remoteTasks.map(t => [String(t.id), t]));
   const localIds = new Set(localTasks.map(t => String(t.id)));
   let localChanged = false;
@@ -77,9 +77,15 @@ export const mergeTaskArrays = (localTasks, remoteTasks, deletedIds) => {
         merged.push(localTask); // Equal timestamps — keep local
       }
     } else {
-      // Only in local — keep it (new local task)
-      merged.push(localTask);
-      remoteChanged = true;
+      // Only in local. If the task is older than the sync horizon, the remote's
+      // tombstone for it was likely pruned — treat it as a zombie rather than
+      // uploading it and resurrecting a deleted task.
+      if (syncHorizon && localTask.lastModified && new Date(localTask.lastModified) < syncHorizon) {
+        localChanged = true; // drop silently — presumed zombie
+      } else {
+        merged.push(localTask);
+        remoteChanged = true;
+      }
     }
   }
 
@@ -423,11 +429,18 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
     }
   }
 
+  // Fence: any local-only task older than the remote's pruned-before date may
+  // have been deleted on another device whose tombstone was already pruned.
+  // We suppress resurrection of such tasks rather than uploading them.
+  const syncHorizon = remoteData.tombstonePrunedBefore
+    ? new Date(remoteData.tombstonePrunedBefore)
+    : null;
+
   // Merge each task list
-  const tasksMerge = mergeTaskArrays(localData.tasks || [], remoteData.tasks || [], allDeletedIds);
-  const unschedMerge = mergeTaskArrays(localData.unscheduledTasks || [], remoteData.unscheduledTasks || [], allDeletedIds);
-  const binMerge = mergeTaskArrays(localData.recycleBin || [], remoteData.recycleBin || [], allDeletedIds);
-  const recurMerge = mergeTaskArrays(localData.recurringTasks || [], remoteData.recurringTasks || [], allDeletedIds);
+  const tasksMerge = mergeTaskArrays(localData.tasks || [], remoteData.tasks || [], allDeletedIds, syncHorizon);
+  const unschedMerge = mergeTaskArrays(localData.unscheduledTasks || [], remoteData.unscheduledTasks || [], allDeletedIds, syncHorizon);
+  const binMerge = mergeTaskArrays(localData.recycleBin || [], remoteData.recycleBin || [], allDeletedIds, syncHorizon);
+  const recurMerge = mergeTaskArrays(localData.recurringTasks || [], remoteData.recurringTasks || [], allDeletedIds, syncHorizon);
 
   // Combine routine chip tombstones from both sides
   const localDeletedChips = localData.deletedRoutineChipIds || {};
@@ -467,7 +480,7 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   let todayRoutinesMerge;
   let mergedRoutinesDate;
   if (localRoutinesDate === remoteRoutinesDate) {
-    todayRoutinesMerge = mergeTaskArrays(localData.todayRoutines || [], remoteData.todayRoutines || [], todayRoutineTombstones);
+    todayRoutinesMerge = mergeTaskArrays(localData.todayRoutines || [], remoteData.todayRoutines || [], todayRoutineTombstones, syncHorizon);
     mergedRoutinesDate = localRoutinesDate;
   } else if (localRoutinesDate > remoteRoutinesDate) {
     todayRoutinesMerge = { merged: localData.todayRoutines || [], localChanged: false, remoteChanged: true };
@@ -792,6 +805,16 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   // Pruning happens after merge resolution so stale tombstones still participate
   // in the current merge cycle before being discarded.
   const tombstoneCutoff = retentionDays > 0 ? new Date(Date.now() - retentionDays * 86400000) : null;
+  // The merged fence is the later of the two sides' pruned-before dates so
+  // downstream devices know the most aggressive point up to which tombstones
+  // may be missing.
+  const localFence = localData.tombstonePrunedBefore ? new Date(localData.tombstonePrunedBefore) : null;
+  const remoteFence = remoteData.tombstonePrunedBefore ? new Date(remoteData.tombstonePrunedBefore) : null;
+  const mergedFence = localFence && remoteFence
+    ? (localFence > remoteFence ? localFence : remoteFence)
+    : (localFence || remoteFence || tombstoneCutoff);
+  const mergedTombstonePrunedBefore = mergedFence ? mergedFence.toISOString() : null;
+
   const prunedDeletedIds = pruneTombstones(allDeletedIds, tombstoneCutoff);
   const prunedDeletedChipIds = pruneTombstones(allDeletedChipIds, tombstoneCutoff);
   const prunedDeletedFrameIds = pruneTombstones(allDeletedFrameIds, tombstoneCutoff);
@@ -843,7 +866,8 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
       obsidianConfig: pickConfigByTs(localData.obsidianConfig, localData.obsidianConfigUpdatedAt, remoteData.obsidianConfig, remoteData.obsidianConfigUpdatedAt, null),
       obsidianConfigUpdatedAt: newerTs(localData.obsidianConfigUpdatedAt, remoteData.obsidianConfigUpdatedAt),
       minimizedSections: localData.minimizedSections, // UI pref — keep local
-      use24HourClock: localData.use24HourClock // device pref — keep local
+      use24HourClock: localData.use24HourClock, // device pref — keep local
+      tombstonePrunedBefore: mergedTombstonePrunedBefore,
     },
     localChanged,
     remoteChanged
