@@ -55,8 +55,22 @@ final class HttpBridge {
             let bodyStr = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             let ok = (200...299).contains(status)
             let etag = http?.value(forHTTPHeaderField: "ETag") ?? ""
-            let headersJSON = etag.isEmpty ? "{}" : #"{"etag":"\#(self.esc(etag))"}"#
-            resultJSON = #"{"status":\#(status),"ok":\#(ok ? "true" : "false"),"body":"\#(self.esc(bodyStr))","headers":\#(headersJSON)}"#
+
+            // Use JSONSerialization to build the response object so that control
+            // characters (U+0000–U+001F) in body text or ETag values are escaped
+            // correctly — hand-rolled string interpolation would produce invalid JSON.
+            var payload: [String: Any] = [
+                "status": status,
+                "ok": ok,
+                "body": bodyStr,
+            ]
+            payload["headers"] = etag.isEmpty ? [:] : ["etag": etag] as [String: String]
+            if let jsonData = try? JSONSerialization.data(withJSONObject: payload),
+               let jsonStr = String(data: jsonData, encoding: .utf8) {
+                resultJSON = jsonStr
+            } else {
+                resultJSON = self.errorJSON("Failed to serialize response")
+            }
         }.resume()
 
         sem.wait()
@@ -66,14 +80,12 @@ final class HttpBridge {
     // MARK: - Helpers
 
     private func errorJSON(_ msg: String) -> String {
-        #"{"status":0,"ok":false,"body":"","error":"\#(esc(msg))"}"#
-    }
-
-    private func esc(_ s: String) -> String {
-        s.replacingOccurrences(of: "\\", with: "\\\\")
-         .replacingOccurrences(of: "\"", with: "\\\"")
-         .replacingOccurrences(of: "\n", with: "\\n")
-         .replacingOccurrences(of: "\r", with: "\\r")
-         .replacingOccurrences(of: "\t", with: "\\t")
+        let payload: [String: Any] = ["status": 0, "ok": false, "body": "", "error": msg]
+        if let data = try? JSONSerialization.data(withJSONObject: payload),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        // Absolute fallback: msg is already sanitized by the Swift runtime.
+        return #"{"status":0,"ok":false,"body":"","error":"serialization error"}"#
     }
 }

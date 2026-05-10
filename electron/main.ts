@@ -283,7 +283,12 @@ ipcMain.handle('icloud:read', () => {
       return null;
     }
     return fs.readFileSync(ICLOUD_SYNC_PATH, 'utf-8');
-  } catch { return null; }
+  } catch (e: unknown) {
+    // Return a structured error so the renderer can distinguish "iCloud not
+    // available / not signed in" from "no remote file yet" (null).
+    const msg = e instanceof Error ? e.message : String(e);
+    return JSON.stringify({ error: msg });
+  }
 });
 
 // Track our own writes so the fs.watch callback can ignore them.
@@ -357,13 +362,18 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
     const msg = e instanceof Error ? e.message : 'Invalid URL';
     return { status: 400, ok: false, statusText: 'Bad Request', body: msg };
   }
-  const response = await net.fetch(url, {
-    method: upperMethod,
-    headers,
-    ...(body != null ? { body } : {}),
-  });
-  const text = await response.text();
-  return { status: response.status, ok: response.ok, statusText: response.statusText, body: text, headers: { etag: response.headers.get('etag') || null } };
+  try {
+    const response = await net.fetch(url, {
+      method: upperMethod,
+      headers,
+      ...(body != null ? { body } : {}),
+    });
+    const text = await response.text();
+    return { status: response.status, ok: response.ok, statusText: response.statusText, body: text, headers: { etag: response.headers.get('etag') || null } };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Network error';
+    return { status: 0, ok: false, statusText: msg, body: '', headers: { etag: null } };
+  }
 });
 
 // Dock badge — macOS only

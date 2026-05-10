@@ -1387,7 +1387,11 @@ const DayPlanner = () => {
 
       // Decrypt if the file is an encrypted envelope.
       if (isEncryptedEnvelope(remote)) {
-        try { remote = await decryptData(remote); } catch { return; }
+        try { remote = await decryptData(remote); }
+        catch (decErr) {
+          if (decErr?.code === 'PASSPHRASE_REQUIRED') setSyncKeyReady(false);
+          return;
+        }
       }
       if (!remote?.data) return;
 
@@ -4847,9 +4851,12 @@ const DayPlanner = () => {
     }
 
     // Suppress config timestamp tracking effects during remote data application so
-    // they don't overwrite the remote timestamps with Date.now().
+    // they don't overwrite the remote timestamps with Date.now(). Clear after
+    // 500ms to match the suppressCloudUploadRef window — React post-state-change
+    // effects run after setState flushes, which is after the current microtask
+    // completes, so setTimeout(0) clears too early.
     applyingRemoteDataRef.current = true;
-    setTimeout(() => { applyingRemoteDataRef.current = false; }, 0);
+    setTimeout(() => { applyingRemoteDataRef.current = false; }, 500);
 
     suppressCloudUploadRef.current = true;
     suppressTimestampRef.current = true;
@@ -8333,22 +8340,24 @@ const DayPlanner = () => {
                 onClick={async () => {
                   const localData = buildSyncPayload().data;
                   const { data: mergedData, remoteChanged } = mergeSyncData(localData, cloudSyncConflict.remoteData, syncRetentionDays);
+                  const conflictEtag = cloudSyncConflict.etag;
                   applyRemoteData(mergedData);
                   const now = new Date().toISOString();
                   localStorage.setItem('day-planner-cloud-sync-local-modified', now);
                   setCloudSyncLastSynced(now);
                   localStorage.setItem('day-planner-cloud-sync-last-synced', now);
                   setCloudSyncConflict(null);
-                  cloudSyncInProgressRef.current = false;
                   cloudSyncInitialDoneRef.current = true;
                   if (remoteChanged) {
-                    // Pass merged data directly — React state is stale after applyRemoteData
+                    // Pass merged data directly — React state is stale after applyRemoteData.
+                    // Keep the lock held (skipLockCheck:true) until the upload completes.
                     const mergedPayload = { version: 2, lastModified: now, data: mergedData };
-                    await cloudSyncUpload(mergedPayload, { etag: cloudSyncConflict.etag });
+                    await cloudSyncUpload(mergedPayload, { skipLockCheck: true, etag: conflictEtag });
                   } else {
                     setCloudSyncStatus('success');
                     setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
                   }
+                  cloudSyncInProgressRef.current = false;
                 }}
                 className={`w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-left transition-colors`}
               >
@@ -8375,13 +8384,15 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={async () => {
+                  const conflictEtag = cloudSyncConflict.etag;
                   setCloudSyncConflict(null);
-                  cloudSyncInProgressRef.current = false;
                   cloudSyncInitialDoneRef.current = true;
                   const now = new Date().toISOString();
                   localStorage.setItem('day-planner-cloud-sync-last-synced', now);
                   setCloudSyncLastSynced(now);
-                  await cloudSyncUpload(undefined, { etag: cloudSyncConflict.etag });
+                  // Keep the lock held (skipLockCheck:true) until the upload completes.
+                  await cloudSyncUpload(undefined, { skipLockCheck: true, etag: conflictEtag });
+                  cloudSyncInProgressRef.current = false;
                 }}
                 className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >

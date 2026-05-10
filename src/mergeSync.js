@@ -678,12 +678,15 @@ export const mergeSyncData = (localData, remoteData, retentionDays = 90) => {
   if (mergedHabitsEnabled !== localHabitsEnabled) localChanged = true;
   if (mergedHabitsEnabled !== remoteHabitsEnabled) remoteChanged = true;
 
+  // When neither device has set routinesEnabled, emit undefined so the app
+  // supplies the default — avoids propagating a synthetic true to old clients.
+  const bothRoutinesUnset = localData.routinesEnabled === undefined && remoteData.routinesEnabled === undefined;
   const localRoutinesEnabled = localData.routinesEnabled !== undefined ? localData.routinesEnabled : true;
   const remoteRoutinesEnabled = remoteData.routinesEnabled !== undefined ? remoteData.routinesEnabled : true;
-  const mergedRoutinesEnabled = pickConfigByTs(localRoutinesEnabled, localData.routinesEnabledUpdatedAt, remoteRoutinesEnabled, remoteData.routinesEnabledUpdatedAt, true);
+  const mergedRoutinesEnabled = bothRoutinesUnset ? undefined : pickConfigByTs(localRoutinesEnabled, localData.routinesEnabledUpdatedAt, remoteRoutinesEnabled, remoteData.routinesEnabledUpdatedAt, true);
   const mergedRoutinesEnabledUpdatedAt = newerTs(localData.routinesEnabledUpdatedAt, remoteData.routinesEnabledUpdatedAt);
-  if (mergedRoutinesEnabled !== localRoutinesEnabled) localChanged = true;
-  if (mergedRoutinesEnabled !== remoteRoutinesEnabled) remoteChanged = true;
+  if (!bothRoutinesUnset && mergedRoutinesEnabled !== localRoutinesEnabled) localChanged = true;
+  if (!bothRoutinesUnset && mergedRoutinesEnabled !== remoteRoutinesEnabled) remoteChanged = true;
 
   // Combine goal and project tombstones from both sides
   const localDeletedGoalIds = localData.deletedGoalIds || {};

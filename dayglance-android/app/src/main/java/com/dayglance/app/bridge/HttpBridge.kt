@@ -67,6 +67,7 @@ class HttpBridge {
             }
 
             val statusCode = connection.responseCode
+            val etag = connection.getHeaderField("ETag") // read before disconnect()
             val responseBody = try {
                 if (statusCode >= 400) {
                     connection.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
@@ -75,8 +76,6 @@ class HttpBridge {
                 }
             } catch (_: Exception) { "" }
             connection.disconnect()
-
-            val etag = connection.getHeaderField("ETag")
             JSONObject().apply {
                 put("status", statusCode)
                 put("ok", statusCode in 200..299)

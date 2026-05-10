@@ -17,7 +17,7 @@ final class ICloudBridge {
 
     // Suppress query callbacks that fire immediately after our own local write.
     private var lastLocalWriteDate: Date?
-    private let writeSuppressionInterval: TimeInterval = 5.0
+    private let writeSuppressionInterval: TimeInterval = 2.0
 
     // MARK: - Public API
 

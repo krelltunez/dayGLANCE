@@ -1578,13 +1578,15 @@ describe('mergeSyncData — GTD frames sync', () => {
   });
 
   it('frame tombstones from both devices are combined', () => {
+    const ts1 = new Date(Date.now() - 5 * 86400000).toISOString();
+    const ts2 = new Date(Date.now() - 3 * 86400000).toISOString();
     const deviceA = {
       ...emptyData(),
-      deletedFrameIds: { 'f1': '2026-01-01T00:00:00Z' },
+      deletedFrameIds: { 'f1': ts1 },
     };
     const deviceB = {
       ...emptyData(),
-      deletedFrameIds: { 'f2': '2026-01-02T00:00:00Z' },
+      deletedFrameIds: { 'f2': ts2 },
     };
 
     const { data } = mergeSyncData(deviceA, deviceB);
@@ -1627,17 +1629,19 @@ describe('mergeSyncData — GTD frames sync', () => {
   });
 
   it('newer tombstone timestamp wins when both devices have tombstones for same frame', () => {
+    const older = new Date(Date.now() - 20 * 86400000).toISOString();
+    const newer = new Date(Date.now() - 10 * 86400000).toISOString();
     const deviceA = {
       ...emptyData(),
-      deletedFrameIds: { 'f1': '2026-01-01T00:00:00Z' },
+      deletedFrameIds: { 'f1': older },
     };
     const deviceB = {
       ...emptyData(),
-      deletedFrameIds: { 'f1': '2026-02-01T00:00:00Z' },
+      deletedFrameIds: { 'f1': newer },
     };
 
     const { data } = mergeSyncData(deviceA, deviceB);
-    expect(data.deletedFrameIds['f1']).toBe('2026-02-01T00:00:00Z');
+    expect(data.deletedFrameIds['f1']).toBe(newer);
   });
 
   it('handles undefined gtdFrames gracefully (old remote data)', () => {
