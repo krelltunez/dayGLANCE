@@ -2284,22 +2284,17 @@ const DayPlanner = () => {
 
     try {
       const isNative = obsidianVaultHandleRef.current === 'native';
-      // syncObsidianVaultNative is synchronous (JavascriptInterface blocks the JS
-      // thread until all SAF file reads complete).  Wrap it in a one-frame
-      // setTimeout so React finishes its current render — and the UI stays
-      // responsive — before the blocking I/O runs.  This prevents the brief
-      // white/blank flash users see when the app is opened with Obsidian enabled.
       // Use refs so interval-triggered syncs always see the latest task state,
       // not the stale closure from when the interval was set up.
       const currentTasks = obsidianTasksRef.current;
       const currentInbox = obsidianInboxRef.current;
       const result = isNative
-        ? await new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(syncObsidianVaultNative(
+        ? await syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
             syncRetentionDays,
             currentTasks,
             currentInbox,
-          )), 0)))
+          )
         : await syncObsidianVault(
             obsidianVaultHandleRef.current,
             obsidianConfig?.dailyNotesPath || '',

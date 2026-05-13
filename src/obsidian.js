@@ -1113,7 +1113,18 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
  * @param {Array}  existingInbox  Current DG inbox tasks
  * @returns {{ dailyNotes, scheduledTasks, inboxTasks }}
  */
-export function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
+// Set up the async callback dispatcher once
+if (typeof window !== 'undefined' && !window.__obsidianDispatch) {
+  window.__obsidianDispatch = (id, result, error) => {
+    const cb = window.__obsidianCbs?.[id];
+    if (cb) {
+      delete window.__obsidianCbs[id];
+      cb(result, error);
+    }
+  };
+}
+
+export async function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge) throw new Error('Obsidian bridge unavailable');
 
@@ -1150,11 +1161,26 @@ export function syncObsidianVaultNative(folder, retentionDays, existingTasks, ex
   const allScheduled = [];
   const allInbox = [];
 
-  // Prefer the batch getAllDailyNotes method (single native round trip) over the
-  // old listNotes + per-note getDailyNote loop (N round trips that each block the
-  // JS thread and cause the app to freeze during sync).
+  // Prefer the batch getAllDailyNotesAsync method (non-blocking: SAF I/O runs on a
+  // background thread and callbacks back via JS) over the synchronous alternatives.
   let noteEntries; // [{ date, text }]
-  if (bridge.getAllDailyNotes) {
+  if (bridge.getAllDailyNotesAsync) {
+    // Non-blocking path: runs SAF I/O on a background thread, callbacks via JS
+    if (!window.__obsidianCbs) window.__obsidianCbs = {};
+    const json = await new Promise((resolve, reject) => {
+      const id = Math.random().toString(36).slice(2, 18).replace(/[^a-z0-9]/g, 'x');
+      window.__obsidianCbs[id] = (result, error) => {
+        if (error) reject(new Error(error));
+        else resolve(result);
+      };
+      bridge.getAllDailyNotesAsync(folder, cutoffStr, id);
+    });
+    try {
+      noteEntries = JSON.parse(json);
+    } catch (err) {
+      throw new Error(`Failed to parse daily notes from vault: ${err.message}`);
+    }
+  } else if (bridge.getAllDailyNotes) {
     try {
       noteEntries = JSON.parse(bridge.getAllDailyNotes(folder, cutoffStr));
     } catch (err) {

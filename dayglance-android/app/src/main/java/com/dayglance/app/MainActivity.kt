@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity() {
             else android.graphics.Color.WHITE
         )
         healthRepository = HealthRepository(this)
-        obsidianBridge = ObsidianBridge(this)
+        obsidianBridge = ObsidianBridge(this, webView)
         nativeBridge = NativeBridge(
             context = this,
             healthRepository = healthRepository,

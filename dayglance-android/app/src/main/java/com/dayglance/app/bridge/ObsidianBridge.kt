@@ -16,7 +16,7 @@ import com.dayglance.app.data.ObsidianRepository
  * All methods run synchronously on the JavascriptInterface background thread —
  * SAF I/O is acceptable here since it's typically fast for local storage.
  */
-class ObsidianBridge(private val context: Context) {
+class ObsidianBridge(private val context: Context, private val webView: android.webkit.WebView? = null) {
 
     private val repository = ObsidianRepository(context)
 
@@ -54,6 +54,42 @@ class ObsidianBridge(private val context: Context) {
     @JavascriptInterface
     fun getAllDailyNotes(folder: String, cutoff: String): String =
         repository.getAllDailyNotes(folder, cutoff)
+
+    /**
+     * Non-blocking version of getAllDailyNotes. Returns immediately and dispatches the
+     * result (or error) back to JS via window.__obsidianDispatch(callbackId, json, error).
+     *
+     * [callbackId] must be alphanumeric + underscore, max 32 chars — validated before use.
+     */
+    @JavascriptInterface
+    fun getAllDailyNotesAsync(folder: String, cutoff: String, callbackId: String) {
+        // Validate callbackId to prevent JS injection via the interpolated eval string.
+        if (callbackId.length > 32 || !callbackId.matches(Regex("[a-z0-9_]+"))) {
+            return
+        }
+        Thread {
+            try {
+                val json = repository.getAllDailyNotes(folder, cutoff)
+                // Escape backslashes and backticks that could break the JS template literal.
+                // The result is a JSON string so only ` and \ need escaping before eval.
+                val safe = json.replace("\\", "\\\\").replace("`", "\\`")
+                webView?.post {
+                    webView.evaluateJavascript(
+                        "window.__obsidianDispatch('$callbackId',`$safe`,null)",
+                        null
+                    )
+                }
+            } catch (e: Exception) {
+                val msg = (e.message ?: "error").replace("'", "\\'")
+                webView?.post {
+                    webView.evaluateJavascript(
+                        "window.__obsidianDispatch('$callbackId',null,'$msg')",
+                        null
+                    )
+                }
+            }
+        }.start()
+    }
 
     /**
      * Parses GFM task items from the note at [path] (relative to vault root).
