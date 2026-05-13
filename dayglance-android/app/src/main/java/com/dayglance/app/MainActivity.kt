@@ -147,6 +147,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView = binding.webView
+        val isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        webView.setBackgroundColor(
+            if (isDark) android.graphics.Color.parseColor("#0f172a")
+            else android.graphics.Color.WHITE
+        )
         healthRepository = HealthRepository(this)
         obsidianBridge = ObsidianBridge(this)
         nativeBridge = NativeBridge(
