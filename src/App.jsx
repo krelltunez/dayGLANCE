@@ -6879,7 +6879,7 @@ const DayPlanner = () => {
       }) || null;
     const nextTaskItem = nextTaskCandidate ? {
       id: nextTaskCandidate.id,
-      title: nextTaskCandidate.title,
+      title: nextTaskCandidate.title.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim(),
       colorHex: taskColorToHex(nextTaskCandidate.color, nextTaskCandidate.nativeCalendarColor),
       startTime: nextTaskCandidate.startTime || '',
       duration: nextTaskCandidate.duration || 0,
