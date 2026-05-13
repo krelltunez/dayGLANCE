@@ -174,7 +174,7 @@ const TaskCard = React.memo(({
     : hasOnlySubtasks(item)      ? CheckSquare
     : isObsidianNoteOnlyTask(item) ? BookOpen
     : FileText;
-  const hasNotes = hasNotesOrSubtasks(item) || isLinkOnlyTask(item);
+  const hasNotes = hasNotesOrSubtasks(item) || isLinkOnlyTask(item) || isObsidianNoteOnlyTask(item);
 
   return (
     <div style={cardStyle}>
