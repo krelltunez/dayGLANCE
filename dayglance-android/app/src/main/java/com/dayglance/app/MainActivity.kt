@@ -147,6 +147,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView = binding.webView
+        val isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        webView.setBackgroundColor(
+            if (isDark) android.graphics.Color.parseColor("#0f172a")
+            else android.graphics.Color.WHITE
+        )
         healthRepository = HealthRepository(this)
         obsidianBridge = ObsidianBridge(this)
         nativeBridge = NativeBridge(
@@ -344,8 +350,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        webView.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        webView.onResume()
         // Re-enable so back button works after returning from background or SettingsActivity.
         // The callback disables itself when the WebView has no back history; without this
         // reset it stays disabled for the rest of the session (Android 13+ behaviour).
