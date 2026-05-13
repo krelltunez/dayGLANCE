@@ -29,7 +29,7 @@ const ObsidianSyncToast = () => {
 
   return (
     <div
-      className={`fixed z-50 animate-in slide-in-from-bottom-2 duration-200 ${isMobile ? 'left-1/2 -translate-x-1/2' : 'bottom-6 left-6'}`}
+      className={`fixed z-50 animate-in slide-in-from-bottom-2 duration-200 ${isMobile ? 'left-0 right-0 flex justify-center' : 'bottom-6 left-6'}`}
       style={isMobile ? { bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
     >
       <div className={`flex items-center gap-3 ${cardBg} border ${borderClass} rounded-xl shadow-xl px-4 py-3 max-w-xs`}>
