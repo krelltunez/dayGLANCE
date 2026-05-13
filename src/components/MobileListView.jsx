@@ -567,7 +567,7 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
 
   const diff = nextItem ? timeToMinutes_pure(nextItem.startTime) - nowMin : null;
   const rawTitle = nextItem?.title || nextItem?.name || nextItem?.label || '';
-  const cleanTitle = rawTitle.replace(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, '$1').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
+  const cleanTitle = rawTitle.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
   const countdownStr = diff !== null && diff > 0
     ? `${countdownText(diff)} until ${cleanTitle}`
     : 'Nothing planned';

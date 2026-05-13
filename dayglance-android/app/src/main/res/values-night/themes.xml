@@ -7,6 +7,7 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <!-- Dark mode: use light icons (white) so they're visible on dark backgrounds -->
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#1f2937</item>
     </style>
 
     <!-- Splash screen (dark) -->
