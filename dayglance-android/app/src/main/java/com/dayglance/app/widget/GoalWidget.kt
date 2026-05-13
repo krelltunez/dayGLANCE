@@ -87,11 +87,11 @@ class GoalWidget : AppWidgetProvider() {
         val selectedGoalId = prefs.getString(prefKey(appWidgetId), null)
 
         if (selectedGoalId == null) {
-            showEmpty(views, "No goal selected", "Long-press widget to reconfigure")
+            showEmpty(views, "Long-press widget to reconfigure")
         } else {
             val goal = findGoal(snapshot, selectedGoalId)
             if (goal == null) {
-                showEmpty(views, "Goal not found", "It may have been deleted or completed")
+                showEmpty(views, "It may have been deleted or completed")
             } else {
                 bindGoalViews(views, goal, context)
             }
@@ -100,7 +100,7 @@ class GoalWidget : AppWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
-    private fun showEmpty(views: RemoteViews, _title: String, subtitle: String) {
+    private fun showEmpty(views: RemoteViews, subtitle: String) {
         views.setViewVisibility(R.id.layout_goal_content, View.GONE)
         views.setViewVisibility(R.id.layout_goal_empty, View.VISIBLE)
         views.setTextViewText(R.id.tv_goal_empty_sub, subtitle)

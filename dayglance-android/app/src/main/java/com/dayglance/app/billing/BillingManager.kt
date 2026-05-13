@@ -10,6 +10,7 @@ import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.QueryPurchasesParams
 import com.dayglance.app.data.SharedDataStore
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +57,7 @@ class BillingManager(
 
     private val billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(purchasesUpdatedListener)
-        .enablePendingPurchases()
+        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
         .build()
 
     fun connect() {
