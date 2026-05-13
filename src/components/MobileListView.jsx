@@ -1632,7 +1632,7 @@ const MobileListView = () => {
 
           // task or calendar-event
           const isCalendarEvent = item._kind === 'calendar-event';
-          const isPast = isItemPast(item);
+          const isPast = isItemPast(item) || (isCalendarEvent && dateStr < dateToString(new Date()));
           const isInProgress = item.id === inProgressItem?.id;
           const remainingMin = isInProgress ? Math.max(0, (startMin + (item.duration || 30)) - nowMin) : 0;
           const isDragging = listDragItem?.id === item.id;
