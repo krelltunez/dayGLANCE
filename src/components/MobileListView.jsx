@@ -107,7 +107,7 @@ function SpineMarker({ kind, completed, colour, pageBg }) {
       </div>
     );
   }
-  if (kind === 'calendar-event') {
+  if (kind === 'calendar-event' && !completed) {
     return (
       <div style={{ ...base, borderRadius: 2, background: colour }} />
     );
@@ -150,7 +150,7 @@ function Connector({ colour, opacity = 1 }) {
 // ─── TaskCard ─────────────────────────────────────────────────────────────────
 
 const TaskCard = React.memo(({
-  item, accentHex, isCalendarEvent, isInProgress, darkMode, textPrimary, textSecondary,
+  item, accentHex, isCalendarEvent, isInProgress, isPast, darkMode, textPrimary, textSecondary,
   formatTime, minutesToTime, timeToMinutes,
   setExpandedNotesTaskId, postponeTask, moveToInbox, openMobileEditTask,
   dateStr,
@@ -174,7 +174,7 @@ const TaskCard = React.memo(({
     : hasOnlySubtasks(item)      ? CheckSquare
     : isObsidianNoteOnlyTask(item) ? BookOpen
     : FileText;
-  const hasNotes = hasNotesOrSubtasks(item) || isLinkOnlyTask(item);
+  const hasNotes = hasNotesOrSubtasks(item) || isLinkOnlyTask(item) || isObsidianNoteOnlyTask(item);
 
   return (
     <div style={cardStyle}>
@@ -184,7 +184,7 @@ const TaskCard = React.memo(({
       <div style={{ flex: 1, minWidth: 0, padding: '7px 0 7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>
         {/* Title */}
         <div
-          className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : ''}`}
+          className={`text-sm font-medium leading-snug ${textPrimary} ${item.completed ? 'line-through opacity-50' : (isCalendarEvent && isPast) ? 'line-through' : ''}`}
           style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
         >
           {renderTitle(item.title)}
@@ -1655,7 +1655,7 @@ const MobileListView = () => {
                 marker={
                   <SpineMarker
                     kind={isCalendarEvent ? 'calendar-event' : 'task'}
-                    completed={item.completed}
+                    completed={isCalendarEvent ? isPast : item.completed}
                     colour={accentHex}
                     pageBg={pageBg}
                   />
@@ -1671,6 +1671,7 @@ const MobileListView = () => {
                     accentHex={accentHex}
                     isCalendarEvent={isCalendarEvent}
                     isInProgress={isInProgress}
+                    isPast={isPast}
                     darkMode={darkMode}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}

@@ -342,6 +342,11 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
   });
   useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
+  const [homeTimezone, setHomeTimezone] = useState(() => {
+    const saved = localStorage.getItem('day-planner-home-timezone');
+    return saved || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-home-timezone', homeTimezone); }, [homeTimezone]);
   const [weekTimelineStartHour, setWeekTimelineStartHour] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-timeline-start-hour');
     return saved !== null ? JSON.parse(saved) : 0;
@@ -2268,6 +2273,7 @@ const DayPlanner = () => {
         const handle = await getVaultAccess();
         if (!handle) return;
         obsidianVaultHandleRef.current = handle;
+        listVaultNotes(handle).then(names => setWikilinkCandidates(names)).catch(() => {});
       } catch {
         return;
       }
@@ -5566,41 +5572,37 @@ const DayPlanner = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [aiConfig.enabled, aiConfig.features.eveningReflection]);
 
-  // --- AI Task Suggestion (duration + tags debounce) ---
+  // Clear AI suggestion when the form closes or switches to edit mode
   useEffect(() => {
-    // Clear suggestion when form closes or when editing an existing task
     if (!showAddTask || mobileEditingTask) {
       setTaskAISuggestion(null);
       setTaskAISuggestionLoading(false);
-      return;
     }
-    // Strip inline tags/shorthands so we query the clean title words
+  }, [showAddTask, mobileEditingTask]);
+
+  // --- AI Task Suggestion (manually triggered) ---
+  const triggerTaskAISuggestion = useCallback(async () => {
     const cleanedTitle = newTask.title.replace(/#\w+|@\S+|~\S+|%\d+|\^\S*/g, '').trim();
     if (
       cleanedTitle.length < 3 ||
       !aiConfig.enabled ||
       !aiConfig.features?.durationEstimate ||
       (!aiConfig.apiKey && aiConfig.provider !== 'ollama')
-    ) {
-      setTaskAISuggestion(null);
-      return;
-    }
+    ) return;
+    setTaskAISuggestion(null);
     setTaskAISuggestionLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const result = await aiJSON(
-          taskSuggestSystemPrompt(),
-          taskSuggestUserPrompt({ title: cleanedTitle, existingTags: allTags }),
-          aiConfig
-        );
-        if (result && typeof result.duration === 'number') {
-          setTaskAISuggestion(result);
-        }
-      } catch {}
-      setTaskAISuggestionLoading(false);
-    }, 650);
-    return () => { clearTimeout(timer); setTaskAISuggestionLoading(false); };
-  }, [newTask.title, showAddTask, mobileEditingTask, aiConfig, allTags]);
+    try {
+      const result = await aiJSON(
+        taskSuggestSystemPrompt(),
+        taskSuggestUserPrompt({ title: cleanedTitle, existingTags: allTags }),
+        aiConfig
+      );
+      if (result && typeof result.duration === 'number') {
+        setTaskAISuggestion(result);
+      }
+    } catch {}
+    setTaskAISuggestionLoading(false);
+  }, [newTask.title, aiConfig, allTags]);
 
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
@@ -7574,6 +7576,7 @@ const DayPlanner = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    homeTimezone, setHomeTimezone,
     weekTimelineStartHour, setWeekTimelineStartHour,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
@@ -7942,6 +7945,7 @@ const DayPlanner = () => {
     voiceCanRecord,
     taskAISuggestion, setTaskAISuggestion,
     taskAISuggestionLoading, setTaskAISuggestionLoading,
+    triggerTaskAISuggestion,
     aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask,
 
     // ── Weekly review / AI summaries ──────────────────────────────────────────

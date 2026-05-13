@@ -5,7 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const ObsidianSyncToast = () => {
   const { obsidianSyncStatus, obsidianSyncError } = useSyncCtx();
-  const { cardBg, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
+  const { cardBg, borderClass, textPrimary, textSecondary, isMobile } = useDayPlannerCtx();
 
   if (obsidianSyncStatus === 'idle') return null;
 
@@ -28,7 +28,10 @@ const ObsidianSyncToast = () => {
   }
 
   return (
-    <div className="fixed bottom-6 left-6 z-50 animate-in slide-in-from-bottom-2 duration-200">
+    <div
+      className={`fixed z-50 animate-in slide-in-from-bottom-2 duration-200 ${isMobile ? 'left-1/2 -translate-x-1/2' : 'bottom-6 left-6'}`}
+      style={isMobile ? { bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+    >
       <div className={`flex items-center gap-3 ${cardBg} border ${borderClass} rounded-xl shadow-xl px-4 py-3 max-w-xs`}>
         <div className={`w-1.5 self-stretch rounded-full flex-shrink-0 ${accentColor}`} />
         {icon}
