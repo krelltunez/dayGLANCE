@@ -34,10 +34,12 @@ jobs:
         run: npm ci
 
       - name: Decode provisioning profile
-        if: matrix.os == 'macos-latest' && secrets.MAC_PROVISIONING_PROFILE_BASE64 != ''
+        if: matrix.os == 'macos-latest'
         run: |
-          echo "$MAC_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/dayglance.provisionprofile"
-          echo "MAC_PROVISIONING_PROFILE=$RUNNER_TEMP/dayglance.provisionprofile" >> $GITHUB_ENV
+          if [ -n "$MAC_PROVISIONING_PROFILE_BASE64" ]; then
+            echo "$MAC_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/dayglance.provisionprofile"
+            echo "MAC_PROVISIONING_PROFILE=$RUNNER_TEMP/dayglance.provisionprofile" >> $GITHUB_ENV
+          fi
         env:
           MAC_PROVISIONING_PROFILE_BASE64: ${{ secrets.MAC_PROVISIONING_PROFILE_BASE64 }}
 
