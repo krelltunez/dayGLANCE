@@ -2268,6 +2268,7 @@ const DayPlanner = () => {
         const handle = await getVaultAccess();
         if (!handle) return;
         obsidianVaultHandleRef.current = handle;
+        listVaultNotes(handle).then(names => setWikilinkCandidates(names)).catch(() => {});
       } catch {
         return;
       }

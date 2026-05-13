@@ -173,10 +173,18 @@ class ObsidianRepository(private val context: Context) {
         val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return "[]")
         val prefix = if (folder.isBlank()) "" else "$folder/"
         val arr = JSONArray()
-        dir.listFiles()
-            .filter { it.isFile && it.name?.endsWith(".md") == true }
-            .sortedByDescending { it.name }
-            .forEach { arr.put(prefix + it.name) }
+        fun collect(d: DocumentFile, pathPrefix: String) {
+            for (file in d.listFiles()) {
+                val name = file.name ?: continue
+                if (name.startsWith('.')) continue
+                if (file.isFile && name.endsWith(".md")) {
+                    arr.put(pathPrefix + name)
+                } else if (file.isDirectory) {
+                    collect(file, "$pathPrefix$name/")
+                }
+            }
+        }
+        collect(dir, prefix)
         return arr.toString()
     }
 
