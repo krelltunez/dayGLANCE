@@ -2294,12 +2294,12 @@ const DayPlanner = () => {
       const currentTasks = obsidianTasksRef.current;
       const currentInbox = obsidianInboxRef.current;
       const result = isNative
-        ? await new Promise(resolve => setTimeout(() => resolve(syncObsidianVaultNative(
+        ? await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
             syncRetentionDays,
             currentTasks,
             currentInbox,
-          )), 0))
+          )))))
         : await syncObsidianVault(
             obsidianVaultHandleRef.current,
             obsidianConfig?.dailyNotesPath || '',
