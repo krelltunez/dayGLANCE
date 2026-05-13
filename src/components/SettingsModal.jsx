@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Globe, Key, LayoutGrid, Loader, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import { getTzLabel, getTzOptions } from '../utils/timezones.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -20,6 +21,7 @@ const SettingsModal = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    homeTimezone, setHomeTimezone,
     weekTimelineStartHour, setWeekTimelineStartHour,
     soundEnabled, setSoundEnabled,
     setOnboardingProgress,
@@ -152,6 +154,24 @@ const SettingsModal = () => {
                       >
                         <X size={14} className={darkMode ? 'text-blue-400' : 'text-blue-600'} />
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {Intl.DateTimeFormat().resolvedOptions().timeZone !== homeTimezone && (
+                  <div className={`mb-4 p-3 rounded-lg border ${darkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'}`}>
+                    <div className="flex items-start gap-2">
+                      <Globe size={14} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Timezone mismatch</div>
+                        <div className={`text-xs mt-0.5 ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
+                          Device: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
+                          {' · '}Home: <strong>{homeTimezone.replace(/_/g, ' ')}</strong>
+                        </div>
+                        <div className={`text-xs mt-1 ${darkMode ? 'text-amber-400/70' : 'text-amber-600/70'}`}>
+                          Task times may appear offset on this device. Update your home timezone below, or re-enable automatic timezone on your device.
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -333,6 +353,21 @@ const SettingsModal = () => {
                             Monday
                           </button>
                         </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Home timezone</label>
+                        <select
+                          value={homeTimezone}
+                          onChange={e => setHomeTimezone(e.target.value)}
+                          className={`w-full px-2 py-1.5 text-xs rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        >
+                          {getTzOptions(homeTimezone).map(tz => (
+                            <option key={tz} value={tz}>{getTzLabel(tz)}</option>
+                          ))}
+                        </select>
+                        <p className={`text-[10px] ${textSecondary} mt-1 opacity-70`}>
+                          Used to detect when your device is in a different timezone.
+                        </p>
                       </div>
                     </div>
 

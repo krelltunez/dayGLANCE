@@ -3,11 +3,12 @@ import {
   Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   CalendarDays, CheckCircle, CheckSquare, ChevronDown, ChevronUp,
   ChevronLeft, ChevronRight, Clock, Cloud, ExternalLink,
-  Footprints, FolderOpen, GripVertical, HelpCircle, Key, LayoutGrid,
+  Footprints, FolderOpen, Globe, GripVertical, HelpCircle, Key, LayoutGrid,
   Loader, Mic, Moon, Pencil, Plus,
   Flag, RefreshCw, Save, Settings, Sparkles, Sun, Target, Trash2,
   Undo2, Upload, Volume2, VolumeX, Wifi, Zap,
 } from 'lucide-react';
+import { getTzLabel, getTzOptions } from '../utils/timezones.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
 import { isNativeAndroid, isNativeApp, nativeGetCalendars, nativePickVault } from '../native.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
@@ -30,6 +31,7 @@ const MobileSettingsPanel = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    homeTimezone, setHomeTimezone,
     collapsedSettings,
     soundEnabled, setSoundEnabled,
     setShowHelpModal,
@@ -122,6 +124,28 @@ const MobileSettingsPanel = () => {
     className={`px-4 py-4 space-y-4 transition-transform duration-200 ${mobileSettingsView !== 'main' ? '-translate-x-full' : 'translate-x-0'}`}
     style={{ display: mobileSettingsView !== 'main' ? 'none' : undefined }}
   >
+    {/* Timezone mismatch warning */}
+    {Intl.DateTimeFormat().resolvedOptions().timeZone !== homeTimezone && (
+      <div className={`p-3 rounded-xl border ${darkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'} flex items-start gap-2`}>
+        <Globe size={14} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+        <div className="flex-1 min-w-0">
+          <div className={`text-xs font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Timezone mismatch</div>
+          <div className={`text-xs mt-0.5 ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
+            Device: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
+          </div>
+          <div className={`text-xs ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
+            Home: <strong>{homeTimezone.replace(/_/g, ' ')}</strong>
+          </div>
+          <button
+            onClick={() => setMobileSettingsView('app')}
+            className={`mt-1.5 text-[10px] font-medium underline ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}
+          >
+            Fix in App Settings →
+          </button>
+        </div>
+      </div>
+    )}
+
     {/* Quick toggles */}
     <div className="grid grid-cols-3 gap-3">
       {/* Row 1: 12h/24h | First Day | Sound */}
@@ -365,6 +389,25 @@ const MobileSettingsPanel = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Home timezone */}
+      <hr className={borderClass} />
+      <div className="space-y-2">
+        <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
+          <Globe size={16} className={textSecondary} />
+          Home timezone
+        </div>
+        <p className={`text-xs ${textSecondary}`}>Used to detect when your device is in a different timezone.</p>
+        <select
+          value={homeTimezone}
+          onChange={e => setHomeTimezone(e.target.value)}
+          className={`w-full px-3 py-2 text-sm rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        >
+          {getTzOptions(homeTimezone).map(tz => (
+            <option key={tz} value={tz}>{getTzLabel(tz)}</option>
+          ))}
+        </select>
       </div>
 
       {/* GLANCE default */}

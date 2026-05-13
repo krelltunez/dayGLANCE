@@ -342,6 +342,11 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
   });
   useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
+  const [homeTimezone, setHomeTimezone] = useState(() => {
+    const saved = localStorage.getItem('day-planner-home-timezone');
+    return saved || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-home-timezone', homeTimezone); }, [homeTimezone]);
   const [weekTimelineStartHour, setWeekTimelineStartHour] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-timeline-start-hour');
     return saved !== null ? JSON.parse(saved) : 0;
@@ -7571,6 +7576,7 @@ const DayPlanner = () => {
     use24HourClock, setUse24HourClock,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
+    homeTimezone, setHomeTimezone,
     weekTimelineStartHour, setWeekTimelineStartHour,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,

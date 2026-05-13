@@ -3,7 +3,7 @@ import {
   Activity, AlertCircle, AlertTriangle, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronLeft, ChevronRight, ChevronUp, Clock, Cloud, ExternalLink,
-  Eye, FileText, Filter, Flag, Flame, FolderOpen, GitBranch, GripVertical, Hash, HelpCircle,
+  Eye, FileText, Filter, Flag, Flame, FolderOpen, GitBranch, Globe, GripVertical, Hash, HelpCircle,
   Inbox, Key, Layers, LayoutGrid, Link, Loader, Menu, Mic, Minus, Moon, MoreHorizontal,
   NotebookPen, Plus, RefreshCw, Save, Search, Settings, SkipForward, Sparkles,
   Sun, Target, Trash2, TrendingUp, Trophy, Undo2, Upload, Volume2, VolumeX,
@@ -41,6 +41,7 @@ import InboxFilterPopover from './InboxFilterPopover.jsx';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
 
 const MobileLayout = () => {
+  const [tzBannerDismissed, setTzBannerDismissed] = useState(false);
   const {
     isPhone, isMobile, isTablet, isLandscape,
     visibleDays, visibleDates,
@@ -76,6 +77,7 @@ const MobileLayout = () => {
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
     mobileViewMode, setMobileViewMode,
+    homeTimezone,
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
@@ -680,6 +682,22 @@ const MobileLayout = () => {
                   ref={calendarRef}
                   className={`${cardBg} border ${borderClass} overflow-y-scroll overflow-x-hidden ${darkMode ? 'dark-scrollbar' : ''} relative h-full`}
                 >
+                  {/* Timezone mismatch strip */}
+                  {!tzBannerDismissed && Intl.DateTimeFormat().resolvedOptions().timeZone !== homeTimezone && (
+                    <div className={`flex items-center gap-2 px-3 py-2 text-xs border-b ${darkMode ? 'bg-amber-900/20 border-amber-800 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                      <Globe size={12} className="flex-shrink-0" />
+                      <span className="flex-1 min-w-0 truncate">
+                        Device timezone differs from home ({homeTimezone.replace(/_/g, ' ')})
+                      </span>
+                      <button
+                        onClick={() => setTzBannerDismissed(true)}
+                        className="flex-shrink-0 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Sticky header group: date header + all-day section */}
                   <div ref={mobileDateHeaderRef} className={`sticky top-0 z-40 ${cardBg}`}>
                   {/* Current task banner */}

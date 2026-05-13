@@ -61,6 +61,7 @@ const DesktopLayout = () => {
     showMobileDailySummary, setShowMobileDailySummary,
     mobileSettingsView, setMobileSettingsView,
     use24HourClock, setUse24HourClock,
+    homeTimezone,
     minimizedSections, setMinimizedSections,
     showSettings, setShowSettings,
     collapsedSettings, setCollapsedSettings,
@@ -558,8 +559,8 @@ const DesktopLayout = () => {
               aria-label="Settings"
             >
               <Settings size={18} className={textSecondary} />
-              {updateInfo && (
-                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-red-500`} />
+              {(updateInfo || Intl.DateTimeFormat().resolvedOptions().timeZone !== homeTimezone) && (
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${updateInfo ? 'bg-red-500' : 'bg-amber-500'}`} />
               )}
             </button>
             <button
