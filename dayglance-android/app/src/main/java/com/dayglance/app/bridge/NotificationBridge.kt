@@ -105,9 +105,10 @@ class NotificationBridge(private val context: Context) {
      * @param type           Reminder type: before15 | before10 | before5 | start | end | morning
      * @param isCalendarEvent  If true, the Complete action is omitted (read-only calendar events)
      */
+    @Suppress("UNUSED_PARAMETER")
     @JavascriptInterface
     fun showTaskNotification(
-        _reminderId: String,
+        reminderId: String,
         taskId: String,
         title: String,
         body: String,
