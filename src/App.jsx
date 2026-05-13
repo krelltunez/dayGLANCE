@@ -5567,41 +5567,37 @@ const DayPlanner = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [aiConfig.enabled, aiConfig.features.eveningReflection]);
 
-  // --- AI Task Suggestion (duration + tags debounce) ---
+  // Clear AI suggestion when the form closes or switches to edit mode
   useEffect(() => {
-    // Clear suggestion when form closes or when editing an existing task
     if (!showAddTask || mobileEditingTask) {
       setTaskAISuggestion(null);
       setTaskAISuggestionLoading(false);
-      return;
     }
-    // Strip inline tags/shorthands so we query the clean title words
+  }, [showAddTask, mobileEditingTask]);
+
+  // --- AI Task Suggestion (manually triggered) ---
+  const triggerTaskAISuggestion = useCallback(async () => {
     const cleanedTitle = newTask.title.replace(/#\w+|@\S+|~\S+|%\d+|\^\S*/g, '').trim();
     if (
       cleanedTitle.length < 3 ||
       !aiConfig.enabled ||
       !aiConfig.features?.durationEstimate ||
       (!aiConfig.apiKey && aiConfig.provider !== 'ollama')
-    ) {
-      setTaskAISuggestion(null);
-      return;
-    }
+    ) return;
+    setTaskAISuggestion(null);
     setTaskAISuggestionLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const result = await aiJSON(
-          taskSuggestSystemPrompt(),
-          taskSuggestUserPrompt({ title: cleanedTitle, existingTags: allTags }),
-          aiConfig
-        );
-        if (result && typeof result.duration === 'number') {
-          setTaskAISuggestion(result);
-        }
-      } catch {}
-      setTaskAISuggestionLoading(false);
-    }, 650);
-    return () => { clearTimeout(timer); setTaskAISuggestionLoading(false); };
-  }, [newTask.title, showAddTask, mobileEditingTask, aiConfig, allTags]);
+    try {
+      const result = await aiJSON(
+        taskSuggestSystemPrompt(),
+        taskSuggestUserPrompt({ title: cleanedTitle, existingTags: allTags }),
+        aiConfig
+      );
+      if (result && typeof result.duration === 'number') {
+        setTaskAISuggestion(result);
+      }
+    } catch {}
+    setTaskAISuggestionLoading(false);
+  }, [newTask.title, aiConfig, allTags]);
 
   // --- Weekly AI Summary (enhanced weekly review) ---
   const generateWeeklyAISummary = useCallback(async (stats) => {
@@ -7943,6 +7939,7 @@ const DayPlanner = () => {
     voiceCanRecord,
     taskAISuggestion, setTaskAISuggestion,
     taskAISuggestionLoading, setTaskAISuggestionLoading,
+    triggerTaskAISuggestion,
     aiSubtasksLoadingForTask, setAiSubtasksLoadingForTask,
 
     // ── Weekly review / AI summaries ──────────────────────────────────────────

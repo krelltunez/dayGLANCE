@@ -31,7 +31,7 @@ const DesktopNewTaskModal = () => {
     applySuggestionForNewTask,
     handleNewTaskInputChange, handleNewTaskInputKeyDown,
   } = useDayPlannerCtx();
-  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, goals, projects, goalsProjectsEnabled } = useFeaturesCtx();
+  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
 
   // Wikilink autocomplete: detect [[partial at end of title
@@ -133,7 +133,7 @@ const DesktopNewTaskModal = () => {
                     ))}
                   </div>
                 )}
-                {/* AI duration + tag suggestion pill */}
+                {/* AI duration + tag suggestion */}
                 {aiConfig.enabled && aiConfig.features?.durationEstimate && !mobileEditingTask && (
                   taskAISuggestionLoading ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
@@ -169,7 +169,18 @@ const DesktopNewTaskModal = () => {
                         <X size={11} className={textSecondary} />
                       </button>
                     </div>
-                  ) : null
+                  ) : (
+                    <div className="mt-1.5">
+                      <button
+                        type="button"
+                        onClick={triggerTaskAISuggestion}
+                        className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${darkMode ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400' : 'bg-purple-100 hover:bg-purple-200 text-purple-600'}`}
+                      >
+                        <Sparkles size={9} />
+                        AI
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
               {/* Project assignment (only when Goals & Projects is enabled) */}
