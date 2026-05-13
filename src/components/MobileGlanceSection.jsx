@@ -73,6 +73,7 @@ const MobileGlanceSection = () => {
     tagFilterBtnRef,
     goToDate, scrollToHour,
     glancePage, setGlancePage,
+    mobileViewMode,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
@@ -1091,7 +1092,9 @@ const MobileGlanceSection = () => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       setMobileActiveTab('timeline');
       goToDate(tomorrow);
-      if (firstStartTime) {
+      if (mobileViewMode === 'list') {
+        setTimeout(() => calendarRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 150);
+      } else if (firstStartTime) {
         setTimeout(() => scrollToHour(firstStartTime), 150);
       }
     };
