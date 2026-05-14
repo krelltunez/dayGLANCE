@@ -20,26 +20,60 @@ function readPrices() {
 }
 
 /**
+ * Maps a BillingResponseCode integer to a user-facing message.
+ * Returns null for codes that should be handled silently (cancel).
+ */
+function billingErrorMessage(code) {
+  switch (code) {
+    case 4:  return "This subscription isn't available right now. Please try again later.";
+    case 7:  return "You already own this item.";
+    case 3:  return "Billing is not available on this device.";
+    case 6:  return "Network error. Please check your connection and try again.";
+    default: return "Something went wrong with the purchase. Please try again.";
+  }
+}
+
+/**
  * Exposes Google Play subscription state to the React app.
  *
  * Only meaningful inside the Android WebView — `isAndroidApp` is false on
  * web and Electron, where `isPro` is always true (no wall shown).
  *
- * `isLoading` is true for up to 5 s on first open while the billing client
- * connects to Play and refreshes the local cache, preventing a false-wall
- * flash on cold start for users who are already subscribed.
+ * Purchase outcomes are delivered via `window.__billingEvent` callbacks fired
+ * by the Android bridge. `billingEvent` reflects the last terminal result so
+ * SubscriptionWall can clear its spinner and show error messages immediately.
  *
- * `prices` contains the localized Play prices, e.g. { monthly: "£2.99", annual: "£19.99" }.
+ * `prices` contains the localized Play prices, e.g. { annual: "£19.99", lifetime: "£49.99" }.
  * These are null until the billing client has connected at least once.
  */
 export function useSubscription() {
   const cached = readStatus();
   const [status, setStatus] = useState(cached);
   const [prices, setPrices] = useState(readPrices);
-  // No initial loading state — the Android splash screen holds until queryPurchases()
-  // completes, so the SharedPreferences cache is correct before the WebView is visible.
   const [isLoading, setIsLoading] = useState(false);
-  const pollRef = useRef(null);
+  // Last terminal billing event: { status, code, message, productId, ts }
+  const [billingEvent, setBillingEvent] = useState(null);
+  const timeoutRef = useRef(null);
+
+  // Register window.__billingEvent for the lifetime of the hook.
+  // Android fires this for every terminal purchase outcome so the spinner
+  // clears immediately rather than waiting for a polling timeout.
+  useEffect(() => {
+    if (!BILLING) return;
+    window.__billingEvent = (ev) => {
+      try {
+        const parsed = typeof ev === 'string' ? JSON.parse(ev) : ev;
+        if (parsed.status === 'success') {
+          // Re-read entitlement from cache — handlePurchase has just written it
+          setStatus(readStatus());
+          setPrices(readPrices());
+        }
+        setBillingEvent({ ...parsed, ts: Date.now() });
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+      } catch {}
+    };
+    return () => { delete window.__billingEvent; };
+  }, []);
 
   // On mount: trigger a background refresh to catch any changes since last open.
   useEffect(() => {
@@ -72,22 +106,17 @@ export function useSubscription() {
    */
   const subscribe = useCallback((productId = 'dayglance_pro_annual') => {
     if (!BILLING) return;
+    setBillingEvent(null);
     BILLING.purchase?.(productId);
 
-    if (pollRef.current) clearInterval(pollRef.current);
-    const deadline = Date.now() + 5 * 60 * 1000;
-    pollRef.current = setInterval(() => {
-      const s = readStatus();
-      if (s.active) {
-        setStatus(s);
-        setIsLoading(false);
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      } else if (Date.now() > deadline) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    }, 3000);
+    // 60s safety timeout: synthesise a cancelled event if the Android bridge
+    // never fires (e.g. app was killed mid-flow). The event-driven path should
+    // fire in all real cases before this triggers.
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
+      setBillingEvent(prev => prev ?? { status: 'cancelled', code: -1, message: 'timeout', productId, ts: Date.now() });
+    }, 60_000);
   }, []);
 
   const restore = useCallback(() => {
@@ -98,10 +127,14 @@ export function useSubscription() {
       setStatus(readStatus());
       setPrices(readPrices());
       setIsLoading(false);
+      // Synthesise a terminal event so SubscriptionWall clears the restore spinner
+      setBillingEvent({ status: 'cancelled', code: 0, message: 'restore_complete', productId: '', ts: Date.now() });
     }, 4000);
   }, []);
 
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+  const clearBillingEvent = useCallback(() => setBillingEvent(null), []);
+
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   return {
     isPro: status.active,
@@ -112,5 +145,8 @@ export function useSubscription() {
     subscribe,
     restore,
     refresh,
+    billingEvent,
+    clearBillingEvent,
+    billingErrorMessage,
   };
 }

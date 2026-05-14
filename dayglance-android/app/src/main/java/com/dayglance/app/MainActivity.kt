@@ -138,7 +138,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         billingManager = BillingManager(this, dataStore)
-        subscriptionBridge = SubscriptionBridge(billingManager, dataStore)
 
         // Debug and github flavor builds skip billing entirely.
         if (BuildConfig.DEBUG || !BuildConfig.BILLING_ENABLED) {
@@ -152,6 +151,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView = binding.webView
+        // SubscriptionBridge needs webView to dispatch billing events back to JS, so it
+        // must be constructed after webView is initialised.
         val isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
         webView.setBackgroundColor(
@@ -173,6 +174,7 @@ class MainActivity : AppCompatActivity() {
         binding.root.addView(resumeOverlay)
 
         healthRepository = HealthRepository(this)
+        subscriptionBridge = SubscriptionBridge(billingManager, dataStore, webView)
         obsidianBridge = ObsidianBridge(this, webView)
         nativeBridge = NativeBridge(
             context = this,

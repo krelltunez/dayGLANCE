@@ -3,6 +3,7 @@ package com.dayglance.app.billing
 import android.webkit.JavascriptInterface
 import com.dayglance.app.BuildConfig
 import com.dayglance.app.data.SharedDataStore
+import org.json.JSONObject
 
 /**
  * JavaScript interface exposed to the WebView as `window.DayGlanceBilling`.
@@ -20,7 +21,28 @@ import com.dayglance.app.data.SharedDataStore
 class SubscriptionBridge(
     private val billingManager: BillingManager,
     private val dataStore: SharedDataStore,
+    private val webView: android.webkit.WebView? = null,
 ) {
+
+    init {
+        // Wire BillingManager terminal events to JS via window.__billingEvent.
+        // Fires for every outcome: success, cancelled, error — so the JS layer
+        // can clear the loading spinner without relying on a polling timeout.
+        webView?.let { wv ->
+            billingManager.onBillingEvent = { status, code, message, productId ->
+                val json = JSONObject().apply {
+                    put("status", status)
+                    put("code", code)
+                    put("message", message)
+                    put("productId", productId ?: "")
+                }
+                wv.post {
+                    wv.evaluateJavascript(
+                        "window.__billingEvent && window.__billingEvent($json);", null)
+                }
+            }
+        }
+    }
 
     /**
      * Returns the cached subscription status as JSON.

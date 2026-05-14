@@ -174,7 +174,7 @@ class SharedDataStore(context: Context) {
         get() = prefs.getBoolean(KEY_SUBSCRIPTION_ACTIVE, false)
         set(value) = prefs.edit { putBoolean(KEY_SUBSCRIPTION_ACTIVE, value) }
 
-    /** Product ID of the active subscription, e.g. "dayglance_pro_monthly". */
+    /** Product ID of the active subscription, e.g. "dayglance_pro_annual" or "dayglance_pro_lifetime". */
     var subscriptionProductId: String?
         get() = prefs.getString(KEY_SUBSCRIPTION_PRODUCT_ID, null)
         set(value) = prefs.edit {

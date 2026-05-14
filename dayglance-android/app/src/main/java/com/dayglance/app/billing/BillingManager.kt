@@ -49,13 +49,37 @@ class BillingManager(
     /** Called once after the first queryPurchases() completes. Used to signal the splash screen. */
     var onPurchasesQueried: (() -> Unit)? = null
 
+    /**
+     * Fires exactly once per purchase flow with a terminal result.
+     * status: "success" | "cancelled" | "error"
+     * code: BillingResponseCode integer
+     * message: debugMessage from Play, or an internal label for pre-launch exits
+     * productId: the product that was being purchased, or null if unknown
+     */
+    var onBillingEvent: ((status: String, code: Int, message: String, productId: String?) -> Unit)? = null
+
+    /** Tracks the product currently going through the purchase flow for error reporting. */
+    private var pendingProductId: String? = null
+
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val purchasesUpdatedListener = PurchasesUpdatedListener { result, purchases ->
-        // DIAG: log every billing result so we can see exactly what Play returns
         Log.d(TAG, "purchasesUpdatedListener: code=${result.responseCode} msg='${result.debugMessage}' purchases=${purchases?.size ?: "null"}")
-        if (result.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-            for (purchase in purchases) handlePurchase(purchase)
+        when {
+            result.responseCode == BillingClient.BillingResponseCode.OK && !purchases.isNullOrEmpty() -> {
+                for (purchase in purchases) handlePurchase(purchase)
+                // success event fired per-purchase inside handlePurchase
+            }
+            result.responseCode == BillingClient.BillingResponseCode.USER_CANCELED -> {
+                onBillingEvent?.invoke("cancelled", result.responseCode, result.debugMessage, pendingProductId)
+            }
+            result.responseCode == BillingClient.BillingResponseCode.OK -> {
+                // OK but no purchases — play sheet dismissed without completing
+                onBillingEvent?.invoke("cancelled", result.responseCode, result.debugMessage, pendingProductId)
+            }
+            else -> {
+                onBillingEvent?.invoke("error", result.responseCode, result.debugMessage, pendingProductId)
+            }
         }
     }
 
@@ -168,18 +192,21 @@ class BillingManager(
      */
     fun launchPurchaseFlow(productId: String) {
         val act = activity ?: run {
-            Log.w(TAG, "launchPurchaseFlow($productId): activity is null, aborting")
+            Log.w(TAG, "launchPurchaseFlow($productId): activity null")
+            onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.DEVELOPER_ERROR, "activity_null", productId)
             return
         }
         if (!billingClient.isReady) {
-            Log.w(TAG, "launchPurchaseFlow($productId): billingClient not ready, aborting")
+            Log.w(TAG, "launchPurchaseFlow($productId): client not ready")
+            onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.SERVICE_DISCONNECTED, "billing_not_ready", productId)
             return
         }
 
+        pendingProductId = productId
         val productType = if (productId in INAPP_PRODUCTS) BillingClient.ProductType.INAPP
                           else BillingClient.ProductType.SUBS
 
-        Log.d(TAG, "launchPurchaseFlow($productId): starting — type=$productType ts=${System.currentTimeMillis()}")
+        Log.d(TAG, "launchPurchaseFlow($productId): type=$productType ts=${System.currentTimeMillis()}")
 
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(listOf(
@@ -194,31 +221,37 @@ class BillingManager(
             billingClient.queryProductDetailsAsync(params) { result, detailsList ->
                 Log.d(TAG, "launchPurchaseFlow($productId): queryProductDetailsAsync code=${result.responseCode} msg='${result.debugMessage}' count=${detailsList.size} ts=${System.currentTimeMillis()}")
 
+                // Verbose product details — debug builds only
+                if (BuildConfig.DEBUG) {
+                    detailsList.forEach { d ->
+                        Log.d(TAG, "  ProductDetails: id=${d.productId} type=${d.productType}")
+                        d.subscriptionOfferDetails?.forEachIndexed { i, o ->
+                            Log.d(TAG, "  offer[$i]: basePlanId='${o.basePlanId}' offerId='${o.offerId}' token='${o.offerToken.take(20)}...'")
+                        } ?: Log.d(TAG, "  subscriptionOfferDetails=null")
+                    }
+                }
+
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                    Log.w(TAG, "launchPurchaseFlow($productId): query failed, silent exit A (code=${result.responseCode})")
+                    Log.w(TAG, "launchPurchaseFlow($productId): query failed (exit A) code=${result.responseCode}")
+                    onBillingEvent?.invoke("error", result.responseCode, result.debugMessage, productId)
                     return@queryProductDetailsAsync
                 }
                 val details = detailsList.firstOrNull() ?: run {
-                    Log.w(TAG, "launchPurchaseFlow($productId): empty detailsList, silent exit B")
+                    Log.w(TAG, "launchPurchaseFlow($productId): empty detailsList (exit B)")
+                    onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.ITEM_UNAVAILABLE, "product_not_found", productId)
                     return@queryProductDetailsAsync
                 }
-
-                // DIAG: dump full ProductDetails for this product
-                Log.d(TAG, "  ProductDetails: id=${details.productId} type=${details.productType} title='${details.title}'")
-                details.subscriptionOfferDetails?.forEachIndexed { i, offer ->
-                    Log.d(TAG, "  offerDetails[$i]: basePlanId='${offer.basePlanId}' offerId='${offer.offerId}' offerToken='${offer.offerToken.take(20)}...' tags=${offer.offerTags}")
-                } ?: Log.w(TAG, "  subscriptionOfferDetails=null (INAPP or missing)")
 
                 val productDetailsParams = BillingFlowParams.ProductDetailsParams.newBuilder()
                     .setProductDetails(details)
                     .apply {
                         if (productType == BillingClient.ProductType.SUBS) {
-                            val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken
-                                ?: run {
-                                    Log.w(TAG, "launchPurchaseFlow($productId): no offerToken, silent exit C")
-                                    return@queryProductDetailsAsync
-                                }
-                            Log.d(TAG, "  using offerToken from index 0: '${offerToken.take(20)}...'")
+                            val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken ?: run {
+                                Log.w(TAG, "launchPurchaseFlow($productId): no offerToken (exit C)")
+                                onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.ITEM_UNAVAILABLE, "no_offer_token", productId)
+                                return@queryProductDetailsAsync
+                            }
+                            Log.d(TAG, "launchPurchaseFlow($productId): offerToken='${offerToken.take(20)}...'")
                             setOfferToken(offerToken)
                         }
                     }
@@ -230,7 +263,11 @@ class BillingManager(
 
                 act.runOnUiThread {
                     val launchResult = billingClient.launchBillingFlow(act, flowParams)
-                    Log.d(TAG, "launchPurchaseFlow($productId): launchBillingFlow returned code=${launchResult.responseCode} msg='${launchResult.debugMessage}' ts=${System.currentTimeMillis()}")
+                    Log.d(TAG, "launchBillingFlow: code=${launchResult.responseCode} msg='${launchResult.debugMessage}' ts=${System.currentTimeMillis()}")
+                    if (launchResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                        onBillingEvent?.invoke("error", launchResult.responseCode, launchResult.debugMessage, productId)
+                    }
+                    // OK → wait for purchasesUpdatedListener to fire
                 }
             }
         }
@@ -240,8 +277,10 @@ class BillingManager(
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
         if (!purchase.isAcknowledged) acknowledgePurchase(purchase)
         dataStore.subscriptionActive = true
-        dataStore.subscriptionProductId = purchase.products.firstOrNull()
+        val pid = purchase.products.firstOrNull()
+        dataStore.subscriptionProductId = pid
         dataStore.subscriptionToken = purchase.purchaseToken
+        onBillingEvent?.invoke("success", BillingClient.BillingResponseCode.OK, "", pid)
     }
 
     private fun acknowledgePurchase(purchase: Purchase) {

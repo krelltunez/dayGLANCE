@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader } from 'lucide-react';
 
 /**
@@ -11,21 +11,36 @@ import { Loader } from 'lucide-react';
  * The "Founder pricing" badge is intentional during launch. Remove it (or change
  * the copy) when you raise prices.
  */
-export default function SubscriptionWall({ onSubscribeAnnual, onSubscribeLifetime, onRestore, isLoading, prices }) {
+export default function SubscriptionWall({ onSubscribeAnnual, onSubscribeLifetime, onRestore, isLoading, prices, billingEvent, clearBillingEvent, billingErrorMessage }) {
   const dark = (() => {
     try { return JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'); }
     catch { return false; }
   })();
 
   const [pending, setPending] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  // Clear spinner and show error on every terminal billing event.
+  useEffect(() => {
+    if (!billingEvent) return;
+    setPending(null);
+    if (billingEvent.status === 'error') {
+      setErrorMsg(billingErrorMessage?.(billingEvent.code) ?? 'Something went wrong. Please try again.');
+    } else {
+      setErrorMsg(null);
+    }
+    clearBillingEvent?.();
+  }, [billingEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubscribe = (productId, label) => {
+    setErrorMsg(null);
     setPending(label);
     if (label === 'annual')   onSubscribeAnnual?.();
     if (label === 'lifetime') onSubscribeLifetime?.();
   };
 
   const handleRestore = () => {
+    setErrorMsg(null);
     setPending('restore');
     onRestore?.();
   };
@@ -69,6 +84,13 @@ export default function SubscriptionWall({ onSubscribeAnnual, onSubscribeLifetim
       <p className={`text-sm text-center mb-7 max-w-xs ${sub}`}>
         Choose a plan to keep using dayGLANCE. Your data is safe and waiting.
       </p>
+
+      {/* Error message */}
+      {errorMsg && (
+        <div className="w-full max-w-xs mb-4 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3">
+          <p className="text-xs text-red-500 text-center">{errorMsg}</p>
+        </div>
+      )}
 
       {/* Plan cards */}
       <div className="w-full max-w-xs space-y-3 mb-5">
