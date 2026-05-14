@@ -7,12 +7,15 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.ViewGroup
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -21,6 +24,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -85,6 +89,11 @@ class MainActivity : AppCompatActivity() {
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
+
+    // Screenshot overlay: captures the last WebView frame in onStop() and re-displays it
+    // immediately on resume to hide the blank-surface / renderer-reload period.
+    private var resumeSnapshot: Bitmap? = null
+    private var resumeOverlay: ImageView? = null
 
     // Pending WebRTC permission request (microphone) waiting for Android runtime permission result
     private var pendingWebPermissionRequest: PermissionRequest? = null
@@ -229,14 +238,11 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                // Release the first half of the splash condition.
                 webViewReady = true
-                // Re-apply status bar appearance after the WebView's first paint,
-                // which can reset the icon colour on Android 15 edge-to-edge mode.
                 applyStatusBarAppearance()
-                // Safety fallback: if JS never calls notifyAppReady() (e.g. Obsidian
-                // not configured, or a JS error), dismiss the splash after 10 seconds.
                 Handler(Looper.getMainLooper()).postDelayed({ appReady = true }, 10_000)
+                // Page finished loading (covers the renderer-killed-and-reloaded case).
+                dismissResumeOverlay()
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
@@ -348,19 +354,59 @@ class MainActivity : AppCompatActivity() {
             billingManager.activity = null
             billingManager.disconnect()
         }
+        takeResumeSnapshot()
+    }
+
+    private fun takeResumeSnapshot() {
+        val w = webView.width
+        val h = webView.height
+        if (w <= 0 || h <= 0) return
+        runCatching {
+            val bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            webView.draw(Canvas(bm))
+            resumeSnapshot?.recycle()
+            resumeSnapshot = bm
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        // webView.onResume() intentionally omitted — we don't call webView.onPause() either,
-        // so the GPU surface stays live. Calling resume without a prior pause triggers a
-        // surface invalidation that causes a blank-frame flash on return from background.
-        // Re-enable so back button works after returning from background or SettingsActivity.
-        // The callback disables itself when the WebView has no back history; without this
-        // reset it stays disabled for the rest of the session (Android 13+ behaviour).
+        // Show the last screenshot immediately to cover any blank-surface or renderer-reload
+        // period. Dismissed by onPageFinished (page reload case) or the postDelayed fallback
+        // (GPU surface reconnect case, typically < 200ms).
+        showResumeOverlay()
+        // webView.onResume() intentionally omitted — we don't call webView.onPause() either.
         backCallback.isEnabled = true
         applyStatusBarAppearance()
         maybePromptExactAlarmPermission()
+    }
+
+    private fun showResumeOverlay() {
+        val bm = resumeSnapshot ?: return
+        val parent = webView.parent as? ViewGroup ?: return
+        resumeOverlay?.let { parent.removeView(it) }
+        val overlay = ImageView(this).apply {
+            setImageBitmap(bm)
+            scaleType = ImageView.ScaleType.FIT_XY
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        }
+        parent.addView(overlay)
+        resumeOverlay = overlay
+        // Fallback: always remove after 600ms so stale content can't get stuck on screen.
+        webView.postDelayed({ dismissResumeOverlay() }, 600)
+    }
+
+    fun dismissResumeOverlay() {
+        val ov = resumeOverlay ?: return
+        resumeOverlay = null
+        ov.animate().alpha(0f).setDuration(150).withEndAction {
+            (ov.parent as? ViewGroup)?.removeView(ov)
+            resumeSnapshot?.recycle()
+            resumeSnapshot = null
+        }.start()
     }
 
     /**
