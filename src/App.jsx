@@ -1586,11 +1586,16 @@ const DayPlanner = () => {
               setObsidianConfig({ enabled: true, dailyNotesPath: cfg.folder || '', newNotesFolder: cfg.newNotesFolder || 'dayGLANCE', dailyNotePattern: cfg.pattern || 'yyyy-MM-dd' });
             }
             performObsidianSync();
-            // Refresh candidates in case new notes were added while in native settings
-            try {
-              const notes = nativeListNotes('');
-              if (notes) setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
-            } catch {}
+            // Defer the blocking vault scan to after the next paint so the JS thread
+            // isn't blocked mid-render (which causes a blank screen on resume).
+            // rAF → setTimeout(0) guarantees the browser paints the current frame
+            // before nativeListNotes runs.
+            requestAnimationFrame(() => setTimeout(() => {
+              try {
+                const notes = nativeListNotes('');
+                if (notes) setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
+              } catch {}
+            }, 0));
           }
         } catch {}
         return;
