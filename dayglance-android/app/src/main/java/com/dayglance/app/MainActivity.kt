@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.View
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -82,6 +83,10 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var webViewReady = false
     @Volatile private var appReady = false
     @Volatile private var billingReady = false
+
+    // Solid-colour overlay that covers the WebView while it repaints on resume,
+    // preventing the stale-frame flash (UI → blank → UI) the user would otherwise see.
+    private lateinit var resumeOverlay: View
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
@@ -153,6 +158,20 @@ class MainActivity : AppCompatActivity() {
             if (isDark) android.graphics.Color.parseColor("#0f172a")
             else android.graphics.Color.WHITE
         )
+
+        // Resume overlay: sits above the WebView in the FrameLayout. Shown in onPause()
+        // to hide the stale cached frame; hidden via postVisualStateCallback() once the
+        // WebView has committed a fresh frame. Colour matches both dark (#0f172a) and
+        // light (#ffffff) mode so the transition is seamless in either appearance setting.
+        resumeOverlay = View(this).apply {
+            setBackgroundColor(
+                if (isDark) android.graphics.Color.parseColor("#0f172a")
+                else android.graphics.Color.WHITE
+            )
+            visibility = View.GONE
+        }
+        binding.root.addView(resumeOverlay)
+
         healthRepository = HealthRepository(this)
         obsidianBridge = ObsidianBridge(this, webView)
         nativeBridge = NativeBridge(
@@ -334,6 +353,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Show the overlay so the stale cached frame is hidden when the user returns.
+        // dataStore.appDarkMode is the app's own dark/light preference (independent of the
+        // Android system night-mode flag), so the overlay colour is correct in both modes.
+        val isDarkMode = dataStore.appDarkMode
+            ?: ((resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES)
+        resumeOverlay.setBackgroundColor(
+            if (isDarkMode) android.graphics.Color.parseColor("#0f172a")
+            else android.graphics.Color.WHITE
+        )
+        resumeOverlay.visibility = View.VISIBLE
+    }
+
     override fun onStart() {
         super.onStart()
         if (BuildConfig.BILLING_ENABLED && !BuildConfig.DEBUG) {
@@ -361,6 +395,16 @@ class MainActivity : AppCompatActivity() {
         backCallback.isEnabled = true
         applyStatusBarAppearance()
         maybePromptExactAlarmPermission()
+
+        // Hide the resume overlay once the WebView has committed a fresh frame.
+        // postVisualStateCallback fires on the main thread when the WebView has a valid
+        // picture ready to draw — at that point the overlay is no longer needed.
+        // The 800 ms postDelayed is a safety net in case the callback doesn't fire
+        // (e.g. WebView has no pending draw commands because the DOM hasn't changed).
+        webView.postVisualStateCallback(System.currentTimeMillis()) { _ ->
+            resumeOverlay.visibility = View.GONE
+        }
+        webView.postDelayed({ resumeOverlay.visibility = View.GONE }, 800)
     }
 
     /**
