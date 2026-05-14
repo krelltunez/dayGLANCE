@@ -352,7 +352,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        webView.onResume()
+        // webView.onResume() intentionally omitted — we don't call webView.onPause() either,
+        // so the GPU surface stays live. Calling resume without a prior pause triggers a
+        // surface invalidation that causes a blank-frame flash on return from background.
         // Re-enable so back button works after returning from background or SettingsActivity.
         // The callback disables itself when the WebView has no back history; without this
         // reset it stays disabled for the rest of the session (Android 13+ behaviour).
