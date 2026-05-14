@@ -401,9 +401,9 @@ class MainActivity : AppCompatActivity() {
         // picture ready to draw — at that point the overlay is no longer needed.
         // The 800 ms postDelayed is a safety net in case the callback doesn't fire
         // (e.g. WebView has no pending draw commands because the DOM hasn't changed).
-        webView.postVisualStateCallback(System.currentTimeMillis()) { _ ->
+        webView.postVisualStateCallback(System.currentTimeMillis(), WebView.VisualStateCallback { _ ->
             resumeOverlay.visibility = View.GONE
-        }
+        })
         webView.postDelayed({ resumeOverlay.visibility = View.GONE }, 800)
     }
 
