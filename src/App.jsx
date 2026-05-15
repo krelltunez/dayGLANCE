@@ -1212,9 +1212,11 @@ const DayPlanner = () => {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     document.addEventListener('dayglanceForeground', handleNativeForeground);
+    window.addEventListener('focus', handleVisibility);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       document.removeEventListener('dayglanceForeground', handleNativeForeground);
+      window.removeEventListener('focus', handleVisibility);
     };
   }, []);
 
