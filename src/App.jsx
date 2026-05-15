@@ -177,7 +177,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
-  const { isPro, isLoading: subLoading, isAndroidApp, subscribe, restore, prices: subPrices, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, productId: subProductId, subscribe, restore, prices: subPrices, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -7642,7 +7642,7 @@ const DayPlanner = () => {
     showHelpModal, setShowHelpModal,
 
     // ── Billing ───────────────────────────────────────────────────────────────
-    isPro, isAndroidApp, productId: subProductId,
+    isPro, isAndroidApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
 
     // ── Autocomplete suggestions ──────────────────────────────────────────────
