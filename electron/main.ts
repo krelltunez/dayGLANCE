@@ -362,17 +362,27 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
     const msg = e instanceof Error ? e.message : 'Invalid URL';
     return { status: 400, ok: false, statusText: 'Bad Request', body: msg };
   }
+  // 30-second hard timeout — net.fetch has no built-in timeout, so a slow or
+  // unresponsive WebDAV server (e.g. a home server that went offline) would
+  // hold the cloudSyncInProgressRef lock indefinitely, silently blocking every
+  // subsequent 60-second poll until the app is force-quit and restarted.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
   try {
     const response = await net.fetch(url, {
       method: upperMethod,
       headers,
+      signal: controller.signal,
       ...(body != null ? { body } : {}),
     });
     const text = await response.text();
     return { status: response.status, ok: response.ok, statusText: response.statusText, body: text, headers: { etag: response.headers.get('etag') || null } };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Network error';
+    const isAbort = e instanceof Error && e.name === 'AbortError';
+    const msg = isAbort ? 'Sync request timed out (server did not respond within 30 s)' : (e instanceof Error ? e.message : 'Network error');
     return { status: 0, ok: false, statusText: msg, body: '', headers: { etag: null } };
+  } finally {
+    clearTimeout(timeoutId);
   }
 });
 

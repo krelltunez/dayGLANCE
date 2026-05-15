@@ -997,17 +997,20 @@ describe('mergeSyncData — todayRoutines sync', () => {
   });
 
   it('removedTodayRoutineIds merges from both devices', () => {
+    const today = new Date().toISOString().split('T')[0];
+    const ts1 = new Date(Date.now() - 4 * 3600000).toISOString();
+    const ts2 = new Date(Date.now() - 2 * 3600000).toISOString();
     const deviceA = {
       ...emptyData(),
       todayRoutines: [],
-      routinesDate: '2026-02-14',
-      removedTodayRoutineIds: { 'shower': '2026-02-14T10:00:00.000Z' },
+      routinesDate: today,
+      removedTodayRoutineIds: { 'shower': ts1 },
     };
     const deviceB = {
       ...emptyData(),
       todayRoutines: [],
-      routinesDate: '2026-02-14',
-      removedTodayRoutineIds: { 'workout': '2026-02-14T11:00:00.000Z' },
+      routinesDate: today,
+      removedTodayRoutineIds: { 'workout': ts2 },
     };
 
     const { data } = mergeSyncData(deviceA, deviceB);

@@ -1266,12 +1266,16 @@ const DayPlanner = () => {
     return () => clearInterval(syncTimer);
   }, [syncUrl, taskCalendarUrl]);
 
-  // Cloud sync: debounced upload on data changes
+  // Cloud sync: debounced download+merge+upload on data changes.
+  // Triggering a full download cycle (not just an upload) ensures that any
+  // concurrent writes from other devices (e.g. Android) are merged in before
+  // we push our local state, preventing Electron from overwriting Android's
+  // changes that arrived since the last 60-second poll.
   useEffect(() => {
     if (isTrayMode || !cloudSyncConfig?.enabled || !dataLoaded || suppressCloudUploadRef.current) return;
     if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current);
     cloudSyncDebounceRef.current = setTimeout(() => {
-      cloudSyncUpload();
+      cloudSyncDownloadRef.current?.();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
@@ -5055,7 +5059,13 @@ const DayPlanner = () => {
     const provider = cloudSyncProviders[cloudSyncConfig.provider];
     if (!provider) return;
 
-    if (cloudSyncInProgressRef.current) return;
+    if (cloudSyncInProgressRef.current) {
+      // A debounce-triggered download arrived while one was already running.
+      // Set the pending flag so the running cycle schedules a follow-up download
+      // on completion, ensuring the user's queued changes are not dropped.
+      cloudSyncPendingUploadRef.current = true;
+      return;
+    }
     cloudSyncInProgressRef.current = true;
     const syncStart = Date.now();
     setCloudSyncStatus('downloading');
@@ -5168,10 +5178,12 @@ const DayPlanner = () => {
         cloudSyncInProgressRef.current = false;
         if (!passphraseRequired) cloudSyncInitialDoneRef.current = true;
 
-        // If a local change arrived while the download held the lock, upload it now.
+        // If a debounce-triggered download arrived while this one held the lock,
+        // run a fresh download+merge+upload now so the pending local change is
+        // merged with any concurrent remote writes rather than blindly overwritten.
         if (cloudSyncPendingUploadRef.current) {
           cloudSyncPendingUploadRef.current = false;
-          setTimeout(() => cloudSyncUpload(), 0);
+          setTimeout(() => cloudSyncDownloadRef.current?.(), 0);
         }
         // If iCloudSync was skipped because the lock was held, run it now.
         if (iCloudPendingRef.current) {

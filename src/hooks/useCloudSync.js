@@ -31,8 +31,10 @@ const useCloudSync = () => {
   // Download-specific backoff (separate so upload failures don't block downloads and vice versa)
   const cloudSyncDownloadErrorCountRef  = useRef(0);
   const cloudSyncDownloadBackoffUntilRef = useRef(0);
-  // Set to true when a debounced upload fires while a download holds the lock,
-  // so the download cycle can trigger a follow-up upload on completion (H1).
+  // Set to true when a debounce-triggered download fires while another download
+  // holds the lock, so the running cycle schedules a follow-up download on
+  // completion to pick up the pending local change (and any concurrent remote
+  // writes) rather than blindly uploading over them (H1).
   const cloudSyncPendingUploadRef = useRef(false);
   // Set to true when iCloudSync is skipped because WebDAV holds the lock,
   // so the download cycle can re-run iCloud on completion (H2).
