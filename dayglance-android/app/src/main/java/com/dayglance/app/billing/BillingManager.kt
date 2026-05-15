@@ -302,14 +302,33 @@ class BillingManager(
             onComplete(true)
             return
         }
-        // Call consumeAsync regardless of product type. For INAPP (lifetime) this is
-        // required to allow re-purchase. For test subscription tokens purchased by a
-        // license tester, consumeAsync also succeeds and lets Play allow a new
-        // subscription — PR #803 skipped this for SUBS but that broke re-testing.
-        // The result code is ignored; local cache is always cleared above.
-        val params = ConsumeParams.newBuilder().setPurchaseToken(token).build()
         scope.launch {
-            billingClient.consumeAsync(params) { _, _ -> onComplete(true) }
+            // Query INAPP purchases directly rather than relying on the token stored in
+            // dataStore. When an annual test subscription is active, queryPurchases() stores
+            // the SUBS token (SUBS has priority), leaving the lifetime INAPP token untouched.
+            // Querying INAPP directly ensures the lifetime token is always consumed.
+            val inappPurchases = queryPurchasesForType(BillingClient.ProductType.INAPP)
+            for (purchase in inappPurchases) {
+                val p = ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()
+                suspendCancellableCoroutine { cont ->
+                    billingClient.consumeAsync(p) { result, _ ->
+                        Log.d(TAG, "consumeAsync INAPP ${purchase.purchaseToken.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
+                        cont.resume(Unit)
+                    }
+                }
+            }
+            // Also attempt the originally stored token (may be a SUBS token for an annual
+            // test subscription — consumeAsync can succeed on license-tester SUBS tokens).
+            if (inappPurchases.none { it.purchaseToken == token }) {
+                val p = ConsumeParams.newBuilder().setPurchaseToken(token).build()
+                suspendCancellableCoroutine { cont ->
+                    billingClient.consumeAsync(p) { result, _ ->
+                        Log.d(TAG, "consumeAsync stored token ${token.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
+                        cont.resume(Unit)
+                    }
+                }
+            }
+            onComplete(true)
         }
     }
 }
