@@ -134,6 +134,12 @@ export function useSubscription() {
 
   const clearBillingEvent = useCallback(() => setBillingEvent(null), []);
 
+  const consumeTestPurchase = useCallback(() => {
+    if (!BILLING?.consumeTestPurchase) return;
+    setBillingEvent(null);
+    BILLING.consumeTestPurchase();
+  }, []);
+
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   return {
@@ -141,10 +147,12 @@ export function useSubscription() {
     productId: status.productId,
     prices,
     isAndroidApp: !!BILLING,
+    canConsumeTestPurchase: typeof BILLING?.consumeTestPurchase === 'function',
     isLoading,
     subscribe,
     restore,
     refresh,
+    consumeTestPurchase,
     billingEvent,
     clearBillingEvent,
     billingErrorMessage,

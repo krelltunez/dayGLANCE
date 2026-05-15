@@ -108,4 +108,33 @@ class SubscriptionBridge(
     @JavascriptInterface
     fun getProductIds(): String =
         """["${BillingManager.PRODUCT_ANNUAL}","${BillingManager.PRODUCT_LIFETIME}"]"""
+
+    /**
+     * Consumes the stored lifetime purchase token so it can be bought again.
+     * Only available on play builds (BILLING_ENABLED=true). Intended for testing.
+     * Result is delivered via window.__billingEvent with status "consumed" or "consume_failed".
+     */
+    @JavascriptInterface
+    fun consumeTestPurchase() {
+        if (!BuildConfig.BILLING_ENABLED) return
+        val token = dataStore.subscriptionToken ?: run {
+            webView?.post {
+                webView.evaluateJavascript(
+                    """window.__billingEvent && window.__billingEvent({"status":"consume_failed","code":0,"message":"no_token","productId":""});""", null)
+            }
+            return
+        }
+        billingManager.consumePurchase(token) { success ->
+            val json = JSONObject().apply {
+                put("status", if (success) "consumed" else "consume_failed")
+                put("code", 0)
+                put("message", if (success) "test_consume" else "consume_error")
+                put("productId", BillingManager.PRODUCT_LIFETIME)
+            }
+            webView?.post {
+                webView.evaluateJavascript(
+                    "window.__billingEvent && window.__billingEvent($json);", null)
+            }
+        }
+    }
 }

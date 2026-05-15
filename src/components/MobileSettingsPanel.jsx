@@ -25,6 +25,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileSettingsPanel = () => {
   const {
+    consumeTestPurchase, canConsumeTestPurchase,
     setTasks, setUnscheduledTasks,
     darkMode, setDarkMode,
     mobileSettingsView, setMobileSettingsView,
@@ -318,6 +319,15 @@ const MobileSettingsPanel = () => {
         <span className={`font-medium ${textPrimary} flex-1 text-left`}>Help & Feedback</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
+      {canConsumeTestPurchase && (
+        <button
+          onClick={consumeTestPurchase}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3 opacity-50`}
+        >
+          <RefreshCw size={16} className={textSecondary} />
+          <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
+        </button>
+      )}
     </div>
   </div>
 

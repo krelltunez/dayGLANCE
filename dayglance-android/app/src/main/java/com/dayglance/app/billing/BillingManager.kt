@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.ConsumeParams
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
@@ -289,5 +290,21 @@ class BillingManager(
             .setPurchaseToken(purchase.purchaseToken)
             .build()
         billingClient.acknowledgePurchase(params) { /* fire and forget */ }
+    }
+
+    fun consumePurchase(token: String, onComplete: (success: Boolean) -> Unit) {
+        if (!billingClient.isReady) { onComplete(false); return }
+        val params = ConsumeParams.newBuilder().setPurchaseToken(token).build()
+        scope.launch {
+            billingClient.consumeAsync(params) { result, _ ->
+                val success = result.responseCode == BillingClient.BillingResponseCode.OK
+                if (success) {
+                    dataStore.subscriptionActive = false
+                    dataStore.subscriptionProductId = null
+                    dataStore.subscriptionToken = null
+                }
+                onComplete(success)
+            }
+        }
     }
 }
