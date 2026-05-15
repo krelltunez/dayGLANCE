@@ -5183,7 +5183,7 @@ const DayPlanner = () => {
         // merged with any concurrent remote writes rather than blindly overwritten.
         if (cloudSyncPendingUploadRef.current) {
           cloudSyncPendingUploadRef.current = false;
-          setTimeout(() => cloudSyncDownloadRef.current?.(), 0);
+          setTimeout(() => cloudSyncDownloadRef.current?.(), 250);
         }
         // If iCloudSync was skipped because the lock was held, run it now.
         if (iCloudPendingRef.current) {
