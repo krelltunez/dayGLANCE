@@ -63,8 +63,8 @@ export function useSubscription() {
     window.__billingEvent = (ev) => {
       try {
         const parsed = typeof ev === 'string' ? JSON.parse(ev) : ev;
-        if (parsed.status === 'success') {
-          // Re-read entitlement from cache — handlePurchase has just written it
+        if (parsed.status === 'success' || parsed.status === 'consumed') {
+          // Re-read entitlement from cache — handlePurchase / consumePurchase has just written it
           setStatus(readStatus());
           setPrices(readPrices());
         }
