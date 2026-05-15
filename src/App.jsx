@@ -1266,16 +1266,14 @@ const DayPlanner = () => {
     return () => clearInterval(syncTimer);
   }, [syncUrl, taskCalendarUrl]);
 
-  // Cloud sync: debounced download+merge+upload on data changes.
-  // Triggering a full download cycle (not just an upload) ensures that any
-  // concurrent writes from other devices (e.g. Android) are merged in before
-  // we push our local state, preventing Electron from overwriting Android's
-  // changes that arrived since the last 60-second poll.
+  // Cloud sync: debounced upload on data changes.
+  // Upload only (no download) to avoid the applyRemoteData → state-change → debounce
+  // re-trigger loop. The 60-second poll handles keeping remote changes in sync.
   useEffect(() => {
     if (isTrayMode || !cloudSyncConfig?.enabled || !dataLoaded || suppressCloudUploadRef.current) return;
     if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current);
     cloudSyncDebounceRef.current = setTimeout(() => {
-      cloudSyncDownloadRef.current?.();
+      cloudSyncUpload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
