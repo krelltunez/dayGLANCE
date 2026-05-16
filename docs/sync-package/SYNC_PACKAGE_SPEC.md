@@ -87,8 +87,9 @@ All fields are required unless marked optional.
 | Field | Type | Description |
 |---|---|---|
 | `buildPayload()` | `async () => object` | Returns the full sync payload `data` object. Called immediately before every upload. **Must read live state** (React refs, localStorage tombstones, etc.) — not a snapshot. |
-| `buildBackupPayload()` | `async () => object` | Returns the auto-backup payload. May differ from sync payload (e.g. exclude transient UI state). Called on backup timer. **Must be safe to call without React context** (timer callbacks). Read from localStorage/IndexedDB only, not React state. |
+| `buildBackupPayload()` | `async () => object` | Returns the backup payload. Semantically distinct from `buildPayload`: sync payloads contain the cross-device state; backup payloads may include additional device-local data (settings, preferences) that aren't part of the sync protocol. Called on backup timer. **Must be safe to call without React context** (timer callbacks). Read from localStorage/IndexedDB only, not React state. |
 | `applyPayload(data)` | `async (object) => void` | Applies a merged remote payload to local state. Called after every successful download+merge. For React apps: update both React state and localStorage. For IndexedDB apps (lastGLANCE): write to Dexie inside a transaction. |
+| `mergePayloads(local, remote)` | `(object, object) => object` | Merges a local payload snapshot with a remote payload. Called by the engine between download and apply. The engine does not know the data model — this is always app-provided. Use `mergeArrayById` from the package for each syncable array. Must be synchronous. |
 | `validateUploadPayload(payload)` _(optional)_ | `async (object) => { valid: boolean, reason?: string }` | Safety guard before upload. Returning `{ valid: false }` aborts the upload without error. Use to block empty payloads, schema problems, etc. |
 | `validateApplyPayload(payload)` _(optional)_ | `async (object) => { valid: boolean, reason?: string }` | Safety guard before applying remote data locally. Returning `{ valid: false }` aborts the apply without error. |
 

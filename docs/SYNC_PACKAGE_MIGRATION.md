@@ -143,6 +143,22 @@ const buildBackupPayload = () => {
 
 ---
 
+## `mergePayloads` Implementation
+
+The current merge logic lives inline in `cloudSyncDownload` (App.jsx) via `mergeSyncData`. After extraction, pass it as `mergePayloads`:
+
+```js
+import { mergeSyncData } from '@glance-apps/sync';  // dayGLANCE orchestrator exported from package
+
+const mergePayloads = (local, remote) => mergeSyncData(local, remote);
+```
+
+`mergeSyncData` is the dayGLANCE-specific orchestrator that calls `mergeArrayById` for tasks, habits, habitLogs, routineDefinitions, and `mergeDailyNotes` for the notes map. It is exported from the package alongside the generic primitives.
+
+`mergePayloads` must be synchronous. `mergeSyncData` is synchronous.
+
+---
+
 ## Upload Safety Check (must preserve)
 
 The current `cloudSyncUpload` (App.jsx lines 4799-4806) refuses to upload if the payload has zero tasks but local state is non-empty. This prevents data loss from stale closures or race conditions.

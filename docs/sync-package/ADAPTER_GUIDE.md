@@ -7,14 +7,15 @@
 
 ## What Is an Adapter?
 
-An adapter is the set of four async callbacks you pass to `createSyncEngine`:
+An adapter is the set of callbacks you pass to `createSyncEngine` that wire the engine to your app's data model:
 
-- `buildPayload()` — reads your app's current state and returns a JSON-serializable object
-- `buildBackupPayload()` — same but safe to call from a timer (no React state)
+- `buildPayload()` — reads live state and returns the cross-device sync payload
+- `buildBackupPayload()` — reads storage-only state and returns the richer backup payload
 - `applyPayload(data)` — writes a merged remote payload back into your app's state
+- `mergePayloads(local, remote)` — merges a local snapshot with a remote payload; uses `mergeArrayById` internally
 - `validateUploadPayload(payload)` / `validateApplyPayload(payload)` _(optional safety guards)_
 
-You write these four functions. The engine calls them at the right times. Everything else — HTTP routing, encryption, ETag management, merge, retry — is handled by the package.
+You write these functions. The engine calls them at the right times. Everything else — HTTP routing, encryption, ETag management, retry — is handled by the package.
 
 ---
 
@@ -26,6 +27,13 @@ Decide what data needs to sync across devices. Design a plain JSON object that c
 - Every syncable item needs a **stable, globally unique ID** — a UUID, not an auto-increment integer. If your DB uses integers, add a `sync_id` UUID column and use that as the merge key.
 - Every syncable item needs a **last-modified timestamp** (ISO string). This is the merge tie-breaker.
 - Deletions must be represented as **tombstones** — a map of `{ id: deletedAt }` — not by absence. Items that are simply absent from a payload are *not* deleted; they are treated as "not yet seen."
+
+**Where to store tombstones:**
+
+- **React/localStorage apps** (dayGLANCE, lifeGLANCE): Store tombstones in localStorage under a dedicated key (e.g. `'myapp-tombstones'`). No schema migration needed; consistent with how the rest of the app stores data. Tombstones are read in `buildPayload` and written inline wherever a delete occurs.
+- **Dexie/IndexedDB apps** (lastGLANCE): Store tombstones in a Dexie table. The app already has a schema migration system; a `tombstones` table fits naturally and keeps deletion + tombstone recording in a single atomic transaction.
+
+Both approaches produce the same tombstone format in the payload (`{ id: deletedAt }`). The storage location is an implementation detail of each adapter.
 
 ```js
 // Example payload shape
@@ -82,18 +90,26 @@ const buildPayload = async () => {
 
 ## Step 3: Write `buildBackupPayload`
 
-Same as `buildPayload` but **must not read React state** — it is called from a timer callback. For IndexedDB apps, `buildPayload` and `buildBackupPayload` can be identical.
+`buildBackupPayload` is a **semantically distinct** function from `buildPayload`, even if the two look similar for some apps.
 
-For React apps, build from localStorage and IndexedDB only:
+- `buildPayload` returns the cross-device sync state: only data that makes sense on another device.
+- `buildBackupPayload` returns a richer snapshot: sync data **plus** device-local preferences, UI settings, and any state that a restore-from-backup workflow should preserve.
+
+Both must be **timer-safe** — called outside the React render cycle. Neither may read React state. Read from localStorage and IndexedDB only.
+
+For React apps:
 
 ```js
 const buildBackupPayload = async () => ({
   items: JSON.parse(localStorage.getItem('myapp-items') || '[]'),
   tombstones: JSON.parse(localStorage.getItem('myapp-tombstones') || '{}'),
-  // Add any additional data that should be in backups
+  // These extras go in backups but not in the sync payload:
   settings: JSON.parse(localStorage.getItem('myapp-settings') || '{}'),
+  uiPreferences: JSON.parse(localStorage.getItem('myapp-ui-prefs') || '{}'),
 });
 ```
+
+For Dexie apps, `buildBackupPayload` and `buildPayload` may share the same body if there are no device-local preferences to add. Write them as two separate named functions regardless — the distinction is part of the API contract and may diverge later.
 
 ---
 
@@ -131,29 +147,30 @@ const applyPayload = async (data) => {
 
 ---
 
-## Step 5: Write the Merge Orchestrator
+## Step 5: Write `mergePayloads`
 
-The merge happens *inside* the engine before `applyPayload` is called. The engine calls `buildPayload()` on both local and remote, then calls your merge function, then calls `applyPayload(merged)`.
-
-Wait — the engine doesn't have a built-in merge orchestrator. You provide it as part of the `applyPayload` contract. The pattern is:
+The engine does not know your data model, so it cannot merge payloads on its own. You provide `mergePayloads(local, remote) → merged` in config. The engine calls it between download and apply:
 
 ```
 remote payload downloaded
        ↓
 engine calls buildPayload() → local snapshot
        ↓
-engine calls your mergeRemoteWithLocal(local, remote) helper
+engine calls mergePayloads(local, remote) → merged
        ↓
 engine calls applyPayload(merged)
 ```
 
-The `mergeArrayById` primitive from the package handles per-array merging:
+Use `mergeArrayById` from the package for each syncable array:
 
 ```js
-import { mergeArrayById } from '@glance-apps/sync';
+import { mergeArrayById, pruneTombstones } from '@glance-apps/sync';
 
-const mergeRemoteWithLocal = (local, remote) => {
-  const tombstones = { ...local.tombstones, ...remote.tombstones };
+const mergePayloads = (local, remote) => {
+  const tombstones = pruneTombstones(
+    { ...local.tombstones, ...remote.tombstones },
+    90
+  );
   return {
     items: mergeArrayById(
       local.items,
@@ -166,15 +183,17 @@ const mergeRemoteWithLocal = (local, remote) => {
 };
 ```
 
-Pass your merge function as `mergePayloads` in config:
+Pass it in config:
 
 ```js
 createSyncEngine({
   // ...
-  mergePayloads: mergeRemoteWithLocal,
+  mergePayloads,
   // ...
 });
 ```
+
+`mergePayloads` must be synchronous. `mergeArrayById` is synchronous. If you need async lookups (e.g. Dexie FK resolution), do those in `applyPayload` instead — `mergePayloads` only decides which records win; `applyPayload` handles writing them.
 
 ---
 
@@ -237,22 +256,38 @@ const applyPayload = async (data) => {
 
 ## Step 7: Exclude Binary Data (lifeGLANCE Pattern)
 
-Binary blobs (photos, audio) must not go into the sync payload — they are too large for WebDAV sync files.
+Photos are **not synced**. Photo data — blob and metadata — is stripped at the adapter boundary before upload. On a second device, an entry with a photo will arrive with no photo attached; the UI must handle this gracefully (show a placeholder, not an error).
 
-Add tombstones at the **adapter boundary** (in `buildPayload`), not at the storage layer:
+Strip all photo fields in `buildPayload`:
 
 ```js
 const buildPayload = async () => {
   const entries = entriesRef.current;
   return {
-    // Strip photo_blob; keep photo metadata (filename, size, hash)
-    entries: entries.map(({ photo_blob, ...rest }) => rest),
+    // Strip all photo data — neither blob nor metadata crosses device boundaries
+    entries: entries.map(({ photo_blob, photo, photo_data, ...rest }) => rest),
     tombstones: JSON.parse(localStorage.getItem('lifeglance-tombstones') || '{}'),
   };
 };
 ```
 
-Photos sync as references (filename + hash). Actual transfer is out of scope for `@glance-apps/sync`.
+In `applyPayload`, re-attach the local blob so it isn't lost on the originating device during a sync round-trip:
+
+```js
+const applyPayload = async (data) => {
+  const localBlobMap = Object.fromEntries(
+    entriesRef.current.filter(e => e.photo_blob).map(e => [e.id, e.photo_blob])
+  );
+  const entries = data.entries.map(e => ({
+    ...e,
+    photo_blob: localBlobMap[e.id] ?? null,
+  }));
+  localStorage.setItem('myapp-entries', JSON.stringify(entries));
+  setEntries(entries);
+};
+```
+
+This re-attachment is purely local — it does not affect the sync file or the other device.
 
 ---
 
@@ -314,9 +349,9 @@ Set `proxyUrl` in the engine config to your Vercel deployment URL.
 - [ ] Every syncable item has an `updatedAt` ISO string timestamp
 - [ ] Deletions are recorded as tombstones, not just removed from state
 - [ ] `buildPayload` reads live state (React refs or IndexedDB)
-- [ ] `buildBackupPayload` is timer-safe (no React state)
+- [ ] `buildBackupPayload` is timer-safe (no React state); written as a separate function even if the body currently matches `buildPayload`
 - [ ] `applyPayload` writes both storage and UI state
-- [ ] `mergePayloads` is implemented using `mergeArrayById`
+- [ ] `mergePayloads` is implemented using `mergeArrayById` and is synchronous
 - [ ] Nested FK relationships use `sync_id` / `parent_sync_id`, not integer PKs
 - [ ] Binary blobs are excluded from the payload
 - [ ] CORS proxy deployed to Vercel

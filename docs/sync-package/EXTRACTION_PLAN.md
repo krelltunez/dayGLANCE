@@ -11,7 +11,7 @@ This document is a sequenced, step-by-step work plan. Each step produces a shipp
 
 Before starting Step 1, verify:
 
-- [ ] Branch `claude/export-cloud-sync-8TBos` (or a fresh branch from latest main) is checked out in `krelltunze/dayGLANCE`
+- [ ] Branch `claude/export-cloud-sync-8TBos` (or a fresh branch from latest main) is checked out in `krelltunez/dayGLANCE`
 - [ ] The `docs/sync-package/` directory is committed (this file should be present)
 - [ ] Node.js ≥ 20 is available (`node --version`)
 - [ ] `npm` is configured to publish to GitHub Packages (`~/.npmrc` or project `.npmrc` with `@glance-apps:registry=https://npm.pkg.github.com`)
@@ -25,7 +25,7 @@ Before starting Step 1, verify:
 
 ### 1.1 Create the repository
 
-Create `https://github.com/krelltunze/glance-sync` (new public repo). Initialize with a README.
+Create `https://github.com/krelltunez/glance-sync` (new public repo). Initialize with a README.
 
 ### 1.2 Scaffold the package
 
@@ -59,7 +59,7 @@ packages/sync/
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/krelltunze/glance-sync.git"
+    "url": "https://github.com/krelltunez/glance-sync.git"
   }
 }
 ```
@@ -74,7 +74,7 @@ packages/sync/
 npm publish --access public
 ```
 
-Verify the package appears in GitHub Packages for `krelltunze`.
+Verify the package appears in GitHub Packages for `krelltunez`.
 
 ### Review gate: PR to `glance-sync` main. Package installs without errors.
 

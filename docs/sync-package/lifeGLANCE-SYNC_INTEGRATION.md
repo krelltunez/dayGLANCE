@@ -31,6 +31,61 @@ This guide describes how to add `@glance-apps/sync` to lifeGLANCE.
 
 ---
 
+## Step 1: Tombstone Infrastructure (required before sync can work)
+
+lifeGLANCE does not yet have tombstone recording. Deletions currently remove items from state and localStorage with no record of the deletion. Without tombstones, deleted entries reappear on the next download from a device that still has them.
+
+### 1.1 Add the tombstone localStorage key
+
+```js
+// Tombstone format: { [entryId: string]: deletedAt ISO string }
+const TOMBSTONE_KEY = 'lifeglance-tombstones';
+
+const getTombstones = () =>
+  JSON.parse(localStorage.getItem(TOMBSTONE_KEY) || '{}');
+
+const writeTombstone = (id) => {
+  const tombstones = getTombstones();
+  tombstones[id] = new Date().toISOString();
+  localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(tombstones));
+};
+```
+
+### 1.2 Write delete wrapper functions
+
+Replace direct delete calls with wrappers that record tombstones atomically:
+
+```js
+const deleteEntry = (id) => {
+  writeTombstone(id);
+  const entries = JSON.parse(localStorage.getItem('lifeglance-entries') || '[]');
+  localStorage.setItem(
+    'lifeglance-entries',
+    JSON.stringify(entries.filter(e => e.id !== id))
+  );
+  setEntries(prev => prev.filter(e => e.id !== id));
+};
+```
+
+If lifeGLANCE has chapter or milestone entities that sync, write equivalent wrappers for each.
+
+### 1.3 Update delete call sites
+
+Search for every place an entry (or other syncable entity) is removed from state or localStorage. Replace with the wrapper. Common patterns to find:
+
+```
+setEntries(prev => prev.filter(...))   ← needs tombstone
+localStorage.setItem('lifeglance-entries', ...)  ← if removing items
+```
+
+Do not add tombstones to purely UI state (selected entry, expanded sections, etc.) — only for persisted, syncable records.
+
+### 1.4 Verify
+
+After this step, deleting an entry should write to `lifeglance-tombstones` in localStorage. Inspect via DevTools → Application → Local Storage to confirm.
+
+---
+
 ## Prerequisite: ID Strategy
 
 Verify that life entries already use UUIDs as primary identifiers. If they use auto-increment integers, add a `sync_id` UUID field (see ADAPTER_GUIDE.md, Step 1).
@@ -52,8 +107,7 @@ Design the payload to include all syncable data:
       text: 'Had a great walk this morning.',
       mood: 4,
       tags: ['exercise', 'morning'],
-      // photo metadata only — not the blob
-      photo: { filename: 'photo-2026-05-16.jpg', size: 204800, hash: 'sha256-...' },
+      // no photo field — all photo data is stripped before upload
       updatedAt: '2026-05-16T10:00:00Z',
       createdAt: '2026-05-16T08:00:00Z',
     }
@@ -68,27 +122,25 @@ Design the payload to include all syncable data:
 
 ## Binary Data (Photos)
 
-**Photos must not be included in the sync payload.** They are excluded at the adapter boundary.
+**Photos are not synced.** On a second device, an entry that has a photo on the originating device will arrive with no photo. The UI must handle this gracefully (show a "no photo" placeholder, not an error or broken image).
 
 ### In `buildPayload`
 
-Strip the binary blob from each entry. Keep only the metadata (filename, size, hash) needed to detect changes:
+Strip all photo data — blob and metadata — before the payload leaves the device:
 
 ```js
 const buildPayload = () => {
   const entries = entriesRef.current;
   return {
-    entries: entries.map(({ photo_blob, photo_data, ...rest }) => rest),
+    entries: entries.map(({ photo_blob, photo_data, photo, ...rest }) => rest),
     tombstones: JSON.parse(localStorage.getItem('lifeglance-tombstones') || '{}'),
   };
 };
 ```
 
-The `photo` field in the payload contains only `{ filename, size, hash }`. Photo blobs sync out of band (or not at all — user decision).
+### Tombstones for deleted entries with photos
 
-### Tombstones
-
-When an entry with a photo is deleted, write a tombstone for the entry as usual. The photo blob should be deleted locally by the app. No special sync handling needed for the blob.
+When an entry with a photo is deleted, write a tombstone for the entry as usual. Delete the photo blob locally. No special sync handling is needed for the blob.
 
 ---
 
@@ -142,7 +194,7 @@ const applyPayload = async (data) => {
 };
 ```
 
-This ensures local photo blobs are not lost when remote data is applied. The payload has no blobs; the local blob is re-attached after merge.
+This ensures local photo blobs are not lost when remote data is applied on the originating device (sync round-trip). On a second device that never had the photo, `localBlobMap[e.id]` will be undefined and `photo_blob` will be null — the UI should show a "no photo" state for that entry.
 
 ---
 
