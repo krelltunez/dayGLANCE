@@ -17,7 +17,7 @@ export default function useSaveOnChange({
     if (isTrayMode || !dataLoaded) return;
     saveData();
     checkConflicts();
-    // After the first save pass following applyRemoteData, clear the suppress flags
+    // After the first save pass following applyEngineData, clear the suppress flags
     // so subsequent user actions (e.g. completing a task) get properly stamped and uploaded.
     if (suppressClearPendingRef.current) {
       suppressClearPendingRef.current = false;

@@ -22,20 +22,15 @@ const useCloudSync = () => {
   const suppressCloudUploadRef          = useRef(false);
   const suppressTimestampRef            = useRef(false);
   const suppressClearPendingRef         = useRef(false);
+  // Shared lock for iCloud sync (which still lives in App.jsx as a parallel
+  // transport). The WebDAV engine has its own internal lock; iCloud reads this
+  // ref to know whether to skip a cycle.
   const cloudSyncInProgressRef          = useRef(false);
   const cloudSyncInitialDoneRef         = useRef(false);
+  // Set in App.jsx to the engine's download() bound method, used by the
+  // visibility/focus listener and the 60-second poll so they always call the
+  // freshest closure.
   const cloudSyncDownloadRef            = useRef(null);
-  // Upload-specific backoff (used by cloudSyncUpload)
-  const cloudSyncErrorCountRef          = useRef(0);
-  const cloudSyncBackoffUntilRef        = useRef(0);
-  // Download-specific backoff (separate so upload failures don't block downloads and vice versa)
-  const cloudSyncDownloadErrorCountRef  = useRef(0);
-  const cloudSyncDownloadBackoffUntilRef = useRef(0);
-  // Set to true when a debounce-triggered download fires while another download
-  // holds the lock, so the running cycle schedules a follow-up download on
-  // completion to pick up the pending local change (and any concurrent remote
-  // writes) rather than blindly uploading over them (H1).
-  const cloudSyncPendingUploadRef = useRef(false);
   // Set to true when iCloudSync is skipped because WebDAV holds the lock,
   // so the download cycle can re-run iCloud on completion (H2).
   const iCloudPendingRef = useRef(false);
@@ -84,11 +79,6 @@ const useCloudSync = () => {
     cloudSyncInProgressRef,
     cloudSyncInitialDoneRef,
     cloudSyncDownloadRef,
-    cloudSyncErrorCountRef,
-    cloudSyncBackoffUntilRef,
-    cloudSyncDownloadErrorCountRef,
-    cloudSyncDownloadBackoffUntilRef,
-    cloudSyncPendingUploadRef,
     iCloudPendingRef,
   };
 };

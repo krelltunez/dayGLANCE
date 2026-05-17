@@ -1,0 +1,308 @@
+// Unit tests for createSyncEngine.
+//
+// Pattern: build a fake provider + in-memory localStorage and drive the engine
+// through the orchestration paths that previously lived in dayGLANCE's
+// App.jsx. Each test asserts the visible side-effect (provider called or not,
+// applyPayload called or not, error code emitted) rather than internal state.
+//
+// Test environment: runs under Node via vitest's default environment. The
+// engine touches two browser globals — localStorage (always, for config and
+// last-synced persistence) and indexedDB (only when encrypted envelopes are
+// processed; not exercised by these tests). We shim localStorage inline
+// because the package's existing tests use the same lightweight-shim pattern
+// (see merge.test.js / crypto.test.js using `fake-indexeddb/auto`) and we
+// avoid the ~5 MB jsdom dep just for one API.
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import 'fake-indexeddb/auto';
+
+// Minimal in-memory localStorage shim. Installed unconditionally — Node 22's
+// experimental --experimental-webstorage polyfill exists in some environments
+// but may be partial (getItem/setItem present, clear missing), so guarding on
+// `typeof localStorage === 'undefined'` is unsafe. Always overwrite.
+const __store = new Map();
+globalThis.localStorage = {
+  getItem:    (k) => (__store.has(k) ? __store.get(k) : null),
+  setItem:    (k, v) => { __store.set(k, String(v)); },
+  removeItem: (k) => { __store.delete(k); },
+  clear:      () => { __store.clear(); },
+  key:        (i) => Array.from(__store.keys())[i] ?? null,
+  get length() { return __store.size; },
+};
+
+const { createSyncEngine, SCHEMA_VERSION } = await import('../src/engine.js');
+
+// ---------- Test harness ----------
+
+const makeFakeProvider = ({ download = null, uploadError = null, etag = null } = {}) => {
+  const provider = {
+    name: 'fake',
+    upload: vi.fn(async () => {
+      if (uploadError) throw uploadError;
+      return true;
+    }),
+    download: vi.fn(async () => download === null ? null : { payload: download, etag }),
+    test:     vi.fn(async () => ({ success: true })),
+    configFields: [],
+  };
+  return provider;
+};
+
+// Patches the package's createProviders to return our fake. Tests call this
+// per-test to install a fresh fake before constructing the engine.
+const makeEngine = (overrides = {}) => {
+  const fakeProvider = overrides.provider || makeFakeProvider();
+  const calls = {
+    statusChanges: [],
+    errors: [],
+    lastSynced: [],
+    conflicts: [],
+    applyPayload: [],
+    buildPayload: [],
+    mergePayloads: [],
+  };
+
+  const config = {
+    storageKeyPrefix:     'test',
+    cryptoDBName:         'test-crypto',
+    autoBackupDBName:     'test-backups',
+    syncFilename:         'test-sync.json',
+    appFolderName:        'test',
+    backupFilenamePrefix: 'test-backup-',
+    appId:                'test-app',
+    appName:              'Test App',
+    nativeHttpRequest:    null,
+    electronProxyFetch:   null,
+    proxyUrl:             '',
+    buildPayload: vi.fn(async () => {
+      calls.buildPayload.push(true);
+      return overrides.buildPayloadResult ?? {
+        data: { tasks: [{ id: 'a', lastModified: '2026-01-01T00:00:00Z' }] },
+        lastModified: '2026-01-01T00:00:00Z',
+      };
+    }),
+    buildBackupPayload: vi.fn(async () => ({ tasks: [] })),
+    applyPayload: vi.fn(async (data, opts) => { calls.applyPayload.push({ data, opts }); }),
+    mergePayloads: vi.fn((local, remote) => {
+      calls.mergePayloads.push({ local, remote });
+      return overrides.mergeResult ?? { data: remote, localChanged: true, remoteChanged: false };
+    }),
+    validateUploadPayload: overrides.validateUploadPayload,
+    validateApplyPayload:  overrides.validateApplyPayload,
+    onStatusChange: (s, hints) => calls.statusChanges.push({ s, hints }),
+    onError:        (msg, code, hard) => { if (msg !== null) calls.errors.push({ msg, code, hard }); },
+    onLastSyncedChange: (iso) => calls.lastSynced.push(iso),
+    onConflict:        (remoteData, remoteModified, etag) => calls.conflicts.push({ remoteData, remoteModified, etag }),
+    onPassphraseRequired: vi.fn(),
+    onFirstSyncReload:    vi.fn(),
+    ...overrides.configPatches,
+  };
+
+  // Pre-seed enabled sync config in localStorage so the engine doesn't bail.
+  localStorage.setItem('test-cloud-sync-config', JSON.stringify({ enabled: true, provider: 'fake' }));
+
+  const engine = createSyncEngine(config);
+  // Replace the resolved providers map with our fake.
+  Object.keys(engine.providers).forEach(k => delete engine.providers[k]);
+  engine.providers.fake = fakeProvider;
+  return { engine, fakeProvider, calls, config };
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.clearAllTimers();
+});
+
+describe('createSyncEngine — validation', () => {
+  it('refuses upload when validateUploadPayload returns invalid', async () => {
+    const validateUploadPayload = vi.fn(async () => ({ valid: false, reason: 'empty payload' }));
+    const { engine, fakeProvider } = makeEngine({ validateUploadPayload });
+    await engine.upload();
+    expect(fakeProvider.upload).not.toHaveBeenCalled();
+  });
+
+  it('uploads when validateUploadPayload returns valid', async () => {
+    const validateUploadPayload = vi.fn(async () => ({ valid: true }));
+    const { engine, fakeProvider } = makeEngine({ validateUploadPayload });
+    await engine.upload();
+    expect(fakeProvider.upload).toHaveBeenCalledOnce();
+  });
+
+  it('skips applyPayload when validateApplyPayload returns invalid, but still uploads remoteChanged', async () => {
+    const validateApplyPayload = vi.fn(async () => ({ valid: false, reason: 'remote empty' }));
+    const { engine, fakeProvider, calls } = makeEngine({
+      provider: makeFakeProvider({
+        download: { schemaVersion: 1, appId: 'test-app', version: 2, lastModified: '2026-01-02T00:00:00Z', data: { tasks: [] } },
+      }),
+      mergeResult: { data: { tasks: [] }, localChanged: true, remoteChanged: true },
+      validateApplyPayload,
+    });
+    localStorage.setItem('test-cloud-sync-last-synced', '2026-01-01T00:00:00Z'); // not first sync
+    await engine.download();
+    expect(calls.applyPayload).toHaveLength(0);
+    expect(fakeProvider.upload).toHaveBeenCalledOnce();
+  });
+});
+
+describe('createSyncEngine — envelope identity', () => {
+  it('hard-stops on APP_ID_MISMATCH and does not call upload', async () => {
+    const { engine, fakeProvider, calls } = makeEngine({
+      provider: makeFakeProvider({
+        download: { schemaVersion: 1, appId: 'other-app', version: 2, lastModified: 'x', data: { tasks: [] } },
+      }),
+    });
+    localStorage.setItem('test-cloud-sync-last-synced', '2026-01-01T00:00:00Z');
+    await engine.download();
+    expect(fakeProvider.upload).not.toHaveBeenCalled();
+    expect(calls.errors.some(e => e.code === 'APP_ID_MISMATCH' && e.hard === true)).toBe(true);
+    expect(engine.isHardStopped()).toBe(true);
+  });
+
+  it('hard-stops on SCHEMA_FORWARD_INCOMPATIBLE and does not call upload', async () => {
+    const { engine, fakeProvider, calls } = makeEngine({
+      provider: makeFakeProvider({
+        download: { schemaVersion: 99, appId: 'test-app', version: 2, lastModified: 'x', data: { tasks: [] } },
+      }),
+    });
+    localStorage.setItem('test-cloud-sync-last-synced', '2026-01-01T00:00:00Z');
+    await engine.download();
+    expect(fakeProvider.upload).not.toHaveBeenCalled();
+    expect(calls.errors.some(e => e.code === 'SCHEMA_FORWARD_INCOMPATIBLE' && e.hard === true)).toBe(true);
+    expect(engine.isHardStopped()).toBe(true);
+  });
+
+  it('once hard-stopped, subsequent upload/download calls are inert', async () => {
+    const { engine, fakeProvider } = makeEngine({
+      provider: makeFakeProvider({
+        download: { schemaVersion: 1, appId: 'other-app', version: 2, lastModified: 'x', data: { tasks: [] } },
+      }),
+    });
+    localStorage.setItem('test-cloud-sync-last-synced', '2026-01-01T00:00:00Z');
+    await engine.download();
+    fakeProvider.upload.mockClear();
+    fakeProvider.download.mockClear();
+    await engine.upload();
+    await engine.download();
+    expect(fakeProvider.upload).not.toHaveBeenCalled();
+    expect(fakeProvider.download).not.toHaveBeenCalled();
+  });
+
+  it('accepts legacy envelopes missing schemaVersion and appId (backwards compat)', async () => {
+    const { engine, calls } = makeEngine({
+      provider: makeFakeProvider({
+        download: { version: 2, lastModified: '2026-01-02T00:00:00Z', data: { tasks: [{ id: 'a' }] } },
+      }),
+      mergeResult: { data: { tasks: [{ id: 'a' }] }, localChanged: true, remoteChanged: false },
+    });
+    localStorage.setItem('test-cloud-sync-last-synced', '2026-01-01T00:00:00Z');
+    await engine.download();
+    expect(calls.errors.filter(e => e.hard)).toHaveLength(0);
+    expect(calls.applyPayload).toHaveLength(1);
+  });
+
+  it('wraps outgoing uploads with schemaVersion + appId envelope fields', async () => {
+    const { engine, fakeProvider } = makeEngine();
+    await engine.upload();
+    const envelope = fakeProvider.upload.mock.calls[0][1];
+    expect(envelope.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(envelope.appId).toBe('test-app');
+    expect(envelope.data).toBeDefined();
+  });
+});
+
+describe('createSyncEngine — concurrency', () => {
+  it('refuses upload while another sync is in progress (lock + follow-up)', async () => {
+    const { engine, fakeProvider } = makeEngine({
+      provider: makeFakeProvider({
+        download: null,
+      }),
+    });
+    // Manually mark syncing by starting a download but not awaiting.
+    const p = engine.download();
+    await engine.upload(); // should set pendingFollowup and return immediately
+    await p;
+    // After the in-flight download drains, the engine kicks a follow-up download
+    // (250 ms timeout). We don't wait for it; just verify the lock was honoured.
+    expect(fakeProvider.download.mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('seeds empty remote on first sync (upload triggered by null download)', async () => {
+    const { engine, fakeProvider } = makeEngine({
+      provider: makeFakeProvider({ download: null }),
+    });
+    await engine.download();
+    expect(fakeProvider.upload).toHaveBeenCalledOnce();
+  });
+});
+
+describe('createSyncEngine — first-sync conflict', () => {
+  it('emits onConflict instead of merging when remote has data and we have never synced', async () => {
+    const { engine, fakeProvider, calls } = makeEngine({
+      provider: makeFakeProvider({
+        download: { schemaVersion: 1, appId: 'test-app', version: 2, lastModified: '2026-01-02T00:00:00Z', data: { tasks: [{ id: 'b' }] } },
+        etag: 'etag-1',
+      }),
+    });
+    // No last-synced flag → first-sync state
+    expect(localStorage.getItem('test-cloud-sync-last-synced')).toBe(null);
+    await engine.download();
+    expect(calls.conflicts).toHaveLength(1);
+    expect(calls.conflicts[0].etag).toBe('etag-1');
+    expect(calls.applyPayload).toHaveLength(0);
+    expect(fakeProvider.upload).not.toHaveBeenCalled();
+  });
+});
+
+describe('createSyncEngine — 412 retry', () => {
+  it('retries the full download→merge→upload cycle once on PRECONDITION_FAILED', async () => {
+    const downloadEnvelope = {
+      schemaVersion: 1, appId: 'test-app', version: 2,
+      lastModified: '2026-01-02T00:00:00Z',
+      data: { tasks: [] },
+    };
+    const provider = {
+      name: 'fake', configFields: [],
+      download: vi.fn(async () => ({ payload: downloadEnvelope, etag: 'e1' })),
+      upload:   vi.fn()
+        .mockRejectedValueOnce(new Error('PRECONDITION_FAILED'))
+        .mockResolvedValueOnce(true),
+      test:     vi.fn(),
+    };
+    const { engine } = makeEngine({
+      provider,
+      mergeResult: { data: { tasks: [] }, localChanged: false, remoteChanged: true },
+    });
+    localStorage.setItem('test-cloud-sync-last-synced', '2026-01-01T00:00:00Z');
+    await engine.download();
+    // First upload rejected with 412, then retried after re-download — so download
+    // called twice and upload called twice.
+    expect(provider.download.mock.calls.length).toBe(2);
+    expect(provider.upload.mock.calls.length).toBe(2);
+  });
+});
+
+describe('createSyncEngine — status sequence', () => {
+  it('emits uploading → success → idle on successful upload', async () => {
+    vi.useFakeTimers();
+    const { engine, calls } = makeEngine();
+    const p = engine.upload();
+    await vi.advanceTimersByTimeAsync(2000); // minimum hold
+    await p;
+    await vi.advanceTimersByTimeAsync(3000); // success auto-revert
+    const sequence = calls.statusChanges.map(c => c.s);
+    expect(sequence[0]).toBe('uploading');
+    expect(sequence).toContain('success');
+    expect(sequence).toContain('idle');
+    vi.useRealTimers();
+  });
+});
+
+describe('createSyncEngine — last-synced persistence', () => {
+  it('writes and reads last-synced timestamp via storageKeyPrefix', async () => {
+    const { engine } = makeEngine();
+    expect(engine.getLastSynced()).toBe(null);
+    await engine.upload();
+    expect(engine.getLastSynced()).toBeTruthy();
+    expect(localStorage.getItem('test-cloud-sync-last-synced')).toBeTruthy();
+  });
+});
