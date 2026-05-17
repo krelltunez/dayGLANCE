@@ -863,7 +863,7 @@ export async function syncObsidianVault(
     }
   }
   // Supplement with localStorage — handles the race on app open where the
-  // Obsidian sync fires before cloud-sync's applyRemoteData has had a chance
+  // Obsidian sync fires before cloud-sync's applyEngineData has had a chance
   // to push the remote state into React state.  Without this, a desktop
   // session whose Obsidian sync wins the race would see an empty
   // existingTaskMap, default every duration to 30, then upload that stale
