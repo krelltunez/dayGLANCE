@@ -16,19 +16,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 
-// Minimal in-memory localStorage shim. Installed before the engine module is
-// imported so the module-load-time providers/autoBackup construction sees it.
-if (typeof globalThis.localStorage === 'undefined') {
-  const store = new Map();
-  globalThis.localStorage = {
-    getItem:    (k) => (store.has(k) ? store.get(k) : null),
-    setItem:    (k, v) => { store.set(k, String(v)); },
-    removeItem: (k) => { store.delete(k); },
-    clear:      () => { store.clear(); },
-    key:        (i) => Array.from(store.keys())[i] ?? null,
-    get length() { return store.size; },
-  };
-}
+// Minimal in-memory localStorage shim. Installed unconditionally — Node 22's
+// experimental --experimental-webstorage polyfill exists in some environments
+// but may be partial (getItem/setItem present, clear missing), so guarding on
+// `typeof localStorage === 'undefined'` is unsafe. Always overwrite.
+const __store = new Map();
+globalThis.localStorage = {
+  getItem:    (k) => (__store.has(k) ? __store.get(k) : null),
+  setItem:    (k, v) => { __store.set(k, String(v)); },
+  removeItem: (k) => { __store.delete(k); },
+  clear:      () => { __store.clear(); },
+  key:        (i) => Array.from(__store.keys())[i] ?? null,
+  get length() { return __store.size; },
+};
 
 const { createSyncEngine, SCHEMA_VERSION } = await import('../src/engine.js');
 
