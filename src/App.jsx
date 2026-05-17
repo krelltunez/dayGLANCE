@@ -8,7 +8,7 @@ import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, 
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { cloudSyncProviders, webdavFetch } from './utils/cloudSyncProviders.js';
+import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
@@ -65,6 +65,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useCloudSync from './hooks/useCloudSync.js';
+import { createDayGlanceEngine } from './sync/adapter.js';
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
@@ -482,17 +483,47 @@ const DayPlanner = () => {
     cloudSyncInProgressRef,
     cloudSyncInitialDoneRef,
     cloudSyncDownloadRef,
-    cloudSyncErrorCountRef,
-    cloudSyncBackoffUntilRef,
-    cloudSyncDownloadErrorCountRef,
-    cloudSyncDownloadBackoffUntilRef,
-    cloudSyncPendingUploadRef,
     iCloudPendingRef,
   } = useCloudSync();
 
   // Ref so interval/timeout callbacks can read the current syncKeyReady without stale closure
   const syncKeyReadyRef = useRef(syncKeyReady);
   useEffect(() => { syncKeyReadyRef.current = syncKeyReady; }, [syncKeyReady]);
+
+  // ── Cloud sync engine ────────────────────────────────────────────────────
+  // The orchestration (download → validate → merge → apply → upload, with
+  // backoff, hard-stops, 412 retry, follow-up queueing, etc.) lives in
+  // @glance-apps/sync. App.jsx now owns only the data callbacks (built later
+  // in the file) and the React-driven triggers (debounce timer, 60-second
+  // poll, visibility/focus listeners) further down.
+  //
+  // The callbacks dereference engineCallbacksRef at call time so the engine
+  // sees fresh closures every cycle — the engine itself is constructed once.
+  const engineCallbacksRef = useRef({});
+  const cloudSyncEngineRef = useRef(null);
+  if (!cloudSyncEngineRef.current) {
+    cloudSyncEngineRef.current = createDayGlanceEngine({
+      buildPayload:       () => engineCallbacksRef.current.buildPayload?.(),
+      buildBackupPayload: () => engineCallbacksRef.current.buildBackupPayload?.(),
+      applyPayload:       (data, opts) => engineCallbacksRef.current.applyPayload?.(data, opts),
+      onStatusChange:     (status) => setCloudSyncStatus(prev => {
+        // Guard so a queued 'idle' (from the 3 s/5 s auto-revert) doesn't
+        // overwrite a new in-flight cycle the user kicked off in the meantime.
+        if (status === 'idle' && (prev === 'uploading' || prev === 'downloading')) return prev;
+        return status;
+      }),
+      onError:              (msg) => setCloudSyncError(msg),
+      onLastSyncedChange:   (iso) => setCloudSyncLastSynced(iso),
+      onConflict:           (remoteData, remoteModified, etag) =>
+        setCloudSyncConflict({ remoteData, remoteModified, etag }),
+      onPassphraseRequired: () => setSyncKeyReady(false),
+      onFirstSyncReload:    () => window.location.reload(),
+      getSyncRetentionDays: () => engineCallbacksRef.current.syncRetentionDays ?? 90,
+    });
+    // Visibility/focus listeners + 60 s poll call through this ref so they
+    // always run the latest engine method without a closure refresh.
+    cloudSyncDownloadRef.current = () => cloudSyncEngineRef.current.download();
+  }
 
   // Daily Notes state — keyed by date string "YYYY-MM-DD" → { text, lastModified }
   const [dailyNotes, setDailyNotes] = useState(() => {
@@ -1191,8 +1222,8 @@ const DayPlanner = () => {
       // avoid a double-sync from both the native visibilitychange and our Swift dispatch.
       if (!document.hidden && !window.DayGlanceIOS) {
         setCurrentTime(new Date());
-        // Reset download backoff when user returns to the app so retries happen promptly.
-        cloudSyncDownloadBackoffUntilRef.current = 0;
+        // Direct engine.download() bypasses the poll's backoff check so a
+        // user returning to the app gets a prompt retry even mid-backoff.
         cloudSyncDownloadRef.current?.();
         // Defer the blocking Health Connect bridge calls (up to 7 × N synchronous
         // @JavascriptInterface calls) to after the next paint so the JS thread isn't
@@ -1204,8 +1235,8 @@ const DayPlanner = () => {
     // that occurs when scenePhase fires before WKWebView updates visibility state.
     const handleNativeForeground = () => {
       setCurrentTime(new Date());
-      cloudSyncDownloadBackoffUntilRef.current = 0;
-      // iCloud runs first (fast local file I/O), then WebDAV (network)
+      // iCloud runs first (fast local file I/O), then WebDAV (network).
+      // engine.download() bypasses its own backoff for these foreground kicks.
       iCloudSyncRef.current?.();
       cloudSyncDownloadRef.current?.();
       requestAnimationFrame(() => setTimeout(() => syncHealthConnectHabitsRef.current?.(), 0));
@@ -1269,13 +1300,13 @@ const DayPlanner = () => {
   }, [syncUrl, taskCalendarUrl]);
 
   // Cloud sync: debounced upload on data changes.
-  // Upload only (no download) to avoid the applyRemoteData → state-change → debounce
+  // Upload only (no download) to avoid the applyEngineData → state-change → debounce
   // re-trigger loop. The 60-second poll handles keeping remote changes in sync.
   useEffect(() => {
     if (isTrayMode || !cloudSyncConfig?.enabled || !dataLoaded || suppressCloudUploadRef.current) return;
     if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current);
     cloudSyncDebounceRef.current = setTimeout(() => {
-      cloudSyncUpload();
+      cloudSyncEngineRef.current.upload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled]);
@@ -1285,7 +1316,7 @@ const DayPlanner = () => {
   // last changed on this device, so mergeSyncData can do last-writer-wins instead
   // of remote-always-wins.
   const configTrackingActiveRef = useRef(false); // false until after initial loadData
-  const applyingRemoteDataRef   = useRef(false); // true while applyRemoteData is running
+  const applyingRemoteDataRef   = useRef(false); // true while applyEngineData is running
 
   useEffect(() => {
     if (dataLoaded) {
@@ -1338,7 +1369,9 @@ const DayPlanner = () => {
     const onMac = !onIOS && isElectronMac();
     if (!onIOS && !onMac) return;
     if (!dataLoaded) return;
-    if (cloudSyncInProgressRef.current) {
+    // Serialise with both the iCloud lock (set below) and the WebDAV engine's
+    // internal lock so the two transports don't trample each other.
+    if (cloudSyncInProgressRef.current || cloudSyncEngineRef.current?.isSyncing()) {
       iCloudPendingRef.current = true;
       return;
     }
@@ -1411,7 +1444,7 @@ const DayPlanner = () => {
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
       if (localChanged) {
-        applyRemoteData(mergedData, { allowEmpty: !!remote.lastModified });
+        applyEngineData(mergedData, { allowEmpty: !!remote.lastModified });
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
       if (remoteChanged || localChanged) {
@@ -1473,18 +1506,20 @@ const DayPlanner = () => {
   useEffect(() => {
     if (isTrayMode) return;
     if (dataLoaded && cloudSyncConfig?.enabled && syncKeyReady) {
-      cloudSyncDownload();
+      cloudSyncEngineRef.current.download();
     } else if (dataLoaded && !cloudSyncConfig?.enabled) {
       // No cloud sync — allow local-modified timestamps immediately
       cloudSyncInitialDoneRef.current = true;
     }
   }, [dataLoaded, cloudSyncConfig?.enabled, syncKeyReady]);
 
-  // Cloud sync: poll for remote changes every 60 seconds
+  // Cloud sync: poll for remote changes every 60 seconds.
+  // Respects the engine's download backoff so persistent errors don't hammer
+  // the server — the visibility/focus handlers above bypass this check.
   useEffect(() => {
     if (isTrayMode || !cloudSyncConfig?.enabled) return;
     const pollTimer = setInterval(() => {
-      if (syncKeyReadyRef.current && Date.now() >= cloudSyncDownloadBackoffUntilRef.current) {
+      if (syncKeyReadyRef.current && Date.now() >= cloudSyncEngineRef.current.getDownloadBackoffUntil()) {
         cloudSyncDownloadRef.current?.();
       }
     }, 60 * 1000);
@@ -4061,7 +4096,7 @@ const DayPlanner = () => {
       const { data } = record.data;
       if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
       if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
-      applyRemoteData(data);
+      applyEngineData(data);
       window.location.reload();
     } catch (err) {
       alert('Failed to restore backup: ' + err.message);
@@ -4076,7 +4111,7 @@ const DayPlanner = () => {
       if (!backup?.data) throw new Error('Invalid backup file');
       if (backup.data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(backup.data.aiConfig));
       if (backup.data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(backup.data.obsidianConfig));
-      applyRemoteData(backup.data);
+      applyEngineData(backup.data);
       window.location.reload();
     } catch (err) {
       alert('Failed to restore remote backup: ' + err.message);
@@ -4775,82 +4810,8 @@ const DayPlanner = () => {
     };
   };
 
-  const cloudSyncUpload = async (prebuiltPayload, { skipLockCheck = false, etag = null } = {}) => {
-    if (!cloudSyncConfig?.enabled || (!skipLockCheck && cloudSyncInProgressRef.current)) {
-      // A download is in flight. Mark that a local change needs uploading
-      // so the download cycle schedules a follow-up upload on completion.
-      if (!skipLockCheck && cloudSyncInProgressRef.current) cloudSyncPendingUploadRef.current = true;
-      return;
-    }
-    const provider = cloudSyncProviders[cloudSyncConfig.provider];
-    if (!provider) return;
 
-    if (!skipLockCheck) cloudSyncInProgressRef.current = true;
-    const syncStart = Date.now();
-    setCloudSyncStatus('uploading');
-    setCloudSyncError(null);
-    try {
-      const payload = prebuiltPayload || buildSyncPayload();
-
-      // Safety check: never upload a payload that would wipe all user data.
-      // If local has tasks/habits/inbox items but the payload is empty, something
-      // went wrong (stale state, race condition, etc.) — abort rather than
-      // overwriting the remote with empty data.
-      const localTaskCount = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]').length;
-      const localInboxCount = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]').length;
-      const payloadTaskCount = (payload.data?.tasks?.length || 0) + (payload.data?.unscheduledTasks?.length || 0);
-      if (localTaskCount + localInboxCount > 0 && payloadTaskCount === 0) {
-        console.error('Cloud sync upload aborted: payload has 0 tasks but localStorage has', localTaskCount + localInboxCount);
-        setCloudSyncStatus('idle');
-        return;
-      }
-
-      await provider.upload(cloudSyncConfig, payload, etag);
-      const elapsed = Date.now() - syncStart;
-      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
-      const now = new Date().toISOString();
-      cloudSyncErrorCountRef.current = 0; // reset error backoff on success
-      cloudSyncBackoffUntilRef.current = 0;
-      setCloudSyncLastSynced(now);
-      localStorage.setItem('day-planner-cloud-sync-last-synced', now);
-      localStorage.setItem('day-planner-cloud-sync-local-modified', payload.lastModified);
-      setCloudSyncStatus('success');
-      setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
-    } catch (err) {
-      console.error('Cloud sync upload error:', err);
-      if (err.message === 'PRECONDITION_FAILED') {
-        // Another device wrote between our download and upload.
-        // Re-throw so the download cycle can retry the full download→merge→upload.
-        // When called from the debounced upload path (not inside a download cycle),
-        // the next download poll will reconcile — just let it pass quietly.
-        if (skipLockCheck) throw err;
-        setCloudSyncStatus('idle');
-        return;
-      }
-      const is401 = err.message?.includes('401');
-      if (is401) {
-        // Auth failure: back off for 1 hour so we don't hammer the server.
-        cloudSyncBackoffUntilRef.current = Date.now() + 60 * 60 * 1000;
-      } else {
-        cloudSyncErrorCountRef.current += 1;
-        const MAX_UPLOAD_BACKOFF_S = 15 * 60; // 15 minutes
-        const backoffMs = Math.min(30 * Math.pow(2, cloudSyncErrorCountRef.current - 1), MAX_UPLOAD_BACKOFF_S) * 1000;
-        cloudSyncBackoffUntilRef.current = Date.now() + backoffMs;
-      }
-      const errMsg = is401
-        ? 'Authentication failed (401) — check your username and password in sync settings.'
-        : err.message === 'FORBIDDEN'
-          ? 'Sync blocked (403) — your server may be blocking Vercel\'s IP addresses.'
-          : err.message;
-      setCloudSyncError(errMsg);
-      setCloudSyncStatus('error');
-      setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
-    } finally {
-      if (!skipLockCheck) cloudSyncInProgressRef.current = false;
-    }
-  };
-
-  const applyRemoteData = (data, { allowEmpty = false } = {}) => {
+  const applyEngineData = (data, { allowEmpty = false } = {}) => {
     // Safety check: if remote/merged data has zero tasks but local has data,
     // something went wrong in the merge — skip applying to avoid data wipe.
     // Exception: if the remote had a valid lastModified, an empty result is an
@@ -4859,7 +4820,7 @@ const DayPlanner = () => {
     const localInboxCount = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]').length;
     const remoteTaskCount = (data.tasks?.length || 0) + (data.unscheduledTasks?.length || 0);
     if (!allowEmpty && localTaskCount + localInboxCount > 0 && remoteTaskCount === 0) {
-      console.error('applyRemoteData aborted: remote has 0 tasks but local has', localTaskCount + localInboxCount);
+      console.error('applyEngineData aborted: remote has 0 tasks but local has', localTaskCount + localInboxCount);
       return;
     }
 
@@ -5054,159 +5015,25 @@ const DayPlanner = () => {
     }, 500);
   };
 
-  const cloudSyncDownload = async () => {
-    if (!cloudSyncConfig?.enabled) return;
-    const provider = cloudSyncProviders[cloudSyncConfig.provider];
-    if (!provider) return;
-
-    if (cloudSyncInProgressRef.current) {
-      // A debounce-triggered download arrived while one was already running.
-      // Set the pending flag so the running cycle schedules a follow-up download
-      // on completion, ensuring the user's queued changes are not dropped.
-      cloudSyncPendingUploadRef.current = true;
-      return;
-    }
-    cloudSyncInProgressRef.current = true;
-    const syncStart = Date.now();
-    setCloudSyncStatus('downloading');
-    setCloudSyncError(null);
-    let conflictShown = false;
-    let passphraseRequired = false;
-    // Helper: download, merge, and upload in one pass.
-    // Returns true if we reloaded (caller should return), false otherwise.
-    const doDownloadMergeUpload = async (downloadedEtag) => {
-      const downloaded = await provider.download(cloudSyncConfig);
-      if (!downloaded) {
-        await cloudSyncUpload(undefined, { skipLockCheck: true });
-        return false;
-      }
-      const { payload: remote, etag } = downloaded;
-      const remoteModified = remote.lastModified;
-      const hasNeverSynced = !localStorage.getItem('day-planner-cloud-sync-last-synced');
-
-      if (hasNeverSynced && remoteModified) {
-        conflictShown = true;
-        setCloudSyncConflict({ remoteData: remote.data, remoteModified, etag: etag || null });
-        setCloudSyncStatus('idle');
-        return false;
-      }
-
-      const localData = buildSyncPayload().data;
-      const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
-
-      if (localChanged) {
-        applyRemoteData(mergedData, { allowEmpty: !!remote.lastModified });
-        localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
-      }
-
-      if (remoteChanged || localChanged) {
-        const mergedPayload = {
-          version: 2,
-          lastModified: new Date().toISOString(),
-          data: mergedData,
-        };
-        // Pass the ETag so the server can reject a stale write (412 Precondition Failed).
-        await cloudSyncUpload(mergedPayload, { skipLockCheck: true, etag: etag || downloadedEtag || null });
-        if (hasNeverSynced && localChanged) window.location.reload();
-        return hasNeverSynced && localChanged;
-      }
-      return false;
-    };
-
-    try {
-      let reloaded = await doDownloadMergeUpload(null);
-      if (reloaded || conflictShown) return;
-
-      cloudSyncDownloadErrorCountRef.current = 0;
-      cloudSyncDownloadBackoffUntilRef.current = 0;
-      const elapsed = Date.now() - syncStart;
-      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
-      const now = new Date().toISOString();
-      setCloudSyncLastSynced(now);
-      localStorage.setItem('day-planner-cloud-sync-last-synced', now);
-      setCloudSyncStatus('success');
-      setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
-    } catch (err) {
-      console.error('Cloud sync download error:', err);
-      // If the file's encryption salt doesn't match the cached key and no passphrase
-      // is in memory, re-show the passphrase modal so the user can re-enter it.
-      if (err.code === 'PASSPHRASE_REQUIRED') {
-        passphraseRequired = true;
-        setSyncKeyReady(false);
-        setCloudSyncStatus('idle');
-        return;
-      }
-      // 412 Precondition Failed: another device wrote between our download and upload.
-      // Re-run the full download→merge→upload cycle once to pick up the new version.
-      if (err.message === 'PRECONDITION_FAILED') {
-        try {
-          await doDownloadMergeUpload(null);
-          cloudSyncDownloadErrorCountRef.current = 0;
-          cloudSyncDownloadBackoffUntilRef.current = 0;
-        } catch (retryErr) {
-          console.error('Cloud sync retry after 412 failed:', retryErr);
-        }
-        return;
-      }
-      const is401 = err.message?.includes('401');
-      if (is401) {
-        // Auth failure: back off for 1 hour so we don't hammer the server.
-        cloudSyncDownloadBackoffUntilRef.current = Date.now() + 60 * 60 * 1000;
-      } else if (err.message?.includes('423')) {
-        // 423 Locked = another client is writing right now.
-        // Use a short fixed retry rather than escalating backoff — the lock clears quickly.
-        cloudSyncDownloadBackoffUntilRef.current = Date.now() + 30_000;
-      } else {
-        cloudSyncDownloadErrorCountRef.current += 1;
-        const MAX_DOWNLOAD_BACKOFF_S = 5 * 60; // 5 minutes
-        const backoffMs = Math.min(30 * Math.pow(2, cloudSyncDownloadErrorCountRef.current - 1), MAX_DOWNLOAD_BACKOFF_S) * 1000;
-        cloudSyncDownloadBackoffUntilRef.current = Date.now() + backoffMs;
-      }
-      const errMsg = is401
-        ? 'Authentication failed (401) — check your username and password in sync settings.'
-        : err.message === 'FORBIDDEN'
-          ? 'Sync blocked (403) — your server may be blocking requests.'
-          : err.message;
-      setCloudSyncError(errMsg);
-      setCloudSyncStatus('error');
-      setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
-    } finally {
-      // conflictShown: leave lock held — dialog button handlers release it and set initialDone.
-      // passphraseRequired: release lock but don't mark initial sync done — user must re-enter passphrase.
-      // Normal path: release lock and mark initial sync done.
-      if (!conflictShown) {
-        cloudSyncInProgressRef.current = false;
-        if (!passphraseRequired) cloudSyncInitialDoneRef.current = true;
-
-        // If a debounce-triggered download arrived while this one held the lock,
-        // run a fresh download+merge+upload now so the pending local change is
-        // merged with any concurrent remote writes rather than blindly overwritten.
-        if (cloudSyncPendingUploadRef.current) {
-          cloudSyncPendingUploadRef.current = false;
-          setTimeout(() => cloudSyncDownloadRef.current?.(), 250);
-        }
-        // If iCloudSync was skipped because the lock was held, run it now.
-        if (iCloudPendingRef.current) {
-          iCloudPendingRef.current = false;
-          setTimeout(() => iCloudSyncRef.current?.(), 0);
-        }
-      }
-    }
+  // Refresh the engine's callback dereferences every render so they always
+  // see the latest closures over React state. The engine itself is stable
+  // (constructed once); only these references move.
+  engineCallbacksRef.current = {
+    buildPayload:       buildSyncPayload,
+    buildBackupPayload: buildAutoBackupPayload,
+    applyPayload:       applyEngineData,
+    syncRetentionDays,
   };
 
-  // Keep ref updated so polling interval and visibilitychange handler always
-  // call the latest version (avoids stale closure reading outdated React state).
-  cloudSyncDownloadRef.current = cloudSyncDownload;
-
-  const cloudSyncTest = async (config) => {
-    const provider = cloudSyncProviders[config.provider];
-    if (!provider) return { success: false, error: 'Unknown provider' };
-    try {
-      return await provider.test(config);
-    } catch (err) {
-      return { success: false, error: err.message };
+  // Flip cloudSyncInitialDoneRef once the engine reports a successful sync.
+  // (The pre-extraction code set this inside the download finally block; the
+  // engine fires onLastSyncedChange which updates cloudSyncLastSynced, so
+  // this effect runs on the same event.)
+  useEffect(() => {
+    if (cloudSyncLastSynced && !cloudSyncInitialDoneRef.current) {
+      cloudSyncInitialDoneRef.current = true;
     }
-  };
+  }, [cloudSyncLastSynced]);
 
   // DeadlinePickerPopover extracted to src/components/DeadlinePickerPopover.jsx
 
@@ -7548,7 +7375,7 @@ const DayPlanner = () => {
     autoBackupInProgressRef, syncAllRef, prevAllTagsRef, prevFrameNudgeKeyRef,
     cloudSyncDebounceRef, suppressCloudUploadRef, suppressTimestampRef,
     suppressClearPendingRef, cloudSyncInProgressRef, cloudSyncInitialDoneRef,
-    cloudSyncDownloadRef, cloudSyncErrorCountRef, cloudSyncBackoffUntilRef,
+    cloudSyncDownloadRef,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
     trmnlSyncTimerRef, trmnlLastPushRef, trmnlBackoffUntilRef, trmnlBackoffCountRef,
@@ -7867,7 +7694,7 @@ const DayPlanner = () => {
     autoBackupInProgressRef, syncAllRef,
     cloudSyncDebounceRef, suppressCloudUploadRef, suppressTimestampRef,
     suppressClearPendingRef, cloudSyncInProgressRef, cloudSyncInitialDoneRef,
-    cloudSyncDownloadRef, cloudSyncErrorCountRef, cloudSyncBackoffUntilRef,
+    cloudSyncDownloadRef,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
     trmnlSyncTimerRef, trmnlLastPushRef, trmnlBackoffUntilRef, trmnlBackoffCountRef,
@@ -7879,8 +7706,11 @@ const DayPlanner = () => {
     parseDatetime, parseICS, filterByDateWindow,
 
     // ── Functions – data persistence ──────────────────────────────────────────
-    loadData, saveData, applyRemoteData,
-    cloudSyncDownload, cloudSyncUpload, cloudSyncTest, syncAll,
+    loadData, saveData,
+    cloudSyncDownload: () => cloudSyncEngineRef.current.download(),
+    cloudSyncUpload:   (prebuilt, opts) => cloudSyncEngineRef.current.upload({ prebuiltPayload: prebuilt, ...opts }),
+    cloudSyncTest:     (cfg) => cloudSyncEngineRef.current.test(cfg),
+    syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
     performTrmnlSync,
     performLocalBackup, performRemoteBackup,
@@ -8364,7 +8194,7 @@ const DayPlanner = () => {
                   const localData = buildSyncPayload().data;
                   const { data: mergedData, remoteChanged } = mergeSyncData(localData, cloudSyncConflict.remoteData, syncRetentionDays);
                   const conflictEtag = cloudSyncConflict.etag;
-                  applyRemoteData(mergedData);
+                  applyEngineData(mergedData);
                   const now = new Date().toISOString();
                   localStorage.setItem('day-planner-cloud-sync-local-modified', now);
                   setCloudSyncLastSynced(now);
@@ -8372,10 +8202,10 @@ const DayPlanner = () => {
                   setCloudSyncConflict(null);
                   cloudSyncInitialDoneRef.current = true;
                   if (remoteChanged) {
-                    // Pass merged data directly — React state is stale after applyRemoteData.
+                    // Pass merged data directly — React state is stale after applyEngineData.
                     // Keep the lock held (skipLockCheck:true) until the upload completes.
                     const mergedPayload = { version: 2, lastModified: now, data: mergedData };
-                    await cloudSyncUpload(mergedPayload, { skipLockCheck: true, etag: conflictEtag });
+                    await cloudSyncEngineRef.current.upload({ prebuiltPayload: mergedPayload, skipLockCheck: true, etag: conflictEtag });
                   } else {
                     setCloudSyncStatus('success');
                     setTimeout(() => setCloudSyncStatus((s) => s === 'success' ? 'idle' : s), 3000);
@@ -8389,7 +8219,7 @@ const DayPlanner = () => {
               </button>
               <button
                 onClick={() => {
-                  applyRemoteData(cloudSyncConflict.remoteData);
+                  applyEngineData(cloudSyncConflict.remoteData);
                   localStorage.setItem('day-planner-cloud-sync-local-modified', cloudSyncConflict.remoteModified);
                   const now = new Date().toISOString();
                   setCloudSyncLastSynced(now);
@@ -8414,7 +8244,7 @@ const DayPlanner = () => {
                   localStorage.setItem('day-planner-cloud-sync-last-synced', now);
                   setCloudSyncLastSynced(now);
                   // Keep the lock held (skipLockCheck:true) until the upload completes.
-                  await cloudSyncUpload(undefined, { skipLockCheck: true, etag: conflictEtag });
+                  await cloudSyncEngineRef.current.upload({ skipLockCheck: true, etag: conflictEtag });
                   cloudSyncInProgressRef.current = false;
                 }}
                 className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
