@@ -4,10 +4,33 @@
 // through the orchestration paths that previously lived in dayGLANCE's
 // App.jsx. Each test asserts the visible side-effect (provider called or not,
 // applyPayload called or not, error code emitted) rather than internal state.
+//
+// Test environment: runs under Node via vitest's default environment. The
+// engine touches two browser globals — localStorage (always, for config and
+// last-synced persistence) and indexedDB (only when encrypted envelopes are
+// processed; not exercised by these tests). We shim localStorage inline
+// because the package's existing tests use the same lightweight-shim pattern
+// (see merge.test.js / crypto.test.js using `fake-indexeddb/auto`) and we
+// avoid the ~5 MB jsdom dep just for one API.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
-import { createSyncEngine, SCHEMA_VERSION } from '../src/engine.js';
+
+// Minimal in-memory localStorage shim. Installed before the engine module is
+// imported so the module-load-time providers/autoBackup construction sees it.
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem:    (k) => (store.has(k) ? store.get(k) : null),
+    setItem:    (k, v) => { store.set(k, String(v)); },
+    removeItem: (k) => { store.delete(k); },
+    clear:      () => { store.clear(); },
+    key:        (i) => Array.from(store.keys())[i] ?? null,
+    get length() { return store.size; },
+  };
+}
+
+const { createSyncEngine, SCHEMA_VERSION } = await import('../src/engine.js');
 
 // ---------- Test harness ----------
 
