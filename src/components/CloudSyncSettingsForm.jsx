@@ -101,7 +101,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
       {/* Encryption section */}
       <div className={`border-t ${borderClass} pt-4 space-y-3`}>
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex items-center gap-3 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={encryptionEnabled}
@@ -110,7 +110,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               setPassphrase('');
               setPassphraseConfirm('');
             }}
-            className="w-4 h-4 rounded"
+            className="w-5 h-5 rounded flex-shrink-0"
           />
           <span className={`text-sm font-medium ${textPrimary}`}>Enable end-to-end encryption</span>
         </label>
