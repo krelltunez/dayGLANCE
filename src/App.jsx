@@ -1410,13 +1410,7 @@ const DayPlanner = () => {
         ? window.DayGlanceNative.readICloudSync()
         : await window.electronAPI.readICloud();
 
-      console.log('[iCloudDebug] read:',
-        'len=' + (str?.length ?? 0),
-        'containsZZZTEST=' + !!(str && str.includes('ZZZTEST')),
-        'preview=' + JSON.stringify((str || '').slice(0, 120)));
-
       if (!str || str === 'null') {
-        console.log('[iCloudDebug] read returned null/empty — seed branch');
         // No remote file yet — seed it with local data, but only if state is hydrated.
         // If React state is empty but localStorage has tasks, we'd wipe the cloud file.
         //
@@ -1437,8 +1431,8 @@ const DayPlanner = () => {
       // iCloud file exists but is still downloading from the cloud — skip this
       // cycle and let the 15-second poll retry once it's available locally.
       let remote;
-      try { remote = JSON.parse(str); } catch { console.log('[iCloudDebug] JSON parse failed'); return; }
-      if (remote?.downloading) { console.log('[iCloudDebug] downloading=true, bailing'); return; }
+      try { remote = JSON.parse(str); } catch { return; }
+      if (remote?.downloading) return;
       if (remote?.error) {
         console.error('iCloud unavailable:', remote.error);
         setCloudSyncError(`iCloud unavailable: ${remote.error}`);
@@ -1463,23 +1457,10 @@ const DayPlanner = () => {
           return;
         }
       }
-      if (!remote?.data) { console.log('[iCloudDebug] remote.data missing'); return; }
+      if (!remote?.data) return;
 
       const localData = buildSyncPayload().data;
-      const remoteTaskCount = (remote.data?.tasks?.length || 0) + (remote.data?.unscheduledTasks?.length || 0);
-      const localTaskCount = (localData?.tasks?.length || 0) + (localData?.unscheduledTasks?.length || 0);
-      console.log('[iCloudDebug] pre-merge:',
-        'remoteLastModified=' + remote.lastModified,
-        'remoteTasks=' + remoteTaskCount,
-        'localTasks=' + localTaskCount);
-
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
-
-      const mergedTaskCount = (mergedData?.tasks?.length || 0) + (mergedData?.unscheduledTasks?.length || 0);
-      console.log('[iCloudDebug] post-merge:',
-        'localChanged=' + localChanged,
-        'remoteChanged=' + remoteChanged,
-        'mergedTasks=' + mergedTaskCount);
 
       if (localChanged) {
         applyEngineData(mergedData, { allowEmpty: !!remote.lastModified });
