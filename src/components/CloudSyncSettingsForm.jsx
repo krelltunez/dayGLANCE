@@ -87,7 +87,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             placeholder={field.placeholder}
             value={formData[field.key] || ''}
             onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
           />
           {field.type === 'password' && (
             <p className={`text-xs ${textSecondary} mt-0.5`}>Stored in browser localStorage — keep your device secure.</p>
@@ -137,7 +137,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 placeholder={passphraseRequired ? 'Choose a strong passphrase' : 'Re-enter to re-authenticate'}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
-                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
               />
             </div>
 
@@ -149,7 +149,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                   placeholder="Re-enter your passphrase"
                   value={passphraseConfirm}
                   onChange={(e) => setPassphraseConfirm(e.target.value)}
-                  className={`w-full px-3 py-2 border ${passphraseMismatch ? 'border-red-500' : borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                  className={`w-full px-3 py-2 border ${passphraseMismatch ? 'border-red-500' : borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                 />
                 {passphraseMismatch && (
                   <p className="text-xs text-red-500 mt-0.5">Passphrases do not match.</p>
