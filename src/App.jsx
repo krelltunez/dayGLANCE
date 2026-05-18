@@ -1369,9 +1369,11 @@ const DayPlanner = () => {
     const onMac = !onIOS && isElectronMac();
     if (!onIOS && !onMac) return;
     if (!dataLoaded) return;
-    // Serialise with both the iCloud lock (set below) and the WebDAV engine's
-    // internal lock so the two transports don't trample each other.
-    if (cloudSyncInProgressRef.current || cloudSyncEngineRef.current?.isSyncing()) {
+    // iCloud and WebDAV are independent transports — don't gate iCloud on the
+    // WebDAV engine's isSyncing() state. If WebDAV is stuck in a retry loop
+    // (e.g. persistent 412), iCloud sync would be permanently blocked.
+    // cloudSyncInProgressRef is the iCloud-only mutex; it's sufficient here.
+    if (cloudSyncInProgressRef.current) {
       iCloudPendingRef.current = true;
       return;
     }
