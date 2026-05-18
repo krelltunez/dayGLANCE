@@ -411,7 +411,10 @@ export const createSyncEngine = (config) => {
       }
 
       if (cls.code === 'PRECONDITION_FAILED') {
-        // Another device wrote between our download and upload — retry once.
+        // Another device wrote between our download and upload — wait a random
+        // jitter (1–3 s) to reduce collision probability, then retry once.
+        const jitterMs = 1000 + Math.random() * 2000;
+        await new Promise(r => setTimeout(r, jitterMs));
         try {
           await doCycle(null);
           downloadErrorCount = 0;
@@ -419,6 +422,14 @@ export const createSyncEngine = (config) => {
         } catch (retryErr) {
           // eslint-disable-next-line no-console
           console.error(`[${appId}] cloud sync retry after 412 failed:`, retryErr);
+          // Apply the same exponential backoff used for other transient errors so
+          // the engine backs off rather than hammering the server every poll cycle.
+          downloadErrorCount += 1;
+          const ms = Math.min(30 * Math.pow(2, downloadErrorCount - 1), MAX_DOWNLOAD_BACKOFF_S) * 1000;
+          downloadBackoffUntil = Date.now() + ms;
+          onError?.(formatErrorMessage(classifyError(retryErr)), classifyError(retryErr).code, false);
+          onStatusChange?.('error');
+          scheduleAutoRevert('error', ERROR_HOLD_MS);
         }
         return;
       }
