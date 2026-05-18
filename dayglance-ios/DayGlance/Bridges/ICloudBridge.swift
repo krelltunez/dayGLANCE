@@ -23,6 +23,10 @@ final class ICloudBridge {
 
     /// Returns the sync file JSON, "null" if unavailable/not yet downloaded,
     /// or {"error":"…"} if iCloud is not signed in.
+    ///
+    /// Uses NSFileCoordinator for the actual read so iCloud refreshes the local
+    /// copy from the cloud before we read it — without this, iOS can serve a
+    /// stale cached version even when the Mac has written a newer one.
     func readSync() -> String {
         guard let container = containerURL() else {
             return #"{"error":"iCloud not available"}"#
@@ -30,8 +34,7 @@ final class ICloudBridge {
         let fileURL = syncFileURL(in: container)
 
         // On older iOS versions, a cloud-only file appears as a hidden .filename.icloud
-        // placeholder whose body is metadata, not JSON. Detect it before fileExists() so
-        // we never accidentally read placeholder bytes as sync data.
+        // placeholder. Detect it before attempting a coordinated read.
         let placeholderURL = fileURL.deletingLastPathComponent()
             .appendingPathComponent("." + fileURL.lastPathComponent + ".icloud")
         if FileManager.default.fileExists(atPath: placeholderURL.path) {
@@ -40,25 +43,25 @@ final class ICloudBridge {
         }
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            // File doesn't exist locally — request download and signal caller to retry.
+            try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
             return "null"
         }
 
-        // Trigger download if the file exists in cloud but hasn't been fetched locally yet.
-        try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
-
-        // If it's still a cloud-only placeholder per the ubiquitous status API, signal
-        // "downloading" so the caller doesn't seed iCloud with empty/stale data.
-        if let values = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
-           let status = values.ubiquitousItemDownloadingStatus,
-           status == .notDownloaded {
-            return #"{"downloading":true}"#
+        // Coordinated read: iCloud will freshen the local copy from the server
+        // before our read block executes, ensuring we get the latest version.
+        var result = "null"
+        var coordError: NSError?
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(readingItemAt: fileURL, options: [], error: &coordError) { url in
+            guard let data = try? Data(contentsOf: url),
+                  let str  = String(data: data, encoding: .utf8) else { return }
+            result = str
         }
-
-        guard let data = try? Data(contentsOf: fileURL),
-              let str  = String(data: data, encoding: .utf8) else {
-            return "null"
+        if let err = coordError {
+            return "{\"error\":\"\(esc(err.localizedDescription))\"}"
         }
-        return str
+        return result
     }
 
     /// Writes json to the iCloud sync file. Returns {"ok":true} or {"ok":false,"error":"…"}.
@@ -101,6 +104,14 @@ final class ICloudBridge {
         q.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
         q.predicate = NSPredicate(format: "%K == %@", NSMetadataItemFSNameKey, syncFileName)
 
+        // NSMetadataQueryDidFinishGathering must be observed — the query won't
+        // post NSMetadataQueryDidUpdate until the initial gathering phase completes.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleQueryUpdate),
+            name: .NSMetadataQueryDidFinishGathering,
+            object: q
+        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleQueryUpdate),
