@@ -32,6 +32,7 @@ final class ICloudBridge {
     /// once the downloading status reports .current.
     func readSync() -> String {
         guard let container = containerURL() else {
+            NSLog("[ICloudDebug] readSync: container unavailable")
             return #"{"error":"iCloud not available"}"#
         }
         let fileURL = syncFileURL(in: container)
@@ -42,12 +43,14 @@ final class ICloudBridge {
             .appendingPathComponent("." + fileURL.lastPathComponent + ".icloud")
         if FileManager.default.fileExists(atPath: placeholderURL.path) {
             try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+            NSLog("[ICloudDebug] readSync: placeholder present, returning downloading:true")
             return #"{"downloading":true}"#
         }
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             // File doesn't exist locally — request download and signal caller to retry.
             try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+            NSLog("[ICloudDebug] readSync: file missing, returning null")
             return "null"
         }
 
@@ -57,9 +60,24 @@ final class ICloudBridge {
         // If a newer remote version exists, the status will be .downloaded
         // (older bytes cached) rather than .current. Returning the cached bytes
         // would serve stale data, so signal the caller to retry instead.
-        let status = (try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]))?
-            .ubiquitousItemDownloadingStatus
+        let resourceValues = try? fileURL.resourceValues(forKeys: [
+            .ubiquitousItemDownloadingStatusKey,
+            .fileSizeKey,
+            .contentModificationDateKey,
+        ])
+        let status = resourceValues?.ubiquitousItemDownloadingStatus
+        let size = resourceValues?.fileSize ?? -1
+        let mtime = resourceValues?.contentModificationDate
+            .map { ISO8601DateFormatter().string(from: $0) } ?? "?"
+        let statusStr: String
+        switch status {
+        case .current:       statusStr = "current"
+        case .downloaded:    statusStr = "downloaded"
+        case .notDownloaded: statusStr = "notDownloaded"
+        default:             statusStr = "unknown"
+        }
         if let status, status != .current {
+            NSLog("[ICloudDebug] readSync: status=\(statusStr) size=\(size) mtime=\(mtime) → downloading:true")
             return #"{"downloading":true}"#
         }
 
@@ -72,8 +90,12 @@ final class ICloudBridge {
             result = str
         }
         if let err = coordError {
+            NSLog("[ICloudDebug] readSync: coordError=\(err.localizedDescription)")
             return "{\"error\":\"\(esc(err.localizedDescription))\"}"
         }
+        let zzztest = result.contains("ZZZTEST")
+        let bytes = result.utf8.count
+        NSLog("[ICloudDebug] readSync: status=\(statusStr) fileSize=\(size) readBytes=\(bytes) mtime=\(mtime) containsZZZTEST=\(zzztest)")
         return result
     }
 
@@ -136,12 +158,14 @@ final class ICloudBridge {
         metadataQuery = q
     }
 
-    @objc private func handleQueryUpdate() {
+    @objc private func handleQueryUpdate(_ note: Notification) {
         // Skip if the change was caused by our own recent write.
         if let lastWrite = lastLocalWriteDate,
            Date().timeIntervalSince(lastWrite) < writeSuppressionInterval {
+            NSLog("[ICloudDebug] queryUpdate(\(note.name.rawValue)): suppressed (own write)")
             return
         }
+        NSLog("[ICloudDebug] queryUpdate(\(note.name.rawValue)): triggering download + foreground")
         // Kick off a download for the changed file before notifying JS — otherwise
         // readSync() will see "file exists, no placeholder" and return cached bytes
         // from the previous version. The download is async; readSync() gates on
