@@ -10,9 +10,8 @@
 import { createSyncEngine, mergeSyncData } from '@glance-apps/sync';
 import { nativeHttpRequest } from '../native.js';
 
-const isAndroid =
+const isNativeApp =
   typeof window !== 'undefined' &&
-  !window.DayGlanceIOS &&
   !!window.DayGlanceNative?.httpRequest;
 
 const electronProxyFetch =
@@ -30,16 +29,16 @@ const DAYGLANCE_CONFIG = {
   appId:                'dayglance',
   appName:              'dayGLANCE',
 
-  nativeHttpRequest: isAndroid ? nativeHttpRequest : null,
+  nativeHttpRequest: isNativeApp ? nativeHttpRequest : null,
   electronProxyFetch,
   proxyUrl: import.meta.env.VITE_WEBDAV_PROXY_URL ?? '',
 
   nativeGetSyncKey:
-    isAndroid && window?.DayGlanceNative?.getSyncKey
+    isNativeApp && window?.DayGlanceNative?.getSyncKey
       ? () => window.DayGlanceNative.getSyncKey()
       : null,
   nativeStoreSyncKey:
-    isAndroid && window?.DayGlanceNative?.storeSyncKey
+    isNativeApp && window?.DayGlanceNative?.storeSyncKey
       ? (val) => window.DayGlanceNative.storeSyncKey(val)
       : null,
 };
