@@ -22,11 +22,14 @@ final class ICloudBridge {
     // MARK: - Public API
 
     /// Returns the sync file JSON, "null" if unavailable/not yet downloaded,
+    /// {"downloading":true} if a fresher version is being fetched from iCloud,
     /// or {"error":"…"} if iCloud is not signed in.
     ///
-    /// Uses NSFileCoordinator for the actual read so iCloud refreshes the local
-    /// copy from the cloud before we read it — without this, iOS can serve a
-    /// stale cached version even when the Mac has written a newer one.
+    /// NSFileCoordinator alone does not force iCloud to pull a newer remote
+    /// version when a local copy already exists — it only serialises against
+    /// in-flight operations the local daemon is already aware of. We therefore
+    /// always call startDownloadingUbiquitousItem and only return file bytes
+    /// once the downloading status reports .current.
     func readSync() -> String {
         guard let container = containerURL() else {
             return #"{"error":"iCloud not available"}"#
@@ -48,8 +51,18 @@ final class ICloudBridge {
             return "null"
         }
 
-        // Coordinated read: iCloud will freshen the local copy from the server
-        // before our read block executes, ensuring we get the latest version.
+        // Always ask the daemon to pull the latest version. No-op if already current.
+        try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+
+        // If a newer remote version exists, the status will be .downloaded
+        // (older bytes cached) rather than .current. Returning the cached bytes
+        // would serve stale data, so signal the caller to retry instead.
+        let status = (try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]))?
+            .ubiquitousItemDownloadingStatus
+        if let status, status != .current {
+            return #"{"downloading":true}"#
+        }
+
         var result = "null"
         var coordError: NSError?
         let coordinator = NSFileCoordinator()
@@ -128,6 +141,14 @@ final class ICloudBridge {
         if let lastWrite = lastLocalWriteDate,
            Date().timeIntervalSince(lastWrite) < writeSuppressionInterval {
             return
+        }
+        // Kick off a download for the changed file before notifying JS — otherwise
+        // readSync() will see "file exists, no placeholder" and return cached bytes
+        // from the previous version. The download is async; readSync() gates on
+        // ubiquitousItemDownloadingStatus and will return {"downloading":true}
+        // until the new bytes arrive, prompting JS to retry on its next poll.
+        if let container = containerURL() {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: syncFileURL(in: container))
         }
         // Fire the same notification that scenePhase foreground transitions use,
         // so the JS sync cycle runs immediately without waiting for the 60-second poll.
