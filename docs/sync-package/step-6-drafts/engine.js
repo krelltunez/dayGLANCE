@@ -287,6 +287,7 @@ export const createSyncEngine = (config) => {
    */
   const download = async () => {
     if (hardStopped) return;
+    if (downloadBackoffUntil && Date.now() < downloadBackoffUntil) return;
     const cfg = getConfig();
     if (!cfg?.enabled) return;
     const provider = providers[cfg.provider];
@@ -417,6 +418,11 @@ export const createSyncEngine = (config) => {
           downloadErrorCount = 0;
           downloadBackoffUntil = 0;
         } catch (retryErr) {
+          // Retry also collided — multiple devices writing simultaneously.
+          // Apply a random 3–15 s backoff so devices don't thrash in lock-step.
+          // The backoff check at the top of download() ensures both the 60-second
+          // poll and any pending-followup path wait out the backoff interval.
+          downloadBackoffUntil = Date.now() + 3000 + Math.random() * 12000;
           // eslint-disable-next-line no-console
           console.error(`[${appId}] cloud sync retry after 412 failed:`, retryErr);
         }
