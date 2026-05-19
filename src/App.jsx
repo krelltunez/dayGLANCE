@@ -617,6 +617,7 @@ const DayPlanner = () => {
     deleteHabit,
     reorderHabits,
     syncHealthConnectHabitsRef,
+    resolvePendingHealthHabitRef,
     addStepsHabit,
     addSleepHabit,
   } = useHabits({ playUISound });
@@ -1228,7 +1229,10 @@ const DayPlanner = () => {
         // Defer the blocking Health Connect bridge calls (up to 7 × N synchronous
         // @JavascriptInterface calls) to after the next paint so the JS thread isn't
         // blocked mid-render, which shows as a brief blank screen on app resume.
-        requestAnimationFrame(() => setTimeout(() => syncHealthConnectHabitsRef.current?.(), 0));
+        requestAnimationFrame(() => setTimeout(() => {
+          resolvePendingHealthHabitRef.current?.();
+          syncHealthConnectHabitsRef.current?.();
+        }, 0));
       }
     };
     // Native iOS fires a custom event to bypass the document.hidden timing gap
@@ -1239,7 +1243,10 @@ const DayPlanner = () => {
       // engine.download() bypasses its own backoff for these foreground kicks.
       iCloudSyncRef.current?.();
       cloudSyncDownloadRef.current?.();
-      requestAnimationFrame(() => setTimeout(() => syncHealthConnectHabitsRef.current?.(), 0));
+      requestAnimationFrame(() => setTimeout(() => {
+        resolvePendingHealthHabitRef.current?.();
+        syncHealthConnectHabitsRef.current?.();
+      }, 0));
     };
     document.addEventListener('visibilitychange', handleVisibility);
     document.addEventListener('dayglanceForeground', handleNativeForeground);

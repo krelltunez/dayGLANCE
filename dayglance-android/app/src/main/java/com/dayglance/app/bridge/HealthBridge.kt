@@ -52,6 +52,10 @@ class HealthBridge(
     }
 
     @JavascriptInterface
+    fun checkPermission(): String =
+        if (runBlocking { repository.hasPermissions() }) "granted" else "denied"
+
+    @JavascriptInterface
     fun requestPermission(): String {
         onRequestPermission()
         return "pending"

@@ -28,6 +28,15 @@ class HealthRepository(context: Context) {
         HealthPermission.getReadPermission(SleepSessionRecord::class),
     )
 
+    suspend fun hasPermissions(): Boolean = withContext(Dispatchers.IO) {
+        val c = client ?: return@withContext false
+        try {
+            c.permissionController.getGrantedPermissions().containsAll(requiredPermissions)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun getSteps(date: LocalDate): Int = withContext(Dispatchers.IO) {
         val c = client ?: return@withContext 0
         val zone = ZoneId.systemDefault()

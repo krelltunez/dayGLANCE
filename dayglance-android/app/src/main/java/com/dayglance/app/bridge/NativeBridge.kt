@@ -119,6 +119,9 @@ class NativeBridge(
     fun getSleep(date: String): String = health.getSleep(date)
 
     @JavascriptInterface
+    fun checkHealthPermission(): String = health.checkPermission()
+
+    @JavascriptInterface
     fun requestHealthPermission(): String = health.requestPermission()
 
     // ── Calendar ────────────────────────────────────────────────────────────

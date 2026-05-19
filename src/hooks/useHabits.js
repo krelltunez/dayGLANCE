@@ -224,38 +224,61 @@ const useHabits = ({ playUISound }) => {
     syncHealthConnectHabitsRef.current?.();
   }, [habits]);
 
-  // Create the steps habit pre-configured for the platform's health bridge.
-  const addStepsHabit = () => {
+  // Habit config pending permission grant. Stored as a full habit object so the
+  // resolve path doesn't have to reconstruct it.
+  const pendingHealthHabitRef = useRef(null);
+
+  // Called on app foreground / visibility-return. If a health habit is pending
+  // (user tapped Add, got the permission dialog, returned), check whether
+  // permission was granted and add the habit only if it was.
+  const resolvePendingHealthHabit = () => {
+    if (!window.DayGlanceNative || !pendingHealthHabitRef.current) return;
+    let granted = false;
+    try {
+      granted = window.DayGlanceNative.checkHealthPermission() === 'granted';
+    } catch (e) { /* bridge method unavailable — treat as denied */ }
+    const config = pendingHealthHabitRef.current;
+    pendingHealthHabitRef.current = null;
+    if (granted) addHabit(config);
+  };
+  const resolvePendingHealthHabitRef = useRef(null);
+  resolvePendingHealthHabitRef.current = resolvePendingHealthHabit;
+
+  const _addHealthHabit = (config) => {
     if (!window.DayGlanceNative) return;
-    // Request permission — stub returns "granted", real impl launches HC/HK permission dialog
-    try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
-    addHabit({
-      name: 'Steps',
-      icon: 'Footprints',
-      color: 'green',
-      type: 'doMore',
-      target: 10000,
-      unit: 'steps',
-      source: window.DayGlanceIOS ? 'healthKit' : 'healthConnect',
-      scheduledDays: [0, 1, 2, 3, 4, 5, 6],
-    });
+    let alreadyGranted = false;
+    try {
+      alreadyGranted = window.DayGlanceNative.checkHealthPermission() === 'granted';
+    } catch (e) { /* checkHealthPermission unavailable — fall back to old behaviour */ alreadyGranted = true; }
+    if (alreadyGranted) {
+      addHabit(config);
+    } else {
+      pendingHealthHabitRef.current = config;
+      try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
+    }
   };
 
-  // Create the sleep habit pre-configured for the platform's health bridge.
-  const addSleepHabit = () => {
-    if (!window.DayGlanceNative) return;
-    try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
-    addHabit({
-      name: 'Sleep',
-      icon: 'Moon',
-      color: 'indigo',
-      type: 'doMore',
-      target: 480,
-      unit: 'min',
-      source: window.DayGlanceIOS ? 'healthKit' : 'healthConnect',
-      scheduledDays: [0, 1, 2, 3, 4, 5, 6],
-    });
-  };
+  const addStepsHabit = () => _addHealthHabit({
+    name: 'Steps',
+    icon: 'Footprints',
+    color: 'green',
+    type: 'doMore',
+    target: 10000,
+    unit: 'steps',
+    source: window.DayGlanceIOS ? 'healthKit' : 'healthConnect',
+    scheduledDays: [0, 1, 2, 3, 4, 5, 6],
+  });
+
+  const addSleepHabit = () => _addHealthHabit({
+    name: 'Sleep',
+    icon: 'Moon',
+    color: 'indigo',
+    type: 'doMore',
+    target: 480,
+    unit: 'min',
+    source: window.DayGlanceIOS ? 'healthKit' : 'healthConnect',
+    scheduledDays: [0, 1, 2, 3, 4, 5, 6],
+  });
 
   return {
     habits, setHabits,
@@ -281,6 +304,7 @@ const useHabits = ({ playUISound }) => {
     deleteHabit,
     reorderHabits,
     syncHealthConnectHabitsRef,
+    resolvePendingHealthHabitRef,
     addStepsHabit,
     addSleepHabit,
   };
