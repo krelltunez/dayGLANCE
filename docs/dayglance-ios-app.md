@@ -393,21 +393,40 @@ StoreKit 2 integration is required on both platforms and unlocks Universal Purch
 - Enable Universal Purchase: link iOS and macOS apps in App Store Connect under the same bundle ID family
 
 **iOS + macOS via RevenueCat**
-- **RevenueCat** is used as the subscription management layer across all platforms (iOS, macOS, Android)
-- iOS and macOS both use the RevenueCat SDK (`purchases-ios`, which supports macOS 10.13+); Electron's renderer uses the RevenueCat JS/web SDK or calls through to the native SDK via Electron IPC
+- **RevenueCat** is used as the subscription management layer for iOS and macOS only. Android uses Google Play Billing directly (already implemented) and is intentionally independent — see "Cross-platform subscription scope" below.
+- iOS and macOS both use the RevenueCat SDK (`purchases-ios`, which supports macOS 10.13+); the Electron main process holds the SDK and exposes entitlement status to the renderer via IPC (cleaner than the renderer-side web SDK, which is intended for web checkout flows rather than native app contexts)
 - RevenueCat maps the App Store subscription products to a single "Pro" entitlement — no raw StoreKit calls needed in app code
 - `Purchases.shared.getCustomerInfo()` returns entitlement status; works identically on iOS and macOS
 - Purchases, restores, and renewals all go through `Purchases.shared.purchase(package:)` / `Purchases.shared.restorePurchases()`
 - Transaction listener and renewal handling managed by RevenueCat SDK — no manual `Transaction.currentEntitlements` loop needed
 - RevenueCat dashboard provides customer lookup, manual entitlement grants, and webhook events (subscription started, cancelled, churned) for support and analytics
-- Android billing (Google Play) can be added to the same RevenueCat project later with no changes to the web layer
 - Free tier covers up to $2,500 MRR; 1% fee above that
+
+**Cross-platform subscription scope (deliberate decision)**
+
+Subscriptions are **per-platform**. A user who subscribes on Android does not automatically get Pro on iOS/macOS, and vice versa. This is a deliberate choice, not a limitation to be solved later. Rationale:
+
+- **No accounts.** dayGLANCE is local-first, no-accounts, privacy-first. Cross-platform entitlement recognition fundamentally requires either an account system (Spotify/Kindle model) or a license key flow — both add backend surface and friction that conflicts with the brand. The audience that pays for dayGLANCE is the audience that values the absence of accounts.
+- **RevenueCat doesn't solve this for free.** RevenueCat's cross-platform story handles the *technical* entitlement abstraction (one "Pro" entitlement across SDKs) but cannot bypass Apple's and Google's billing rules. Each store still expects its own IAP for purchases made on its platform. Cross-platform recognition still requires accounts or license keys underneath — RevenueCat just makes the plumbing slightly easier.
+- **No evidence the problem exists.** The overlap between dayGLANCE Android and iOS users is unknown and likely small at launch. Solving for it now would be premature.
+
+If cross-platform complaints surface post-launch, **license keys** are the preferred path forward (RevenueCat webhook → email service → user pastes key into other platforms to unlock Pro). This avoids accounts entirely. Not in v1 scope.
 
 **Web layer (`src/subscription.js`)**
 - New module wrapping `nativeGetSubscriptionStatus()` / `nativePurchase()` / `nativeRestorePurchases()`
 - `useSubscription()` hook returns `{ isPro, loading, purchase, restore }`
 - Paywall UI component (shown when a Pro feature is accessed without an active subscription)
 - All gated features degrade gracefully in the web layer when `isPro` is false
+
+**macOS MAS sandbox audit (folded into Phase 9)**
+
+Wiring RevenueCat into Electron is the natural moment to also enable App Sandbox entitlements in a dev build and surface any breakage early, rather than discovering it under launch pressure in Phase 12. Steps:
+
+- Enable `com.apple.security.app-sandbox` in the macOS Electron dev build's entitlements.plist
+- Add the entitlements required for current functionality: `com.apple.security.network.client` (WebDAV, RevenueCat, AI), `com.apple.security.files.user-selected.read-write` (Obsidian vault picker), `com.apple.developer.icloud-container-identifiers` (already added in Phase 7), and any others surfaced by testing
+- Smoke-test: WebDAV sync, Obsidian vault read/write (security-scoped bookmarks under sandbox), iCloud sync, AI features, RevenueCat purchase + restore flow
+- Document any APIs that break under sandbox and either fix or scope-cut before Phase 12 submission
+- This was previously tracked as open question #9; folding it here resolves the "when?" timing question — it happens alongside the RevenueCat work since both touch the same Electron entitlement surface
 
 ### Phase 10 — Home screen widgets (WidgetKit) — v1 launch scope
 
@@ -535,6 +554,6 @@ export const isCloudSyncAvailable = () =>
 
 7. ~~**iCloud sync phase timing**~~: **Resolved** — Phase 6 (HTTP bridge / WebDAV) ships first. Rationale: the iOS half of iCloud sync (`CloudSyncBridge.swift`, `NSMetadataQuery`) doesn't need the HTTP bridge, but the macOS Electron half (`electron/icloud-sync.ts`, entitlements, IPC wiring) is a non-trivial parallel change, and the iCloud container (`iCloud.com.dayglance.app`) must be registered in the Apple Developer portal before any of it is testable. Phase 6 unblocks WebDAV end-to-end testing on device in the meantime. iCloud sync (Phase 7) then follows as a deliberate two-codebase effort once the portal setup is in place. The two sync transports are fully independent and coexist cleanly: iCloud covers Apple-to-Apple zero-config; WebDAV covers cross-platform (Android, Windows, self-hosted).
 
-8. ~~**StoreKit on macOS / Electron**~~: **Resolved** — using RevenueCat across iOS, macOS, and Android. Avoids the MAS sandbox XPC complexity; adds customer dashboard, webhooks, and future Android billing support.
+8. ~~**StoreKit on macOS / Electron**~~: **Resolved** — using RevenueCat for iOS and macOS only. Avoids the MAS sandbox XPC complexity; adds customer dashboard and webhooks. Android uses Google Play Billing directly (already implemented) and is intentionally independent — subscriptions are per-platform, no cross-platform entitlement recognition, no accounts. See Phase 9 "Cross-platform subscription scope" for rationale.
 
-9. **macOS MAS sandbox**: The macOS Electron app has not been tested under App Sandbox entitlements. This is a parallel workstream to the iOS build — sandbox breakage in Obsidian file access, WebDAV, or other APIs needs to be found and fixed before the macOS App Store submission. When should this audit begin relative to the iOS phases?
+9. ~~**macOS MAS sandbox**~~: **Resolved** — folded into Phase 9 alongside the RevenueCat Electron work, since both touch the same entitlement surface. See Phase 9 "macOS MAS sandbox audit" subsection.
