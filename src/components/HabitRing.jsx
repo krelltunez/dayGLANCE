@@ -1,8 +1,8 @@
 import React from 'react';
-import { Check, RefreshCw, Target, X } from 'lucide-react';
+import { Check, RefreshCw, Target, WifiOff, X } from 'lucide-react';
 import { HABIT_ICONS, HABIT_COLORS } from '../constants/habits.js';
 
-const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false }) => {
+const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false, syncPaused = false }) => {
   const { type, target, color, icon } = habit;
   const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
   const IconComponent = HABIT_ICONS[icon] || Target;
@@ -77,10 +77,13 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
             style={{ color: showCheck ? '#22c55e' : showX ? '#ef4444' : (ringColor === (darkMode ? '#4b5563' : '#d1d5db') ? (darkMode ? '#9ca3af' : '#9ca3af') : ringColor) }}
           />
         </div>
-        {/* Auto-sync indicator — small dot in top-right corner */}
+        {/* Auto-sync indicator — green when syncing, orange when permission revoked */}
         {autoSynced && (
-          <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
-            <RefreshCw size={7} className="text-white" />
+          <div className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full flex items-center justify-center ${syncPaused ? 'bg-orange-400' : 'bg-green-500'}`}>
+            {syncPaused
+              ? <WifiOff size={6} className="text-white" />
+              : <RefreshCw size={7} className="text-white" />
+            }
           </div>
         )}
         {/* Goal-met (doMore) or limit-exceeded badge — bottom-right corner */}
