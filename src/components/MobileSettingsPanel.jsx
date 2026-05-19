@@ -6,7 +6,7 @@ import {
   Footprints, FolderOpen, Globe, GripVertical, HelpCircle, Key, LayoutGrid,
   Loader, Mic, Moon, Pencil, Plus,
   Flag, RefreshCw, Save, Settings, Sparkles, Sun, Target, Trash2,
-  Undo2, Upload, Volume2, VolumeX, Wifi, Zap,
+  Undo2, Upload, Volume2, VolumeX, Wifi, WifiOff, Zap,
 } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../utils/timezones.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
@@ -1847,11 +1847,12 @@ const MobileSettingsPanel = () => {
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm font-medium ${textPrimary} truncate flex items-center gap-1.5`}>
                             {habit.name}
-                            {habit.source === 'healthConnect' && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0">
-                                <RefreshCw size={9} />Auto-synced
-                              </span>
-                            )}
+                            {habit.source === 'healthConnect' && (() => {
+                              const paused = habit.unit === 'steps' ? healthPerms?.steps === false : healthPerms?.sleep === false;
+                              return paused
+                                ? <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-400/10 text-orange-500 flex-shrink-0"><WifiOff size={9} />Not syncing</span>
+                                : <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced</span>;
+                            })()}
                           </div>
                           <div className={`text-xs ${textSecondary}`}>{habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}</div>
                           {(() => {
