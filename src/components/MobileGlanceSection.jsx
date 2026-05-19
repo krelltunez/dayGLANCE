@@ -113,7 +113,15 @@ const MobileGlanceSection = () => {
     getFrameInstancesForDate, computeAvailableSlots,
     showVoiceInput, setShowVoiceInput,
     voiceCanRecord,
+    healthPerms,
   } = useFeaturesCtx();
+
+  const isHealthSyncPaused = (habit) => {
+    if (!habit.source) return false;
+    if (habit.unit === 'steps') return healthPerms?.steps === false;
+    if (habit.unit === 'min' || habit.unit === 'minutes') return healthPerms?.sleep === false;
+    return false;
+  };
 
   return (
 <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
@@ -226,6 +234,7 @@ const MobileGlanceSection = () => {
                     count={getTodayHabitCount(habit.id)}
                     darkMode={darkMode}
                     autoSynced={!!habit.source}
+                    syncPaused={isHealthSyncPaused(habit)}
                     onClick={habit.source ? undefined : () => incrementHabit(habit.id)}
                     onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); clearTimeout(habitLongPressTimer.current); setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }}
                     onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }, 500); }}

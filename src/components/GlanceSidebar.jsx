@@ -104,7 +104,15 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     computeAvailableSlots,
     showVoiceInput, setShowVoiceInput,
     voiceCanRecord,
+    healthPerms,
   } = useFeaturesCtx();
+
+  const isHealthSyncPaused = (habit) => {
+    if (!habit.source) return false;
+    if (habit.unit === 'steps') return healthPerms?.steps === false;
+    if (habit.unit === 'min' || habit.unit === 'minutes') return healthPerms?.sleep === false;
+    return false;
+  };
 
   const isDesktop = variant === 'desktop';
   const isTray = variant === 'tray';
@@ -303,13 +311,15 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     habit={habit}
                     count={getTodayHabitCount(habit.id)}
                     darkMode={darkMode}
-                    onClick={() => doIncrementHabit(habit.id)}
-                    onContextMenu={(e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
-                    onMouseDown={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
-                    onMouseUp={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-                    onMouseLeave={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
-                    onTouchStart={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
-                    onTouchEnd={() => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                    autoSynced={!!habit.source}
+                    syncPaused={isHealthSyncPaused(habit)}
+                    onClick={habit.source ? undefined : () => doIncrementHabit(habit.id)}
+                    onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }}
+                    onMouseDown={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                    onMouseUp={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                    onMouseLeave={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
+                    onTouchStart={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); habitLongPressTimer.current = setTimeout(() => { setHabitLongPressId(prev => prev === habit.id ? null : habit.id); setHabitEditingCountId(null); }, 500); }}
+                    onTouchEnd={habit.source ? undefined : () => { if (habitLongPressTimer.current) clearTimeout(habitLongPressTimer.current); }}
                   />
                   {habitLongPressId === habit.id && (
                     <>
