@@ -370,11 +370,15 @@ An iOS Share Extension lets users share text or URLs from any app (Safari, Notes
 - Add `NSPrivacyAccessedAPICategoryFileTimestamp` to `PrivacyInfo.xcprivacy`
 - Enable iCloud capability in App Store Connect for both macOS and iOS app records
 
+**Status: ✅ Complete.** Container ID is `iCloud.com.dayglance`. iOS side implemented in `ICloudBridge.swift` (NSFileCoordinator-coordinated reads, `startDownloadingUbiquitousItem` + `ubiquitousItemDownloadingStatus` gating to avoid stale-cache reads, NSMetadataQuery watch firing `dayGlanceForeground` to wake the JS sync loop). macOS side in `electron/icloud-sync.ts` writes in-place to preserve bird's xattrs (rename-based writes lose tracking and force re-upload from scratch). JS layer adds a 5 s write throttle to prevent CloudKit conflict storms on rapid successive saves. Mac→iOS and iOS→Mac propagation verified within seconds via NSMetadataQuery. Bug fixes: #838, #839, #843, #844, #845, #847, #848.
+
 ### Phase 8 — Audio recording
 
 - `AudioBridge.swift`: `AVAudioRecorder` capturing to `.m4a` (AAC, 16kHz, 32kbps)
 - Returns same `data:audio/mp4;base64,...` string as Android
 - `NSMicrophoneUsageDescription` in Info.plist
+
+**Status: ✅ Complete.**
 
 ### Phase 9 — Subscriptions (StoreKit 2)
 
