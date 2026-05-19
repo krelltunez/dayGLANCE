@@ -178,7 +178,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
-  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, productId: subProductId, subscribe, restore, prices: subPrices, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -7487,7 +7487,7 @@ const DayPlanner = () => {
     showHelpModal, setShowHelpModal,
 
     // ── Billing ───────────────────────────────────────────────────────────────
-    isPro, isAndroidApp, isIOSApp, subProductId,
+    isPro, isAndroidApp, isIOSApp, isElectronApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
 
     // ── Autocomplete suggestions ──────────────────────────────────────────────
@@ -9401,10 +9401,10 @@ const DayPlanner = () => {
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
 
-      {/* Subscription wall — Android + iOS, shown when trial/subscription is inactive */}
-      {(isAndroidApp || isIOSApp) && (subLoading || !isPro) && (
+      {/* Subscription wall — shown on Android, iOS, and macOS when subscription is inactive */}
+      {(isAndroidApp || isIOSApp || isElectronApp) && (subLoading || !isPro) && (
         <SubscriptionWall
-          isIOSApp={isIOSApp}
+          isIOSApp={isIOSApp || isElectronApp}
           isLoading={subLoading}
           prices={subPrices}
           onSubscribeAnnual={() => subscribe('dayglance_pro_annual')}

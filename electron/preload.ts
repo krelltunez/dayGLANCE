@@ -88,6 +88,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Registers (or clears) a system-wide hotkey that shows the main app window.
   setMainWindowHotkey: (accelerator: string) => ipcRenderer.invoke('hotkey:register-main-window', accelerator),
 
+  // Subscriptions — StoreKit 2 via inAppPurchase + RevenueCat entitlement checks.
+  // macOS only; always returns { active: false } on non-macOS platforms.
+  subscriptionStatus: (): Promise<{ active: boolean; productId: string | null }> =>
+    ipcRenderer.invoke('subscription:status'),
+  subscriptionPurchase: (productId: string): Promise<void> =>
+    ipcRenderer.invoke('subscription:purchase', productId),
+  subscriptionRestore: (): Promise<void> =>
+    ipcRenderer.invoke('subscription:restore'),
+  onSubscriptionEvent: (callback: (event: unknown) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, event: unknown) => callback(event);
+    ipcRenderer.on('subscription:event', handler);
+    return () => ipcRenderer.removeListener('subscription:event', handler);
+  },
+  onSubscriptionPricesReady: (callback: (prices: { monthly: string | null; yearly: string | null }) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, prices: { monthly: string | null; yearly: string | null }) => callback(prices);
+    ipcRenderer.on('subscription:prices-ready', handler);
+    return () => ipcRenderer.removeListener('subscription:prices-ready', handler);
+  },
+
   // iCloud sync — reads/writes dayglance-sync.json in the shared ubiquitous container.
   // macOS only; returns null/false on other platforms.
   readICloud: (): Promise<string | null> => ipcRenderer.invoke('icloud:read'),

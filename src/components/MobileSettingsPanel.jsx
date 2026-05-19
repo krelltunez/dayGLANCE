@@ -25,7 +25,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const MobileSettingsPanel = () => {
   const {
-    isPro, isAndroidApp, isIOSApp, subProductId,
+    isPro, isAndroidApp, isIOSApp, isElectronApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
     setTasks, setUnscheduledTasks,
     darkMode, setDarkMode,
@@ -330,9 +330,9 @@ const MobileSettingsPanel = () => {
           <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
         </button>
       )}
-      {(isAndroidApp || isIOSApp) && isPro && (
+      {(isAndroidApp || isIOSApp || isElectronApp) && isPro && (
         <p onClick={() => setDevTapCount(c => c + 1)} className={`text-xs ${textSecondary} text-center pt-1`}>
-          {isIOSApp
+          {(isIOSApp || isElectronApp)
             ? (subProductId?.includes('monthly') ? 'dayGLANCE Pro · Monthly' : 'dayGLANCE Pro · Annual')
             : (subProductId === 'dayglance_pro_lifetime' ? 'dayGLANCE Pro · Lifetime' : 'dayGLANCE Pro · Annual')}
         </p>

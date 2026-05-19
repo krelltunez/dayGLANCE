@@ -13,7 +13,7 @@ import { Loader } from 'lucide-react';
  * The "Founder pricing" badge is intentional during launch. Remove it when prices go up.
  */
 export default function SubscriptionWall({
-  isIOSApp,
+  isIOSApp,   // true for iOS and macOS Electron (same App Store products / Universal Purchase)
   onSubscribeMonthly,
   onSubscribeYearly,
   onSubscribeAnnual,

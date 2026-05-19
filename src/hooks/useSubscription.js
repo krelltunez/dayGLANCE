@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { isNativeIOS } from '../native.js';
 
+// ── Platform detection ────────────────────────────────────────────────────────
+
 // Android: synchronous Google Play Billing bridge
 const BILLING = typeof window !== 'undefined' ? window.DayGlanceBilling : null;
 
-// iOS: RevenueCat via WKURLSchemeHandler bridge
-// window.DayGlanceNative is always defined on iOS (Proxy), so we gate on the flag.
+// iOS: RevenueCat via WKURLSchemeHandler synchronous bridge
 const IOS = typeof window !== 'undefined' && isNativeIOS();
 
-// ── Platform-agnostic status readers ──────────────────────────────────────────
+// Electron (macOS): StoreKit via inAppPurchase + RevenueCat REST API over IPC
+const ELECTRON = typeof window !== 'undefined' &&
+  !!(window.electronAPI?.subscriptionStatus);
+
+// ── Status / price readers ────────────────────────────────────────────────────
 
 function readStatusAndroid() {
   if (!BILLING) return { active: false, productId: null };
@@ -22,9 +27,20 @@ function readStatusIOS() {
   catch { return { active: false, productId: null }; }
 }
 
+// Electron status is async — this reads the localStorage cache for the initial
+// synchronous render; IPC refreshes it on mount.
+function readStatusElectronCached() {
+  try {
+    const raw = localStorage.getItem('rc_electron_status');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { active: false, productId: null };
+}
+
 function readStatus() {
   if (BILLING) return readStatusAndroid();
   if (IOS)     return readStatusIOS();
+  if (ELECTRON) return readStatusElectronCached();
   return { active: false, productId: null };
 }
 
@@ -45,108 +61,148 @@ function readPricesIOS() {
 }
 
 function readPrices() {
-  if (BILLING) return readPricesAndroid();
-  if (IOS)     return readPricesIOS();
+  if (BILLING)  return readPricesAndroid();
+  if (IOS)      return readPricesIOS();
+  if (ELECTRON) return { monthly: null, yearly: null }; // pushed async via subscription:prices-ready
   return {};
 }
 
+// ── Error code → user message ─────────────────────────────────────────────────
+
 /**
- * Maps a BillingResponseCode integer to a user-facing message.
- * Returns null for codes that should be handled silently (cancel).
+ * Maps a billing error code to a user-facing string.
+ * Returns a generic message for unknown codes.
+ * Code 2 = SKErrorPaymentCancelled (macOS) / user cancelled — should not
+ * surface as an error message (handled as 'cancelled' status upstream).
  */
 function billingErrorMessage(code) {
   switch (code) {
+    case 1:  return 'Product not found. Please try again later.';
+    case 3:  return 'Billing is not available on this device.';
     case 4:  return "This subscription isn't available right now. Please try again later.";
-    case 7:  return "You already own this item.";
-    case 3:  return "Billing is not available on this device.";
-    case 6:  return "Network error. Please check your connection and try again.";
-    case 1:  return "Product not found. Please try again later.";
-    default: return "Something went wrong with the purchase. Please try again.";
+    case 6:  return 'Network error. Please check your connection and try again.';
+    case 7:  return 'You already own this item.';
+    default: return 'Something went wrong with the purchase. Please try again.';
   }
 }
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
  * Exposes subscription state to the React app.
  *
- * Android: backed by Google Play Billing (window.DayGlanceBilling).
- * iOS:     backed by RevenueCat / StoreKit 2 (window.DayGlanceNative bridge).
- * Web/Electron: isPro is always true (no wall shown).
+ * Android  — Google Play Billing (window.DayGlanceBilling). Synchronous reads.
+ * iOS      — RevenueCat/StoreKit 2 (WKURLSchemeHandler bridge). Synchronous reads.
+ * macOS    — StoreKit inAppPurchase + RevenueCat REST (Electron IPC). Async reads
+ *            with localStorage cache for the initial synchronous render.
+ * Web/PWA  — isPro always true; isAndroidApp, isIOSApp, isElectronApp all false;
+ *            no wall shown.
  *
- * Both platforms deliver purchase outcomes via window.__billingEvent callbacks.
- * `prices` shape differs per platform:
- *   Android → { annual, lifetime }
- *   iOS     → { monthly, yearly }
+ * All three native platforms deliver purchase outcomes via window.__billingEvent.
+ * `prices` shape: Android → { annual, lifetime } | iOS/macOS → { monthly, yearly }
  */
 export function useSubscription() {
-  const cached = readStatus();
-  const [status, setStatus]       = useState(cached);
-  const [prices, setPrices]       = useState(readPrices);
-  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus]             = useState(() => readStatus());
+  const [prices, setPrices]             = useState(() => readPrices());
+  const [isLoading, setIsLoading]       = useState(false);
   const [billingEvent, setBillingEvent] = useState(null);
   const timeoutRef = useRef(null);
 
-  const isOnNativePlatform = !!(BILLING || IOS);
+  const isOnNativePlatform = !!(BILLING || IOS || ELECTRON);
 
-  // Register window.__billingEvent — both Android and iOS fire this callback
-  // for every terminal purchase/restore outcome.
-  useEffect(() => {
-    if (!isOnNativePlatform) return;
-    window.__billingEvent = (ev) => {
-      try {
-        const parsed = typeof ev === 'string' ? JSON.parse(ev) : ev;
-        if (parsed.status === 'success' || parsed.status === 'consumed') {
-          setStatus(readStatus());
-          setPrices(readPrices());
+  // ── Billing event handler (shared by all platforms) ──────────────────────
+  const handleBillingEvent = useCallback((ev) => {
+    try {
+      const parsed = typeof ev === 'string' ? JSON.parse(ev) : ev;
+      if (parsed.status === 'success') {
+        // Re-read entitlement after a confirmed purchase.
+        if (BILLING) { setStatus(readStatusAndroid()); setPrices(readPricesAndroid()); }
+        if (IOS)     { setStatus(readStatusIOS());     setPrices(readPricesIOS()); }
+        if (ELECTRON) {
+          window.electronAPI.subscriptionStatus().then(s => {
+            setStatus(s);
+            try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
+          }).catch(() => {});
         }
-        setBillingEvent({ ...parsed, ts: Date.now() });
-        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-      } catch {}
-    };
-    return () => { delete window.__billingEvent; };
+      }
+      setBillingEvent({ ...parsed, ts: Date.now() });
+      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On mount: trigger a background refresh to catch changes since last open.
+  // Register window.__billingEvent — fired by Android and iOS bridges.
+  useEffect(() => {
+    if (!isOnNativePlatform) return;
+    window.__billingEvent = handleBillingEvent;
+    return () => { delete window.__billingEvent; };
+  }, [handleBillingEvent]);
+
+  // Electron: subscribe to subscription:event IPC push.
+  useEffect(() => {
+    if (!ELECTRON) return;
+    const unsub = window.electronAPI.onSubscriptionEvent(handleBillingEvent);
+    return unsub;
+  }, [handleBillingEvent]);
+
+  // Electron: listen for prices pushed from the main process at startup.
+  useEffect(() => {
+    if (!ELECTRON) return;
+    const unsub = window.electronAPI.onSubscriptionPricesReady((p) => {
+      setPrices({ monthly: p.monthly ?? null, yearly: p.yearly ?? null });
+    });
+    return unsub;
+  }, []);
+
+  // On mount: background refresh for each platform.
   useEffect(() => {
     if (BILLING) BILLING.refresh?.();
-    // iOS: RevenueCat refreshes automatically; getSubscriptionStatus() returns cached value
+
     if (IOS) {
+      // RevenueCat caches status; re-read after a short delay so it has
+      // had time to refresh from its background network call.
       setTimeout(() => {
         setStatus(readStatusIOS());
         setPrices(readPricesIOS());
       }, 3000);
     }
-  }, []);
 
+    if (ELECTRON) {
+      window.electronAPI.subscriptionStatus().then(s => {
+        setStatus(s);
+        try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
+      }).catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-read when the user returns from a purchase sheet (all platforms).
   const refresh = useCallback(() => {
     if (BILLING) {
       BILLING.refresh?.();
-      setTimeout(() => {
-        setStatus(readStatus());
-        setPrices(readPrices());
-      }, 2000);
+      setTimeout(() => { setStatus(readStatusAndroid()); setPrices(readPricesAndroid()); }, 2000);
     }
     if (IOS) {
-      setTimeout(() => {
-        setStatus(readStatusIOS());
-        setPrices(readPricesIOS());
-      }, 2000);
+      setTimeout(() => { setStatus(readStatusIOS()); setPrices(readPricesIOS()); }, 2000);
+    }
+    if (ELECTRON) {
+      window.electronAPI.subscriptionStatus().then(s => {
+        setStatus(s);
+        try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
+      }).catch(() => {});
     }
   }, []);
 
-  // Re-read when the user returns from the purchase sheet.
   useEffect(() => {
     if (!isOnNativePlatform) return;
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refresh]);
 
+  // ── subscribe ──────────────────────────────────────────────────────────────
   /**
-   * Opens the purchase sheet.
-   *   Android: productId is 'dayglance_pro_annual' | 'dayglance_pro_lifetime'
-   *   iOS:     productId is 'com.dayglance.app.pro.monthly' | 'com.dayglance.app.pro.yearly'
+   * Opens the platform purchase sheet.
+   *   Android productId: 'dayglance_pro_annual' | 'dayglance_pro_lifetime'
+   *   iOS/macOS productId: 'com.dayglance.app.pro.monthly' | 'com.dayglance.app.pro.yearly'
    */
   const subscribe = useCallback((productId) => {
     if (!isOnNativePlatform) return;
@@ -154,15 +210,19 @@ export function useSubscription() {
 
     if (BILLING) BILLING.purchase?.(productId);
     if (IOS)     window.DayGlanceNative.purchase?.(productId);
+    if (ELECTRON) window.electronAPI.subscriptionPurchase(productId).catch(() => {});
 
-    // Safety timeout — clears the spinner if the bridge never fires.
+    // Safety timeout — clears the spinner if the bridge never fires (60s).
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       timeoutRef.current = null;
-      setBillingEvent(prev => prev ?? { status: 'cancelled', code: -1, message: 'timeout', productId, ts: Date.now() });
+      setBillingEvent(prev => prev ?? {
+        status: 'cancelled', code: -1, message: 'timeout', productId, ts: Date.now(),
+      });
     }, 60_000);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── restore ────────────────────────────────────────────────────────────────
   const restore = useCallback(() => {
     if (!isOnNativePlatform) return;
     setBillingEvent(null);
@@ -171,17 +231,16 @@ export function useSubscription() {
       BILLING.refresh?.();
       setIsLoading(true);
       setTimeout(() => {
-        setStatus(readStatus());
-        setPrices(readPrices());
+        setStatus(readStatusAndroid());
+        setPrices(readPricesAndroid());
         setIsLoading(false);
         setBillingEvent({ status: 'cancelled', code: 0, message: 'restore_complete', productId: '', ts: Date.now() });
       }, 4000);
     }
 
-    if (IOS) {
-      // Result fires via window.__billingEvent when RevenueCat finishes.
-      window.DayGlanceNative.restorePurchases?.();
-    }
+    // iOS and Electron: result fires via __billingEvent / subscription:event.
+    if (IOS)     window.DayGlanceNative.restorePurchases?.();
+    if (ELECTRON) window.electronAPI.subscriptionRestore().catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearBillingEvent = useCallback(() => setBillingEvent(null), []);
@@ -198,8 +257,9 @@ export function useSubscription() {
     isPro: status.active,
     productId: status.productId,
     prices,
-    isAndroidApp: !!BILLING,
-    isIOSApp: IOS,
+    isAndroidApp:  !!BILLING,
+    isIOSApp:      IOS,
+    isElectronApp: ELECTRON,
     canConsumeTestPurchase: typeof BILLING?.consumeTestPurchase === 'function',
     isLoading,
     subscribe,
