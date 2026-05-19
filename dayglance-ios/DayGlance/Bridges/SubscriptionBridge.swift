@@ -23,6 +23,7 @@ final class SubscriptionBridge {
         Purchases.configure(withAPIKey: apiKey)
         refreshStatusInBackground()
         fetchPricesInBackground()
+        checkTrialEligibilityInBackground()
     }
 
     // MARK: - Synchronous bridge calls
@@ -34,6 +35,14 @@ final class SubscriptionBridge {
         let productId = info?.entitlements[entitlementId]?.productIdentifier
         let productJson = productId.map { "\"\(esc($0))\"" } ?? "null"
         return "{\"active\":\(active),\"productId\":\(productJson)}"
+    }
+
+    /// Returns `{"com.dayglance.app.pro.yearly": bool}` from the cached eligibility check.
+    /// Defaults to true when not yet determined — better to show trial copy and let Apple
+    /// validate than to incorrectly hide it from eligible users.
+    func getTrialEligibility() -> String {
+        let eligible = UserDefaults.standard.object(forKey: "rc_trial_eligible_yearly") as? Bool ?? true
+        return "{\"com.dayglance.app.pro.yearly\":\(eligible)}"
     }
 
     /// Returns `{"yearly":string|null,"lifetime":string|null}` from cached StoreKit prices.
@@ -108,6 +117,23 @@ final class SubscriptionBridge {
                 } else if id.contains("lifetime") {
                     UserDefaults.standard.set(price, forKey: "rc_price_lifetime")
                 }
+            }
+        }
+    }
+
+    private func checkTrialEligibilityInBackground() {
+        Task {
+            let results = await Purchases.shared.checkTrialOrIntroductoryPriceEligibility(
+                productIdentifiers: ["com.dayglance.app.pro.yearly"]
+            )
+            guard let status = results["com.dayglance.app.pro.yearly"]?.status else { return }
+            switch status {
+            case .eligible:
+                UserDefaults.standard.set(true, forKey: "rc_trial_eligible_yearly")
+            case .ineligible:
+                UserDefaults.standard.set(false, forKey: "rc_trial_eligible_yearly")
+            default:
+                break // unknown — don't write, keep the default-true fallback in getTrialEligibility()
             }
         }
     }

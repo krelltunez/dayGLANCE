@@ -23,6 +23,7 @@ export default function SubscriptionWall({
   onRestore,
   isLoading,
   prices,
+  trialEligible = true,
   billingEvent,
   clearBillingEvent,
   billingErrorMessage,
@@ -141,7 +142,7 @@ export default function SubscriptionWall({
               : <span className={`text-xs ${sub}`}>Loading…</span>
             }
           </div>
-          <div className={`text-xs mt-0.5 ${sub}`}>14-day free trial · billed yearly · cancel any time</div>
+          <div className={`text-xs mt-0.5 ${sub}`}>{trialEligible ? '14-day free trial · billed yearly · cancel any time' : 'Billed yearly · cancel any time'}</div>
           {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
 
@@ -154,7 +155,7 @@ export default function SubscriptionWall({
       <button
         onClick={handleRestore}
         disabled={!!pending}
-        className={`text-xs underline ${sub} disabled:opacity-50`}
+        className={`text-sm underline ${sub} disabled:opacity-50`}
       >
         {pending === 'restore' ? 'Checking…' : 'Restore purchase'}
       </button>

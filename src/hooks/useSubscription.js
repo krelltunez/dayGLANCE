@@ -68,6 +68,15 @@ function readPrices() {
   return {};
 }
 
+function readTrialEligibilityIOS() {
+  if (!IOS) return true;
+  try {
+    const data = JSON.parse(window.DayGlanceNative.getTrialEligibility());
+    // Only treat as ineligible when the bridge explicitly returns false.
+    return data?.['com.dayglance.app.pro.yearly'] !== false;
+  } catch { return true; }
+}
+
 // ── Error code → user message ─────────────────────────────────────────────────
 
 /**
@@ -103,10 +112,11 @@ function billingErrorMessage(code) {
  * `prices` shape: Android → { annual, lifetime } | iOS/macOS → { monthly, yearly }
  */
 export function useSubscription() {
-  const [status, setStatus]             = useState(() => readStatus());
-  const [prices, setPrices]             = useState(() => readPrices());
-  const [isLoading, setIsLoading]       = useState(false);
-  const [billingEvent, setBillingEvent] = useState(null);
+  const [status, setStatus]               = useState(() => readStatus());
+  const [prices, setPrices]               = useState(() => readPrices());
+  const [trialEligible, setTrialEligible] = useState(() => readTrialEligibilityIOS());
+  const [isLoading, setIsLoading]         = useState(false);
+  const [billingEvent, setBillingEvent]   = useState(null);
   const timeoutRef = useRef(null);
 
   const isOnNativePlatform = !!(BILLING || IOS || ELECTRON);
@@ -164,6 +174,7 @@ export function useSubscription() {
       setTimeout(() => {
         setStatus(readStatusIOS());
         setPrices(readPricesIOS());
+        setTrialEligible(readTrialEligibilityIOS());
       }, 3000);
     }
 
@@ -258,6 +269,7 @@ export function useSubscription() {
     isPro: status.active,
     productId: status.productId,
     prices,
+    trialEligible,
     isAndroidApp:  !!BILLING,
     isIOSApp:      IOS,
     isElectronApp: ELECTRON,

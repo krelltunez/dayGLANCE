@@ -152,6 +152,8 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             return SubscriptionBridge.shared.getStatus()
         case "getProductPrices":
             return SubscriptionBridge.shared.getProductPrices()
+        case "getTrialEligibility":
+            return SubscriptionBridge.shared.getTrialEligibility()
         case "purchase":
             guard let productId = args.first as? String else { return "null" }
             SubscriptionBridge.shared.purchase(productId: productId)
