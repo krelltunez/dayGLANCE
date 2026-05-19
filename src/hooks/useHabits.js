@@ -184,6 +184,9 @@ const useHabits = ({ playUISound }) => {
       d.setDate(d.getDate() - daysBack);
       const dateStr = dateToString(d);
       for (const habit of healthHabits) {
+        // Skip types whose permission is known revoked (=== false, not null = "not yet checked").
+        if (habit.unit === 'steps' && healthPerms.steps === false) continue;
+        if ((habit.unit === 'min' || habit.unit === 'minutes') && healthPerms.sleep === false) continue;
         try {
           let count = 0;
           if (habit.unit === 'steps') {
@@ -240,6 +243,28 @@ const useHabits = ({ playUISound }) => {
 
   // Check permissions once on mount.
   useEffect(() => { refreshHealthPerms(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When a permission transitions true → false (revoked), clear today's counts for the
+  // affected habits so the ring empties immediately instead of showing stale data.
+  const prevHealthPermsRef = useRef({ steps: null, sleep: null });
+  useEffect(() => {
+    const prev = prevHealthPermsRef.current;
+    const stepsRevoked = prev.steps === true && healthPerms.steps === false;
+    const sleepRevoked = prev.sleep === true && healthPerms.sleep === false;
+    if (stepsRevoked || sleepRevoked) {
+      const todayStr = dateToString(new Date());
+      setHabitLogs(prev => {
+        const today = { ...(prev[todayStr] || {}) };
+        for (const h of habits) {
+          if (h.archived) continue;
+          if (stepsRevoked && h.unit === 'steps' && h.source === 'healthConnect') delete today[h.id];
+          if (sleepRevoked && (h.unit === 'min' || h.unit === 'minutes') && h.source === 'healthConnect') delete today[h.id];
+        }
+        return { ...prev, [todayStr]: today };
+      });
+    }
+    prevHealthPermsRef.current = healthPerms;
+  }, [healthPerms]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addStepsHabit = () => addHabit({
     name: 'Steps',
