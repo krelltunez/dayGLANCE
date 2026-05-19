@@ -82,12 +82,21 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- Health Connect: required so the system can show our permission rationale.
-             Without this alias the PermissionController dialog will not launch. -->
+        <!-- Health Connect rationale screen — Android 13 / standalone Health Connect APK path -->
+        <activity
+            android:name=".PermissionsRationaleActivity"
+            android:exported="true"
+            android:theme="@style/Theme.DayGlance.Settings">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <!-- Health Connect rationale screen — Android 14+ / built-in Health Connect path -->
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
-            android:targetActivity=".MainActivity"
+            android:targetActivity=".PermissionsRationaleActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />

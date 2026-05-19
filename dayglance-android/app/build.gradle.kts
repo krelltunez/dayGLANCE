@@ -20,7 +20,7 @@ android {
         applicationId = "com.dayglance.app"
         minSdk = 26  // Android 8.0 — required for Health Connect
         targetSdk = 35
-        versionCode = 87
+        versionCode = 88
         versionName = "2.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -125,6 +125,9 @@ dependencies {
 
     // Google Play Billing
     implementation(libs.billing.ktx)
+
+    // Chrome Custom Tabs — privacy policy link in PermissionsRationaleActivity
+    implementation(libs.browser)
 
     // Testing
     testImplementation(libs.junit)
