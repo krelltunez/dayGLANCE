@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.view.WindowCompat
 import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.databinding.ActivityPermissionsRationaleBinding
 
@@ -22,6 +23,10 @@ class PermissionsRationaleActivity : AppCompatActivity() {
             null  -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
         }
         super.onCreate(savedInstanceState)
+        // Opt out of edge-to-edge so the action bar and content sit below the status bar.
+        // targetSdk 35 enforces edge-to-edge by default; without this the action bar renders
+        // at y=0 (under the transparent status bar) and content overlaps the header.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         binding = ActivityPermissionsRationaleBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
