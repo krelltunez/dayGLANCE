@@ -1252,10 +1252,19 @@ const DayPlanner = () => {
     document.addEventListener('visibilitychange', handleVisibility);
     document.addEventListener('dayglanceForeground', handleNativeForeground);
     window.addEventListener('focus', handleVisibility);
+    // Called by MainActivity's ActivityResultLauncher when the HC dialog completes.
+    // Provides a reliable refresh path independent of visibilitychange timing.
+    window.__onHealthPermResult = () => {
+      requestAnimationFrame(() => setTimeout(() => {
+        refreshHealthPermsRef.current?.();
+        syncHealthConnectHabitsRef.current?.();
+      }, 0));
+    };
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       document.removeEventListener('dayglanceForeground', handleNativeForeground);
       window.removeEventListener('focus', handleVisibility);
+      delete window.__onHealthPermResult;
     };
   }, []);
 

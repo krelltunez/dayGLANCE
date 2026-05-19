@@ -108,8 +108,12 @@ class MainActivity : AppCompatActivity() {
     private val requestHealthPermissions = registerForActivityResult(
         PermissionController.createRequestPermissionResultContract()
     ) { _ ->
-        // Permissions result is handled transparently: the next getSteps/getSleep
-        // call will succeed if granted, or return zeros if still denied.
+        // Notify JS so the Authorize/Add buttons update immediately without
+        // depending on visibilitychange (which is unreliable when webView.onPause
+        // is intentionally skipped).
+        webView.evaluateJavascript(
+            "window.__onHealthPermResult && window.__onHealthPermResult()", null
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
