@@ -411,7 +411,7 @@ Ship the three widget kinds at the minimum-viable sizes to give iOS a native-fee
 
 - New `DayGlanceWidget` WidgetKit extension target
 - App Group shared container (`group.com.dayglance.app`) replaces Android's `SharedDataStore`
-- Three widget kinds matching Android: **Up Next**, **Goal**, **Project**
+- Three widget kinds matching Android: **Up Next**, **Goal**, **Project**. The fourth Android widget — **dayGLANCE** (mirror of the GLANCE tab) — is intentionally **out of v1 scope**; it's the densest layout and benefits most from being designed alongside the Live Activity work in v1.1.
 - `nativeUpdateWidgetSnapshot(type, json)` bridge call — one call per widget kind
 - SwiftUI views — **Medium** size for all three at launch; Small added where the design is obvious (Up Next, Project)
 - `BGAppRefreshTask` for 15-minute background refresh
@@ -456,6 +456,7 @@ The features that make iOS the premium dayGLANCE experience, anchored by the Dyn
 - **Lock Screen widgets** — circular (progress ring or remaining-task count), rectangular (current task + time remaining), and inline (above the clock text). iOS 17+ interactivity for tap-to-complete.
 - **StandBy mode rendering** — the large Home Screen widget rendered full-screen when iPhone is on a charger in landscape. Turns any charging iPhone into an ambient dayGLANCE display.
 - **Full widget size matrix** — Large home screen variants (mini DAY view with HyperGLANCE bars), iPad XL (full 12-hour DAY view).
+- **dayGLANCE widget** — fourth widget kind mirroring the GLANCE tab (densest layout, parity with the Android widget set).
 
 ### v1.2 — Automation and ecosystem
 
