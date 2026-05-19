@@ -126,6 +126,9 @@ dependencies {
     // Google Play Billing
     implementation(libs.billing.ktx)
 
+    // Chrome Custom Tabs — privacy policy link in PermissionsRationaleActivity
+    implementation(libs.browser)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
