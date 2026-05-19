@@ -1,6 +1,7 @@
 import UIKit
 import AVFoundation
 import UserNotifications
+import RevenueCat
 
 class AppDelegate: NSObject, UIApplicationDelegate {
 
@@ -16,6 +17,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         NotificationBridge.shared.registerCategories()
         UNUserNotificationCenter.current().delegate = self
+
+        // Phase 9 — RevenueCat subscriptions
+        // Replace REVENUECAT_IOS_API_KEY with the public iOS SDK key from
+        // the RevenueCat dashboard (App Settings → API Keys → Public app-specific key).
+        SubscriptionBridge.shared.configure(apiKey: "REVENUECAT_IOS_API_KEY")
+
         return true
     }
 }

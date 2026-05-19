@@ -178,7 +178,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
-  const { isPro, isLoading: subLoading, isAndroidApp, productId: subProductId, subscribe, restore, prices: subPrices, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, productId: subProductId, subscribe, restore, prices: subPrices, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -7487,7 +7487,7 @@ const DayPlanner = () => {
     showHelpModal, setShowHelpModal,
 
     // ── Billing ───────────────────────────────────────────────────────────────
-    isPro, isAndroidApp, subProductId,
+    isPro, isAndroidApp, isIOSApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
 
     // ── Autocomplete suggestions ──────────────────────────────────────────────
@@ -9401,13 +9401,16 @@ const DayPlanner = () => {
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
 
-      {/* Subscription wall — Android only, shown when trial/subscription is inactive */}
-      {isAndroidApp && (subLoading || !isPro) && (
+      {/* Subscription wall — Android + iOS, shown when trial/subscription is inactive */}
+      {(isAndroidApp || isIOSApp) && (subLoading || !isPro) && (
         <SubscriptionWall
+          isIOSApp={isIOSApp}
           isLoading={subLoading}
           prices={subPrices}
           onSubscribeAnnual={() => subscribe('dayglance_pro_annual')}
           onSubscribeLifetime={() => subscribe('dayglance_pro_lifetime')}
+          onSubscribeMonthly={() => subscribe('com.dayglance.app.pro.monthly')}
+          onSubscribeYearly={() => subscribe('com.dayglance.app.pro.yearly')}
           onRestore={restore}
           billingEvent={billingEvent}
           clearBillingEvent={clearBillingEvent}

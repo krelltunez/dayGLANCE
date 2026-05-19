@@ -147,6 +147,19 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         case "stopRecording":
             return AudioBridge.shared.stopRecording()
 
+        // Phase 9 — Subscriptions (RevenueCat / StoreKit 2)
+        case "getSubscriptionStatus":
+            return SubscriptionBridge.shared.getStatus()
+        case "getProductPrices":
+            return SubscriptionBridge.shared.getProductPrices()
+        case "purchase":
+            guard let productId = args.first as? String else { return "null" }
+            SubscriptionBridge.shared.purchase(productId: productId)
+            return "null"
+        case "restorePurchases":
+            SubscriptionBridge.shared.restorePurchases()
+            return "null"
+
         default:
             return "null"
         }

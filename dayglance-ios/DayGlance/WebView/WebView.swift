@@ -59,6 +59,9 @@ struct WebView: UIViewRepresentable {
 
         // Three-slash URL: scheme=dg, empty host, path starts at /
         // Relative refs in index.html (./assets/…) resolve to dg:///assets/…
+        // Give SubscriptionBridge a weak reference so it can fire __billingEvent callbacks.
+        SubscriptionBridge.shared.webView = webView
+
         webView.load(URLRequest(url: URL(string: "dg:///index.html")!))
         return webView
     }

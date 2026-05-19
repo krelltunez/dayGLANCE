@@ -1,4 +1,10 @@
 name: DayGlance
+
+packages:
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios-spm
+    minorVersion: "5.0.0"
+
 options:
   bundleIdPrefix: com.dayglance
   deploymentTarget:
@@ -23,6 +29,9 @@ targets:
       - path: DayGlance
         excludes:
           - Resources/web/**
+    dependencies:
+      - package: RevenueCat
+        product: RevenueCat
     entitlements:
       path: DayGlance/DayGlance.entitlements
       properties:

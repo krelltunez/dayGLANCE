@@ -2,25 +2,37 @@ import React, { useState, useEffect } from 'react';
 import { Loader } from 'lucide-react';
 
 /**
- * Full-screen paywall shown on Android when the user has no active subscription.
+ * Full-screen paywall shown on Android and iOS when the user has no active subscription.
  *
- * The 14-day free trial and pricing are configured in Google Play Console.
- * `prices` contains the localized amounts fetched live from Play — they update
- * automatically if you change the price in Play Console, with no code change needed.
+ * Android: annual (dayglance_pro_annual) + lifetime (dayglance_pro_lifetime)
+ *          Prices fetched live from Google Play.
  *
- * The "Founder pricing" badge is intentional during launch. Remove it (or change
- * the copy) when you raise prices.
+ * iOS: monthly (com.dayglance.app.pro.monthly) + yearly (com.dayglance.app.pro.yearly)
+ *      Prices fetched live from the App Store via RevenueCat.
+ *
+ * The "Founder pricing" badge is intentional during launch. Remove it when prices go up.
  */
-export default function SubscriptionWall({ onSubscribeAnnual, onSubscribeLifetime, onRestore, isLoading, prices, billingEvent, clearBillingEvent, billingErrorMessage }) {
+export default function SubscriptionWall({
+  isIOSApp,
+  onSubscribeMonthly,
+  onSubscribeYearly,
+  onSubscribeAnnual,
+  onSubscribeLifetime,
+  onRestore,
+  isLoading,
+  prices,
+  billingEvent,
+  clearBillingEvent,
+  billingErrorMessage,
+}) {
   const dark = (() => {
     try { return JSON.parse(localStorage.getItem('day-planner-darkmode') || 'false'); }
     catch { return false; }
   })();
 
-  const [pending, setPending] = useState(null);
+  const [pending, setPending]   = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Clear spinner and show error on every terminal billing event.
   useEffect(() => {
     if (!billingEvent) return;
     setPending(null);
@@ -32,11 +44,10 @@ export default function SubscriptionWall({ onSubscribeAnnual, onSubscribeLifetim
     clearBillingEvent?.();
   }, [billingEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSubscribe = (productId, label) => {
+  const handleSubscribe = (label, cb) => {
     setErrorMsg(null);
     setPending(label);
-    if (label === 'annual')   onSubscribeAnnual?.();
-    if (label === 'lifetime') onSubscribeLifetime?.();
+    cb?.();
   };
 
   const handleRestore = () => {
@@ -95,45 +106,92 @@ export default function SubscriptionWall({ onSubscribeAnnual, onSubscribeLifetim
       {/* Plan cards */}
       <div className="w-full max-w-xs space-y-3 mb-5">
 
-        <button
-          onClick={() => handleSubscribe('dayglance_pro_annual', 'annual')}
-          disabled={!!pending}
-          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'annual' ? 'opacity-60' : ''}`}
-        >
-          <div className="flex items-baseline justify-between">
-            <span className={`font-semibold text-sm ${text}`}>Annual</span>
-            {prices?.annual
-              ? <span className={`text-sm font-medium ${text}`}>{prices.annual}<span className={`text-xs ${sub}`}>/yr</span></span>
-              : <span className={`text-xs ${sub}`}>See price in Play</span>
-            }
-          </div>
-          <div className={`text-xs mt-0.5 ${sub}`}>Billed yearly · cancel any time</div>
-          {pending === 'annual' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
-        </button>
+        {isIOSApp ? (
+          <>
+            {/* iOS — yearly */}
+            <button
+              onClick={() => handleSubscribe('yearly', onSubscribeYearly)}
+              disabled={!!pending}
+              className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'yearly' ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-baseline justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`font-semibold text-sm ${text}`}>Annual</span>
+                  <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
+                </div>
+                {prices?.yearly
+                  ? <span className={`text-sm font-medium ${text}`}>{prices.yearly}<span className={`text-xs ${sub}`}>/yr</span></span>
+                  : <span className={`text-xs ${sub}`}>See price in App Store</span>
+                }
+              </div>
+              <div className={`text-xs mt-0.5 ${sub}`}>Billed yearly · cancel any time</div>
+              {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
+            </button>
 
-        <button
-          onClick={() => handleSubscribe('dayglance_pro_lifetime', 'lifetime')}
-          disabled={!!pending}
-          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'lifetime' ? 'opacity-60' : ''}`}
-        >
-          <div className="flex items-baseline justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`font-semibold text-sm ${text}`}>Lifetime</span>
-              <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
-            </div>
-            {prices?.lifetime
-              ? <span className={`text-sm font-medium ${text}`}>{prices.lifetime}</span>
-              : <span className={`text-xs ${sub}`}>See price in Play</span>
-            }
-          </div>
-          <div className={`text-xs mt-0.5 ${sub}`}>One-time purchase · yours forever</div>
-          {pending === 'lifetime' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
-        </button>
+            {/* iOS — monthly */}
+            <button
+              onClick={() => handleSubscribe('monthly', onSubscribeMonthly)}
+              disabled={!!pending}
+              className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'monthly' ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-baseline justify-between">
+                <span className={`font-semibold text-sm ${text}`}>Monthly</span>
+                {prices?.monthly
+                  ? <span className={`text-sm font-medium ${text}`}>{prices.monthly}<span className={`text-xs ${sub}`}>/mo</span></span>
+                  : <span className={`text-xs ${sub}`}>See price in App Store</span>
+                }
+              </div>
+              <div className={`text-xs mt-0.5 ${sub}`}>Billed monthly · cancel any time</div>
+              {pending === 'monthly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Android — annual */}
+            <button
+              onClick={() => handleSubscribe('annual', onSubscribeAnnual)}
+              disabled={!!pending}
+              className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'annual' ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-baseline justify-between">
+                <span className={`font-semibold text-sm ${text}`}>Annual</span>
+                {prices?.annual
+                  ? <span className={`text-sm font-medium ${text}`}>{prices.annual}<span className={`text-xs ${sub}`}>/yr</span></span>
+                  : <span className={`text-xs ${sub}`}>See price in Play</span>
+                }
+              </div>
+              <div className={`text-xs mt-0.5 ${sub}`}>Billed yearly · cancel any time</div>
+              {pending === 'annual' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
+            </button>
+
+            {/* Android — lifetime */}
+            <button
+              onClick={() => handleSubscribe('lifetime', onSubscribeLifetime)}
+              disabled={!!pending}
+              className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'lifetime' ? 'opacity-60' : ''}`}
+            >
+              <div className="flex items-baseline justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`font-semibold text-sm ${text}`}>Lifetime</span>
+                  <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
+                </div>
+                {prices?.lifetime
+                  ? <span className={`text-sm font-medium ${text}`}>{prices.lifetime}</span>
+                  : <span className={`text-xs ${sub}`}>See price in Play</span>
+                }
+              </div>
+              <div className={`text-xs mt-0.5 ${sub}`}>One-time purchase · yours forever</div>
+              {pending === 'lifetime' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
+            </button>
+          </>
+        )}
 
       </div>
 
       <p className={`text-xs text-center mb-6 max-w-xs ${sub}`}>
-        Annual plan includes a 14-day free trial. Payment via Google Play.
+        {isIOSApp
+          ? 'Annual plan includes a free trial. Payment via App Store.'
+          : 'Annual plan includes a 14-day free trial. Payment via Google Play.'}
       </p>
 
       <button
