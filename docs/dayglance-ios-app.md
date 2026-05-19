@@ -11,6 +11,7 @@ This document describes the strategy and phased implementation plan for an iOS v
 - [Feature delta: what changes on iOS](#feature-delta-what-changes-on-ios)
 - [iOS-exclusive features](#ios-exclusive-features)
 - [Phased implementation plan](#phased-implementation-plan)
+- [Post-launch roadmap](#post-launch-roadmap)
 - [native.js changes](#nativejs-changes)
 - [Open questions](#open-questions)
 
@@ -404,32 +405,74 @@ StoreKit 2 integration is required on both platforms and unlocks Universal Purch
 - Paywall UI component (shown when a Pro feature is accessed without an active subscription)
 - All gated features degrade gracefully in the web layer when `isPro` is false
 
-### Phase 10 — Home screen widgets (WidgetKit)
+### Phase 10 — Home screen widgets (WidgetKit) — v1 launch scope
+
+Ship the three widget kinds at the minimum-viable sizes to give iOS a native-feeling launch. Extra sizes, StandBy, and Lock Screen variants are deferred to v1.1 so widgets don't gate launch.
 
 - New `DayGlanceWidget` WidgetKit extension target
-- App Group shared container replaces Android's `SharedDataStore`
+- App Group shared container (`group.com.dayglance.app`) replaces Android's `SharedDataStore`
 - Three widget kinds matching Android: **Up Next**, **Goal**, **Project**
 - `nativeUpdateWidgetSnapshot(type, json)` bridge call — one call per widget kind
-- SwiftUI views for Small, Medium, and Large sizes per widget kind
+- SwiftUI views — **Medium** size for all three at launch; Small added where the design is obvious (Up Next, Project)
 - `BGAppRefreshTask` for 15-minute background refresh
-- StandBy large-size variant (iOS 17+)
-- iOS 16+ interactive widget buttons (task complete, habit check-off) as a stretch goal
+- iOS 17+ interactive widget buttons (task complete) on Up Next — App Intents required (small set: complete-task, start-focus)
 
-### Phase 11 — iOS-exclusive features
+**Deferred to v1.1**: Large size, StandBy variant, Lock Screen widgets (separate widget family — circular, rectangular, inline), iPad-XL size.
 
-- **Siri / App Intents**: "Add task", "Read agenda" intents (`AppIntent` framework)
-- **Live Activities**: Focus session countdown in Dynamic Island / Lock Screen (`ActivityKit`)
-- **Focus Filters**: Per-system-Focus calendar/task filtering (`SetFocusFilterIntent`)
-- **Share Extension**: Receive shared text → create task on next app open
-- **Haptics**: `nativeHaptic(type)` bridge call wired to `UIImpactFeedbackGenerator`
+### Phase 11 — iOS launch polish (v1)
 
-### Phase 12 — Polish + App Store
+Native-feeling touches that make v1 look like an iOS app rather than a port. All items are small and self-contained.
 
-- iPad Lock Screen widget (medium/large, iPadOS 17+)
+- **Haptics**: `nativeHaptic(type)` bridge call wired to `UIImpactFeedbackGenerator` (light/medium/heavy/success/warning/error). Web layer fires on task complete, snooze, focus-start, etc.
+- **Share Extension**: Receive shared text/URLs → create new inbox task on next app open. Standard `ShareViewController` extension target.
+- **Home Screen Quick Actions**: Long-press app icon menu with up to four actions — "New scheduled task", "New inbox task", "Start Focus on next task", "Open today". Static items in `Info.plist` (`UIApplicationShortcutItems`); handled in scene delegate, routed to the WebView as a deep link (e.g. `dg:///?action=newInboxTask`).
+- **Spotlight indexing**: CoreSpotlight indexes today's and upcoming tasks (and goals/projects), so users can search from the home screen and tap to open dayGLANCE deep-linked to the item. Index updates on data change via the bridge.
+- **Reminders read (opt-in)**: EventKit already covers Reminders. Add a Settings toggle "Show iOS Reminders as inbox tasks" (off by default). When enabled, reminders surface read-only alongside dayGLANCE inbox tasks — gives Apple-ecosystem users a way to consolidate without forced migration.
+- **Validate free platform features** (no implementation, just confirm they work): Universal Clipboard (copy on Mac, paste on iOS), AirDrop (export sharing), Continuity Camera (image attachments to task notes), Live Text (free OCR on attached images).
+
+**Deferred to v1.1/v1.2**: Siri / App Intents (deep automation surface), Live Activities, Focus Filters, Action Button suggestions, Apple Watch complications — see the post-launch roadmap below.
+
+### Phase 12 — Polish + App Store (v1 release)
+
 - App Store metadata, screenshots (iPhone 6.7", iPad 13")
 - Privacy manifest (`PrivacyInfo.xcprivacy`) — required for App Store since iOS 17
 - **macOS MAS sandbox audit**: test existing Electron app under MAS sandbox entitlements; fix any file-access, network, or API breakage before submitting macOS to the App Store alongside iOS
 - TestFlight beta (iOS + macOS — both platforms support TestFlight under MAS)
+- Status bar text colour: flip to white in dark mode (carried over from Phase 1)
+
+**Launch gate**: Phases 9 → 10 → 11 → 12 in that order. Phase 9 (subscriptions) must precede 12 because the App Store listing declares subscription products and Apple reviews the IAP flow. Phases 10 and 11 give the launch app native-feeling surfaces without blocking on the more expensive iOS work.
+
+---
+
+## Post-launch roadmap
+
+Once v1 ships, the iOS-distinctive work that earns "first-class iOS" status follows in focused update releases. Each update is also a marketing moment.
+
+### v1.1 — iOS showcase update
+
+The features that make iOS the premium dayGLANCE experience, anchored by the Dynamic Island feature that maps 1:1 onto the now-line / HyperGLANCE concept.
+
+- **HyperGLANCE Live Activity** — Focus sessions and active HyperGLANCE bars render in the Dynamic Island (iPhone 14 Pro+) and on the Lock Screen (all iOS 16.1+ devices). Compact leading shows the active GTD frame icon; compact trailing shows the countdown / progress ring; expanded view shows the full bar with pause/resume/complete buttons (backed by App Intents). 8-hour ActivityKit cap handled by automatic re-issue on long sessions.
+- **Lock Screen widgets** — circular (progress ring or remaining-task count), rectangular (current task + time remaining), and inline (above the clock text). iOS 17+ interactivity for tap-to-complete.
+- **StandBy mode rendering** — the large Home Screen widget rendered full-screen when iPhone is on a charger in landscape. Turns any charging iPhone into an ambient dayGLANCE display.
+- **Full widget size matrix** — Large home screen variants (mini DAY view with HyperGLANCE bars), iPad XL (full 12-hour DAY view).
+
+### v1.2 — Automation and ecosystem
+
+The deep iOS automation surface and integration with the broader GLANCE family.
+
+- **App Intents / Siri Shortcuts** — full set of actions (add task, complete task, start focus, snooze, add to inbox) and queries (current task, next task, today's tasks, focus session). App Shortcuts for Siri discoverability. iOS 16+ App Intents-backed Quick Actions replacing the static Phase 11 set.
+- **Action Button suggestions** (iPhone 15 Pro+) — recommend dayGLANCE App Shortcuts as Action Button assignments.
+- **Focus Filters** — `FocusFilterIntent` extension lets a specific iOS Focus mode filter dayGLANCE to context-tagged tasks (Work Focus → only work-tagged tasks).
+- **Apple Watch complications + Smart Stack** — watchOS widget extension showing current/next task and a schedule strip. Live Activity mirror happens automatically via the iOS↔Watch bridge. No full watchOS app at this stage.
+- **dayGLANCE intents for lastGLANCE / lifeGLANCE** — App Intents exposed for cross-app data exchange so the future lastGLANCE and lifeGLANCE iOS apps can read dayGLANCE state and vice versa. Designed and shipped in lockstep with those apps; not worth front-loading the API surface before there's a consumer.
+
+### Later / nice-to-have
+
+- Full watchOS app (independent, syncs through iCloud)
+- File Provider extension (Files-app browsing of task data)
+- Handoff (compose task on iPhone, continue on Mac)
+- Vision Pro spatial app (far future)
 
 ---
 
