@@ -141,7 +141,7 @@ export default function SubscriptionWall({
               : <span className={`text-xs ${sub}`}>Loading…</span>
             }
           </div>
-          <div className={`text-xs mt-0.5 ${sub}`}>Billed yearly · cancel any time</div>
+          <div className={`text-xs mt-0.5 ${sub}`}>14-day free trial · billed yearly · cancel any time</div>
           {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
 
