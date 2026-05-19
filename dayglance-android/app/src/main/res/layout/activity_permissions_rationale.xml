@@ -13,14 +13,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Health Connect Permissions"
-            android:textAppearance="?attr/textAppearanceHeadlineSmall"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="12dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="dayGLANCE uses Health Connect to display your daily progress as habit rings on the main day view."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="28dp" />
 
         <!-- Steps -->
@@ -28,14 +31,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Steps"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Reads your daily step count to fill the steps habit ring, showing progress toward a daily step goal you set yourself."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="24dp" />
 
         <!-- Sleep -->
@@ -43,14 +49,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Sleep"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Reads your most recent sleep session duration to fill the sleep habit ring, showing progress toward a daily sleep duration goal you set yourself."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="24dp" />
 
         <!-- How your data is handled -->
@@ -58,43 +67,49 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="How your data is handled"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="8dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="• Health data is read on-device and rendered locally in the app."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="• It is never used for analytics, shared with third parties, or written back to Health Connect."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="• dayGLANCE has no developer-operated servers, no account system, and no telemetry."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="• If you have enabled optional Cloud Sync, habit data is included in the sync payload using zero-knowledge AES-256-GCM encryption. The destination server (which you control) sees only encrypted ciphertext."
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="15sp"
+            android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="28dp" />
 
         <!-- Footer -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Granting Health Connect permissions is entirely optional. dayGLANCE functions normally without them; the habit rings will simply appear empty. You can revoke these permissions at any time through the Health Connect app or your device\'s system settings."
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:text="Granting Health Connect permissions is entirely optional. dayGLANCE functions normally without them. You can revoke these permissions at any time through the Health Connect app or your device\'s system settings."
+            android:textSize="13sp"
             android:textColor="@color/colorMutedText"
             android:layout_marginBottom="28dp" />
 

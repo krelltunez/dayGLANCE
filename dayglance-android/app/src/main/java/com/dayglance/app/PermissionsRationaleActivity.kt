@@ -4,8 +4,10 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.browser.customtabs.CustomTabColorSchemeParams
 import androidx.browser.customtabs.CustomTabsIntent
+import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.databinding.ActivityPermissionsRationaleBinding
 
 class PermissionsRationaleActivity : AppCompatActivity() {
@@ -13,6 +15,12 @@ class PermissionsRationaleActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPermissionsRationaleBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Follow the app's own dark/light setting rather than the system night mode.
+        delegate.localNightMode = when (SharedDataStore(this).appDarkMode) {
+            true  -> AppCompatDelegate.MODE_NIGHT_YES
+            false -> AppCompatDelegate.MODE_NIGHT_NO
+            null  -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
         super.onCreate(savedInstanceState)
         binding = ActivityPermissionsRationaleBinding.inflate(layoutInflater)
         setContentView(binding.root)
