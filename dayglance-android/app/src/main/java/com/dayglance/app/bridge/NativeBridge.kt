@@ -122,6 +122,12 @@ class NativeBridge(
     fun checkHealthPermission(): String = health.checkPermission()
 
     @JavascriptInterface
+    fun checkStepsPermission(): String = health.checkStepsPermission()
+
+    @JavascriptInterface
+    fun checkSleepPermission(): String = health.checkSleepPermission()
+
+    @JavascriptInterface
     fun requestHealthPermission(): String = health.requestPermission()
 
     // ── Calendar ────────────────────────────────────────────────────────────

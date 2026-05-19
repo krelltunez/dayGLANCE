@@ -37,6 +37,26 @@ class HealthRepository(context: Context) {
         }
     }
 
+    suspend fun hasStepsPermission(): Boolean = withContext(Dispatchers.IO) {
+        val c = client ?: return@withContext false
+        try {
+            HealthPermission.getReadPermission(StepsRecord::class) in
+                c.permissionController.getGrantedPermissions()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun hasSleepPermission(): Boolean = withContext(Dispatchers.IO) {
+        val c = client ?: return@withContext false
+        try {
+            HealthPermission.getReadPermission(SleepSessionRecord::class) in
+                c.permissionController.getGrantedPermissions()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun getSteps(date: LocalDate): Int = withContext(Dispatchers.IO) {
         val c = client ?: return@withContext 0
         val zone = ZoneId.systemDefault()

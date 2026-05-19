@@ -617,7 +617,8 @@ const DayPlanner = () => {
     deleteHabit,
     reorderHabits,
     syncHealthConnectHabitsRef,
-    resolvePendingHealthHabitRef,
+    refreshHealthPermsRef,
+    healthPerms,
     addStepsHabit,
     addSleepHabit,
   } = useHabits({ playUISound });
@@ -1230,7 +1231,7 @@ const DayPlanner = () => {
         // @JavascriptInterface calls) to after the next paint so the JS thread isn't
         // blocked mid-render, which shows as a brief blank screen on app resume.
         requestAnimationFrame(() => setTimeout(() => {
-          resolvePendingHealthHabitRef.current?.();
+          refreshHealthPermsRef.current?.();
           syncHealthConnectHabitsRef.current?.();
         }, 0));
       }
@@ -1244,7 +1245,7 @@ const DayPlanner = () => {
       iCloudSyncRef.current?.();
       cloudSyncDownloadRef.current?.();
       requestAnimationFrame(() => setTimeout(() => {
-        resolvePendingHealthHabitRef.current?.();
+        refreshHealthPermsRef.current?.();
         syncHealthConnectHabitsRef.current?.();
       }, 0));
     };
@@ -7892,7 +7893,7 @@ const DayPlanner = () => {
     // ── Functions – habits ────────────────────────────────────────────────────
     getTodayHabitCount, incrementHabit, setHabitCount,
     addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
-    addStepsHabit, addSleepHabit,
+    addStepsHabit, addSleepHabit, healthPerms,
 
     // ── Functions – focus mode ────────────────────────────────────────────────
     enterFocusMode, exitFocusMode, skipFocusPhase,

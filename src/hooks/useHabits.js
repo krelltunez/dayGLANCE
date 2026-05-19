@@ -224,41 +224,24 @@ const useHabits = ({ playUISound }) => {
     syncHealthConnectHabitsRef.current?.();
   }, [habits]);
 
-  // Habit config pending permission grant. Stored as a full habit object so the
-  // resolve path doesn't have to reconstruct it.
-  const pendingHealthHabitRef = useRef(null);
+  // Per-type Health Connect permission state: null = not yet checked, true/false = result.
+  const [healthPerms, setHealthPerms] = useState({ steps: null, sleep: null });
 
-  // Called on app foreground / visibility-return. If a health habit is pending
-  // (user tapped Add, got the permission dialog, returned), check whether
-  // permission was granted and add the habit only if it was.
-  const resolvePendingHealthHabit = () => {
-    if (!window.DayGlanceNative || !pendingHealthHabitRef.current) return;
-    let granted = false;
-    try {
-      granted = window.DayGlanceNative.checkHealthPermission() === 'granted';
-    } catch (e) { /* bridge method unavailable — treat as denied */ }
-    const config = pendingHealthHabitRef.current;
-    pendingHealthHabitRef.current = null;
-    if (granted) addHabit(config);
-  };
-  const resolvePendingHealthHabitRef = useRef(null);
-  resolvePendingHealthHabitRef.current = resolvePendingHealthHabit;
-
-  const _addHealthHabit = (config) => {
+  const refreshHealthPerms = () => {
     if (!window.DayGlanceNative) return;
-    let alreadyGranted = false;
     try {
-      alreadyGranted = window.DayGlanceNative.checkHealthPermission() === 'granted';
-    } catch (e) { /* checkHealthPermission unavailable — fall back to old behaviour */ alreadyGranted = true; }
-    if (alreadyGranted) {
-      addHabit(config);
-    } else {
-      pendingHealthHabitRef.current = config;
-      try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {}
-    }
+      const steps = window.DayGlanceNative.checkStepsPermission() === 'granted';
+      const sleep = window.DayGlanceNative.checkSleepPermission() === 'granted';
+      setHealthPerms({ steps, sleep });
+    } catch (e) { /* bridge unavailable — leave state unchanged */ }
   };
+  const refreshHealthPermsRef = useRef(null);
+  refreshHealthPermsRef.current = refreshHealthPerms;
 
-  const addStepsHabit = () => _addHealthHabit({
+  // Check permissions once on mount.
+  useEffect(() => { refreshHealthPerms(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addStepsHabit = () => addHabit({
     name: 'Steps',
     icon: 'Footprints',
     color: 'green',
@@ -269,7 +252,7 @@ const useHabits = ({ playUISound }) => {
     scheduledDays: [0, 1, 2, 3, 4, 5, 6],
   });
 
-  const addSleepHabit = () => _addHealthHabit({
+  const addSleepHabit = () => addHabit({
     name: 'Sleep',
     icon: 'Moon',
     color: 'indigo',
@@ -304,7 +287,8 @@ const useHabits = ({ playUISound }) => {
     deleteHabit,
     reorderHabits,
     syncHealthConnectHabitsRef,
-    resolvePendingHealthHabitRef,
+    refreshHealthPermsRef,
+    healthPerms,
     addStepsHabit,
     addSleepHabit,
   };
