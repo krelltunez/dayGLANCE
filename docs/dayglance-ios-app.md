@@ -397,7 +397,7 @@ StoreKit 2 integration is required on both platforms and unlocks Universal Purch
 - The iOS app uses the `purchases-ios` Swift SPM package for the full RevenueCat SDK experience: entitlement checks, product fetching, purchase/restore flows, and trial eligibility.
 - `SubscriptionBridge.swift` wraps the SDK and exposes it to the web layer via the `WKURLSchemeHandler` synchronous bridge: `getSubscriptionStatus()`, `getProductPrices()`, `purchase(productId:)`, `restorePurchases()`.
 - RevenueCat maps both products to the single "Pro" entitlement — app code only checks `isActive` on the entitlement, never branches on which SKU the user holds.
-- `Purchases.shared.checkTrialOrIntroductoryPriceEligibility` is used to conditionally show the 14-day trial copy on the yearly card only when the user is eligible.
+- `Purchases.shared.checkTrialOrIntroDiscountEligibility` is used to conditionally show the 14-day trial copy on the yearly card only when the user is eligible.
 
 **macOS (Electron) — REST API + `electron.inAppPurchase`**
 
@@ -455,7 +455,7 @@ Two items easy to miss that should be explicitly verified before App Store submi
 - **Real-hardware Universal Purchase test**: buy on iPhone, install on Mac, tap Restore on Mac and confirm entitlement is recognised. Sandbox passing is necessary but not sufficient — entitlement propagation timing and App Store Connect configuration can differ in production.
 - **`com.apple.security.in-app-payments` entitlement**: must be wired into the macOS hardened runtime config, not just the app entitlements file. MAS sandbox is strict about this.
 
-**Status: ✅ Implementation complete (PR #851).** Both commits landed on `develop`: macOS anonymous ID consolidation (REST-only, SHA-256 of userData path as App User ID, identity derived from MAS receipt) and iOS trial eligibility (RC `checkTrialOrIntroductoryPriceEligibility` with `UserDefaults` caching, conditional trial copy in `SubscriptionWall.jsx`). Pre-merge: cold-launch iOS to confirm eligibility resolves to `.eligible`/`.ineligible` (not `.unknown`) within the 3-second refresh window — racing the offerings load would require gating the check on offerings being ready. Post-merge: App Store Connect product registration + subscription group + Universal Purchase, RevenueCat dashboard (iOS app, macOS app, "Pro" entitlement, offering, API keys), API key swap, MAS sandbox entitlement audit. None of those are code work — they unblock TestFlight, not the merge.
+**Status: ✅ Implementation complete (PR #851).** Both commits landed on `develop`: macOS anonymous ID consolidation (REST-only, SHA-256 of userData path as App User ID, identity derived from MAS receipt) and iOS trial eligibility (RC `checkTrialOrIntroDiscountEligibility` with `UserDefaults` caching, conditional trial copy in `SubscriptionWall.jsx`). Pre-merge: cold-launch iOS to confirm eligibility resolves to `.eligible`/`.ineligible` (not `.unknown`) within the 3-second refresh window — racing the offerings load would require gating the check on offerings being ready. Post-merge: App Store Connect product registration + subscription group + Universal Purchase, RevenueCat dashboard (iOS app, macOS app, "Pro" entitlement, offering, API keys), API key swap, MAS sandbox entitlement audit. None of those are code work — they unblock TestFlight, not the merge.
 
 ### Phase 10 — Home screen widgets (WidgetKit) — v1 launch scope
 
