@@ -1,11 +1,12 @@
 import React from 'react';
 import {
   X, Activity, Target, GripVertical, RefreshCw,
-  Pencil, Trash2, ChevronUp, ChevronDown, Plus, Footprints, Moon,
+  Pencil, Trash2, ChevronUp, ChevronDown, Plus, Footprints, Moon, WifiOff,
 } from 'lucide-react';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { getDeviceId } from '../native.js';
 
 const HabitModal = () => {
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
@@ -241,11 +242,21 @@ const HabitModal = () => {
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm font-medium ${textPrimary} truncate flex items-center gap-1.5`}>
                             {habit.name}
-                            {habit.source === 'healthConnect' && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0">
-                                <RefreshCw size={9} />Auto-synced
-                              </span>
-                            )}
+                            {(() => {
+                              const { lastAutoSync } = habit;
+                              const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+                              const isRecent = lastAutoSync?.timestamp &&
+                                Date.now() - new Date(lastAutoSync.timestamp).getTime() < SEVEN_DAYS_MS;
+                              if (!isRecent) return null;
+                              const isThisDevice = lastAutoSync.deviceId === getDeviceId();
+                              if (isThisDevice) {
+                                const paused = habit.unit === 'steps' ? healthPerms?.steps === false : healthPerms?.sleep === false;
+                                if (paused) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-400/10 text-orange-500 flex-shrink-0"><WifiOff size={9} />Not syncing</span>;
+                                return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced on this device</span>;
+                              }
+                              const platform = lastAutoSync.platform ?? 'another device';
+                              return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced on {platform}</span>;
+                            })()}
                           </div>
                           <div className={`text-xs ${textSecondary}`}>
                             {habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}

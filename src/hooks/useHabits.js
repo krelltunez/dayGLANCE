@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
+import { getDeviceId, isNativeIOS } from '../native.js';
 
 const useHabits = ({ playUISound }) => {
   const [habits, setHabits] = useState([]);
@@ -172,13 +173,14 @@ const useHabits = ({ playUISound }) => {
   // Backfills the last 7 days so historical rings are accurate on first setup.
   const syncHealthConnectHabits = () => {
     if (!window.DayGlanceNative) return;
-    const isIOS = !!window.DayGlanceIOS;
-    const platformSource = isIOS ? 'healthKit' : 'healthConnect';
+    const platformSource = isNativeIOS() ? 'healthKit' : 'healthConnect';
     const healthHabits = habits.filter(h => !h.archived && h.source === platformSource);
     if (!healthHabits.length) return;
 
     const today = new Date();
     const updates = {};
+    // Track habits that successfully read today's data — they get the lastAutoSync marker.
+    const syncedTodayIds = new Set();
     for (let daysBack = 0; daysBack < 7; daysBack++) {
       const d = new Date(today);
       d.setDate(d.getDate() - daysBack);
@@ -198,6 +200,7 @@ const useHabits = ({ playUISound }) => {
           }
           if (!updates[dateStr]) updates[dateStr] = {};
           updates[dateStr][habit.id] = count;
+          if (daysBack === 0) syncedTodayIds.add(habit.id);
         } catch (e) { /* ignore parse errors */ }
       }
     }
@@ -216,6 +219,15 @@ const useHabits = ({ playUISound }) => {
         }
         return next;
       });
+    }
+    if (syncedTodayIds.size > 0) {
+      const deviceId = getDeviceId();
+      const platform = isNativeIOS() ? 'iOS' : 'Android';
+      const timestamp = new Date().toISOString();
+      setHabits(prev => prev.map(h => {
+        if (!syncedTodayIds.has(h.id)) return h;
+        return { ...h, lastAutoSync: { deviceId, platform, timestamp }, lastModified: timestamp };
+      }));
     }
   };
 

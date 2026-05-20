@@ -123,6 +123,12 @@ const MobileGlanceSection = () => {
     return false;
   };
 
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const isRecentAutoSync = (habit) => {
+    const ts = habit.lastAutoSync?.timestamp;
+    return !!ts && Date.now() - new Date(ts).getTime() < SEVEN_DAYS_MS;
+  };
+
   return (
 <div className={`px-4 py-4 mobile-tab-fade-in flex-1 min-h-0 overflow-y-auto`}>
   <div className="flex items-center gap-2 mb-4">
@@ -233,7 +239,7 @@ const MobileGlanceSection = () => {
                     habit={habit}
                     count={getTodayHabitCount(habit.id)}
                     darkMode={darkMode}
-                    autoSynced={!!habit.source}
+                    autoSynced={isRecentAutoSync(habit)}
                     syncPaused={isHealthSyncPaused(habit)}
                     onClick={habit.source ? undefined : () => incrementHabit(habit.id)}
                     onContextMenu={habit.source ? undefined : (e) => { e.preventDefault(); clearTimeout(habitLongPressTimer.current); setHabitLongPressId(habit.id); habitLongPressOpenedAt.current = Date.now(); setHabitEditingCountId(null); }}

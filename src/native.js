@@ -14,6 +14,22 @@
  *   }
  */
 
+const DEVICE_ID_KEY = 'dayglance_device_id';
+
+/**
+ * Returns a stable per-installation device ID, generating and persisting one
+ * on first call. Used to identify which device last auto-synced a habit so
+ * other devices can display the correct cross-device badge label.
+ */
+export const getDeviceId = () => {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+};
+
 /**
  * Returns true when running inside the DayGlance Android WebView.
  */
