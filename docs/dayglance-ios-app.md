@@ -390,7 +390,7 @@ StoreKit 2 integration is required on both platforms and unlocks Universal Purch
 - Two products:
   - `com.dayglance.app.pro.yearly` — auto-renewable subscription (14-day free trial included)
   - `com.dayglance.app.pro.lifetime` — **non-consumable** in-app purchase (not in the subscription group)
-- Both products launch at founder pricing. Price is raised manually later in App Store Connect; no offer codes or introductory offer apparatus needed. Apple grandfathers existing subscribers at their original renewal price.
+- Founder pricing: launch both products at the founder price, raise prices manually in App Store Connect after the founder window (~3 months, matching the approach used on Android). For the yearly subscription, existing subscribers continue at their original price on renewal — Apple grandfathers the founder rate. For the lifetime non-consumable, founder buyers keep the entitlement permanently regardless of the later price change. No offer codes or introductory offer apparatus needed; the price-change mechanic handles it cleanly on both product types.
 - Enable Universal Purchase: link iOS and macOS apps in App Store Connect under the same bundle ID family
 
 **iOS — RevenueCat SDK (`purchases-ios`)**
@@ -408,7 +408,7 @@ Why `purchases-ios` cannot run in the Electron main process: `purchases-ios` is 
 How it works:
 - `electron/subscription.ts` calls `inAppPurchase.getProducts(...)` at startup for prices, `inAppPurchase.purchaseProduct(...)` for purchases, and `inAppPurchase.restoreCompletedTransactions()` for restores.
 - The `transactions-updated` observer fires on purchase/restore completion. On success, `fetchEntitlementStatus()` posts the MAS receipt to RevenueCat (`POST /v1/receipts`) — this both registers the purchase and returns entitlement status in one call.
-- Identity is derived from the receipt itself (Apple ID embedded by StoreKit) rather than a persisted user ID. RevenueCat recognises the same Apple ID across devices, so Universal Purchase restore just works.
+- App User ID is a deterministic SHA-256 hash of the Electron `userData` path (`getStableAnonymousId()`) — stable across launches without needing a persisted file. The real identity signal is the receipt itself: the Apple ID embedded by StoreKit is what RevenueCat keys off for cross-device Universal Purchase, so the App User ID doesn't need to match across devices for restore to work.
 - Results are delivered to the renderer via `subscription:event` IPC, matching the same `window.__billingEvent` callback pattern used by Android and iOS.
 
 - RevenueCat dashboard provides customer lookup, manual entitlement grants, and webhook events (subscription started, cancelled, churned) for support and analytics.
@@ -439,6 +439,15 @@ Wiring RevenueCat into Electron is the natural moment to also enable App Sandbox
 - Smoke-test: WebDAV sync, Obsidian vault read/write (security-scoped bookmarks under sandbox), iCloud sync, AI features, RevenueCat purchase + restore flow
 - Document any APIs that break under sandbox and either fix or scope-cut before Phase 12 submission
 - This was previously tracked as open question #9; folding it here resolves the "when?" timing question — it happens alongside the RevenueCat work since both touch the same Electron entitlement surface
+
+**Pre-submission verification (in addition to standard sandbox testing)**
+
+Two items easy to miss that should be explicitly verified before App Store submission:
+
+- **Real-hardware Universal Purchase test**: buy on iPhone, install on Mac, tap Restore on Mac and confirm entitlement is recognised. Sandbox passing is necessary but not sufficient — entitlement propagation timing and App Store Connect configuration can differ in production.
+- **`com.apple.security.in-app-payments` entitlement**: must be wired into the macOS hardened runtime config, not just the app entitlements file. MAS sandbox is strict about this.
+
+**Status: ✅ Implementation complete (PR #851).** Both commits landed on `develop`: macOS anonymous ID consolidation (REST-only, SHA-256 of userData path as App User ID, identity derived from MAS receipt) and iOS trial eligibility (RC `checkTrialOrIntroductoryPriceEligibility` with `UserDefaults` caching, conditional trial copy in `SubscriptionWall.jsx`). Pre-merge: cold-launch iOS to confirm eligibility resolves to `.eligible`/`.ineligible` (not `.unknown`) within the 3-second refresh window — racing the offerings load would require gating the check on offerings being ready. Post-merge: App Store Connect product registration + subscription group + Universal Purchase, RevenueCat dashboard (iOS app, macOS app, "Pro" entitlement, offering, API keys), API key swap, MAS sandbox entitlement audit. None of those are code work — they unblock TestFlight, not the merge.
 
 ### Phase 10 — Home screen widgets (WidgetKit) — v1 launch scope
 
