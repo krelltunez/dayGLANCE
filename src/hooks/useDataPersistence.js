@@ -76,8 +76,9 @@ export default function useDataPersistence({
       })) : [];
       if (unscheduledData) localStorage.setItem('day-planner-unscheduled', JSON.stringify(parsedUnscheduled));
 
-      // Load tasks normally
-      setTasks(parsedTasks);
+      // Load tasks normally; preserve any _native events already queued by Effect B
+      // if it raced ahead of loadData in React's state update batch.
+      setTasks(prev => [...parsedTasks, ...prev.filter(t => t._native)]);
       setUnscheduledTasks(parsedUnscheduled.filter(t => !t.imported));
       if (recycleBinData) {
         setRecycleBin(JSON.parse(recycleBinData));
