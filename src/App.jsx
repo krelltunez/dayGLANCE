@@ -71,6 +71,7 @@ import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
+import { useIntentPoller } from './intents/useIntentPoller.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -851,6 +852,19 @@ const DayPlanner = () => {
     todayIncompleteTasks,
     allTimeIncompleteTasks,
   } = useStats({ tasks, unscheduledTasks, recurringTasks, goals, projects });
+
+  // WebDAV intent event poller — no-op until configured via intent settings (PR #11).
+  useIntentPoller({
+    tasks, unscheduledTasks, recurringTasks, projects,
+    setTasks, setUnscheduledTasks, setRecurringTasks,
+    navigate: tab => {
+      // TABS values: 'glance' | 'timeline' | 'inbox' | 'goals' | 'settings'
+      // mobileActiveTab values: 'dayglance' | 'timeline' | 'inbox' | 'goals' | 'settings'
+      const mobileTab = tab === 'glance' ? 'dayglance' : tab;
+      setMobileActiveTab(mobileTab);
+      if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
+    },
+  });
 
   const {
     todayTasks,
