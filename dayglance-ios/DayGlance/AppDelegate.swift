@@ -19,9 +19,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         UNUserNotificationCenter.current().delegate = self
 
         // Phase 9 — RevenueCat subscriptions
-        // Replace REVENUECAT_IOS_API_KEY with the public iOS SDK key from
-        // the RevenueCat dashboard (App Settings → API Keys → Public app-specific key).
-        SubscriptionBridge.shared.configure(apiKey: "REVENUECAT_IOS_API_KEY")
+        SubscriptionBridge.shared.configure(apiKey: "appl_uHejfwubTbYOTpEPNYFsjXAgnHw")
 
         return true
     }
