@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { buildEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES } from '@glance-apps/intents';
 import { writeEventFile, INTENT_CONFIG_KEY } from './useIntentPoller.js';
+import { logActivity } from './intentLog.js';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -122,8 +123,28 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
             emittedBy: 'app.dayglance',
           });
           await writeEventFile(config, envelope);
+          logActivity({
+            direction: 'out',
+            action: 'notify',
+            event: change.event,
+            source_app: task.source_app,
+            title: task.title,
+            timestamp: now,
+            status: 'ok',
+            error: null,
+          });
         } catch (err) {
           console.warn('[notify] emit failed for task', task.id, ':', err.message);
+          logActivity({
+            direction: 'out',
+            action: 'notify',
+            event: change.event,
+            source_app: task.source_app,
+            title: task.title,
+            timestamp: now,
+            status: 'error',
+            error: err.message,
+          });
         }
       }
     };

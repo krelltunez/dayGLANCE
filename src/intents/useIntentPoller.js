@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { parseEnvelope, filenameFor, parseFilename } from '@glance-apps/intents';
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
 import { handleIntent } from './handleIntent.js';
+import { logActivity } from './intentLog.js';
 
 export const INTENT_CONFIG_KEY = 'dayglance-intent-config';
 const CURSOR_KEY = 'dayglance-intent-cursor';
@@ -186,9 +187,29 @@ async function poll(config, context) {
         continue;
       }
 
-      await handleIntent(envelope.action, envelope.payload, context);
+      const result = await handleIntent(envelope.action, envelope.payload, context);
+      logActivity({
+        direction: 'in',
+        action: envelope.action,
+        event: envelope.payload.event ?? null,
+        source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,
+        title: envelope.payload.title ?? null,
+        timestamp: envelope.emitted_at,
+        status: result.success ? 'ok' : 'error',
+        error: result.success ? null : result.error,
+      });
     } catch (err) {
       console.warn('[intent] Error processing', name, ':', err.message);
+      logActivity({
+        direction: 'in',
+        action: 'unknown',
+        event: null,
+        source_app: null,
+        title: null,
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        error: err.message,
+      });
     }
 
     setCursor(parsed.event_id);

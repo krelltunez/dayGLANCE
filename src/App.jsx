@@ -42,6 +42,7 @@ import RestoreConfirmModal from './components/RestoreConfirmModal.jsx';
 import AutoBackupManagerModal from './components/AutoBackupManagerModal.jsx';
 import ImportCalendarModal from './components/ImportCalendarModal.jsx';
 import StorageBreakdownModal from './components/StorageBreakdownModal.jsx';
+import IntentActivityLogModal from './components/IntentActivityLogModal.jsx';
 import EmptyBinConfirmModal from './components/EmptyBinConfirmModal.jsx';
 import RecurringDeleteModal from './components/RecurringDeleteModal.jsx';
 import EditRecurrenceModal from './components/EditRecurrenceModal.jsx';
@@ -578,6 +579,7 @@ const DayPlanner = () => {
   const [autoBackupRestoreConfirm, setAutoBackupRestoreConfirm] = useState(null); // { type: 'local'|'remote', id, filename, timestamp }
   const autoBackupInProgressRef = useRef(false);
   const [showStorageBreakdown, setShowStorageBreakdown] = useState(false);
+  const [showIntentActivityLog, setShowIntentActivityLog] = useState(false);
 
   const syncAllRef = useRef(null);
 
@@ -7724,6 +7726,7 @@ const DayPlanner = () => {
     autoBackupHistory, setAutoBackupHistory,
     autoBackupRestoreConfirm, setAutoBackupRestoreConfirm,
     showStorageBreakdown, setShowStorageBreakdown,
+    showIntentActivityLog, setShowIntentActivityLog,
 
     // ── Cloud sync ────────────────────────────────────────────────────────────
     cloudSyncConfig, setCloudSyncConfig,
@@ -8215,6 +8218,7 @@ const DayPlanner = () => {
 
       {/* Storage Breakdown Modal */}
       <StorageBreakdownModal />
+      <IntentActivityLogModal />
 
 
       <RecurringDeleteModal />

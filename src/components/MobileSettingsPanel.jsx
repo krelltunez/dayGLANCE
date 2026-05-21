@@ -75,6 +75,7 @@ const MobileSettingsPanel = () => {
     loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
     exportBackup, handleFileUpload, handleBackupFileSelect,
+    setShowIntentActivityLog,
   } = useSyncCtx();
   const {
     routinesEnabled, setRoutinesEnabled,
@@ -282,6 +283,14 @@ const MobileSettingsPanel = () => {
             <ChevronRight size={18} className={textSecondary} />
           </button>
         )}
+        <button
+          onClick={() => setShowIntentActivityLog(true)}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+        >
+          <Activity size={20} className={textSecondary} />
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Intent Activity</span>
+          <ChevronRight size={18} className={textSecondary} />
+        </button>
       </div>
     )}
 
