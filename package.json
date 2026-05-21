@@ -16,6 +16,7 @@
     "build:electron:release": "vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never"
   },
   "dependencies": {
+    "@glance-apps/intents": "^1.0.1",
     "@glance-apps/sync": "^1.0.1",
     "lucide-react": "^0.564.0",
     "react": "^18.2.0",

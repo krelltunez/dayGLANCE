@@ -6,13 +6,34 @@
  * access to the bridge so the rest of the frontend can gracefully degrade
  * when running as a PWA (no bridge present).
  *
+ * Intent protocol constants from @glance-apps/intents are re-exported here
+ * so all bridge-related concerns live in one namespace.
+ *
  * Usage:
  *   import { isNativeAndroid, nativeBridge } from './native.js';
+ *   import { ACTIONS, ANDROID_ACTIONS, SOURCE_APPS } from './native.js';
  *
  *   if (isNativeAndroid()) {
  *     const steps = await nativeBridge.getSteps('2026-03-08');
  *   }
  */
+
+export {
+  ACTIONS,
+  ANDROID_ACTIONS,
+  ENTITY_TYPES,
+  EVENTS,
+  PRIORITY,
+  PRIORITY_ALIASES,
+  QUERY_RETURN_VARS,
+  RETURN_VARS,
+  RETURN_VAR_TYPES,
+  SCHEMA_VERSION,
+  SOURCE_APPS,
+  TABS,
+  UNIVERSAL_RETURN_VARS,
+  UPDATED_FIELDS,
+} from '@glance-apps/intents';
 
 const DEVICE_ID_KEY = 'dayglance_device_id';
 
