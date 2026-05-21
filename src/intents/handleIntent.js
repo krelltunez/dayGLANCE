@@ -14,6 +14,8 @@ import {
   createKey,
 } from '@glance-apps/intents';
 
+export const DEFAULT_TASK_COLOR = 'bg-blue-500';
+
 function ok(extra = {}) {
   return { success: true, task_id: '', error: '', warning: '', ...extra };
 }
@@ -30,28 +32,121 @@ function validate(schema, payload) {
   return { ok: true, data: result.data };
 }
 
-async function handleCreate(payload, tasks) {
+/**
+ * Re-embed tags into the title so dayGLANCE's tag-in-title storage model is
+ * satisfied. normalizeTags strips inline #tags from the title; this puts the
+ * full merged+deduped set back.
+ */
+function rebuildTitle(cleanedTitle, tags) {
+  if (!tags?.length) return cleanedTitle;
+  return `${cleanedTitle} ${tags.map(t => `#${t}`).join(' ')}`;
+}
+
+/**
+ * Split a normalized ISO `due` string into the dayGLANCE task scheduling fields.
+ * Date-only strings (YYYY-MM-DD) and explicit all_day=true produce isAllDay tasks.
+ */
+function parseDue(due, allDay) {
+  if (!due) return null;
+
+  const dateOnly = !due.includes('T');
+  if (dateOnly || allDay) {
+    return { date: due.slice(0, 10), startTime: '00:00', isAllDay: true };
+  }
+
+  const d = new Date(due);
+  const date = [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+  const startTime = [
+    String(d.getHours()).padStart(2, '0'),
+    String(d.getMinutes()).padStart(2, '0'),
+  ].join(':');
+
+  return { date, startTime, isAllDay: false };
+}
+
+/**
+ * Convert a normalizeRecurring-produced `FREQ=…` string to dayGLANCE's
+ * internal recurrence object `{ type, startDate, daysOfWeek?, … }`.
+ */
+function freqToRecurrence(freqStr, startDate) {
+  const DAY_MAP = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 0 };
+  const parts = Object.fromEntries(
+    freqStr.split(';').map(p => {
+      const eq = p.indexOf('=');
+      return [p.slice(0, eq).toUpperCase(), p.slice(eq + 1).toUpperCase()];
+    })
+  );
+
+  const base = { startDate };
+
+  switch (parts.FREQ) {
+    case 'DAILY':
+      return { ...base, type: 'daily' };
+    case 'WEEKLY': {
+      if (parts.BYDAY) {
+        const daysOfWeek = parts.BYDAY.split(',')
+          .map(d => DAY_MAP[d.trim()])
+          .filter(d => d !== undefined);
+        return { ...base, type: 'weekly', daysOfWeek };
+      }
+      return { ...base, type: 'weekly' };
+    }
+    case 'MONTHLY':
+      return { ...base, type: 'monthly' };
+    case 'YEARLY':
+      return { ...base, type: 'yearly' };
+    default:
+      return { ...base, type: 'daily' };
+  }
+}
+
+/** Match a project name or ID against the projects list. Returns projectId or undefined. */
+function resolveProjectId(nameOrId, projects) {
+  if (!nameOrId || !projects?.length) return undefined;
+  return (
+    projects.find(p => p.id === nameOrId)?.id ??
+    projects.find(p => p.name?.toLowerCase() === nameOrId.toLowerCase())?.id
+  );
+}
+
+async function handleCreate(payload, context) {
+  const {
+    tasks = [],
+    unscheduledTasks = [],
+    recurringTasks = [],
+    setTasks,
+    setUnscheduledTasks,
+    setRecurringTasks,
+    projects = [],
+  } = context;
+
   const v = validate(CreateSchema, payload);
   if (!v.ok) return fail(v.error);
 
   const raw = v.data;
 
-  const { title, tags } = normalizeTags({ title: raw.title, tags: raw.tags });
+  const { title: cleanedTitle, tags } = normalizeTags({ title: raw.title, tags: raw.tags });
   const { due, all_day: inferredAllDay } = normalizeDue(raw.due);
   const priority = normalizePriority(raw.priority);
 
   let recurring;
   try {
     recurring = normalizeRecurring(raw.recurring);
-  } catch (e) {
+  } catch {
     return fail(`Invalid recurring value: ${raw.recurring}`);
   }
 
+  const allDay = raw.all_day !== undefined ? raw.all_day : inferredAllDay;
+
   const normalized = {
-    title,
+    title: cleanedTitle,
     tags,
     due,
-    all_day: raw.all_day !== undefined ? raw.all_day : inferredAllDay,
+    all_day: allDay,
     duration: raw.duration,
     deadline: raw.deadline,
     notes: raw.notes,
@@ -62,18 +157,97 @@ async function handleCreate(payload, tasks) {
     source_entity_id: raw.source_entity_id,
   };
 
-  let warning = '';
   let intentKey = null;
 
   if (raw.source_app && raw.source_entity_id) {
     intentKey = await createKey(raw.source_app, raw.source_entity_id, due);
-    const existing = tasks.find(t => t._intentKey === intentKey && !t.completed);
+
+    const existing =
+      tasks.find(t => t._intentKey === intentKey && !t.completed) ||
+      unscheduledTasks.find(t => t._intentKey === intentKey && !t.completed) ||
+      recurringTasks.find(t => t._intentKey === intentKey);
+
     if (existing) {
-      warning = `Task already exists; will update (id: ${existing.id})`;
+      if (setTasks || setUnscheduledTasks || setRecurringTasks) {
+        // Execute: update the existing task in whichever list it lives in.
+        const projectId = resolveProjectId(normalized.project, projects);
+        const taskTitle = rebuildTitle(cleanedTitle, tags);
+        const updates = {
+          title: taskTitle,
+          notes: normalized.notes ?? existing.notes,
+          priority: priority ?? existing.priority,
+          ...(projectId !== undefined ? { projectId } : {}),
+        };
+
+        if (tasks.find(t => t.id === existing.id)) {
+          setTasks(prev => prev.map(t => t.id === existing.id ? { ...t, ...updates } : t));
+        } else if (unscheduledTasks.find(t => t.id === existing.id)) {
+          setUnscheduledTasks(prev => prev.map(t => t.id === existing.id ? { ...t, ...updates } : t));
+        } else {
+          setRecurringTasks(prev => prev.map(t => t.id === existing.id ? { ...t, ...updates } : t));
+        }
+
+        return ok({ task_id: existing.id, warning: 'Updated existing task' });
+      }
+
+      // Skeleton: no setters — return normalized result with warning.
+      const warning = `Task already exists; will update (id: ${existing.id})`;
+      return ok({ warning, _normalized: normalized, _intentKey: intentKey });
     }
   }
 
-  return ok({ warning, _normalized: normalized, _intentKey: intentKey });
+  // Skeleton mode: no setters provided, return normalized result only.
+  if (!setTasks && !setUnscheduledTasks && !setRecurringTasks) {
+    return ok({ warning: '', _normalized: normalized, _intentKey: intentKey });
+  }
+
+  // Execute: create a new task.
+  const taskId = crypto.randomUUID();
+  const projectId = resolveProjectId(normalized.project, projects);
+  const taskTitle = rebuildTitle(cleanedTitle, tags);
+
+  const baseTask = {
+    id: taskId,
+    title: taskTitle,
+    duration: normalized.duration ?? 30,
+    color: DEFAULT_TASK_COLOR,
+    completed: false,
+    notes: normalized.notes ?? '',
+    subtasks: [],
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(normalized.source_app ? { source_app: normalized.source_app } : {}),
+    ...(normalized.source_entity_id ? { source_entity_id: normalized.source_entity_id } : {}),
+    ...(intentKey ? { _intentKey: intentKey } : {}),
+  };
+
+  if (recurring) {
+    const scheduled = parseDue(due, allDay);
+    const startDate = scheduled?.date ?? new Date().toISOString().slice(0, 10);
+    setRecurringTasks(prev => [...prev, {
+      ...baseTask,
+      startTime: scheduled && !scheduled.isAllDay ? scheduled.startTime : '00:00',
+      isAllDay: allDay ?? true,
+      recurrence: freqToRecurrence(recurring, startDate),
+      completedDates: [],
+      exceptions: {},
+    }]);
+  } else if (due) {
+    const scheduled = parseDue(due, allDay);
+    setTasks(prev => [...prev, {
+      ...baseTask,
+      date: scheduled.date,
+      startTime: scheduled.startTime,
+      isAllDay: scheduled.isAllDay,
+    }]);
+  } else {
+    setUnscheduledTasks(prev => [...prev, {
+      ...baseTask,
+      priority: priority ?? 0,
+      ...(normalized.deadline ? { deadline: normalized.deadline } : {}),
+    }]);
+  }
+
+  return ok({ task_id: taskId });
 }
 
 function handleComplete(payload) {
@@ -106,19 +280,18 @@ function handleQuery(payload) {
 
 /**
  * Core intent handler. Validates, normalizes, and checks idempotency.
- * Execution is stubbed — filled in by subsequent PRs per action.
+ * Executes state changes when setters are provided in context.
  *
  * @param {string} action - One of the ACTIONS constants
  * @param {object} payload - Raw payload from the transport layer
- * @param {{ tasks?: object[] }} context - Read-only task list for idempotency checks
+ * @param {object} context - { tasks?, unscheduledTasks?, recurringTasks?, projects?,
+ *                             setTasks?, setUnscheduledTasks?, setRecurringTasks? }
  * @returns {Promise<object>} Result: { success, task_id, error, warning, ...queryVars? }
  */
 export async function handleIntent(action, payload, context = {}) {
-  const { tasks = [] } = context;
-
   switch (action) {
     case ACTIONS.CREATE:
-      return handleCreate(payload, tasks);
+      return handleCreate(payload, context);
     case ACTIONS.COMPLETE:
       return handleComplete(payload);
     case ACTIONS.OPEN:

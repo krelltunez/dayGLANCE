@@ -36,6 +36,7 @@ describe('handleIntent create', () => {
 
   it('parses inline #tags from title and merges with tags field', async () => {
     const r = await handleIntent('create', { title: 'Buy milk #groceries', tags: 'errands' });
+    // _normalized.title is the clean title (tags stripped); tags are in _normalized.tags.
     expect(r._normalized.title).toBe('Buy milk');
     expect(r._normalized.tags).toContain('groceries');
     expect(r._normalized.tags).toContain('errands');
@@ -228,5 +229,145 @@ describe('handleIntent unknown action', () => {
     const r = await handleIntent('destroy_everything', {});
     expect(r.success).toBe(false);
     expect(r.error).toContain('Unknown action');
+  });
+});
+
+// ─── create execution ──────────────────────────────────────────────────────
+
+// Capture context: handler reads tasks/projects from it and writes via setters.
+// Tests read _tasks/_inbox/_recurring to inspect results after the handler runs.
+function makeCapture(initial = {}) {
+  const state = {
+    tasks: [...(initial.tasks ?? [])],
+    unscheduledTasks: [...(initial.unscheduledTasks ?? [])],
+    recurringTasks: [...(initial.recurringTasks ?? [])],
+    projects: initial.projects ?? [],
+  };
+
+  const ctx = {
+    get tasks() { return state.tasks; },
+    get unscheduledTasks() { return state.unscheduledTasks; },
+    get recurringTasks() { return state.recurringTasks; },
+    get projects() { return state.projects; },
+    setTasks: fn => { state.tasks = fn(state.tasks); },
+    setUnscheduledTasks: fn => { state.unscheduledTasks = fn(state.unscheduledTasks); },
+    setRecurringTasks: fn => { state.recurringTasks = fn(state.recurringTasks); },
+    // Aliases for clarity in test assertions.
+    get _tasks() { return state.tasks; },
+    get _inbox() { return state.unscheduledTasks; },
+    get _recurring() { return state.recurringTasks; },
+  };
+  return ctx;
+}
+
+describe('handleIntent create execution', () => {
+  it('returns task_id on success', async () => {
+    const ctx = makeCapture();
+    const r = await handleIntent('create', { title: 'Buy milk' }, ctx);
+    expect(r.success).toBe(true);
+    expect(r.task_id).toBeTruthy();
+  });
+
+  it('creates an inbox task when due is absent', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Buy milk', priority: 2 }, ctx);
+    expect(ctx._inbox).toHaveLength(1);
+    expect(ctx._tasks).toHaveLength(0);
+    expect(ctx._inbox[0].priority).toBe(2);
+  });
+
+  it('creates a scheduled task when due is a date', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Dentist', due: '2026-06-10' }, ctx);
+    expect(ctx._tasks).toHaveLength(1);
+    expect(ctx._tasks[0].date).toBe('2026-06-10');
+    expect(ctx._tasks[0].isAllDay).toBe(true);
+  });
+
+  it('creates a timed scheduled task when due includes a time', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Standup', due: '2026-06-10T09:00:00Z' }, ctx);
+    expect(ctx._tasks).toHaveLength(1);
+    expect(ctx._tasks[0].isAllDay).toBe(false);
+    expect(ctx._tasks[0].startTime).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('creates a recurring template when recurring is provided', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Morning run', recurring: 'daily', due: '2026-06-01' }, ctx);
+    expect(ctx._recurring).toHaveLength(1);
+    expect(ctx._recurring[0].recurrence.type).toBe('daily');
+    expect(ctx._tasks).toHaveLength(0);
+  });
+
+  it('stores title with tags embedded', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Buy milk #grocery', tags: 'errands' }, ctx);
+    const t = ctx._inbox[0];
+    expect(t.title).toContain('#grocery');
+    expect(t.title).toContain('#errands');
+  });
+
+  it('stores source_app, source_entity_id, and _intentKey on the task', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', {
+      title: 'Chore',
+      source_app: 'app.lastglance',
+      source_entity_id: 'chore_1',
+    }, ctx);
+    const t = ctx._inbox[0];
+    expect(t.source_app).toBe('app.lastglance');
+    expect(t.source_entity_id).toBe('chore_1');
+    expect(t._intentKey).toBeTruthy();
+  });
+
+  it('resolves project by name', async () => {
+    const ctx = makeCapture({ projects: [{ id: 'proj-1', name: 'Home' }] });
+    await handleIntent('create', { title: 'Fix sink', project: 'Home' }, ctx);
+    expect(ctx._inbox[0].projectId).toBe('proj-1');
+  });
+
+  it('resolves project by id', async () => {
+    const ctx = makeCapture({ projects: [{ id: 'proj-1', name: 'Home' }] });
+    await handleIntent('create', { title: 'Fix sink', project: 'proj-1' }, ctx);
+    expect(ctx._inbox[0].projectId).toBe('proj-1');
+  });
+
+  it('omits projectId when project does not match', async () => {
+    const ctx = makeCapture({ projects: [{ id: 'proj-1', name: 'Home' }] });
+    await handleIntent('create', { title: 'Fix sink', project: 'Unknown Project' }, ctx);
+    expect(ctx._inbox[0].projectId).toBeUndefined();
+  });
+
+  it('sets the deadline on inbox tasks', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Tax return', deadline: '2026-04-15' }, ctx);
+    expect(ctx._inbox[0].deadline).toBe('2026-04-15');
+  });
+
+  it('updates existing task instead of duplicating (idempotency)', async () => {
+    const key = await createKey('app.lastglance', 'chore_42', '2026-06-01');
+    const existing = { id: 'tsk_1', title: 'Old title', notes: '', priority: 0, _intentKey: key, completed: false };
+    const ctx = makeCapture({ tasks: [existing] });
+
+    const r = await handleIntent('create', {
+      title: 'New title',
+      source_app: 'app.lastglance',
+      source_entity_id: 'chore_42',
+      due: '2026-06-01',
+    }, ctx);
+
+    expect(r.success).toBe(true);
+    expect(r.task_id).toBe('tsk_1');
+    expect(r.warning).toContain('Updated');
+    expect(ctx._tasks).toHaveLength(1);
+    expect(ctx._tasks[0].title).toBe('New title');
+  });
+
+  it('uses default color and 30-min duration when not specified', async () => {
+    const ctx = makeCapture();
+    await handleIntent('create', { title: 'Quick task' }, ctx);
+    expect(ctx._inbox[0].color).toBe('bg-blue-500');
+    expect(ctx._inbox[0].duration).toBe(30);
   });
 });
