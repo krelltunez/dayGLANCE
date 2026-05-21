@@ -5,9 +5,12 @@ import { handleIntent } from './handleIntent.js';
 
 export const INTENT_CONFIG_KEY = 'dayglance-intent-config';
 const CURSOR_KEY = 'dayglance-intent-cursor';
+const GC_LAST_RUN_KEY = 'dayglance-intent-gc-last-run';
 const DEFAULT_EVENTS_PATH = '/GLANCE/events/';
-const DEFAULT_FG_MS = 2 * 60 * 1000;   // 2 minutes
-const DEFAULT_BG_MS = 15 * 60 * 1000;  // 15 minutes
+const DEFAULT_FG_MS = 2 * 60 * 1000;    // 2 minutes
+const DEFAULT_BG_MS = 15 * 60 * 1000;   // 15 minutes
+const DEFAULT_RETENTION_DAYS = 30;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -28,6 +31,15 @@ function getCursor() {
 
 function setCursor(id) {
   localStorage.setItem(CURSOR_KEY, id);
+}
+
+// '20260510T143022Z' → Date
+function parseFilenameDate(ts) {
+  const iso = ts.replace(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+    '$1-$2-$3T$4:$5:$6Z',
+  );
+  return new Date(iso);
 }
 
 // ─── public: write one event file to WebDAV ─────────────────────────────────
@@ -53,6 +65,67 @@ export async function writeEventFile(config, envelope) {
   if (!res.ok) {
     console.error('[intent] writeEventFile failed:', res.status, filename);
   }
+}
+
+// ─── public: garbage-collect old event files ────────────────────────────────
+
+/**
+ * Delete event files older than config.gcRetentionDays (default 30).
+ * Best-effort: 404 responses (already deleted by another app) are treated as
+ * success. Silently no-ops if config is absent.
+ */
+export async function runIntentGC(config) {
+  if (!config?.webdavUrl || !config?.username || !config?.appPassword) return;
+
+  const dir = eventsDir(config);
+  const headers = authHeaders(config);
+  const retentionMs = (config.gcRetentionDays ?? DEFAULT_RETENTION_DAYS) * ONE_DAY_MS;
+  const cutoff = Date.now() - retentionMs;
+
+  let res;
+  try {
+    res = await webdavFetch('PROPFIND', dir, headers, undefined, { Depth: '1' });
+  } catch (err) {
+    console.warn('[intent-gc] PROPFIND error:', err.message);
+    return;
+  }
+
+  if (res.status === 404) return; // directory doesn't exist yet
+  if (!res.ok) {
+    console.warn('[intent-gc] PROPFIND returned', res.status);
+    return;
+  }
+
+  const xml = await res.text();
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const files = [...doc.querySelectorAll('response href')]
+    .map(el => decodeURIComponent(el.textContent.trim().split('/').filter(Boolean).pop()))
+    .filter(name => name.endsWith('.json'))
+    .map(name => ({ name, parsed: parseFilename(name) }))
+    .filter(f => f.parsed !== null);
+
+  let deleted = 0;
+  for (const { name, parsed } of files) {
+    const fileDate = parseFilenameDate(parsed.timestamp);
+    if (isNaN(fileDate) || fileDate.getTime() > cutoff) continue;
+
+    try {
+      const delRes = await webdavFetch('DELETE', `${dir}${name}`, headers);
+      if (delRes.ok || delRes.status === 404) {
+        deleted++;
+      } else {
+        console.warn('[intent-gc] DELETE failed:', delRes.status, name);
+      }
+    } catch (err) {
+      console.warn('[intent-gc] DELETE error:', name, err.message);
+    }
+  }
+
+  if (deleted > 0) {
+    console.log(`[intent-gc] Deleted ${deleted} expired event file(s)`);
+  }
+
+  localStorage.setItem(GC_LAST_RUN_KEY, new Date().toISOString());
 }
 
 // ─── poll once ──────────────────────────────────────────────────────────────
@@ -126,9 +199,9 @@ async function poll(config, context) {
 
 /**
  * Polls the WebDAV intent event log on a configurable cadence, processing
- * new events through handleIntent. Config is read from localStorage at mount.
- * Pass state and setters in `context`; the ref pattern ensures the poller
- * always sees the latest values without restarting the interval.
+ * new events through handleIntent. Runs GC once per day (checked on mount
+ * and rescheduled every 24 h while the app stays open).
+ * Config is read from localStorage at mount; no-ops when unconfigured.
  *
  * context shape: { tasks, unscheduledTasks, recurringTasks, projects,
  *                  setTasks, setUnscheduledTasks, setRecurringTasks, navigate }
@@ -147,38 +220,72 @@ export function useIntentPoller(context) {
 
     const fgMs = config.foregroundInterval ?? DEFAULT_FG_MS;
     const bgMs = config.backgroundInterval ?? DEFAULT_BG_MS;
-    let timerId = null;
+    let pollTimerId = null;
+    let gcTimerId = null;
     let destroyed = false;
 
-    const scheduleNext = () => {
+    // ── polling ──────────────────────────────────────────────────────────────
+
+    const scheduleNextPoll = () => {
       if (destroyed) return;
-      timerId = setTimeout(run, document.hidden ? bgMs : fgMs);
+      pollTimerId = setTimeout(runPoll, document.hidden ? bgMs : fgMs);
     };
 
-    const run = async () => {
+    const runPoll = async () => {
       if (destroyed) return;
       try {
         await poll(config, contextRef.current);
       } catch (err) {
         console.warn('[intent] poll error:', err.message);
       }
-      scheduleNext();
+      scheduleNextPoll();
     };
 
     const onVisibilityChange = () => {
       if (!document.hidden) {
-        clearTimeout(timerId);
-        run();
+        clearTimeout(pollTimerId);
+        runPoll();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
-    run();
+    // ── GC ───────────────────────────────────────────────────────────────────
+
+    const scheduleNextGC = () => {
+      if (destroyed) return;
+      gcTimerId = setTimeout(runGC, ONE_DAY_MS);
+    };
+
+    const runGC = async () => {
+      if (destroyed) return;
+      try {
+        await runIntentGC(config);
+      } catch (err) {
+        console.warn('[intent-gc] error:', err.message);
+      }
+      scheduleNextGC();
+    };
+
+    // Run GC on mount if it hasn't run in the last 24 h
+    const lastGC = localStorage.getItem(GC_LAST_RUN_KEY);
+    const gcDue = !lastGC || (Date.now() - new Date(lastGC).getTime() > ONE_DAY_MS);
+    if (gcDue) {
+      runGC();
+    } else {
+      // Schedule next GC for when the 24 h window expires
+      const msSinceLastGC = Date.now() - new Date(lastGC).getTime();
+      gcTimerId = setTimeout(runGC, ONE_DAY_MS - msSinceLastGC);
+    }
+
+    // ── initial poll ─────────────────────────────────────────────────────────
+    runPoll();
 
     return () => {
       destroyed = true;
-      clearTimeout(timerId);
+      clearTimeout(pollTimerId);
+      clearTimeout(gcTimerId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 }
+
