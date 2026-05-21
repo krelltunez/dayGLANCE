@@ -310,12 +310,16 @@ function handleComplete(payload, context) {
   return ok({ task_id: target.id, warning });
 }
 
-function handleOpen(payload) {
+function handleOpen(payload, context) {
   const v = validate(OpenSchema, payload);
   if (!v.ok) return fail(v.error);
 
   const requested = v.data.tab;
   const tab = Object.values(TABS).includes(requested) ? requested : TABS.GLANCE;
+
+  // navigate(tab) is provided by the transport layer; it handles device-specific
+  // routing (mobileActiveTab vs tabletActiveTab) and the goals-enabled fallback.
+  context.navigate?.(tab);
 
   return ok({ _normalized: { tab } });
 }
@@ -349,7 +353,7 @@ export async function handleIntent(action, payload, context = {}) {
     case ACTIONS.COMPLETE:
       return handleComplete(payload, context);
     case ACTIONS.OPEN:
-      return handleOpen(payload);
+      return handleOpen(payload, context);
     case ACTIONS.QUERY:
       return handleQuery(payload);
     default:

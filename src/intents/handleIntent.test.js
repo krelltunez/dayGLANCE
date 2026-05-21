@@ -286,6 +286,37 @@ describe('handleIntent open', () => {
   });
 });
 
+// ─── open execution ────────────────────────────────────────────────────────
+
+describe('handleIntent open execution', () => {
+  it('calls navigate with the resolved tab', async () => {
+    const calls = [];
+    const ctx = { navigate: tab => calls.push(tab) };
+    await handleIntent('open', { tab: 'inbox' }, ctx);
+    expect(calls).toEqual(['inbox']);
+  });
+
+  it('calls navigate with glance when tab is unrecognised', async () => {
+    const calls = [];
+    const ctx = { navigate: tab => calls.push(tab) };
+    await handleIntent('open', { tab: 'nowhere' }, ctx);
+    expect(calls).toEqual(['glance']);
+  });
+
+  it('calls navigate with glance when tab is omitted', async () => {
+    const calls = [];
+    const ctx = { navigate: tab => calls.push(tab) };
+    await handleIntent('open', {}, ctx);
+    expect(calls).toEqual(['glance']);
+  });
+
+  it('does not throw when navigate is absent (skeleton mode)', async () => {
+    const r = await handleIntent('open', { tab: 'timeline' }, {});
+    expect(r.success).toBe(true);
+    expect(r._normalized.tab).toBe('timeline');
+  });
+});
+
 // ─── query ─────────────────────────────────────────────────────────────────
 
 describe('handleIntent query', () => {
