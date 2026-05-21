@@ -98,9 +98,11 @@ export default async function handler(req, res) {
   try {
     const headers = {};
 
-    // Only set Content-Type for requests that have a body — sending it on GET/HEAD
-    // causes Apache mod_dav to return 404 (unexpected Content-Type on bodyless request).
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
+    // Only set Content-Type for requests that have a body — sending it on
+    // bodyless methods (GET, HEAD, PROPFIND, DELETE, MKCOL) causes Apache
+    // mod_dav to return 4xx errors.
+    const bodylessMethods = new Set(['GET', 'HEAD', 'PROPFIND', 'DELETE', 'MKCOL']);
+    if (!bodylessMethods.has(req.method)) {
       headers['Content-Type'] = req.headers['content-type'] || 'application/octet-stream';
     }
 
