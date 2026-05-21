@@ -242,69 +242,62 @@ const MobileSettingsPanel = () => {
     </div>
 
     {/* Sync buttons */}
-    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeApp()) && (
-      <div className="space-y-2">
-        <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
-        {calSyncConfigured && (
-          <button
-            onClick={() => { if (!isSyncing) syncAll(); }}
-            disabled={isSyncing}
-            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
-          >
-            <div className="relative">
-              <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                isSyncing ? 'bg-blue-500 animate-pulse' : calSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-              }`} />
-            </div>
-            <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
-          </button>
-        )}
-        {cloudSyncConfig?.enabled && (
-          <button
-            onClick={() => cloudSyncUpload()}
-            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-          >
-            <div className="relative">
-              <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-              }`} />
-            </div>
-            <div className="flex-1 text-left">
-              <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
-              {cloudSyncStatus === 'error' && cloudSyncError && (
-                <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
-              )}
-              {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
-                <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
-              )}
-            </div>
-          </button>
-        )}
-        {isNativeApp() && (
-          <button
-            onClick={() => setMobileSettingsView('obsidian')}
-            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-          >
-            <div className="relative">
-              <BookOpen size={20} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
-              {obsidianConfig?.enabled && (
-                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                  obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-                }`} />
-              )}
-            </div>
-            <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
-            <ChevronRight size={18} className={textSecondary} />
-          </button>
-        )}
-      </div>
-    )}
-
-    {/* Glance Integrations */}
     <div className="space-y-2">
-      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Integrations</h3>
+      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
+      {calSyncConfigured && (
+        <button
+          onClick={() => { if (!isSyncing) syncAll(); }}
+          disabled={isSyncing}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
+        >
+          <div className="relative">
+            <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+              isSyncing ? 'bg-blue-500 animate-pulse' : calSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+            }`} />
+          </div>
+          <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
+        </button>
+      )}
+      {cloudSyncConfig?.enabled && (
+        <button
+          onClick={() => cloudSyncUpload()}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+        >
+          <div className="relative">
+            <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+              (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+            }`} />
+          </div>
+          <div className="flex-1 text-left">
+            <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+            {cloudSyncStatus === 'error' && cloudSyncError && (
+              <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
+            )}
+            {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
+              <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
+            )}
+          </div>
+        </button>
+      )}
+      {isNativeApp() && (
+        <button
+          onClick={() => setMobileSettingsView('obsidian')}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+        >
+          <div className="relative">
+            <BookOpen size={20} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
+            {obsidianConfig?.enabled && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+              }`} />
+            )}
+          </div>
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
+          <ChevronRight size={18} className={textSecondary} />
+        </button>
+      )}
       <button
         onClick={() => setMobileSettingsView('intent')}
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
