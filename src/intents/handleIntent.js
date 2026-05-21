@@ -250,10 +250,64 @@ async function handleCreate(payload, context) {
   return ok({ task_id: taskId });
 }
 
-function handleComplete(payload) {
+function handleComplete(payload, context) {
   const v = validate(CompleteSchema, payload);
   if (!v.ok) return fail(v.error);
-  return ok({ _normalized: v.data });
+
+  const { title: searchTitle, completed_at } = v.data;
+  const { tasks = [], unscheduledTasks = [], setTasks, setUnscheduledTasks } = context;
+
+  // Skeleton mode: no setters provided.
+  if (!setTasks && !setUnscheduledTasks) {
+    return ok({ _normalized: v.data });
+  }
+
+  // Collect all incomplete tasks, tagging each with which list it came from.
+  const candidates = [
+    ...tasks.map(t => ({ ...t, _list: 'tasks' })),
+    ...unscheduledTasks.map(t => ({ ...t, _list: 'unscheduled' })),
+  ].filter(t => !t.completed);
+
+  const norm = s => s.toLowerCase().trim();
+  const needle = norm(searchTitle);
+
+  // Exact match first, then partial.
+  let matches = candidates.filter(t => norm(t.title) === needle);
+  if (!matches.length) {
+    matches = candidates.filter(t => norm(t.title).includes(needle));
+  }
+
+  if (!matches.length) {
+    return fail('no matching task');
+  }
+
+  let warning = '';
+  let target = matches[0];
+
+  if (matches.length > 1) {
+    // Soonest-due tiebreak: scheduled date, then deadline, then no-date (sorts last).
+    const dueOf = t => t.date || t.deadline || null;
+    matches.sort((a, b) => {
+      const da = dueOf(a), db = dueOf(b);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    target = matches[0];
+    warning = `${matches.length} tasks matched "${searchTitle}"; completed soonest-due (${target.date || target.deadline || 'no date'})`;
+  }
+
+  const completedAt = completed_at || new Date().toISOString();
+  const patch = { completed: true, completedAt };
+
+  if (target._list === 'tasks') {
+    setTasks(prev => prev.map(t => t.id === target.id ? { ...t, ...patch } : t));
+  } else {
+    setUnscheduledTasks(prev => prev.map(t => t.id === target.id ? { ...t, ...patch } : t));
+  }
+
+  return ok({ task_id: target.id, warning });
 }
 
 function handleOpen(payload) {
@@ -293,7 +347,7 @@ export async function handleIntent(action, payload, context = {}) {
     case ACTIONS.CREATE:
       return handleCreate(payload, context);
     case ACTIONS.COMPLETE:
-      return handleComplete(payload);
+      return handleComplete(payload, context);
     case ACTIONS.OPEN:
       return handleOpen(payload);
     case ACTIONS.QUERY:

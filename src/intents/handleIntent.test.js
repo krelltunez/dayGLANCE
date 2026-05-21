@@ -165,6 +165,98 @@ describe('handleIntent complete', () => {
   });
 });
 
+// ─── complete execution ────────────────────────────────────────────────────
+
+function task(overrides) {
+  return { id: crypto.randomUUID(), title: 'Task', completed: false, duration: 30, color: 'bg-blue-500', ...overrides };
+}
+
+describe('handleIntent complete execution', () => {
+  it('fails when no task matches', async () => {
+    const ctx = makeCapture({ tasks: [task({ title: 'Feed cat' })] });
+    const r = await handleIntent('complete', { title: 'Walk dog' }, ctx);
+    expect(r.success).toBe(false);
+    expect(r.error).toBe('no matching task');
+  });
+
+  it('completes an exact-match scheduled task', async () => {
+    const t = task({ title: 'Feed cat', date: '2026-06-01' });
+    const ctx = makeCapture({ tasks: [t] });
+    const r = await handleIntent('complete', { title: 'Feed cat' }, ctx);
+    expect(r.success).toBe(true);
+    expect(r.task_id).toBe(t.id);
+    expect(ctx._tasks[0].completed).toBe(true);
+    expect(ctx._tasks[0].completedAt).toBeTruthy();
+  });
+
+  it('completes an exact-match inbox task', async () => {
+    const t = task({ title: 'Buy milk', priority: 1 });
+    const ctx = makeCapture({ unscheduledTasks: [t] });
+    const r = await handleIntent('complete', { title: 'Buy milk' }, ctx);
+    expect(r.success).toBe(true);
+    expect(ctx._inbox[0].completed).toBe(true);
+  });
+
+  it('uses the provided completed_at timestamp', async () => {
+    const t = task({ title: 'Feed cat', date: '2026-06-01' });
+    const ctx = makeCapture({ tasks: [t] });
+    await handleIntent('complete', { title: 'Feed cat', completed_at: '2026-06-01T08:00:00Z' }, ctx);
+    expect(ctx._tasks[0].completedAt).toBe('2026-06-01T08:00:00Z');
+  });
+
+  it('falls back to a partial match when no exact match exists', async () => {
+    const t = task({ title: 'Feed cat #home', date: '2026-06-01' });
+    const ctx = makeCapture({ tasks: [t] });
+    const r = await handleIntent('complete', { title: 'Feed cat' }, ctx);
+    expect(r.success).toBe(true);
+    expect(ctx._tasks[0].completed).toBe(true);
+  });
+
+  it('prefers exact match over partial when both exist', async () => {
+    const exact = task({ id: 'exact', title: 'Feed cat', date: '2026-06-02' });
+    const partial = task({ id: 'partial', title: 'Feed cat and dog', date: '2026-06-01' });
+    const ctx = makeCapture({ tasks: [partial, exact] });
+    const r = await handleIntent('complete', { title: 'Feed cat' }, ctx);
+    expect(r.task_id).toBe('exact');
+    expect(r.warning).toBe('');
+  });
+
+  it('completes soonest-due task and sets warning on multiple matches', async () => {
+    const later = task({ id: 'later', title: 'Feed cat', date: '2026-06-10' });
+    const sooner = task({ id: 'sooner', title: 'Feed cat', date: '2026-06-01' });
+    const ctx = makeCapture({ tasks: [later, sooner] });
+    const r = await handleIntent('complete', { title: 'Feed cat' }, ctx);
+    expect(r.task_id).toBe('sooner');
+    expect(r.warning).toContain('2 tasks matched');
+    expect(ctx._tasks.find(t => t.id === 'sooner').completed).toBe(true);
+    expect(ctx._tasks.find(t => t.id === 'later').completed).toBe(false);
+  });
+
+  it('tasks without a date sort after dated tasks in tiebreak', async () => {
+    const nodueInbox = task({ id: 'nodueInbox', title: 'Feed cat', priority: 0 });
+    const dated = task({ id: 'dated', title: 'Feed cat', date: '2026-06-10' });
+    const ctx = makeCapture({ tasks: [dated], unscheduledTasks: [nodueInbox] });
+    const r = await handleIntent('complete', { title: 'Feed cat' }, ctx);
+    expect(r.task_id).toBe('dated');
+  });
+
+  it('skips already-completed tasks in search', async () => {
+    const done = task({ title: 'Feed cat', date: '2026-06-01', completed: true });
+    const todo = task({ id: 'todo', title: 'Feed cat', date: '2026-06-02' });
+    const ctx = makeCapture({ tasks: [done, todo] });
+    const r = await handleIntent('complete', { title: 'Feed cat' }, ctx);
+    expect(r.task_id).toBe('todo');
+    expect(r.warning).toBe('');
+  });
+
+  it('is case-insensitive', async () => {
+    const t = task({ title: 'Feed Cat', date: '2026-06-01' });
+    const ctx = makeCapture({ tasks: [t] });
+    const r = await handleIntent('complete', { title: 'feed cat' }, ctx);
+    expect(r.success).toBe(true);
+  });
+});
+
 // ─── open ──────────────────────────────────────────────────────────────────
 
 describe('handleIntent open', () => {
