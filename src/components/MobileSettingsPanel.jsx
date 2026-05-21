@@ -22,6 +22,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { INTENT_CONFIG_KEY } from '../intents/useIntentPoller.js';
 
 const MobileSettingsPanel = () => {
   const {
@@ -106,6 +107,21 @@ const MobileSettingsPanel = () => {
     reminderSettings, setReminderSettings,
     applyReminderPreset, updateCategoryReminder,
   } = useFeaturesCtx();
+
+  const [intentForm, setIntentForm] = useState(() => {
+    const raw = localStorage.getItem(INTENT_CONFIG_KEY);
+    const saved = raw ? JSON.parse(raw) : {};
+    return {
+      webdavUrl: saved.webdavUrl ?? '',
+      username: saved.username ?? '',
+      appPassword: saved.appPassword ?? '',
+      eventsPath: saved.eventsPath ?? '/GLANCE/events/',
+      foregroundInterval: saved.foregroundInterval ?? 120000,
+      backgroundInterval: saved.backgroundInterval ?? 900000,
+      gcRetentionDays: saved.gcRetentionDays ?? 30,
+    };
+  });
+  const [intentSaved, setIntentSaved] = useState(false);
 
   // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
   const mobileSettingsViewRef = useRef(mobileSettingsView);
@@ -226,73 +242,74 @@ const MobileSettingsPanel = () => {
     </div>
 
     {/* Sync buttons */}
-    {(calSyncConfigured || cloudSyncConfig?.enabled || obsidianConfig?.enabled || isNativeApp()) && (
-      <div className="space-y-2">
-        <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
-        {calSyncConfigured && (
-          <button
-            onClick={() => { if (!isSyncing) syncAll(); }}
-            disabled={isSyncing}
-            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
-          >
-            <div className="relative">
-              <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
-              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                isSyncing ? 'bg-blue-500 animate-pulse' : calSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-              }`} />
-            </div>
-            <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
-          </button>
-        )}
-        {cloudSyncConfig?.enabled && (
-          <button
-            onClick={() => cloudSyncUpload()}
-            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-          >
-            <div className="relative">
-              <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-              }`} />
-            </div>
-            <div className="flex-1 text-left">
-              <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
-              {cloudSyncStatus === 'error' && cloudSyncError && (
-                <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
-              )}
-              {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
-                <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
-              )}
-            </div>
-          </button>
-        )}
-        {isNativeApp() && (
-          <button
-            onClick={() => setMobileSettingsView('obsidian')}
-            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-          >
-            <div className="relative">
-              <BookOpen size={20} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
-              {obsidianConfig?.enabled && (
-                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                  obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-                }`} />
-              )}
-            </div>
-            <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
-            <ChevronRight size={18} className={textSecondary} />
-          </button>
-        )}
+    <div className="space-y-2">
+      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
+      {calSyncConfigured && (
         <button
-          onClick={() => setShowIntentActivityLog(true)}
+          onClick={() => { if (!isSyncing) syncAll(); }}
+          disabled={isSyncing}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3 ${isSyncing ? 'opacity-70' : ''}`}
+        >
+          <div className="relative">
+            <RefreshCw size={20} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+              isSyncing ? 'bg-blue-500 animate-pulse' : calSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+            }`} />
+          </div>
+          <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
+        </button>
+      )}
+      {cloudSyncConfig?.enabled && (
+        <button
+          onClick={() => cloudSyncUpload()}
           className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
         >
-          <Activity size={20} className={textSecondary} />
-          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Intent Activity</span>
+          <div className="relative">
+            <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+              (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+            }`} />
+          </div>
+          <div className="flex-1 text-left">
+            <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
+            {cloudSyncStatus === 'error' && cloudSyncError && (
+              <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
+            )}
+            {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
+              <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
+            )}
+          </div>
+        </button>
+      )}
+      {isNativeApp() && (
+        <button
+          onClick={() => setMobileSettingsView('obsidian')}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+        >
+          <div className="relative">
+            <BookOpen size={20} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
+            {obsidianConfig?.enabled && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                obsidianSyncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : obsidianSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
+              }`} />
+            )}
+          </div>
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
           <ChevronRight size={18} className={textSecondary} />
         </button>
-      </div>
-    )}
+      )}
+      <button
+        onClick={() => setMobileSettingsView('intent')}
+        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+      >
+        <Activity size={20} className={intentForm.webdavUrl ? 'text-blue-500' : textSecondary} />
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Glance Integrations</span>
+        {intentForm.webdavUrl && (
+          <span className="w-2 h-2 rounded-full bg-green-500 mr-1" />
+        )}
+        <ChevronRight size={18} className={textSecondary} />
+      </button>
+    </div>
 
     {/* Stats */}
     {/* Sub-menu buttons */}
@@ -1536,6 +1553,201 @@ const MobileSettingsPanel = () => {
       )}
     </div>
   )}
+
+  {/* Glance Integrations sub-view */}
+  {mobileSettingsView === 'intent' && (() => {
+    const inputCls = `w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-400' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm`;
+    const labelCls = `block text-sm ${textSecondary} mb-1`;
+    const sectionCls = `text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1 mb-2`;
+
+    const saveIntentConfig = () => {
+      const cfg = {
+        ...intentForm,
+        gcRetentionDays: Number(intentForm.gcRetentionDays) || 30,
+      };
+      if (cfg.webdavUrl || cfg.username || cfg.appPassword) {
+        localStorage.setItem(INTENT_CONFIG_KEY, JSON.stringify(cfg));
+      } else {
+        localStorage.removeItem(INTENT_CONFIG_KEY);
+      }
+      setIntentSaved(true);
+      setTimeout(() => setIntentSaved(false), 2000);
+    };
+
+    const fgOptions = [
+      { label: '30 sec', value: 30000 },
+      { label: '1 min', value: 60000 },
+      { label: '2 min', value: 120000 },
+      { label: '5 min', value: 300000 },
+      { label: '10 min', value: 600000 },
+      { label: '30 min', value: 1800000 },
+    ];
+    const bgOptions = [
+      { label: '5 min', value: 300000 },
+      { label: '15 min', value: 900000 },
+      { label: '30 min', value: 1800000 },
+      { label: '1 hr', value: 3600000 },
+      { label: '6 hr', value: 21600000 },
+      { label: '24 hr', value: 86400000 },
+    ];
+
+    return (
+      <div className="px-4 py-4 space-y-5">
+        <button
+          onClick={() => setMobileSettingsView('main')}
+          className={`flex items-center gap-2 ${textSecondary} mb-2`}
+        >
+          <ChevronLeft size={18} />
+          <span className="text-sm font-medium">Settings</span>
+        </button>
+        <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+          <Activity size={18} className={intentForm.webdavUrl ? 'text-blue-500' : textSecondary} />
+          Glance Integrations
+        </h4>
+        <p className={`text-xs ${textSecondary} -mt-3`}>
+          Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
+        </p>
+
+        {/* WebDAV endpoint */}
+        <div>
+          <h5 className={sectionCls}>WebDAV Endpoint</h5>
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>Server URL</label>
+              <input
+                type="url"
+                placeholder="https://nextcloud.example.com/remote.php/dav/files/user"
+                value={intentForm.webdavUrl}
+                onChange={e => setIntentForm(p => ({ ...p, webdavUrl: e.target.value }))}
+                className={inputCls}
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Username</label>
+              <input
+                type="text"
+                placeholder="your-username"
+                value={intentForm.username}
+                onChange={e => setIntentForm(p => ({ ...p, username: e.target.value }))}
+                className={inputCls}
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>App password</label>
+              <input
+                type="password"
+                placeholder="••••••••••••"
+                value={intentForm.appPassword}
+                onChange={e => setIntentForm(p => ({ ...p, appPassword: e.target.value }))}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Events path</label>
+              <input
+                type="text"
+                placeholder="/GLANCE/events/"
+                value={intentForm.eventsPath}
+                onChange={e => setIntentForm(p => ({ ...p, eventsPath: e.target.value }))}
+                className={inputCls}
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              <p className={`text-xs ${textSecondary} mt-1`}>Path on the WebDAV server where event files are stored.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Poll cadence */}
+        <div>
+          <h5 className={sectionCls}>Poll Cadence</h5>
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls}>Foreground interval</label>
+              <select
+                value={intentForm.foregroundInterval}
+                onChange={e => setIntentForm(p => ({ ...p, foregroundInterval: Number(e.target.value) }))}
+                className={inputCls}
+              >
+                {fgOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <p className={`text-xs ${textSecondary} mt-1`}>How often to check for new events while the app is in the foreground.</p>
+            </div>
+            <div>
+              <label className={labelCls}>Background interval</label>
+              <select
+                value={intentForm.backgroundInterval}
+                onChange={e => setIntentForm(p => ({ ...p, backgroundInterval: Number(e.target.value) }))}
+                className={inputCls}
+              >
+                {bgOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <p className={`text-xs ${textSecondary} mt-1`}>How often to check while the browser tab is hidden.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Retention */}
+        <div>
+          <h5 className={sectionCls}>Maintenance</h5>
+          <div>
+            <label className={labelCls}>Retention (days)</label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={intentForm.gcRetentionDays}
+              onChange={e => setIntentForm(p => ({ ...p, gcRetentionDays: e.target.value }))}
+              className={inputCls}
+            />
+            <p className={`text-xs ${textSecondary} mt-1`}>Event files older than this are deleted automatically.</p>
+          </div>
+        </div>
+
+        {/* Save */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={saveIntentConfig}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            {intentSaved ? 'Saved' : 'Save'}
+          </button>
+          {intentForm.webdavUrl && (
+            <button
+              onClick={() => {
+                setIntentForm({ webdavUrl: '', username: '', appPassword: '', eventsPath: '/GLANCE/events/', foregroundInterval: 120000, backgroundInterval: 900000, gcRetentionDays: 30 });
+                localStorage.removeItem(INTENT_CONFIG_KEY);
+              }}
+              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
+
+        {/* Activity log shortcut */}
+        <div>
+          <h5 className={sectionCls}>Activity</h5>
+          <button
+            onClick={() => setShowIntentActivityLog(true)}
+            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+          >
+            <Activity size={20} className={textSecondary} />
+            <span className={`font-medium ${textPrimary} flex-1 text-left`}>Intent Activity Log</span>
+            <ChevronRight size={18} className={textSecondary} />
+          </button>
+        </div>
+      </div>
+    );
+  })()}
 
   {/* Frames sub-view */}
   {mobileSettingsView === 'frames' && (

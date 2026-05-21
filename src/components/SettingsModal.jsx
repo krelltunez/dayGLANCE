@@ -10,6 +10,7 @@ import { getStorageUsage } from '../utils/storage.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
+import { INTENT_CONFIG_KEY } from '../intents/useIntentPoller.js';
 
 const SettingsModal = () => {
   const {
@@ -56,6 +57,7 @@ const SettingsModal = () => {
     obsidianVaultHandleRef,
     performObsidianSync,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
+    setShowIntentActivityLog,
   } = useSyncCtx();
   const {
     habitsEnabled, setHabitsEnabled,
@@ -70,6 +72,21 @@ const SettingsModal = () => {
   const provider = cloudSyncProviders[currentProvider];
   const storageUsage = getStorageUsage();
   const storageWarning = storageUsage.totalBytes > 4 * 1024 * 1024;
+
+  const [intentForm, setIntentForm] = useState(() => {
+    const raw = localStorage.getItem(INTENT_CONFIG_KEY);
+    const saved = raw ? JSON.parse(raw) : {};
+    return {
+      webdavUrl: saved.webdavUrl ?? '',
+      username: saved.username ?? '',
+      appPassword: saved.appPassword ?? '',
+      eventsPath: saved.eventsPath ?? '/GLANCE/events/',
+      foregroundInterval: saved.foregroundInterval ?? 120000,
+      backgroundInterval: saved.backgroundInterval ?? 900000,
+      gcRetentionDays: saved.gcRetentionDays ?? 30,
+    };
+  });
+  const [intentSaved, setIntentSaved] = useState(false);
 
   const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
   const [mainWindowHotkey, setMainWindowHotkey] = useState(() => localStorage.getItem('dg-main-window-hotkey') || '');
@@ -1388,6 +1405,147 @@ const SettingsModal = () => {
                         </p>
                       )}
 
+                      </>)}
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Glance Integrations Section */}
+                    <div className="space-y-3">
+                      <button onClick={() => toggleSettingsSection('intent')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
+                        <Activity size={16} className={textSecondary} />
+                        Glance Integrations
+                        {intentForm.webdavUrl && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.intent ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.intent && (<>
+                      <p className={`${textSecondary} text-xs`}>
+                        Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
+                      </p>
+                      <div className="space-y-3">
+                        <div>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>Server URL</label>
+                          <input
+                            type="url"
+                            placeholder="https://nextcloud.example.com/remote.php/dav/files/user"
+                            value={intentForm.webdavUrl}
+                            onChange={e => setIntentForm(p => ({ ...p, webdavUrl: e.target.value }))}
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Username</label>
+                            <input
+                              type="text"
+                              placeholder="your-username"
+                              value={intentForm.username}
+                              onChange={e => setIntentForm(p => ({ ...p, username: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>App password</label>
+                            <input
+                              type="password"
+                              placeholder="••••••••••••"
+                              value={intentForm.appPassword}
+                              onChange={e => setIntentForm(p => ({ ...p, appPassword: e.target.value }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>Events path</label>
+                          <input
+                            type="text"
+                            placeholder="/GLANCE/events/"
+                            value={intentForm.eventsPath}
+                            onChange={e => setIntentForm(p => ({ ...p, eventsPath: e.target.value }))}
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          />
+                          <p className={`text-xs ${textSecondary} mt-1`}>Path on the WebDAV server where event files are stored.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Foreground poll</label>
+                            <select
+                              value={intentForm.foregroundInterval}
+                              onChange={e => setIntentForm(p => ({ ...p, foregroundInterval: Number(e.target.value) }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            >
+                              <option value={30000}>30 sec</option>
+                              <option value={60000}>1 min</option>
+                              <option value={120000}>2 min</option>
+                              <option value={300000}>5 min</option>
+                              <option value={600000}>10 min</option>
+                              <option value={1800000}>30 min</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>Background poll</label>
+                            <select
+                              value={intentForm.backgroundInterval}
+                              onChange={e => setIntentForm(p => ({ ...p, backgroundInterval: Number(e.target.value) }))}
+                              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                            >
+                              <option value={300000}>5 min</option>
+                              <option value={900000}>15 min</option>
+                              <option value={1800000}>30 min</option>
+                              <option value={3600000}>1 hr</option>
+                              <option value={21600000}>6 hr</option>
+                              <option value={86400000}>24 hr</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>Event retention (days)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={intentForm.gcRetentionDays}
+                            onChange={e => setIntentForm(p => ({ ...p, gcRetentionDays: e.target.value }))}
+                            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                          />
+                          <p className={`text-xs ${textSecondary} mt-1`}>Event files older than this are deleted automatically.</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => {
+                              const cfg = { ...intentForm, gcRetentionDays: Number(intentForm.gcRetentionDays) || 30 };
+                              if (cfg.webdavUrl || cfg.username || cfg.appPassword) {
+                                localStorage.setItem(INTENT_CONFIG_KEY, JSON.stringify(cfg));
+                              } else {
+                                localStorage.removeItem(INTENT_CONFIG_KEY);
+                              }
+                              setIntentSaved(true);
+                              setTimeout(() => setIntentSaved(false), 2000);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
+                          >
+                            {intentSaved ? 'Saved' : 'Save'}
+                          </button>
+                          {intentForm.webdavUrl && (
+                            <button
+                              onClick={() => {
+                                setIntentForm({ webdavUrl: '', username: '', appPassword: '', eventsPath: '/GLANCE/events/', foregroundInterval: 120000, backgroundInterval: 900000, gcRetentionDays: 30 });
+                                localStorage.removeItem(INTENT_CONFIG_KEY);
+                              }}
+                              className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
+                            >
+                              Disconnect
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setShowIntentActivityLog(true)}
+                            className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-sm flex items-center gap-1.5 transition-colors`}
+                          >
+                            <Activity size={14} />
+                            Activity Log
+                          </button>
+                        </div>
+                      </div>
                       </>)}
                     </div>
 
