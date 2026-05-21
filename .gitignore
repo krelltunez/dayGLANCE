@@ -33,3 +33,43 @@ dayglance-android/app/src/main/assets/web
 # Local release signing secrets — never commit
 .env.release
 *.p12
+
+# Android build outputs
+dayglance-android/app/build/
+dayglance-android/.gradle/
+dayglance-android/build/
+dayglance-android/local.properties
+
+# Stream Deck temp build artifacts
+stream-deck-plugin/rollup.config-*.cjs
+
+# iOS / Xcode
+dayglance-ios/build/
+dayglance-ios/DerivedData/
+dayglance-ios/.build/
+dayglance-ios/*.xcuserstate
+dayglance-ios/**/xcuserdata/
+dayglance-ios/**/*.xcuserdatad/
+
+# macOS
+.DS_Store
+
+# Android build outputs
+dayglance-android/app/build/
+dayglance-android/.gradle/
+dayglance-android/build/
+dayglance-android/local.properties
+
+# Stream Deck temp build artifacts
+stream-deck-plugin/rollup.config-*.cjs
+
+# iOS / Xcode
+dayglance-ios/build/
+dayglance-ios/DerivedData/
+dayglance-ios/.build/
+dayglance-ios/*.xcuserstate
+dayglance-ios/**/xcuserdata/
+dayglance-ios/**/*.xcuserdatad/
+
+# macOS
+.DS_Store
