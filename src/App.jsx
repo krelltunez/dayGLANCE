@@ -5577,6 +5577,20 @@ const DayPlanner = () => {
     };
   }, [showVoiceInput, voiceIsRecording, voiceIsTranscribing, voiceParsedTasks, voiceParsedEdits, voiceManualMode, voiceCanRecord, voiceHasTranscription, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceApplyAllChanges]);
 
+  // L — toggle Intent Activity Log
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key !== 'l' && e.key !== 'L') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault();
+      setShowIntentActivityLog(prev => !prev);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setShowIntentActivityLog]);
+
   // Getting Started checklist - uses persistent progress tracking
   const gettingStartedItems = useMemo(() => {
     return [
