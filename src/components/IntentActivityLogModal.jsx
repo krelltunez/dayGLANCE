@@ -103,7 +103,7 @@ const IntentActivityLogModal = () => {
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-4 pt-4 pb-3 border-b ${borderClass} flex-shrink-0`}>
-          <h3 className={`text-sm font-semibold ${textPrimary}`}>Intent Activity</h3>
+          <h3 className={`text-sm font-semibold ${textPrimary}`}>Intent Activity Log</h3>
           <div className="flex items-center gap-1">
             {entries.length > 0 && (
               <button
