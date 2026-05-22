@@ -16,6 +16,7 @@ const EVENT_COLORS = {
   query:       'bg-stone-100 text-stone-600',
   notify:      'bg-purple-100 text-purple-700',
   error:       'bg-red-100 text-red-700',
+  warn:        'bg-amber-100 text-amber-700',
 };
 
 const EVENT_COLORS_DARK = {
@@ -30,17 +31,37 @@ const EVENT_COLORS_DARK = {
   query:       'bg-gray-700 text-gray-400',
   notify:      'bg-purple-900/40 text-purple-400',
   error:       'bg-red-900/40 text-red-400',
+  warn:        'bg-amber-900/40 text-amber-400',
+};
+
+const CRYPTO_ERROR_MESSAGES = {
+  NoKeyError:            'encryption not configured',
+  WrongKeyError:         'decryption failed: wrong key',
+  NotEncryptedError:     'unexpected: envelope not encrypted',
+  MalformedEnvelopeError:'malformed envelope',
+  InvalidPayloadError:   'invalid payload for encryption',
+  no_key:                'key not ready — sent plaintext',
 };
 
 function badgeClass(entry, darkMode) {
-  const key = entry.status === 'error' ? 'error' : (entry.event ?? entry.action);
+  const key = entry.status === 'error' ? 'error' : entry.status === 'warn' ? 'warn' : (entry.event ?? entry.action);
   return darkMode ? (EVENT_COLORS_DARK[key] ?? EVENT_COLORS_DARK.updated) : (EVENT_COLORS[key] ?? EVENT_COLORS.updated);
 }
 
 function badgeLabel(entry) {
   if (entry.status === 'error') return 'error';
+  if (entry.status === 'warn') return 'warn';
   if (entry.event) return entry.event;
   return entry.action;
+}
+
+function errorMessage(entry) {
+  if (!entry.error) return null;
+  return CRYPTO_ERROR_MESSAGES[entry.error] ?? entry.error;
+}
+
+function errorTextClass(entry) {
+  return entry.status === 'warn' ? 'text-amber-500' : 'text-red-500';
 }
 
 function shortApp(source_app) {
@@ -165,7 +186,7 @@ const IntentActivityLogModal = () => {
                           <p className={`text-xs ${textPrimary} mt-0.5 truncate`}>{entry.title}</p>
                         )}
                         {entry.error && (
-                          <p className="text-xs text-red-500 mt-0.5 truncate">{entry.error}</p>
+                          <p className={`text-xs ${errorTextClass(entry)} mt-0.5 truncate`}>{errorMessage(entry)}</p>
                         )}
                       </div>
 
