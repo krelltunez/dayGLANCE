@@ -6,7 +6,7 @@ This doc is the source of truth for *how the package is being built*. The protoc
 
 ## Status
 
-**Phase 1 in progress.** Schema decisions closed (May 2026). PR #1 (scaffold) is the active piece of work.
+**Phases 1, 2, and 2.5 package work complete (May 2026).** `@glance-apps/intents@1.0.0` and `@glance-apps/intents@1.1.0` published. dayGLANCE consumes `1.0.0` in production. Phase 2.5 dayGLANCE PRs are the active piece of work and (along with the pre-work item) block Phase 3 (lastGLANCE adoption).
 
 ## Why a shared package
 
@@ -27,7 +27,8 @@ What's in the package:
 - Zod schemas for all 5 action payloads + WebDAV file envelope, namespaced under `v1/`
 - Normalizers: priority (int|string → canonical), recurring (shorthand → RRULE), tags (parse inline `#tags`, merge, dedupe), due (parse various date inputs to ISO 8601, infer all_day)
 - Idempotency helpers: `createKey(source_app, source_entity_id, due)` and `eventId()`
-- WebDAV envelope helpers: `filenameFor`, `parseFilename`, `buildEnvelope`, `parseEnvelope`
+- WebDAV envelope helpers: `filenameFor`, `parseFilename`, `buildEnvelope`, `parseEnvelope`. Envelope helpers accept an optional encryption key parameter; when provided alongside an `encrypted: true` envelope, the helpers transparently encrypt/decrypt the payload (added in package `1.1.0` as part of Phase 2.5).
+- Crypto helpers (added in `1.1.0`): AES-GCM encrypt/decrypt primitives for use by the envelope helpers. Key derivation lives in each consumer's existing sync-encryption code; the package operates on derived keys only.
 - TS types re-exported for consumers
 
 What's deliberately not in the package:
@@ -151,22 +152,85 @@ Eleven PRs in the dayGLANCE repo. Critical-path subset (PRs needed before lastGL
 
 WebDAV endpoint is configurable independently from the sync endpoint, mirroring how cloud sync and remote backup are independent. Default is the same value but the user can split them.
 
+### Phase 2.5: Optional encryption for WebDAV intent envelopes
+
+**Package work complete (`@glance-apps/intents@1.1.0` published). dayGLANCE PRs are the active work; remain a blocker for Phase 3.**
+
+Added after Phases 1-2 shipped to address the privacy concern that WebDAV intent files can sit on a third-party server (Koofr, Box, Hetzner) in plaintext. Self-hosted users have full control over their WebDAV; users on hosted WebDAV providers do not. Bringing intents encryption to parity with cloud sync's optional encryption closes that gap.
+
+Affects both the `@glance-apps/intents` package (envelope format + helpers) and dayGLANCE (settings UI, emitter, poller). Cleanly additive: plaintext envelopes still work, both forms coexist in the same directory, consumers without keys skip encrypted events with a logged warning.
+
+**Locked decisions:**
+
+- **Same key as cloud sync.** Users who want intents encryption must have cloud sync encryption enabled first; the same passphrase derives the same key, used for both features. Intents encryption is a separate toggle but gated on sync encryption being on. The settings UI hides or disables the intents encryption toggle when sync encryption is off, with copy explaining the prerequisite.
+- **Per-app toggle, not protocol-wide.** Each app decides independently whether to write encrypted events. Consumers handle both encrypted and plaintext events transparently.
+- **Cipher: AES-GCM**, matching cloud sync. Per-event random IV stored in the envelope. No IV reuse.
+- **Envelope shape with encryption:** plaintext envelope retains `event_id`, `timestamp`, `source_app`, `source_entity_id`, `due`, plus new fields `encrypted: true`, `iv`, and `payload_ciphertext`. Encrypted payload (base64-encoded ciphertext) contains `action`, `title`, `notes`, `tags`, `priority`, `recurring`, `project`, and any other user-readable fields. The plaintext envelope is the minimum needed for consumers to filter by `source_app`, compute idempotency keys (`source_app` + `source_entity_id` + `due`), and order/GC events without bulk decryption.
+- **Only `create` and `notify` actions can be encrypted.** Other action types (`query`, `open`, `complete`) don't carry user-readable payload data and don't reliably have `source_app` / `source_entity_id` / `due` in the first place. Validators reject encrypted envelopes for action types other than `create` and `notify`. This keeps the invariant clean: an encrypted envelope is guaranteed to have the routing/idempotency header fields populated.
+- **Consumer behavior on undecryptable events:** skip and log a warning. Never hard-fail. The activity log surfaces decryption failures so users can diagnose configuration drift between apps. Matches the protocol's existing defensive-consumer stance for unknown event types.
+
+**Schema versioning:** non-breaking. The `encrypted` field is optional and additive; existing plaintext envelopes remain valid. Minor version bump (`1.x.y` → `1.(x+1).0`).
+
+**Package API shape (locked during implementation, captured here for consumer reference):**
+
+- **Separate functions, not overloads.** `buildEnvelope` and `parseEnvelope` stay synchronous and operate on plaintext. New `buildEncryptedEnvelope` and `parseEncryptedEnvelope` handle the encrypted path. Plaintext callers don't change; backward compatible.
+- **Key type: `CryptoKey`** (Web Crypto API). The package accepts `CryptoKey` rather than raw bytes (`Uint8Array`). Reuses what cloud sync's derivation pipeline already produces, preserves non-extractable key handling, no internal `importKey` per operation.
+- **Async only on the encrypted path.** `buildEncryptedEnvelope(payload, key): Promise<EncryptedEnvelope>` and `parseEncryptedEnvelope(file, key): Promise<Envelope>` are async because Web Crypto is async. Plaintext functions stay sync.
+- **Failure signaling: typed errors thrown, not nullable returns.** Encrypted-path functions throw exported error classes: `NoKeyError`, `WrongKeyError`, `NotEncryptedError`, `MalformedEnvelopeError`, and (build-side) `InvalidPayloadError` (for attempting to encrypt a non-`create`/`notify` action). Consumers wrap in try/catch and branch on error type. Each error class maps directly to a distinct activity-log entry on the dayGLANCE side.
+
+#### Package PRs (`@glance-apps/intents`) — **complete**
+
+| PR | Scope | Status |
+|---|---|---|
+| #9 | `schemas/v1/`: extend envelope schema with optional `encrypted: true`, `iv` (base64), and `payload_ciphertext` (base64) fields. When `encrypted` is true, structural payload fields move into the encrypted blob. Validators accept both forms; reject encrypted envelopes for action types other than `create` and `notify`. | ✅ |
+| #10 | `crypto/`: AES-GCM encrypt/decrypt helpers. Key parameter is a `CryptoKey` (consumer passes it in; package doesn't do passphrase derivation — that lives in each consumer's existing sync-encryption code). Exported error classes for failure modes. | ✅ |
+| #11 | `webdav/`: add `buildEncryptedEnvelope` and `parseEncryptedEnvelope` (async, take a `CryptoKey`). Existing `buildEnvelope` and `parseEnvelope` remain synchronous and plaintext-only. | ✅ |
+| #12 | Bump package to `1.1.0`; CHANGELOG entry; `npm publish`. | ✅ Published. |
+
+#### dayGLANCE PRs
+
+**Pre-work before PR #14:** verify how the cloud sync code currently exposes (or hides) the derived `CryptoKey`. The crypto helpers in `@glance-apps/intents@1.1.0` operate on a `CryptoKey` — they don't do passphrase derivation. PR #14 (emitter) needs to hand the package a `CryptoKey`. Options depending on what already exists:
+
+- If `@glance-apps/sync` exposes the derived `CryptoKey` (or a method to get it given the passphrase), reuse directly. **Preferred.**
+- If sync keeps the key internal and only exposes encrypt/decrypt methods, factor the derivation into a shared helper — either as an exported function in `@glance-apps/sync`, or as a new tiny `@glance-apps/crypto` package, or (least preferred) duplicated in dayGLANCE with a clear comment pointing at the sync implementation.
+
+Resolve this before starting PR #14. The same answer applies to lastGLANCE Phase 3 PR #12, so it's worth doing the structural work once. See `dayglance-prework-key-exposure-prompt.md` for the prompt to hand to Code for this investigation.
+
+| PR | Scope |
+|---|---|
+| #12 | Upgrade to `@glance-apps/intents@1.1.0`; no behavior change |
+| #13 | Settings UI: intents encryption toggle in the integration settings panel; gated on sync encryption being enabled (hidden or disabled with explanatory copy when not). Surface the "uses cloud sync passphrase" note inline. |
+| #14 | Emitter (Phase 2 PR #9): when intents encryption is on, obtain `CryptoKey` from the sync derivation pipeline (per pre-work resolution) and pass it to `buildEncryptedEnvelope`. Wrap in try/catch for typed errors; surface failures to activity log. |
+| #15 | Poller (Phase 2 PR #7): inspect envelope; if `encrypted: true`, call `parseEncryptedEnvelope` with the `CryptoKey`; if plaintext, call `parseEnvelope`. On any typed error from the encrypted path (`NoKeyError`, `WrongKeyError`, `NotEncryptedError`, `MalformedEnvelopeError`), log distinct activity-log entry and skip event. |
+| #16 | Activity log (Phase 2 PR #10): render distinct activity-log entries per error class. `NoKeyError` → "encryption not configured." `WrongKeyError` → "decryption failed (wrong key)." `NotEncryptedError` and `MalformedEnvelopeError` are defensive-only (shouldn't happen in normal operation) and surface as warnings if they do fire. |
+
+**Critical-path subset for Phase 3:** package work complete. dayGLANCE PRs #12-16 land in parallel with lastGLANCE Phase 3 PRs; lastGLANCE needs the package to be at `1.1.0` but does not need dayGLANCE-side encryption to be enabled by any specific user when Phase 3 ships (the encryption is opt-in per app per user).
+
 ### Phase 3: lastGLANCE adopts the protocol
 
-Starts when dayGLANCE PRs #3, #7, #9 are merged (the starred critical path above).
+Starts when dayGLANCE PRs #3, #7, #9 are merged (the starred critical path above) **and** Phase 2.5 package PRs #9-12 are published (encryption support in the package).
 
 | PR | Scope |
 |---|---|
 | #1 | Add `@glance-apps/intents` dependency; pull in constants and schemas |
-| #2 | Per-chore `auto_schedule_to_dayglance` toggle (Dexie v2 migration: add the boolean field) |
-| #3 | "Do this today" outbound `create` action, gated on WebDAV being configured |
-| #4 | Auto-schedule logic when `auto_schedule_to_dayglance=true` chore crosses cadence threshold |
-| #5 | WebDAV poller for inbound `notify`, filters on `source_app=app.lastglance` |
-| #6 | Inbound handler: on `event=completed`, log a CompletionEvent with `source="dayglance"`. v1 ignores other events (defensive accept, no action). |
-| #7 | Standalone-mode detection: WebDAV configured? dayGLANCE reachable? Hide integration UI accordingly. |
-| #8 | Settings UI for the integration |
+| #2 | Data model: per-chore `auto_schedule_to_dayglance` boolean (Dexie v2 migration) |
+| #3 | Outbound `create` action: shared emitter that writes a WebDAV event file via the package's envelope helpers, gated on WebDAV being configured |
+| #4 | Card-level `+ dG` button: appears on chore cards when cadence threshold crossed; tap emits `create` via the Phase 3 PR #3 emitter |
+| #5 | Overdue notification popup: "Send to dayGLANCE" button in the existing overdue notification UI; tap emits `create` |
+| #6 | Per-chore `auto_schedule_to_dayglance` toggle in chore edit form (UI only; data model in PR #2); auto-schedule logic emits `create` when toggle is on and chore crosses cadence threshold |
+| #7 | WebDAV poller for inbound `notify`, filters on `source_app=app.lastglance` |
+| #8 | Inbound handler: on `event=completed`, log a CompletionEvent with `source="dayglance"`. v1 ignores other events (defensive accept, no action). |
+| #9 | Standalone-mode detection: WebDAV configured? dayGLANCE reachable? Hide integration UI accordingly. |
+| #10 | Settings UI for the integration |
+| #11 | Intents encryption toggle in integration settings, gated on cloud sync encryption being enabled. Same "uses cloud sync passphrase" copy as dayGLANCE. |
+| #12 | Outbound emitter (PR #3) consumes intents encryption setting: when on, obtain `CryptoKey` from the sync derivation pipeline (per pre-work resolution) and call `buildEncryptedEnvelope`. Wrap in try/catch for typed errors. |
+| #13 | Inbound poller (PR #7) inspects envelope; if `encrypted: true`, call `parseEncryptedEnvelope` with the `CryptoKey`; if plaintext, call `parseEnvelope`. On typed errors from the encrypted path, log to activity log and skip event. |
 
 v1 ignores `uncompleted` events. If a user wants to remove a completion that came from a dayGLANCE un-completion, they delete it manually in lastGLANCE.
+
+The three outbound trigger surfaces (PRs #4, #5, #6) all converge on the shared emitter from PR #3. UI surfaces are additive; the per-instance card and notification buttons are the primary discoverability, the per-chore toggle is the set-and-forget option. Default for the toggle is off.
+
+Intents encryption (PRs #11-13) is additive on top of the integration. Plaintext intents work end-to-end without it; the encryption layer activates only when the user enables both cloud sync encryption and intents encryption. Consumers handle plaintext and encrypted events transparently in the same directory.
 
 ### Phase 4: Android intent transport + web URL transport (parallel-eligible)
 
@@ -222,20 +286,19 @@ End-to-end tests (lastGLANCE emits `create`, dayGLANCE picks it up, completes it
 
 ## Critical-path ordering
 
-To get lastGLANCE shipping integration ASAP, the minimum path is:
+Phases 1 and 2 complete. Current critical path to lastGLANCE shipping integration:
 
-**Phase 1 (all 8 PRs)** → **Phase 2 PRs #1-3 (handler skeleton + create execution)** → **Phase 2 PRs #7, #9 (WebDAV transport + notify emission)** → **Phase 3 (lastGLANCE)**
+**Phase 2.5 package PRs #9-12 (envelope encryption helpers, package `1.1.0`)** → **Phase 3 (lastGLANCE)**
 
-Phase 2 PRs #4-6, #8, #10-11 backfill afterward. Phase 4 transports run parallel.
+Phase 2.5 dayGLANCE PRs #12-16 land in parallel with Phase 3. Phase 4 transports run parallel.
 
 This is the chosen ordering. End-to-end working before polish.
 
 ## Open items
 
-- **Repo and npm credentials**: GitHub repo `intents` needs to exist with branch protection mirroring sync; `NPM_TOKEN` secret in repo settings for CI publishing in PR #8.
-- **WebDAV endpoint default behavior in dayGLANCE settings UI**: the user-facing label and default-value behavior for "sync endpoint" vs "intent endpoint." Resolve before Phase 2 PR #11.
 - **`uncompleted` semantics if added later**: defensive: ignore for v1 in lastGLANCE; revisit if user feedback demands handling.
 - **Milestone completion semantics in lifeGLANCE** (date vs badge): resolve when scoping Phase 5. Doesn't affect the protocol.
+- **Activity log UX for decryption failures** in dayGLANCE (Phase 2.5 PR #16): visual treatment for "skipped, couldn't decrypt" entries — distinct from successful events, surfaces enough info for the user to diagnose (timestamp, source_app, "decryption failed: no key" vs "decryption failed: wrong key") without leaking sensitive content.
 
 ## What this doc does not cover
 
