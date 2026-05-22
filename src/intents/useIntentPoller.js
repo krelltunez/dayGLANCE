@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { parseEnvelope, filenameFor, parseFilename } from '@glance-apps/intents';
+import { parseEnvelope, parseEncryptedEnvelope, filenameFor, parseFilename, NoKeyError, WrongKeyError, NotEncryptedError, MalformedEnvelopeError } from '@glance-apps/intents';
+import { getSessionKey } from '@glance-apps/sync';
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
 import { handleIntent } from './handleIntent.js';
 import { logActivity } from './intentLog.js';
@@ -174,9 +175,33 @@ async function poll(config, context) {
       const raw = await fileRes.json();
       let envelope;
       try {
-        envelope = parseEnvelope(raw);
-      } catch {
-        console.warn('[intent] Unparseable envelope, skipping:', name);
+        if (raw?.encrypted === true) {
+          envelope = await parseEncryptedEnvelope(raw, getSessionKey());
+        } else {
+          envelope = parseEnvelope(raw);
+        }
+      } catch (parseErr) {
+        let errorCode = parseErr.name ?? 'parse_error';
+        if (parseErr instanceof NoKeyError) {
+          console.warn('[intent] Skipping encrypted event (no key):', name);
+        } else if (parseErr instanceof WrongKeyError) {
+          console.warn('[intent] Skipping encrypted event (wrong key):', name);
+        } else if (parseErr instanceof NotEncryptedError || parseErr instanceof MalformedEnvelopeError) {
+          console.warn('[intent] Skipping malformed envelope:', name);
+        } else {
+          console.warn('[intent] Unparseable envelope, skipping:', name);
+          errorCode = 'parse_error';
+        }
+        logActivity({
+          direction: 'in',
+          action: 'unknown',
+          event: null,
+          source_app: null,
+          title: null,
+          timestamp: new Date().toISOString(),
+          status: 'error',
+          error: errorCode,
+        });
         setCursor(parsed.event_id);
         continue;
       }
