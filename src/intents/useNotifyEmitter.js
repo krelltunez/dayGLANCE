@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { buildEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES } from '@glance-apps/intents';
+import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES } from '@glance-apps/intents';
+import { hasEncryptionReady, getSessionKey } from '@glance-apps/sync';
 import { writeEventFile, INTENT_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
 
@@ -103,25 +104,45 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
     if (!emits.length) return;
 
     const fire = async () => {
+      const useEncryption = config.encryptionEnabled && hasEncryptionReady();
+      const keyUnavailable = config.encryptionEnabled && !hasEncryptionReady();
+
       for (const { task, change } of emits) {
-        try {
-          const envelope = buildEnvelope({
+        const payload = {
+          event_id: makeEventId(),
+          source_app: task.source_app,
+          source_entity_id: task.source_entity_id,
+          event: change.event,
+          task_id: task.id,
+          title: task.title,
+          timestamp: now,
+          entity_type: ENTITY_TYPES.TASK,
+          ...(change.due !== undefined ? { due: change.due } : {}),
+          ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
+          ...(change.completed_at !== undefined ? { completed_at: change.completed_at } : {}),
+        };
+
+        if (keyUnavailable) {
+          // Encryption is configured but the session key isn't loaded yet (new device,
+          // passphrase not entered). Fall back to plaintext so events still flow and log
+          // the configuration drift so the user can diagnose it.
+          console.warn('[notify] encryption configured but key not ready; emitting plaintext for task', task.id);
+          logActivity({
+            direction: 'out',
             action: 'notify',
-            payload: {
-              event_id: makeEventId(),
-              source_app: task.source_app,
-              source_entity_id: task.source_entity_id,
-              event: change.event,
-              task_id: task.id,
-              title: task.title,
-              timestamp: now,
-              entity_type: ENTITY_TYPES.TASK,
-              ...(change.due !== undefined ? { due: change.due } : {}),
-              ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
-              ...(change.completed_at !== undefined ? { completed_at: change.completed_at } : {}),
-            },
-            emittedBy: 'app.dayglance',
+            event: change.event,
+            source_app: task.source_app,
+            title: task.title,
+            timestamp: now,
+            status: 'warn',
+            error: 'no_key',
           });
+        }
+
+        try {
+          const envelope = useEncryption
+            ? await buildEncryptedEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' }, getSessionKey())
+            : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
           await writeEventFile(config, envelope);
           logActivity({
             direction: 'out',
@@ -143,7 +164,7 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
             title: task.title,
             timestamp: now,
             status: 'error',
-            error: err.message,
+            error: err.name ?? err.message,
           });
         }
       }
