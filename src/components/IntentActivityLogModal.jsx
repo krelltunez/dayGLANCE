@@ -92,7 +92,7 @@ const IntentActivityLogModal = () => {
     <div
       className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60]"
       onClick={() => setShowIntentActivityLog(false)}
-      onKeyDown={e => { if (e.key === 'Escape') setShowIntentActivityLog(false); }}
+      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setShowIntentActivityLog(false); } }}
       tabIndex={-1}
       ref={el => el && el.focus()}
     >
