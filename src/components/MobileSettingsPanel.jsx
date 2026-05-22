@@ -303,7 +303,7 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <Activity size={20} className={intentForm.webdavUrl ? 'text-blue-500' : textSecondary} />
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Glance Integrations</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>GLANCE Integrations</span>
         {intentForm.webdavUrl && (
           <span className="w-2 h-2 rounded-full bg-green-500 mr-1" />
         )}
@@ -1554,7 +1554,7 @@ const MobileSettingsPanel = () => {
     </div>
   )}
 
-  {/* Glance Integrations sub-view */}
+  {/* GLANCE Integrations sub-view */}
   {mobileSettingsView === 'intent' && (() => {
     const inputCls = `w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-400' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm`;
     const labelCls = `block text-sm ${textSecondary} mb-1`;
@@ -1602,7 +1602,7 @@ const MobileSettingsPanel = () => {
         </button>
         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <Activity size={18} className={intentForm.webdavUrl ? 'text-blue-500' : textSecondary} />
-          Glance Integrations
+          GLANCE Integrations
         </h4>
         <p className={`text-xs ${textSecondary} -mt-3`}>
           Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.

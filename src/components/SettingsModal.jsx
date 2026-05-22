@@ -1410,11 +1410,11 @@ const SettingsModal = () => {
 
                     <hr className={borderClass} />
 
-                    {/* Glance Integrations Section */}
+                    {/* GLANCE Integrations Section */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('intent')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Activity size={16} className={textSecondary} />
-                        Glance Integrations
+                        GLANCE Integrations
                         {intentForm.webdavUrl && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.intent ? '' : 'rotate-180'}`} />
                       </button>
