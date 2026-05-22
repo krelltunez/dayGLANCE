@@ -6,7 +6,7 @@ This doc is the source of truth for *how the package is being built*. The protoc
 
 ## Status
 
-**Phases 1, 2, and 2.5 package work complete (May 2026).** `@glance-apps/intents@1.0.0` and `@glance-apps/intents@1.1.0` published. dayGLANCE consumes `1.0.0` in production. Phase 2.5 dayGLANCE PRs are the active piece of work and (along with the pre-work item) block Phase 3 (lastGLANCE adoption).
+**Phases 1, 2, and 2.5 intents-package work complete (May 2026).** `@glance-apps/intents@1.0.0` and `@glance-apps/intents@1.1.0` published. dayGLANCE consumes `1.0.0` in production. Phase 2.5 pre-work resolved (see "dayGLANCE PRs" below): one precursor patch release of `@glance-apps/sync` (`1.0.1` → `1.0.2`) adds a `getSessionKey()` export, then dayGLANCE PRs #12-16 are the active work and (along with that sync patch) block Phase 3 (lastGLANCE adoption).
 
 ## Why a shared package
 
@@ -189,22 +189,43 @@ Affects both the `@glance-apps/intents` package (envelope format + helpers) and 
 
 #### dayGLANCE PRs
 
-**Pre-work before PR #14:** verify how the cloud sync code currently exposes (or hides) the derived `CryptoKey`. The crypto helpers in `@glance-apps/intents@1.1.0` operate on a `CryptoKey` — they don't do passphrase derivation. PR #14 (emitter) needs to hand the package a `CryptoKey`. Options depending on what already exists:
+**Pre-work resolved.** Investigation confirmed `@glance-apps/sync@1.0.1` does not currently export the derived `CryptoKey`. The key is held in module-scoped state (`_sessionKey` in `crypto.js`) as a non-extractable `CryptoKey`, with `hasEncryptionReady()` exposed but no getter for the key itself. The derivation pipeline is clean: PBKDF2-SHA-256 at 310,000 iterations, AES-256-GCM, non-extractable at every `importKey` site (verified).
 
-- If `@glance-apps/sync` exposes the derived `CryptoKey` (or a method to get it given the passphrase), reuse directly. **Preferred.**
-- If sync keeps the key internal and only exposes encrypt/decrypt methods, factor the derivation into a shared helper — either as an exported function in `@glance-apps/sync`, or as a new tiny `@glance-apps/crypto` package, or (least preferred) duplicated in dayGLANCE with a clear comment pointing at the sync implementation.
+**Resolution: Option B — add a `getSessionKey()` getter to `@glance-apps/sync`.** One-line addition that surfaces the existing `_sessionKey` reference. The key remains non-extractable, so callers receive an opaque `CryptoKey` reference they can pass to Web Crypto operations but cannot extract raw bytes from. No change to derivation, storage, or lifecycle. The same getter serves both the dayGLANCE intents emitter and the lastGLANCE Phase 3 intents emitter; doing the structural work once benefits both repos.
 
-Resolve this before starting PR #14. The same answer applies to lastGLANCE Phase 3 PR #12, so it's worth doing the structural work once. See `dayglance-prework-key-exposure-prompt.md` for the prompt to hand to Code for this investigation.
+**Resulting precursor PR in `@glance-apps/sync`:**
+
+| PR | Scope | Status |
+|---|---|---|
+| sync #1 | Export `getSessionKey()` from `crypto.js`; CHANGELOG entry; patch release `1.0.2`; `npm publish` | pending |
+
+dayGLANCE PR #12 below depends on `@glance-apps/sync@1.0.2` being published. Bumps both packages together.
+
+**Reference emitter pattern (for PR #14):**
+
+```js
+import { hasEncryptionReady, getSessionKey } from '@glance-apps/sync';
+import { buildEncryptedEnvelope } from '@glance-apps/intents';
+
+// Only runs when cloudSyncConfig.encryptionEnabled && intentsConfig.encryptionEnabled
+if (hasEncryptionReady()) {
+  const key = getSessionKey(); // non-extractable CryptoKey
+  const envelope = await buildEncryptedEnvelope(intentPayload, key);
+  // ... push envelope via WebDAV
+}
+```
+
+The two-check pattern (settings-time `intentsConfig.encryptionEnabled` plus runtime `hasEncryptionReady()`) handles the case where intents encryption is configured-on but no key is currently cached in session (e.g., new device that hasn't entered the passphrase yet). When `hasEncryptionReady()` is false but encryption is configured, the emitter falls back to plaintext (defensible default — events still flow) or queues the event for later (more correct but more state to manage). PR #14 should pick one and document the choice in the PR description; default recommendation is fall back to plaintext with an activity-log entry noting the configuration drift, since the absence of a session key typically means the user hasn't completed setup on this device yet and the alternative (silent queueing) is harder to diagnose.
 
 | PR | Scope |
 |---|---|
-| #12 | Upgrade to `@glance-apps/intents@1.1.0`; no behavior change |
+| #12 | Upgrade to `@glance-apps/intents@1.1.0` and `@glance-apps/sync@1.0.2`; no behavior change |
 | #13 | Settings UI: intents encryption toggle in the integration settings panel; gated on sync encryption being enabled (hidden or disabled with explanatory copy when not). Surface the "uses cloud sync passphrase" note inline. |
-| #14 | Emitter (Phase 2 PR #9): when intents encryption is on, obtain `CryptoKey` from the sync derivation pipeline (per pre-work resolution) and pass it to `buildEncryptedEnvelope`. Wrap in try/catch for typed errors; surface failures to activity log. |
+| #14 | Emitter (Phase 2 PR #9): when intents encryption is on, call `hasEncryptionReady()` and `getSessionKey()` from `@glance-apps/sync`; pass the `CryptoKey` to `buildEncryptedEnvelope`. Wrap in try/catch for typed errors; surface failures to activity log. Document the fallback behavior when `hasEncryptionReady()` is false. |
 | #15 | Poller (Phase 2 PR #7): inspect envelope; if `encrypted: true`, call `parseEncryptedEnvelope` with the `CryptoKey`; if plaintext, call `parseEnvelope`. On any typed error from the encrypted path (`NoKeyError`, `WrongKeyError`, `NotEncryptedError`, `MalformedEnvelopeError`), log distinct activity-log entry and skip event. |
 | #16 | Activity log (Phase 2 PR #10): render distinct activity-log entries per error class. `NoKeyError` → "encryption not configured." `WrongKeyError` → "decryption failed (wrong key)." `NotEncryptedError` and `MalformedEnvelopeError` are defensive-only (shouldn't happen in normal operation) and surface as warnings if they do fire. |
 
-**Critical-path subset for Phase 3:** package work complete. dayGLANCE PRs #12-16 land in parallel with lastGLANCE Phase 3 PRs; lastGLANCE needs the package to be at `1.1.0` but does not need dayGLANCE-side encryption to be enabled by any specific user when Phase 3 ships (the encryption is opt-in per app per user).
+**Critical-path subset for Phase 3:** `@glance-apps/sync@1.0.2` must be published before dayGLANCE PR #12. dayGLANCE PRs #12-16 land in parallel with lastGLANCE Phase 3 PRs; lastGLANCE needs both packages at their new versions but does not need dayGLANCE-side encryption to be enabled by any specific user when Phase 3 ships (the encryption is opt-in per app per user).
 
 ### Phase 3: lastGLANCE adopts the protocol
 
@@ -223,7 +244,7 @@ Starts when dayGLANCE PRs #3, #7, #9 are merged (the starred critical path above
 | #9 | Standalone-mode detection: WebDAV configured? dayGLANCE reachable? Hide integration UI accordingly. |
 | #10 | Settings UI for the integration |
 | #11 | Intents encryption toggle in integration settings, gated on cloud sync encryption being enabled. Same "uses cloud sync passphrase" copy as dayGLANCE. |
-| #12 | Outbound emitter (PR #3) consumes intents encryption setting: when on, obtain `CryptoKey` from the sync derivation pipeline (per pre-work resolution) and call `buildEncryptedEnvelope`. Wrap in try/catch for typed errors. |
+| #12 | Outbound emitter (PR #3) consumes intents encryption setting: when on, call `hasEncryptionReady()` and `getSessionKey()` from `@glance-apps/sync@1.0.2+` and pass the `CryptoKey` to `buildEncryptedEnvelope`. Wrap in try/catch for typed errors. Same fallback-when-no-key behavior as dayGLANCE PR #14. |
 | #13 | Inbound poller (PR #7) inspects envelope; if `encrypted: true`, call `parseEncryptedEnvelope` with the `CryptoKey`; if plaintext, call `parseEnvelope`. On typed errors from the encrypted path, log to activity log and skip event. |
 
 v1 ignores `uncompleted` events. If a user wants to remove a completion that came from a dayGLANCE un-completion, they delete it manually in lastGLANCE.
@@ -286,11 +307,11 @@ End-to-end tests (lastGLANCE emits `create`, dayGLANCE picks it up, completes it
 
 ## Critical-path ordering
 
-Phases 1 and 2 complete. Current critical path to lastGLANCE shipping integration:
+Phases 1, 2, and 2.5 package work complete. Current critical path to lastGLANCE shipping integration:
 
-**Phase 2.5 package PRs #9-12 (envelope encryption helpers, package `1.1.0`)** → **Phase 3 (lastGLANCE)**
+**`@glance-apps/sync@1.0.2` patch release (add `getSessionKey()` export)** → **dayGLANCE PR #12 (version bumps)** → **Phase 3 (lastGLANCE)**
 
-Phase 2.5 dayGLANCE PRs #12-16 land in parallel with Phase 3. Phase 4 transports run parallel.
+Phase 2.5 dayGLANCE PRs #13-16 land in parallel with Phase 3. Phase 4 transports run parallel.
 
 This is the chosen ordering. End-to-end working before polish.
 
