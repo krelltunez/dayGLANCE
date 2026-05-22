@@ -84,6 +84,7 @@ const SettingsModal = () => {
       foregroundInterval: saved.foregroundInterval ?? 120000,
       backgroundInterval: saved.backgroundInterval ?? 900000,
       gcRetentionDays: saved.gcRetentionDays ?? 30,
+      encryptionEnabled: saved.encryptionEnabled ?? false,
     };
   });
   const [intentSaved, setIntentSaved] = useState(false);
@@ -1510,10 +1511,34 @@ const SettingsModal = () => {
                           />
                           <p className={`text-xs ${textSecondary} mt-1`}>Event files older than this are deleted automatically.</p>
                         </div>
+                        <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass} ${cloudSyncConfig?.encryptionEnabled ? '' : 'opacity-60'}`}>
+                          <input
+                            type="checkbox"
+                            id="intent-encryption-toggle"
+                            checked={intentForm.encryptionEnabled && !!cloudSyncConfig?.encryptionEnabled}
+                            disabled={!cloudSyncConfig?.encryptionEnabled}
+                            onChange={e => setIntentForm(p => ({ ...p, encryptionEnabled: e.target.checked }))}
+                            className="mt-0.5 h-4 w-4 rounded"
+                          />
+                          <div>
+                            <label htmlFor="intent-encryption-toggle" className={`text-sm font-medium ${textPrimary} ${cloudSyncConfig?.encryptionEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                              Encrypt intent events
+                            </label>
+                            {cloudSyncConfig?.encryptionEnabled ? (
+                              <p className={`text-xs ${textSecondary} mt-0.5`}>Uses your cloud sync passphrase. Consumers without the key skip encrypted events gracefully.</p>
+                            ) : (
+                              <p className={`text-xs ${textSecondary} mt-0.5`}>Requires cloud sync encryption to be enabled first.</p>
+                            )}
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             onClick={() => {
-                              const cfg = { ...intentForm, gcRetentionDays: Number(intentForm.gcRetentionDays) || 30 };
+                              const cfg = {
+                                ...intentForm,
+                                gcRetentionDays: Number(intentForm.gcRetentionDays) || 30,
+                                encryptionEnabled: intentForm.encryptionEnabled && !!cloudSyncConfig?.encryptionEnabled,
+                              };
                               if (cfg.webdavUrl || cfg.username || cfg.appPassword) {
                                 localStorage.setItem(INTENT_CONFIG_KEY, JSON.stringify(cfg));
                               } else {
@@ -1529,7 +1554,7 @@ const SettingsModal = () => {
                           {intentForm.webdavUrl && (
                             <button
                               onClick={() => {
-                                setIntentForm({ webdavUrl: '', username: '', appPassword: '', eventsPath: '/GLANCE/events/', foregroundInterval: 120000, backgroundInterval: 900000, gcRetentionDays: 30 });
+                                setIntentForm({ webdavUrl: '', username: '', appPassword: '', eventsPath: '/GLANCE/events/', foregroundInterval: 120000, backgroundInterval: 900000, gcRetentionDays: 30, encryptionEnabled: false });
                                 localStorage.removeItem(INTENT_CONFIG_KEY);
                               }}
                               className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
