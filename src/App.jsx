@@ -1554,6 +1554,43 @@ const DayPlanner = () => {
   }, []);
 
   // Cloud sync: download on app load or when sync is first enabled.
+  // One-time check: detect if user has sync data at the old folder path
+  // ('dayglance/') before we moved to 'GLANCE/dayglance/'. Stores the old
+  // directory URL in localStorage so the settings form can show a notice.
+  useEffect(() => {
+    const CHECKED_KEY = 'dayglance-sync-migration-checked';
+    const NOTICE_KEY = 'dayglance-sync-migration-old-path';
+    if (localStorage.getItem(CHECKED_KEY)) return;
+    if (!cloudSyncConfig?.enabled) return;
+
+    const provider = cloudSyncConfig.provider || 'nextcloud';
+    const mark = (oldPath) => {
+      localStorage.setItem(CHECKED_KEY, '1');
+      if (oldPath) localStorage.setItem(NOTICE_KEY, oldPath);
+    };
+
+    let oldFileUrl;
+    let authHeaders;
+
+    if (provider === 'nextcloud' && cloudSyncConfig.nextcloudUrl && cloudSyncConfig.username) {
+      const base = cloudSyncConfig.nextcloudUrl.replace(/\/+$/, '');
+      const user = encodeURIComponent(cloudSyncConfig.username);
+      oldFileUrl = `${base}/remote.php/dav/files/${user}/dayglance/dayglance-sync.json`;
+      authHeaders = { 'X-WebDAV-Auth': `Basic ${btoa(`${cloudSyncConfig.username}:${cloudSyncConfig.appPassword}`)}` };
+    } else if (provider === 'generic' && cloudSyncConfig.webdavUrl && cloudSyncConfig.username) {
+      const base = cloudSyncConfig.webdavUrl.replace(/\/+$/, '');
+      oldFileUrl = `${base}/dayglance/dayglance-sync.json`;
+      authHeaders = { 'X-WebDAV-Auth': `Basic ${btoa(`${cloudSyncConfig.username}:${cloudSyncConfig.appPassword}`)}` };
+    } else {
+      mark(null);
+      return;
+    }
+
+    webdavFetch('HEAD', oldFileUrl, authHeaders)
+      .then(res => mark(res.ok ? oldFileUrl.replace('/dayglance-sync.json', '/') : null))
+      .catch(() => mark(null));
+  }, [cloudSyncConfig?.enabled]);
+
   // If encryption is enabled, wait until the session key is ready (either
   // restored from IndexedDB or provided by the passphrase modal).
   useEffect(() => {

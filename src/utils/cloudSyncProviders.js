@@ -12,7 +12,7 @@ const isAndroid =
   !!window.DayGlanceNative?.httpRequest;
 
 const dayGlanceEngineConfig = {
-  appFolderName: 'dayglance',
+  appFolderName: 'GLANCE/dayglance',
   syncFilename: 'dayglance-sync.json',
 
   // Android: pass the real bridge. iOS/web: null → falls through to proxy.

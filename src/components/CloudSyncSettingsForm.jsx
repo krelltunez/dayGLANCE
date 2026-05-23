@@ -17,6 +17,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
+  const [migrationOldPath] = useState(() => localStorage.getItem('dayglance-sync-migration-old-path'));
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]);
@@ -180,6 +181,22 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         )}
       </div>
 
+      {migrationOldPath && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
+          <p className="font-semibold">Action required: sync folder moved</p>
+          <p>Your sync file is at the old location. Move it to restore sync:</p>
+          <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('dayglance-sync-migration-old-path');
+              localStorage.setItem('dayglance-sync-migration-checked', '1');
+            }}
+            className="text-amber-700 underline mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {cloudSyncStatus === 'error' && cloudSyncError ? (
         <p className="text-xs text-red-500">{cloudSyncError}</p>
       ) : cloudSyncLastSynced ? (
