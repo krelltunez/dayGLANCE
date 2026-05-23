@@ -504,7 +504,10 @@ const DayPlanner = () => {
   // sees fresh closures every cycle — the engine itself is constructed once.
   const engineCallbacksRef = useRef({});
   const cloudSyncEngineRef = useRef(null);
-  if (!cloudSyncEngineRef.current) {
+  const engineFolderRef = useRef(null);
+  const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
+  if (!cloudSyncEngineRef.current || engineFolderRef.current !== syncFolder) {
+    engineFolderRef.current = syncFolder;
     cloudSyncEngineRef.current = createDayGlanceEngine({
       buildPayload:       () => engineCallbacksRef.current.buildPayload?.(),
       buildBackupPayload: () => engineCallbacksRef.current.buildBackupPayload?.(),
@@ -522,7 +525,7 @@ const DayPlanner = () => {
       onPassphraseRequired: () => setSyncKeyReady(false),
       onFirstSyncReload:    () => window.location.reload(),
       getSyncRetentionDays: () => engineCallbacksRef.current.syncRetentionDays ?? 90,
-    });
+    }, { appFolderName: syncFolder });
     // Visibility/focus listeners + 60 s poll call through this ref so they
     // always run the latest engine method without a closure refresh.
     cloudSyncDownloadRef.current = () => cloudSyncEngineRef.current.download();
@@ -1554,6 +1557,35 @@ const DayPlanner = () => {
   }, []);
 
   // Cloud sync: download on app load or when sync is first enabled.
+  // One-time check: if existing sync user is still on the legacy 'dayglance'
+  // folder, store its URL so the settings form can show an optional migration
+  // notice. Sync keeps working either way — this is informational only.
+  useEffect(() => {
+    const CHECKED_KEY = 'dayglance-sync-migration-checked';
+    const NOTICE_KEY = 'dayglance-sync-migration-old-path';
+    if (localStorage.getItem(CHECKED_KEY)) return;
+    if (!cloudSyncConfig?.enabled) return;
+
+    if (cloudSyncConfig?.syncFolder !== 'dayglance') {
+      localStorage.setItem(CHECKED_KEY, '1');
+      return;
+    }
+
+    // Build the display URL for the legacy folder so the notice can show it.
+    const provider = cloudSyncConfig.provider || 'nextcloud';
+    let oldFolderPath = null;
+    if (provider === 'nextcloud' && cloudSyncConfig.nextcloudUrl && cloudSyncConfig.username) {
+      const base = cloudSyncConfig.nextcloudUrl.replace(/\/+$/, '');
+      const user = encodeURIComponent(cloudSyncConfig.username);
+      oldFolderPath = `${base}/remote.php/dav/files/${user}/dayglance/`;
+    } else if (provider === 'generic' && cloudSyncConfig.webdavUrl) {
+      const base = cloudSyncConfig.webdavUrl.replace(/\/+$/, '');
+      oldFolderPath = `${base}/dayglance/`;
+    }
+    if (oldFolderPath) localStorage.setItem(NOTICE_KEY, oldFolderPath);
+    localStorage.setItem(CHECKED_KEY, '1');
+  }, [cloudSyncConfig?.enabled, cloudSyncConfig?.syncFolder]);
+
   // If encryption is enabled, wait until the session key is ready (either
   // restored from IndexedDB or provided by the passphrase modal).
   useEffect(() => {

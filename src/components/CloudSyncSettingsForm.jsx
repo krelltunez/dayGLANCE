@@ -5,7 +5,10 @@ import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey } from '../ut
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
 const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, onSyncKeyReady }) => {
   const [formData, setFormData] = useState(() => {
-    const initial = { provider: currentProvider };
+    const initial = {
+      provider: currentProvider,
+      syncFolder: cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance',
+    };
     // Populate fields from all providers so switching preserves filled values
     Object.values(cloudSyncProviders).forEach(p => {
       p.configFields.forEach(f => { initial[f.key] = cloudSyncConfig?.[f.key] || ''; });
@@ -17,9 +20,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
+  const [migrationOldPath] = useState(() => localStorage.getItem('dayglance-sync-migration-old-path'));
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
-  const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]);
+  const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
 
   // When enabling encryption, require a passphrase (confirmed) on fresh enable.
   // When already enabled, allow saving without re-entering (passphrase field is optional).
@@ -94,6 +98,18 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           )}
         </div>
       ))}
+
+      <div>
+        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Sync folder</label>
+        <input
+          type="text"
+          placeholder="GLANCE/dayglance"
+          value={formData.syncFolder || ''}
+          onChange={(e) => setFormData(prev => ({ ...prev, syncFolder: e.target.value }))}
+          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+        />
+        <p className={`text-xs ${textSecondary} mt-0.5`}>Path on your WebDAV server where sync files are stored.</p>
+      </div>
 
       {activeProvider.helpText && (
         <p className={`text-xs ${textSecondary}`}>{activeProvider.helpText}</p>
@@ -180,6 +196,23 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         )}
       </div>
 
+      {migrationOldPath && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
+          <p className="font-semibold">Optional: move sync folder</p>
+          <p>Your sync file is at the old location. You can move it for cleaner organization — sync will continue to work either way.</p>
+          <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
+          <p>After moving the file, update your Sync folder setting above to <span className="font-mono">GLANCE/dayglance</span>.</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('dayglance-sync-migration-old-path');
+              localStorage.setItem('dayglance-sync-migration-checked', '1');
+            }}
+            className="text-amber-700 underline mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {cloudSyncStatus === 'error' && cloudSyncError ? (
         <p className="text-xs text-red-500">{cloudSyncError}</p>
       ) : cloudSyncLastSynced ? (

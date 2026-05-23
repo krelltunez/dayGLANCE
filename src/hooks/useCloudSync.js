@@ -4,7 +4,15 @@ import { initSessionKey } from '../utils/crypto.js';
 const useCloudSync = () => {
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
     const saved = localStorage.getItem('day-planner-cloud-sync-config');
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    const config = JSON.parse(saved);
+    // Existing users who never set a sync folder keep the old 'dayglance' path
+    // so their sync does not break. New users get 'GLANCE/dayglance' by default.
+    if (config?.enabled && !config.syncFolder) {
+      config.syncFolder = 'dayglance';
+      localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(config));
+    }
+    return config;
   });
   const [cloudSyncStatus, setCloudSyncStatus] = useState('idle');
   const [cloudSyncError, setCloudSyncError] = useState(null);

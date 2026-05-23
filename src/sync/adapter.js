@@ -24,7 +24,6 @@ const DAYGLANCE_CONFIG = {
   cryptoDBName:         'dayglance-crypto',
   autoBackupDBName:     'dayglance-auto-backups',
   syncFilename:         'dayglance-sync.json',
-  appFolderName:        'dayglance',
   backupFilenamePrefix: 'dayglance-backup-',
   appId:                'dayglance',
   appName:              'dayGLANCE',
@@ -90,8 +89,9 @@ const validateApplyPayload = async (envelope) => {
  * @param {() => void}                            callbacks.onFirstSyncReload
  * @param {() => number}                          callbacks.getSyncRetentionDays
  */
-export const createDayGlanceEngine = (callbacks) => createSyncEngine({
+export const createDayGlanceEngine = (callbacks, { appFolderName = 'GLANCE/dayglance' } = {}) => createSyncEngine({
   ...DAYGLANCE_CONFIG,
+  appFolderName,
   buildPayload:        callbacks.buildPayload,
   buildBackupPayload:  callbacks.buildBackupPayload,
   applyPayload:        callbacks.applyPayload,
