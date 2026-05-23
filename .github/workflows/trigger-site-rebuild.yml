@@ -1,0 +1,26 @@
+# Copy this file to .github/workflows/trigger-site-rebuild.yml in each app repo.
+#
+# Prerequisites:
+#   1. Create a Vercel deploy hook for your glance-apps.com project:
+#      Vercel dashboard > your project > Settings > Git > Deploy Hooks
+#      Name it "GitHub Release Rebuild", select your production branch, copy the URL.
+#
+#   2. Add the hook URL as a repository secret named VERCEL_DEPLOY_HOOK:
+#      GitHub repo > Settings > Secrets and variables > Actions > New repository secret
+#
+# This workflow supplements any existing workflows in the repo (e.g. Docker/GHCR builds).
+# It only adds a new job triggered on release publish; it does not modify other workflows.
+
+name: Trigger glance-apps.com rebuild
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  trigger-rebuild:
+    name: Notify publisher site of new release
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST to Vercel deploy hook
+        run: curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
