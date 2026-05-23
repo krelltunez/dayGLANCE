@@ -6,8 +6,20 @@ const useCloudSync = () => {
     const saved = localStorage.getItem('day-planner-cloud-sync-config');
     if (!saved) return null;
     const config = JSON.parse(saved);
-    // Existing users who never set a sync folder keep the old 'dayglance' path
-    // so their sync does not break. New users get 'GLANCE/dayglance' by default.
+    // Generic WebDAV users pre-1.0.3: webdavUrl contained the full folder path
+    // (e.g. https://dav.example.com/dayglance/). Extract the path into syncFolder
+    // and strip webdavUrl back to the server root to match the new provider shape.
+    if (config?.provider === 'webdav' && config?.webdavUrl && !config?.syncFolder) {
+      try {
+        const u = new URL(config.webdavUrl);
+        const folder = u.pathname.replace(/^\/|\/$/g, '');
+        config.syncFolder = folder || 'GLANCE/dayglance';
+        config.webdavUrl = u.origin;
+        localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(config));
+      } catch { config.syncFolder = 'GLANCE/dayglance'; }
+    }
+    // Existing non-WebDAV users who never set a sync folder keep the old
+    // 'dayglance' path so their sync does not break.
     if (config?.enabled && !config.syncFolder) {
       config.syncFolder = 'dayglance';
       localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(config));
