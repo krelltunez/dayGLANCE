@@ -9047,11 +9047,11 @@ const DayPlanner = () => {
               <div>
                 <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Contact & Issues</p>
                 <a
-                  href="mailto:admin@dayglance.app"
+                  href="mailto:support@glance-apps.com"
                   className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium"
                 >
                   <ExternalLink size={14} />
-                  admin@dayglance.app
+                  support@glance-apps.com
                 </a>
                 <a
                   href="https://github.com/krelltunez/day-planner/issues"
