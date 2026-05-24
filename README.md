@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.10.0-green.svg)](https://github.com/krelltunez/dayglance/releases)
 
-[**Live App**](https://dayglance.app) · [**Documentation**](https://docs.dayglance.app) · [**Releases**](https://github.com/krelltunez/dayglance/releases) · [**Android APK**](https://github.com/krelltunez/dayglance/releases)
+[**Live App**](https://dayglance.app) · [**Documentation**](https://docs.dayglance.app) · [**Releases**](https://github.com/krelltunez/dayglance/releases)
 
 ![dayGLANCE Desktop Overview](screenshots/hero-dark.png)
 
@@ -22,7 +22,7 @@ Most day planners make you choose: polished but cloud-dependent, or self-hosted 
 - **No account required.** Open [dayglance.app](https://dayglance.app) and start planning — your data lives in your browser.
 - **Self-host in one command.** Drop a `docker-compose.yml`, run `docker compose up -d`, and you own everything.
 - **Sync your way.** Bring your own Nextcloud, WebDAV server, or Obsidian vault. No proprietary cloud required.
-- **Add what you need.** Optional add-ons (AI, health data, TRMNL display) stay off by default. You opt in.
+- **Add what you need.** Optional add-ons (AI, health data, Stream Deck, TRMNL display) stay off by default. You opt in.
 
 ---
 
@@ -73,7 +73,7 @@ Open [http://localhost:5173](http://localhost:5173). For production: `npm run bu
 
 ## Android App
 
-A native Android app is available on Google Play and as a direct APK download.
+A native Android app is available on Google Play and as a direct APK download. The Android app distributed through the Google Play Store is a commercial binary that support continued development.
 
 [<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60">](https://play.google.com/store/apps/details?id=com.dayglance.app)
 
@@ -245,6 +245,12 @@ The sync engine resolves conflicts at the task level using timestamps — not la
 Import events from any iCal-compatible source — Google Calendar, Nextcloud Calendar, Apple Calendar, Fastmail, Proton Calendar, etc. Events appear color-coded on your timeline and refresh every 15 minutes.
 
 **Setup:** Settings → Calendar Sync → paste your calendar URL.
+
+### Stream Deck Plugin
+
+The plugin extends dayGLANCE to your Stream Deck, connecting locally to the desktop app over WebSocket and staying in two-way sync, so anything you do on the Stream Deck reflects in the app and vice versa. Requires the desktop app to be installed on the same system as the Stream Deck software.
+
+**Setup:** See [Elgato Marketplace](https://marketplace.elgato.com/product/dayglance-22e1e573-0a61-4b0b-9112-e09500917d8e) for more details.
 
 ### TRMNL
 
