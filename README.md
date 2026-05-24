@@ -2,6 +2,8 @@
 
 **Your day, at a glance.** A privacy-first day planner with visual time-blocking, deep integrations, and zero lock-in. Use it free at [dayglance.app](https://dayglance.app) or self-host it on your own server. Your data stays on your device — nothing is ever sent to a server unless you choose to sync it yourself.
 
+[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="75">](https://play.google.com/store/apps/details?id=com.dayglance.app)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.10.0-green.svg)](https://github.com/krelltunez/dayglance/releases)
 
@@ -71,7 +73,9 @@ Open [http://localhost:5173](http://localhost:5173). For production: `npm run bu
 
 ## Android App
 
-A native Android app is available as a direct APK download — no Play Store required.
+A native Android app is available on Google Play and as a direct APK download.
+
+[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60">](https://play.google.com/store/apps/details?id=com.dayglance.app)
 
 [**Download APK from Releases →**](https://github.com/krelltunez/dayglance/releases)
 
