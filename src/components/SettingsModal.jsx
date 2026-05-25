@@ -1614,7 +1614,7 @@ const SettingsModal = () => {
                         )}
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
-                            disabled={intentSetupPhase === 'running'}
+                            disabled={intentSetupPhase === 'running' || intentSetupPhase === 'passphrase-needed'}
                             onClick={async () => {
                               const wantsEncryption = intentForm.encryptionEnabled && !!cloudSyncConfig?.encryptionEnabled;
                               const cfg = {
