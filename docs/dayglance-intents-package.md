@@ -8,7 +8,9 @@ This doc is the source of truth for *how the package is being built*. The protoc
 
 **Phases 1, 2, 2.5, and 3 shipped (May 2026).** `@glance-apps/intents@1.0.1` and `@glance-apps/intents@1.1.0` published. `@glance-apps/sync@1.0.3` published. dayGLANCE v2.11.0 (released 2026-05-24) consumes `@glance-apps/intents@1.1.0` and `@glance-apps/sync@1.0.3` with the full Phase 2.5 encryption surface in place. lastGLANCE v0.1.13 (in testing) consumes the same package versions with the Phase 3 integration including intents encryption.
 
-**Phase 2.6 added (May 2026):** post-ship integration testing between dayGLANCE v2.11.0 and lastGLANCE v0.1.13 revealed that the Phase 2.5 "same key as cloud sync" model is broken cross-app. Sync's session key is salt-bound, salts are per-app-instance (each app generates its own random 16-byte salt and stores it in its own IndexedDB), and therefore the same passphrase across two apps produces two different `CryptoKey`s. `WrongKeyError` fires on every cross-app decrypt. No production user is affected because lastGLANCE has not shipped to a wider audience yet; the failure is confined to the developer's testing setup. The fix (per-envelope salt embedded in the envelope, mirroring sync's own per-file salt pattern) is specced in Phase 2.6 below and is the current active work. Phase 4 (Android intent transport + web URL transport) has not started.
+**Phase 2.6 superseded by Phase 2.7 (May 2026).** Phase 2.6 (per-envelope salt, PBKDF2-per-envelope) shipped in dayGLANCE and lastGLANCE feature branches and resolved the cross-app key mismatch from Phase 2.5, but surfaced a new UX-breaking problem: PBKDF2-per-envelope requires the cloud sync passphrase in memory at every emit and poll, and the passphrase is not persisted across app sessions (only the derived sync key is). This forced a "re-enter passphrase every session" UX that is unacceptable for a set-and-forget product. Phase 2.7 replaces PBKDF2-per-envelope with HKDF-per-envelope against an intents-owned long-lived root key, derived once at intents-encryption setup and cached non-extractably in IndexedDB exactly like sync's session key. Sync is not modified. The shared salt that lets both apps derive the same intents root key lives on the WebDAV endpoint, not in either app's IndexedDB. Phase 2.7 is the current active work.
+
+**Phase 4** (Android intent transport + web URL transport) has not started.
 
 ## Why a shared package
 
@@ -261,7 +263,7 @@ Intents encryption (PRs #11-13) is additive on top of the integration. Plaintext
 
 ### Phase 2.6: Per-envelope salt (fixes the Phase 2.5 cross-app key mismatch)
 
-**Active work. Found in post-ship integration testing of dayGLANCE v2.11.0 + lastGLANCE v0.1.13.**
+**Superseded by Phase 2.7.** Phase 2.6 shipped as feature branches in both apps and successfully resolved the cross-app key mismatch from Phase 2.5, but introduced a passphrase-availability problem that broke the set-and-forget UX. The PBKDF2-per-envelope model requires the cloud sync passphrase in memory at every emit and poll; the passphrase is not persisted across app sessions (only the derived sync key is). This forced users to re-enter their passphrase every session for intents to work — unacceptable. Phase 2.7 replaces PBKDF2-per-envelope with HKDF-per-envelope against an intents-owned root key; passphrase needed only at intents-encryption setup, never again. Phase 2.6 design retained below for history; do not implement.
 
 #### Why this exists
 
@@ -346,6 +348,75 @@ Same shape as the dayGLANCE PRs above. lastGLANCE Phase 3 PRs #11-13 (the intent
 - Any encrypted envelopes from Phase 2.5 integration testing in the shared WebDAV directory should be deleted manually before Phase 2.6 testing begins. They lack the `salt` field and will fail `MalformedEnvelopeError` under the new schema.
 - No production migration needed: no end user has ever had a working encrypted intents envelope, because lastGLANCE has not shipped to a wider audience yet. The cross-app failure mode is only reproducible in the developer's setup.
 
+### Phase 2.7: HKDF-per-envelope with intents-owned root key (supersedes Phase 2.6)
+
+**Active work. Sync is not modified in this phase.**
+
+#### Why this exists
+
+Phase 2.6 (per-envelope salt, PBKDF2-per-envelope) successfully resolved the Phase 2.5 cross-app key mismatch but introduced a UX-breaking problem: PBKDF2 requires the passphrase as input, and the cloud sync passphrase is not persisted across app sessions. Sync itself doesn't need the passphrase across sessions because sync uses one long-lived derived key that gets cached as a non-extractable `CryptoKey` in IndexedDB and reused for every operation. Intents Phase 2.6 broke that pattern by deriving a fresh key per envelope, which means the passphrase has to be available every time. Result: users would have to re-enter their cloud sync passphrase every app session for intents emission and polling to work. Unacceptable for a set-and-forget product.
+
+#### Resolution: intents owns a long-lived root key, derived once at setup, reused via HKDF per envelope
+
+Phase 2.7 gives intents its own long-lived root key, derived once when the user enables the intents encryption toggle. That root key gets cached non-extractably in IndexedDB exactly like sync's session key. Per envelope, the encryption key is derived by HKDF from the cached root key plus a fresh per-envelope salt — fast (single hash, not 310k PBKDF2 iterations) and requires only the cached root key, no passphrase. Both apps derive the same per-envelope key from the same root key + the same envelope salt.
+
+Cross-app root-key agreement is achieved by storing a shared intents-encryption salt on the WebDAV endpoint, not in either app's IndexedDB. First app to enable intents encryption against a given WebDAV endpoint writes the salt; second app reads it on setup. Same passphrase + same shared salt = same root key in both apps. The passphrase is used at setup time only; it is discarded from intents' memory after the root key is derived and cached.
+
+After setup, no operation in intents requires the cloud sync passphrase. The cached root key is sufficient. Set-and-forget UX restored.
+
+#### Sync is not modified
+
+Sync's session key, its IndexedDB schema, its salt model, its PBKDF2 parameters, and its file-encryption pipeline are unchanged. The only thing intents asks of sync at runtime is access to the cloud sync passphrase *at intents-encryption setup* — specifically, when the user turns the intents encryption toggle on, intents needs the passphrase available right then to derive its root key. After that, intents has its own cached root key and never touches sync's key material or passphrase again.
+
+If the user is enabling intents encryption in the same session in which they configured sync encryption, the passphrase is already in memory and the setup is seamless. If the user enabled sync encryption in a prior session and is enabling intents encryption now (with passphrase not in memory), intents prompts for the passphrase as part of the toggle-on flow — same UX as configuring sync encryption itself. After this one-time prompt, the user is set-and-forget.
+
+#### Locked decisions
+
+- **Intents-owned root key, cached non-extractably in IndexedDB.** Separate from sync's cached key. Lives in an intents-owned IndexedDB database; does not co-mingle with sync's storage.
+- **Shared root salt stored on WebDAV.** First app to enable intents encryption writes the salt to a file in the WebDAV intents directory (filename and exact location TBD by Code; the package planning doc is not the right place to fix the byte layout). Subsequent apps read the salt from there during their own intents-encryption setup. The salt is associated with the WebDAV-shared intents store, not with any one client.
+- **Root key derivation:** PBKDF2-SHA-256, 310,000 iterations, AES-256-bits of output, against the cloud sync passphrase + the shared WebDAV-stored salt. Matches sync's PBKDF2 parameters for consistency. Output imported as a non-extractable `CryptoKey` with `usages: ['deriveKey']` so HKDF can derive envelope keys from it without ever exposing the raw key material. (If HKDF-from-non-extractable-key has a Web Crypto API gotcha here, see the Code prompt's pre-work step — adjust the import usages or design accordingly.)
+- **Per-envelope key derivation:** HKDF-SHA-256 with the cached intents root key as input keying material, the per-envelope salt as salt, and a fixed info string (e.g. `"glance-intents-envelope-v1"`). Output: a non-extractable AES-256-GCM `CryptoKey` with `usages: ['encrypt', 'decrypt']`. Fresh per-envelope salt generated via `crypto.getRandomValues(new Uint8Array(16))`, embedded in the envelope alongside `iv` and `payload_ciphertext` — same envelope shape as Phase 2.6.
+- **Envelope shape unchanged from Phase 2.6.** The `salt` field is still present and still 16 bytes; what changes is how the consumer derives the key from it (HKDF against cached root key, not PBKDF2 against passphrase).
+- **Versioning:** `@glance-apps/intents@1.3.0`. Additive minor bump for the API change (callback semantics change but signature stays similar). Plaintext envelopes still parse. Phase 2.6 encrypted envelopes (no migration path to Phase 2.7 keys, since they were derived from a different process) are wiped manually before testing; no production data exists.
+- **Intents-package API:** `buildEncryptedEnvelope` and `parseEncryptedEnvelope` continue to take a `deriveKey` callback `(salt: Uint8Array) => Promise<CryptoKey>`. The callback's *implementation* changes (it now runs HKDF against a cached root key instead of PBKDF2 against the passphrase), but the package API stays the same. This is intentional — the package doesn't care how the key is derived, only that the consumer can produce one for a given salt.
+- **Setup flow:** the intents encryption toggle, when turned on, runs the setup sequence: ensure cloud sync encryption is enabled (gating); ensure passphrase is in memory (prompt if not); fetch or write the shared root salt on WebDAV; derive root key; cache root key in IndexedDB; discard passphrase from intents' memory. The toggle reflects success or failure of this sequence.
+- **Error class additions:** consider adding `SetupRequiredError` or similar to distinguish "intents encryption toggle is on but root key not cached" from `NoKeyError` (current Phase 2.6 catch-all). Specifics deferred to Code.
+
+#### Migration / cleanup
+
+- **For the developer's testing setup:** before Phase 2.7 testing begins, manually delete all encrypted envelopes from `/GLANCE/events/` (the shared WebDAV intents directory). They lack any Phase 2.7-compatible key material and will fail. Also delete any IndexedDB intents-related state in both apps. Turn off the intents encryption toggle in both apps, then turn it back on as part of Phase 2.7 testing — first toggle-on writes the shared salt, second toggle-on reads it.
+- **For eventual public release:** no production migration story is needed because no end user has ever successfully used intents encryption (Phase 2.5 had cross-app mismatch, Phase 2.6 was UX-broken before public release). Phase 2.7 is the first version that ships to users in a working state.
+
+#### Package PRs (`@glance-apps/intents`)
+
+Specifics deferred to Code's pre-work investigation. The high-level shape:
+
+| Area | Change |
+|---|---|
+| `crypto/` | Add HKDF-based key derivation helper alongside the existing AES-GCM helpers. The package may not need direct HKDF code if the consumer's `deriveKey` callback handles it; depends on where the boundary makes most sense. |
+| `webdav/` | `buildEncryptedEnvelope` and `parseEncryptedEnvelope` signatures unchanged; the consumer-provided `deriveKey` callback's semantics change. |
+| Schema | No change to envelope shape. `salt` field still required when `encrypted: true`. |
+| Version | Bump to `1.3.0`. CHANGELOG entry explaining the move from PBKDF2-per-envelope to HKDF-from-cached-root-key. |
+
+#### Consumer (dayGLANCE + lastGLANCE) PRs
+
+In each app:
+
+| Area | Change |
+|---|---|
+| Intents encryption setup | New setup flow on toggle-on: prompt for passphrase if not in memory, fetch-or-write shared salt on WebDAV, derive root key, cache root key in IndexedDB, discard passphrase. |
+| Emitter | `deriveKey` callback now runs HKDF against cached intents root key (not PBKDF2 against passphrase). If root key isn't cached, surface activity-log error matching the new "setup not complete" semantics. Do not fall back to plaintext. |
+| Poller | Same as emitter on the read side. |
+| Settings UI | Toggle copy revised to reflect the one-time setup model: "Uses your cloud sync passphrase. Set up once; remains active across sessions." Or similar — copy decision deferred. |
+| Activity log | Error copy revised to reflect the new failure modes: "Intents encryption setup incomplete" replaces "passphrase not available" for the common case. |
+
+#### Test plan
+
+- **Package**: round-trip test in the intents repo: build an encrypted envelope, parse it back, confirm payload matches. Mismatched root key produces `WrongKeyError`. Missing-`salt` envelope produces `MalformedEnvelopeError`.
+- **End-to-end (cross-session UX)**: configure intents encryption in both apps. Close and reopen both apps without entering any passphrase. Emit an encrypted intent from one app, confirm the other decrypts it without any passphrase prompt. This is the core UX requirement.
+- **End-to-end (cross-app)**: same as Phase 2.6 test plan. Emit encrypted `create` from lastGLANCE, decrypt in dayGLANCE. Emit encrypted `notify` from dayGLANCE, decrypt in lastGLANCE.
+- **Setup flow**: with sync encryption already configured in a prior session (passphrase not in memory), enable intents encryption in one app. Confirm the passphrase prompt appears, completes successfully, writes the shared salt to WebDAV, and toggles intents encryption on. Then enable intents encryption in the second app; confirm it reads the existing shared salt and toggles on without prompting for the salt (still needs passphrase since intents needs to derive its root key in this app too).
+
 ### Phase 4: Android intent transport + web URL transport (parallel-eligible)
 
 Both transports converge on the same `handleIntent` from Phase 2, so they're additive surfaces, not core changes. Can run parallel to Phase 3.
@@ -400,11 +471,13 @@ End-to-end tests (lastGLANCE emits `create`, dayGLANCE picks it up, completes it
 
 ## Critical-path ordering
 
-Phases 1, 2, 2.5, and 3 shipped. Phase 2.6 (per-envelope salt, fixing Phase 2.5's cross-app key mismatch) is the active work.
+Phases 1, 2, 2.5, and 3 shipped. Phase 2.6 was a dead-end branch (resolved cross-app mismatch but broke UX). Phase 2.7 (HKDF-per-envelope with intents-owned root key) is the active work.
 
-**`@glance-apps/sync@1.1.0` (add `deriveKeyForSalt`)** + **`@glance-apps/intents@1.2.0` (per-envelope salt)** → **dayGLANCE PRs #17-21 + lastGLANCE counterparts** → **coordinated release: dayGLANCE v2.11.1 (or v2.12.0) + lastGLANCE v0.1.14**
+**`@glance-apps/intents@1.3.0` (HKDF-based key derivation)** → **dayGLANCE PRs + lastGLANCE counterparts (intents-encryption setup flow + emitter + poller + UI)** → **coordinated release: dayGLANCE v2.11.1 (or v2.12.0) + lastGLANCE v0.1.14**
 
-Phase 4 transports (Android intent + web URL) have not started and are parallel-eligible with Phase 2.6.
+Sync is not modified in Phase 2.7. `@glance-apps/sync@1.1.0` (the Phase 2.6 release) remains valid but its `deriveKeyForSalt` export is unused by Phase 2.7 — left in place for any other consumer that may want it.
+
+Phase 4 transports (Android intent + web URL) have not started and are parallel-eligible with Phase 2.7.
 
 End-to-end working before polish.
 
