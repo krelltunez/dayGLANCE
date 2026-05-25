@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { parseEnvelope, parseEncryptedEnvelope, filenameFor, parseFilename, NoKeyError, WrongKeyError, NotEncryptedError, MalformedEnvelopeError } from '@glance-apps/intents';
-import { deriveKeyForSalt } from '@glance-apps/sync';
+import { parseEnvelope, parseEncryptedEnvelope, filenameFor, parseFilename, deriveEnvelopeKey, NoKeyError, WrongKeyError, NotEncryptedError, MalformedEnvelopeError } from '@glance-apps/intents';
+import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
 import { handleIntent } from './handleIntent.js';
 import { logActivity } from './intentLog.js';
@@ -176,7 +176,24 @@ async function poll(config, context) {
       let envelope;
       try {
         if (raw?.encrypted === true) {
-          envelope = await parseEncryptedEnvelope(raw, deriveKeyForSalt);
+          const rootKey = await loadIntentsRootKey();
+          if (!rootKey) {
+            // Encrypted envelope received but intents encryption not set up on this device.
+            console.warn('[intent] Skipping encrypted event — intents encryption not set up:', name);
+            logActivity({
+              direction: 'in',
+              action: 'unknown',
+              event: null,
+              source_app: null,
+              title: null,
+              timestamp: new Date().toISOString(),
+              status: 'error',
+              error: 'no_root_key',
+            });
+            setCursor(parsed.event_id);
+            continue;
+          }
+          envelope = await parseEncryptedEnvelope(raw, (salt) => deriveEnvelopeKey(rootKey, salt));
         } else {
           envelope = parseEnvelope(raw);
         }

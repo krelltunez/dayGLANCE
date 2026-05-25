@@ -1,7 +1,7 @@
 {
   "name": "dayglance",
   "private": true,
-  "version": "2.11.0",
+  "version": "2.12.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -17,7 +17,7 @@
     "build:electron:release": "vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never"
   },
   "dependencies": {
-    "@glance-apps/intents": "^1.2.0",
+    "@glance-apps/intents": "^1.3.0",
     "@glance-apps/sync": "^1.1.0",
     "lucide-react": "^0.564.0",
     "react": "^18.2.0",

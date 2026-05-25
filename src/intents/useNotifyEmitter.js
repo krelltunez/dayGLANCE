@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES } from '@glance-apps/intents';
-import { hasEncryptionReady, deriveKeyForSalt } from '@glance-apps/sync';
+import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
+import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, INTENT_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
 
@@ -104,8 +104,27 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
     if (!emits.length) return;
 
     const fire = async () => {
-      const useEncryption = config.encryptionEnabled && hasEncryptionReady();
-      const keyUnavailable = config.encryptionEnabled && !hasEncryptionReady();
+      // Resolve encryption posture once for the whole batch.
+      let deriveKey = null;
+      if (config.encryptionEnabled) {
+        const rootKey = await loadIntentsRootKey();
+        if (!rootKey) {
+          // Root key not cached — setup incomplete. Block all emits; do not fall back to plaintext.
+          console.warn('[notify] intents encryption setup incomplete — skipping', emits.length, 'emit(s)');
+          logActivity({
+            direction: 'out',
+            action: 'notify',
+            event: null,
+            source_app: null,
+            title: null,
+            timestamp: now,
+            status: 'error',
+            error: 'setup_incomplete',
+          });
+          return;
+        }
+        deriveKey = (salt) => deriveEnvelopeKey(rootKey, salt);
+      }
 
       for (const { task, change } of emits) {
         const payload = {
@@ -122,26 +141,9 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
           ...(change.completed_at !== undefined ? { completed_at: change.completed_at } : {}),
         };
 
-        if (keyUnavailable) {
-          // Encryption is configured but the session key isn't loaded yet (new device,
-          // passphrase not entered). Fall back to plaintext so events still flow and log
-          // the configuration drift so the user can diagnose it.
-          console.warn('[notify] encryption configured but key not ready; emitting plaintext for task', task.id);
-          logActivity({
-            direction: 'out',
-            action: 'notify',
-            event: change.event,
-            source_app: task.source_app,
-            title: task.title,
-            timestamp: now,
-            status: 'warn',
-            error: 'no_key',
-          });
-        }
-
         try {
-          const envelope = useEncryption
-            ? await buildEncryptedEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' }, deriveKeyForSalt)
+          const envelope = deriveKey
+            ? await buildEncryptedEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' }, deriveKey)
             : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
           await writeEventFile(config, envelope);
           logActivity({

@@ -36,10 +36,12 @@ const EVENT_COLORS_DARK = {
 
 const CRYPTO_ERROR_MESSAGES = {
   NoKeyError:            'encryption not configured',
-  WrongKeyError:         'decryption failed (wrong passphrase — verify same passphrase used in both apps)',
+  WrongKeyError:         'decryption failed (root key mismatch — try re-running intents encryption setup in Settings)',
   NotEncryptedError:     'unexpected: envelope not encrypted',
   MalformedEnvelopeError:'malformed envelope',
   InvalidPayloadError:   'invalid payload for encryption',
+  setup_incomplete:      'intents encryption setup incomplete — open Settings to complete setup',
+  no_root_key:           'encrypted intent received but intents encryption not set up on this device',
   no_key:                'key not ready — sent plaintext',
 };
 
