@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     const body = await response.text();
 
     res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
-    res.setHeader('Cache-Control', 'public, max-age=900, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 'no-store');
     res.status(response.status).send(body);
   } catch (err) {
     res.status(502).json({ error: 'Failed to fetch calendar' });
