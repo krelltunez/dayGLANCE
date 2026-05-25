@@ -36,7 +36,7 @@ const EVENT_COLORS_DARK = {
 
 const CRYPTO_ERROR_MESSAGES = {
   NoKeyError:            'encryption not configured',
-  WrongKeyError:         'decryption failed: wrong key',
+  WrongKeyError:         'decryption failed (wrong passphrase — verify same passphrase used in both apps)',
   NotEncryptedError:     'unexpected: envelope not encrypted',
   MalformedEnvelopeError:'malformed envelope',
   InvalidPayloadError:   'invalid payload for encryption',
