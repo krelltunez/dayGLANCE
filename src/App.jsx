@@ -9,7 +9,7 @@ import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORI
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
-import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
+import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
@@ -506,6 +506,7 @@ const DayPlanner = () => {
   const cloudSyncEngineRef = useRef(null);
   const engineFolderRef = useRef(null);
   const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
+  const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
   if (!cloudSyncEngineRef.current || engineFolderRef.current !== syncFolder) {
     engineFolderRef.current = syncFolder;
     cloudSyncEngineRef.current = createDayGlanceEngine({
@@ -1323,13 +1324,16 @@ const DayPlanner = () => {
     });
   }, []); // Run once on app start
 
-  // Auto-sync calendars every 15 minutes when URLs are configured.
+  // Auto-sync calendars on mount and then every 15 minutes when URLs are configured.
   // On native apps, only the task calendar matters — calendar events come from the native bridge.
+  // The immediate sync on mount ensures stale events are cleared whenever the app opens,
+  // not just after 15 minutes (which is longer than most PWA sessions).
   useEffect(() => {
     if (isTrayMode) return;
     const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) return;
 
+    syncAllRef.current({ silent: true });
     const syncTimer = setInterval(() => {
       syncAllRef.current({ silent: true });
     }, 15 * 60 * 1000); // 15 minutes
@@ -4845,11 +4849,11 @@ const DayPlanner = () => {
       lastModified: new Date().toISOString(),
       data: {
         tasks: stampTaskTimestamps(
-          tasks.filter(t => !t._native && !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          tasks.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
           'day-planner-tasks'
         ),
         unscheduledTasks: stampTaskTimestamps(
-          unscheduledTasks.filter(t => !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          unscheduledTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
           'day-planner-unscheduled'
         ),
         unscheduledOrderTimestamp,
@@ -4930,12 +4934,12 @@ const DayPlanner = () => {
     // tasks appear newer than actual remote changes during merge.
     const normalizeTasks = (tasks) => tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
 
-    // On native apps, drop imported calendar events that arrived via cloud sync — the native
-    // bridge already provides those events and syncing them in causes duplicates.
-    // Calendar tasks (isTaskCalendar:true) and file imports are kept as normal.
-    const filterTasks = isNativeApp()
-      ? tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'))
-      : tasks => tasks;
+    // Drop CalDAV-imported calendar events from the cloud sync payload — they are ephemeral
+    // derivatives of the remote feed and must not be cloud-synced or the merge engine will
+    // resurrect deleted events. On native, the OS bridge re-provides them; on PWA, CalDAV
+    // sync re-imports them on every fetch. Calendar tasks (isTaskCalendar:true) and ICS file
+    // imports (importSource:'file') are first-class user data and are kept as normal.
+    const filterTasks = tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
 
     const normalizedTasks = data.tasks ? filterTasks(normalizeTasks(data.tasks)) : null;
     const normalizedUnsched = data.unscheduledTasks ? filterTasks(normalizeTasks(data.unscheduledTasks)) : null;
@@ -8889,7 +8893,7 @@ const DayPlanner = () => {
       )}
 
       {/* Refocus timeline toast — all form factors except mobile list view */}
-      {timelineScrolledAway && effectiveViewMode === 'multi' && !(isMobile && mobileViewMode === 'list') && (
+      {timelineScrolledAway && effectiveViewMode === 'multi' && !((isMobile || isTablet) && mobileViewMode === 'list') && (
         <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <button
             onClick={() => { setTimelineScrolledAway(false); scrollToCurrentHour(true); }}

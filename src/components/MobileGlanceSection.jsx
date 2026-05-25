@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
@@ -116,6 +116,8 @@ const MobileGlanceSection = () => {
     healthPerms,
   } = useFeaturesCtx();
 
+  const glanceSwipeStartX = useRef(0);
+
   const isHealthSyncPaused = (habit) => {
     if (!habit.source) return false;
     if (habit.unit === 'steps') return healthPerms?.steps === false;
@@ -195,21 +197,18 @@ const MobileGlanceSection = () => {
 
     if (!habitsEnabled && !hasGoals) return null;
 
-    const handleSwipe = (() => {
-      let startX = 0;
-      return {
-        onTouchStart: (e) => { startX = e.touches[0].clientX; },
-        onTouchEnd: (e) => {
+    return (
+      <div
+        className="mb-4"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={(e) => { glanceSwipeStartX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
           if (!showCarousel) return;
-          const dx = e.changedTouches[0].clientX - startX;
+          const dx = e.changedTouches[0].clientX - glanceSwipeStartX.current;
           if (dx < -50) setGlancePage(1);
           else if (dx > 50) setGlancePage(0);
-        },
-      };
-    })();
-
-    return (
-      <div className="mb-4" {...handleSwipe}>
+        }}
+      >
         {/* Habits page */}
         {habitsEnabled && (!showCarousel || effectivePage === 0) && (() => {
           if (activeHabits.length === 0) return (
