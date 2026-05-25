@@ -9,7 +9,7 @@ import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORI
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
-import { autoBackupDB, autoBackupProviders, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
+import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
@@ -506,6 +506,7 @@ const DayPlanner = () => {
   const cloudSyncEngineRef = useRef(null);
   const engineFolderRef = useRef(null);
   const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
+  const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
   if (!cloudSyncEngineRef.current || engineFolderRef.current !== syncFolder) {
     engineFolderRef.current = syncFolder;
     cloudSyncEngineRef.current = createDayGlanceEngine({

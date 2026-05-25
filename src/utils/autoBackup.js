@@ -15,8 +15,11 @@ export const autoBackupDB = createAutoBackupDB({
   autoBackupDBName: 'dayglance-auto-backups',
 });
 
-export const autoBackupProviders = createAutoBackupProviders({
-  backupFilenamePrefix: 'dayglance-backup-',
-  appFolderName: 'dayglance',
-  webdavFetch,
-});
+export const createAutoBackupProvidersForFolder = (appFolderName) =>
+  createAutoBackupProviders({
+    backupFilenamePrefix: 'dayglance-backup-',
+    appFolderName,
+    webdavFetch,
+  });
+
+export const autoBackupProviders = createAutoBackupProvidersForFolder('GLANCE/dayglance');
