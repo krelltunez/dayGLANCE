@@ -19,14 +19,22 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+# Node.js is needed to run the proxy server (handles /api/webdav-proxy/ and
+# /api/calendar-proxy/). nginx cannot URL-decode $arg_* variables, so a
+# proxy_pass to a full HTTPS URL receives "https%3A%2F%2F..." and fails.
+RUN apk add --no-cache nodejs
+
 # Copy built files from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config
+# Copy nginx config and proxy server
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/proxy-server.js /app/proxy-server.js
+COPY docker/start.sh /start.sh
+RUN chmod +x /start.sh
 
 # Expose port 80
 EXPOSE 80
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start both the Node.js proxy server and nginx
+CMD ["/start.sh"]
