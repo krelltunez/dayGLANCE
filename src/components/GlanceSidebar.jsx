@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
@@ -138,6 +138,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     setHabitCount(habitId, count);
     if (isTray) window.electronAPI?.backgroundAction({ action: 'set-habit-count', habitId, count: Math.max(0, count) });
   };
+
+  const glanceSwipeStartX = useRef(0);
 
   // In tray mode, call local toggleComplete for immediate visual update AND
   // send the action to the main window so its state stays in sync.
@@ -287,7 +289,16 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     if (!habitsEnabled && !hasGoals) return null;
 
     return (
-      <div>
+      <div
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={(e) => { glanceSwipeStartX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          if (!showCarousel) return;
+          const dx = e.changedTouches[0].clientX - glanceSwipeStartX.current;
+          if (dx < -50) setGlancePage(1);
+          else if (dx > 50) setGlancePage(0);
+        }}
+      >
         {/* Habits page */}
         {habitsEnabled && (!showCarousel || effectivePage === 0) && (() => {
           if (activeHabits.length === 0) return (
