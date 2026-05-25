@@ -1324,13 +1324,16 @@ const DayPlanner = () => {
     });
   }, []); // Run once on app start
 
-  // Auto-sync calendars every 15 minutes when URLs are configured.
+  // Auto-sync calendars on mount and then every 15 minutes when URLs are configured.
   // On native apps, only the task calendar matters — calendar events come from the native bridge.
+  // The immediate sync on mount ensures stale events are cleared whenever the app opens,
+  // not just after 15 minutes (which is longer than most PWA sessions).
   useEffect(() => {
     if (isTrayMode) return;
     const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) return;
 
+    syncAllRef.current({ silent: true });
     const syncTimer = setInterval(() => {
       syncAllRef.current({ silent: true });
     }, 15 * 60 * 1000); // 15 minutes
