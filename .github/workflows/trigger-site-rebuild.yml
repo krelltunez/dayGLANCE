@@ -16,6 +16,7 @@ name: Trigger glance-apps.com rebuild
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   trigger-rebuild:
