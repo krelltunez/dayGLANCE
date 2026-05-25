@@ -4849,11 +4849,11 @@ const DayPlanner = () => {
       lastModified: new Date().toISOString(),
       data: {
         tasks: stampTaskTimestamps(
-          tasks.filter(t => !t._native && !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          tasks.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
           'day-planner-tasks'
         ),
         unscheduledTasks: stampTaskTimestamps(
-          unscheduledTasks.filter(t => !(isNativeApp() && t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          unscheduledTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
           'day-planner-unscheduled'
         ),
         unscheduledOrderTimestamp,
@@ -4934,12 +4934,12 @@ const DayPlanner = () => {
     // tasks appear newer than actual remote changes during merge.
     const normalizeTasks = (tasks) => tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
 
-    // On native apps, drop imported calendar events that arrived via cloud sync — the native
-    // bridge already provides those events and syncing them in causes duplicates.
-    // Calendar tasks (isTaskCalendar:true) and file imports are kept as normal.
-    const filterTasks = isNativeApp()
-      ? tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'))
-      : tasks => tasks;
+    // Drop CalDAV-imported calendar events from the cloud sync payload — they are ephemeral
+    // derivatives of the remote feed and must not be cloud-synced or the merge engine will
+    // resurrect deleted events. On native, the OS bridge re-provides them; on PWA, CalDAV
+    // sync re-imports them on every fetch. Calendar tasks (isTaskCalendar:true) and ICS file
+    // imports (importSource:'file') are first-class user data and are kept as normal.
+    const filterTasks = tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
 
     const normalizedTasks = data.tasks ? filterTasks(normalizeTasks(data.tasks)) : null;
     const normalizedUnsched = data.unscheduledTasks ? filterTasks(normalizeTasks(data.unscheduledTasks)) : null;
