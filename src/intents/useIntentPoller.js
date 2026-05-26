@@ -14,6 +14,11 @@ const DEFAULT_BG_MS = 15 * 60 * 1000;   // 15 minutes
 const DEFAULT_RETENTION_DAYS = 30;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+// The tray popup holds a read-only state snapshot; it must never poll for
+// intents because processing an event would advance the cursor and consume
+// the event before the main window can act on it.
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function authHeaders(config) {
@@ -280,6 +285,8 @@ export function useIntentPoller(context) {
   contextRef.current = context;
 
   useEffect(() => {
+    if (isTrayMode) return;
+
     const config = (() => {
       const raw = localStorage.getItem(INTENT_CONFIG_KEY);
       return raw ? JSON.parse(raw) : null;
