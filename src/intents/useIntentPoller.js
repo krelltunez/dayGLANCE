@@ -136,6 +136,8 @@ async function poll(config, context) {
   const dir = eventsDir(config);
   const headers = authHeaders(config);
 
+  console.log('[intent:poll] starting');
+
   let res;
   try {
     res = await webdavFetch('PROPFIND', dir, headers, undefined, { Depth: '1' });
@@ -162,6 +164,8 @@ async function poll(config, context) {
   const cursor = getCursor();
   // event_id is a sortable timestamp string: only process files strictly after cursor
   const pending = cursor ? files.filter(f => f.parsed.event_id > cursor) : files;
+
+  console.log('[intent:poll] cursor:', cursor, '| total files:', files.length, '| pending:', pending.length);
 
   for (const { name, parsed } of pending) {
     try {
@@ -229,7 +233,9 @@ async function poll(config, context) {
         continue;
       }
 
+      console.log('[intent:poll] processing event_id:', parsed.event_id, '| action:', envelope.action, '| emitted_by:', envelope.emitted_by);
       const result = await handleIntent(envelope.action, envelope.payload, context);
+      console.log('[intent:poll] handleIntent returned:', JSON.stringify(result));
       logActivity({
         direction: 'in',
         action: envelope.action,
