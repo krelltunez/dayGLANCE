@@ -239,7 +239,7 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
       {/* Ghost render for overflow measurement — invisible, no pointer events */}
       <div
         ref={ghostRef}
-        className="absolute inset-0 flex flex-wrap gap-1 opacity-0 pointer-events-none"
+        className="absolute inset-x-0 top-0 flex flex-wrap gap-1 opacity-0 pointer-events-none"
         aria-hidden="true"
       >
         {allItems.map(item => (
