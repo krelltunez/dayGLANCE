@@ -4,6 +4,11 @@ import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, INTENT_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
 
+// The tray holds a read-only state snapshot. Any task-state changes in tray
+// mode (e.g. from an iCloud sync download) were already handled by the main
+// window. Emitting here would produce duplicate WebDAV notify events.
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 /** Reconstruct an ISO due string from dayGLANCE's split date/time fields. */
@@ -64,6 +69,8 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
   const prevRef = useRef(null);
 
   useEffect(() => {
+    if (isTrayMode) return;
+
     const config = (() => {
       const raw = localStorage.getItem(INTENT_CONFIG_KEY);
       return raw ? JSON.parse(raw) : null;

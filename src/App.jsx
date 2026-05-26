@@ -1522,7 +1522,7 @@ const DayPlanner = () => {
 
   // Run once on startup after data is loaded.
   useEffect(() => {
-    if (!dataLoaded || (!isNativeIOS() && !isElectronMac())) return;
+    if (isTrayMode || !dataLoaded || (!isNativeIOS() && !isElectronMac())) return;
     iCloudSyncRef.current?.();
   }, [dataLoaded]);
 
@@ -1531,14 +1531,14 @@ const DayPlanner = () => {
   // promptly even when the real-time watchers (NSMetadataQuery / fs.watch)
   // don't fire, which is common for iCloud-daemon-managed files.
   useEffect(() => {
-    if (!isNativeIOS() && !isElectronMac()) return;
+    if (isTrayMode || (!isNativeIOS() && !isElectronMac())) return;
     const timer = setInterval(() => iCloudSyncRef.current?.(), 15 * 1000);
     return () => clearInterval(timer);
   }, []);
 
   // On Electron/macOS, also sync when the window comes back to the foreground.
   useEffect(() => {
-    if (!isElectronMac()) return;
+    if (isTrayMode || !isElectronMac()) return;
     const onVisible = () => {
       if (document.visibilityState === 'visible') iCloudSyncRef.current?.();
     };
@@ -1550,7 +1550,7 @@ const DayPlanner = () => {
   // file was changed by the iOS app (fs.watch → icloud:changed IPC event).
   // If a sync is already in progress, schedule a retry so the change isn't lost.
   useEffect(() => {
-    if (!isElectronMac()) return;
+    if (isTrayMode || !isElectronMac()) return;
     return window.electronAPI.onICloudChanged?.(() => {
       if (cloudSyncInProgressRef.current) {
         setTimeout(() => iCloudSyncRef.current?.(), 2000);
