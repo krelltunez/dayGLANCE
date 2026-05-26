@@ -124,13 +124,8 @@ async function handleCreate(payload, context) {
     projects = [],
   } = context;
 
-  console.log('[intent:handleCreate] entered — title:', payload.title, '| due:', payload.due, '| source_entity_id:', payload.source_entity_id);
-
   const v = validate(CreateSchema, payload);
-  if (!v.ok) {
-    console.log('[intent:handleCreate] validation failed:', v.error);
-    return fail(v.error);
-  }
+  if (!v.ok) return fail(v.error);
 
   const raw = v.data;
 
@@ -162,13 +157,10 @@ async function handleCreate(payload, context) {
     source_entity_id: raw.source_entity_id,
   };
 
-  console.log('[intent:handleCreate] normalized — due:', due, '| allDay:', allDay, '| recurring:', recurring, '| setters:', { setTasks: !!setTasks, setUnscheduledTasks: !!setUnscheduledTasks, setRecurringTasks: !!setRecurringTasks });
-
   let intentKey = null;
 
   if (raw.source_app && raw.source_entity_id) {
     intentKey = await createKey(raw.source_app, raw.source_entity_id, due);
-    console.log('[intent:handleCreate] intentKey:', intentKey, '| searching', tasks.length, 'tasks,', unscheduledTasks.length, 'unsched,', recurringTasks.length, 'recurring');
 
     const existing =
       tasks.find(t => t._intentKey === intentKey && !t.completed) ||
@@ -176,7 +168,6 @@ async function handleCreate(payload, context) {
       recurringTasks.find(t => t._intentKey === intentKey);
 
     if (existing) {
-      console.log('[intent:handleCreate] decision: idempotency hit — existing task id:', existing.id);
       if (setTasks || setUnscheduledTasks || setRecurringTasks) {
         // Execute: update the existing task in whichever list it lives in.
         const projectId = resolveProjectId(normalized.project, projects);
@@ -207,7 +198,6 @@ async function handleCreate(payload, context) {
 
   // Skeleton mode: no setters provided, return normalized result only.
   if (!setTasks && !setUnscheduledTasks && !setRecurringTasks) {
-    console.log('[intent:handleCreate] decision: skeleton mode (no setters) — returning normalized only');
     return ok({ warning: '', _normalized: normalized, _intentKey: intentKey });
   }
 
@@ -241,22 +231,17 @@ async function handleCreate(payload, context) {
       completedDates: [],
       exceptions: {},
     };
-    console.log('[intent:handleCreate] decision: recurring — calling setRecurringTasks, id:', taskId, '_intentKey:', intentKey);
     setRecurringTasks(prev => [...prev, newRecurring]);
   } else if (due) {
     const scheduled = parseDue(due, allDay);
     const newTask = { ...baseTask, date: scheduled.date, startTime: scheduled.startTime, isAllDay: scheduled.isAllDay };
-    console.log('[intent:handleCreate] decision: scheduled — calling setTasks, id:', taskId, 'date:', scheduled.date, 'isAllDay:', scheduled.isAllDay, '_intentKey:', intentKey);
     setTasks(prev => [...prev, newTask]);
   } else {
     const newTask = { ...baseTask, priority: priority ?? 0, ...(normalized.deadline ? { deadline: normalized.deadline } : {}) };
-    console.log('[intent:handleCreate] decision: unscheduled — calling setUnscheduledTasks, id:', taskId, '_intentKey:', intentKey);
     setUnscheduledTasks(prev => [...prev, newTask]);
   }
 
-  const result = ok({ task_id: taskId });
-  console.log('[intent:handleCreate] done — task_id:', taskId, '_intentKey:', intentKey);
-  return result;
+  return ok({ task_id: taskId });
 }
 
 function handleComplete(payload, context) {
