@@ -5063,11 +5063,11 @@ const DayPlanner = () => {
     // next calendar sync re-imports them.
     if (normalizedTasks) setTasks(prev => {
       const mergedIds = new Set(normalizedTasks.map(t => String(t.id)));
-      return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported))];
+      return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
     });
     if (normalizedUnsched) setUnscheduledTasks(prev => {
       const mergedIds = new Set(normalizedUnsched.map(t => String(t.id)));
-      return [...normalizedUnsched, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported))];
+      return [...normalizedUnsched, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
     });
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
@@ -5077,7 +5077,10 @@ const DayPlanner = () => {
     if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
     if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
-    if (data.recurringTasks) setRecurringTasks(data.recurringTasks);
+    if (data.recurringTasks) setRecurringTasks(prev => {
+      const mergedIds = new Set(data.recurringTasks.map(t => String(t.id)));
+      return [...data.recurringTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && t._intentKey)];
+    });
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     // Only apply today's routine state if the remote data is from today — matching
     // the localStorage guard above. If routinesDate is stale/off, applying it would
