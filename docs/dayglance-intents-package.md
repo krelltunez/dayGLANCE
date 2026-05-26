@@ -8,7 +8,9 @@ This doc is the source of truth for *how the package is being built*. The protoc
 
 **Phases 1, 2, 2.5, and 3 shipped (May 2026).** `@glance-apps/intents@1.0.1` and `@glance-apps/intents@1.1.0` published. `@glance-apps/sync@1.0.3` published. dayGLANCE v2.11.0 (released 2026-05-24) consumes `@glance-apps/intents@1.1.0` and `@glance-apps/sync@1.0.3` with the full Phase 2.5 encryption surface in place. lastGLANCE v0.1.13 (in testing) consumes the same package versions with the Phase 3 integration including intents encryption.
 
-**Phase 2.6 superseded by Phase 2.7 (May 2026).** Phase 2.6 (per-envelope salt, PBKDF2-per-envelope) shipped in dayGLANCE and lastGLANCE feature branches and resolved the cross-app key mismatch from Phase 2.5, but surfaced a new UX-breaking problem: PBKDF2-per-envelope requires the cloud sync passphrase in memory at every emit and poll, and the passphrase is not persisted across app sessions (only the derived sync key is). This forced a "re-enter passphrase every session" UX that is unacceptable for a set-and-forget product. Phase 2.7 replaces PBKDF2-per-envelope with HKDF-per-envelope against an intents-owned long-lived root key, derived once at intents-encryption setup and cached non-extractably in IndexedDB exactly like sync's session key. Sync is not modified. The shared salt that lets both apps derive the same intents root key lives on the WebDAV endpoint, not in either app's IndexedDB. Phase 2.7 is the current active work.
+**Phase 2.7 shipped (May 2026).** dayGLANCE v2.12.0 and lastGLANCE v1.0.0 ship with HKDF-per-envelope intents encryption against an intents-owned long-lived root key. The cloud sync passphrase is used at intents-encryption setup only; after setup, the cached HKDF root key is sufficient for all envelope encryption and decryption. Set-and-forget UX restored. Sync is unmodified. Two downstream bugs were found and fixed during end-to-end testing: an `applyEngineData` race in dayGLANCE that dropped intent-created tasks before first sync upload (fixed by extending the preserve-from-prev filter to `_intentKey` tasks), and a tray-mode bug where dayGLANCE's tray popup was running its own `useIntentPoller` and consuming events before the main window could process them (fixed by adding the `isTrayMode` guard to `useIntentPoller`, matching the existing guard in `useSaveOnChange`).
+
+`@glance-apps/intents@1.3.0` published. `@glance-apps/sync@1.1.0` unchanged from Phase 2.6 (`deriveKeyForSalt` export remains but is unused by Phase 2.7). dayGLANCE v2.12.0 and lastGLANCE v1.0.0 are the coordinated release.
 
 **Phase 4** (Android intent transport + web URL transport) has not started.
 
@@ -350,7 +352,7 @@ Same shape as the dayGLANCE PRs above. lastGLANCE Phase 3 PRs #11-13 (the intent
 
 ### Phase 2.7: HKDF-per-envelope with intents-owned root key (supersedes Phase 2.6)
 
-**Active work. Sync is not modified in this phase.**
+**Shipped in dayGLANCE v2.12.0 and lastGLANCE v1.0.0 (May 2026). Sync is not modified.**
 
 #### Why this exists
 
@@ -417,6 +419,16 @@ In each app:
 - **End-to-end (cross-app)**: same as Phase 2.6 test plan. Emit encrypted `create` from lastGLANCE, decrypt in dayGLANCE. Emit encrypted `notify` from dayGLANCE, decrypt in lastGLANCE.
 - **Setup flow**: with sync encryption already configured in a prior session (passphrase not in memory), enable intents encryption in one app. Confirm the passphrase prompt appears, completes successfully, writes the shared salt to WebDAV, and toggles intents encryption on. Then enable intents encryption in the second app; confirm it reads the existing shared salt and toggles on without prompting for the salt (still needs passphrase since intents needs to derive its root key in this app too).
 
+#### Bugs found and fixed during end-to-end testing
+
+Two downstream bugs surfaced once Phase 2.7's encryption layer started actually working. Both are pre-existing issues that were masked while the encryption layer was failing upstream. Both are fixed in dayGLANCE v2.12.0.
+
+**Bug 1: `applyEngineData` race dropped intent-created tasks (dayGLANCE PR #905).** dayGLANCE's `applyEngineData` (called when remote sync data arrives) used functional state updaters with a preserve-from-prev filter that only kept tasks flagged `_native` or `imported`. Intent-created tasks carry `_intentKey` but not those flags. If a sync download fired in the ~5-second window between intent creation and first upload, the new task was silently dropped — the activity log entry still showed a clean `create` because the handler had returned `ok`, but the task never persisted. Fix: extend the preserve-from-prev filter in all three `applyEngineData` setters (`tasks`, `unscheduledTasks`, `recurringTasks`) to also keep `_intentKey` tasks. Delete propagation in dayGLANCE is tombstone-based (`recycleBin` + `deletedTaskIds`), so the broader filter doesn't accidentally resurrect deleted tasks — a deleted task isn't in `prev` at all.
+
+**Bug 2: tray-mode poller silently consumed events (dayGLANCE).** dayGLANCE's Electron tray popup runs in a separate renderer process with its own React state. Its `useIntentPoller` ran the same poll cycle as the main window, dispatched `create` actions, wrote `setTasks` updates, and advanced the WebDAV cursor — but `useSaveOnChange` is suppressed in tray mode, so the state updates never persisted. The cursor advance was permanent. The main window's next poll saw `pending: 0` (events already cursor-advanced) and never processed them. The activity log entries the user saw came from the tray's ephemeral state and were never written to actual storage. Fix: add an `isTrayMode` early-return guard to `useIntentPoller`, mirroring the existing guard in `useSaveOnChange`. The tray popup is an observation surface, not a sync participant.
+
+The lastGLANCE side was audited for a symmetric race against the dayGLANCE `applyEngineData` pattern and found to be structurally safe — lastGLANCE uses a purely additive merge that doesn't have preserve-from-prev allowlists, so intent-created CompletionEvents can't be dropped by the merge. lastGLANCE has no tray popup so the second bug doesn't apply.
+
 ### Phase 4: Android intent transport + web URL transport (parallel-eligible)
 
 Both transports converge on the same `handleIntent` from Phase 2, so they're additive surfaces, not core changes. Can run parallel to Phase 3.
@@ -471,15 +483,15 @@ End-to-end tests (lastGLANCE emits `create`, dayGLANCE picks it up, completes it
 
 ## Critical-path ordering
 
-Phases 1, 2, 2.5, and 3 shipped. Phase 2.6 was a dead-end branch (resolved cross-app mismatch but broke UX). Phase 2.7 (HKDF-per-envelope with intents-owned root key) is the active work.
+Phases 1, 2, 2.5, 3, and 2.7 shipped. Phase 2.6 was a dead-end branch superseded by Phase 2.7.
 
-**`@glance-apps/intents@1.3.0` (HKDF-based key derivation)** → **dayGLANCE PRs + lastGLANCE counterparts (intents-encryption setup flow + emitter + poller + UI)** → **coordinated release: dayGLANCE v2.11.1 (or v2.12.0) + lastGLANCE v0.1.14**
+**Historical shipping path:**
 
-Sync is not modified in Phase 2.7. `@glance-apps/sync@1.1.0` (the Phase 2.6 release) remains valid but its `deriveKeyForSalt` export is unused by Phase 2.7 — left in place for any other consumer that may want it.
+`@glance-apps/intents@1.3.0` (HKDF-based key derivation) → dayGLANCE PRs (intents-encryption setup flow + emitter + poller + UI) + lastGLANCE counterparts → downstream bug fixes (PR #905 race fix, tray-mode poller guard) → coordinated release of dayGLANCE v2.12.0 + lastGLANCE v1.0.0.
 
-Phase 4 transports (Android intent + web URL) have not started and are parallel-eligible with Phase 2.7.
+Sync was not modified in Phase 2.7. `@glance-apps/sync@1.1.0` (the Phase 2.6 release) remains valid but its `deriveKeyForSalt` export is unused by Phase 2.7 — left in place for any other consumer that may want it.
 
-End-to-end working before polish.
+Phase 4 transports (Android intent + web URL) have not started.
 
 ## Open items
 
