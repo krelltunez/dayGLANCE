@@ -4844,6 +4844,12 @@ const DayPlanner = () => {
       const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
       return !m || new Date(m[1]) >= uidCutoff;
     });
+    const _tasksForSync = tasks.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
+    const _unschedForSync = unscheduledTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
+    console.log('[intent:buildSyncPayload] tasks:', _tasksForSync.length, '| unsched:', _unschedForSync.length, '| recurring:', recurringTasks.length,
+      '| _intentKey in tasks:', _tasksForSync.filter(t => t._intentKey).map(t => t._intentKey),
+      '| _intentKey in unsched:', _unschedForSync.filter(t => t._intentKey).map(t => t._intentKey),
+      '| _intentKey in recurring:', recurringTasks.filter(t => t._intentKey).map(t => t._intentKey));
     return {
       version: 2,
       lastModified: new Date().toISOString(),
@@ -5063,10 +5069,14 @@ const DayPlanner = () => {
     // next calendar sync re-imports them.
     if (normalizedTasks) setTasks(prev => {
       const mergedIds = new Set(normalizedTasks.map(t => String(t.id)));
+      const intentKeyPrev = prev.filter(t => !mergedIds.has(String(t.id)) && t._intentKey);
+      console.log('[intent:applyEngineData] setTasks updater — prev:', prev.length, '| normalizedTasks:', normalizedTasks.length, '| _intentKey preserved from prev:', intentKeyPrev.length, intentKeyPrev.map(t => t._intentKey));
       return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
     });
     if (normalizedUnsched) setUnscheduledTasks(prev => {
       const mergedIds = new Set(normalizedUnsched.map(t => String(t.id)));
+      const intentKeyPrev = prev.filter(t => !mergedIds.has(String(t.id)) && t._intentKey);
+      console.log('[intent:applyEngineData] setUnscheduledTasks updater — prev:', prev.length, '| normalizedUnsched:', normalizedUnsched.length, '| _intentKey preserved from prev:', intentKeyPrev.length, intentKeyPrev.map(t => t._intentKey));
       return [...normalizedUnsched, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
     });
     if (data.unscheduledOrderTimestamp) {
@@ -5079,6 +5089,8 @@ const DayPlanner = () => {
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(prev => {
       const mergedIds = new Set(data.recurringTasks.map(t => String(t.id)));
+      const intentKeyPrev = prev.filter(t => !mergedIds.has(String(t.id)) && t._intentKey);
+      console.log('[intent:applyEngineData] setRecurringTasks updater — prev:', prev.length, '| data.recurringTasks:', data.recurringTasks.length, '| _intentKey preserved from prev:', intentKeyPrev.length, intentKeyPrev.map(t => t._intentKey));
       return [...data.recurringTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && t._intentKey)];
     });
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);

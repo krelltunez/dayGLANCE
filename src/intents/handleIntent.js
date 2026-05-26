@@ -223,31 +223,30 @@ async function handleCreate(payload, context) {
   if (recurring) {
     const scheduled = parseDue(due, allDay);
     const startDate = scheduled?.date ?? new Date().toISOString().slice(0, 10);
-    setRecurringTasks(prev => [...prev, {
+    const newRecurring = {
       ...baseTask,
       startTime: scheduled && !scheduled.isAllDay ? scheduled.startTime : '00:00',
       isAllDay: allDay ?? true,
       recurrence: freqToRecurrence(recurring, startDate),
       completedDates: [],
       exceptions: {},
-    }]);
+    };
+    console.log('[intent:handleCreate] setRecurringTasks — new recurring task:', JSON.stringify(newRecurring));
+    setRecurringTasks(prev => [...prev, newRecurring]);
   } else if (due) {
     const scheduled = parseDue(due, allDay);
-    setTasks(prev => [...prev, {
-      ...baseTask,
-      date: scheduled.date,
-      startTime: scheduled.startTime,
-      isAllDay: scheduled.isAllDay,
-    }]);
+    const newTask = { ...baseTask, date: scheduled.date, startTime: scheduled.startTime, isAllDay: scheduled.isAllDay };
+    console.log('[intent:handleCreate] setTasks — new scheduled task:', JSON.stringify(newTask));
+    setTasks(prev => [...prev, newTask]);
   } else {
-    setUnscheduledTasks(prev => [...prev, {
-      ...baseTask,
-      priority: priority ?? 0,
-      ...(normalized.deadline ? { deadline: normalized.deadline } : {}),
-    }]);
+    const newTask = { ...baseTask, priority: priority ?? 0, ...(normalized.deadline ? { deadline: normalized.deadline } : {}) };
+    console.log('[intent:handleCreate] setUnscheduledTasks — new inbox task:', JSON.stringify(newTask));
+    setUnscheduledTasks(prev => [...prev, newTask]);
   }
 
-  return ok({ task_id: taskId });
+  const result = ok({ task_id: taskId });
+  console.log('[intent:handleCreate] returning:', JSON.stringify(result));
+  return result;
 }
 
 function handleComplete(payload, context) {
