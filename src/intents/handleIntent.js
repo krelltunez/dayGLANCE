@@ -51,7 +51,7 @@ function parseDue(due, allDay) {
 
   const dateOnly = !due.includes('T');
   if (dateOnly || allDay) {
-    return { date: due.slice(0, 10), startTime: '00:00', isAllDay: true };
+    return { date: due.slice(0, 10), startTime: null, isAllDay: true };
   }
 
   const d = new Date(due);

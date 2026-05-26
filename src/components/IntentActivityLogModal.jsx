@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ArrowDownLeft, ArrowUpRight, Trash2 } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -98,6 +98,10 @@ const IntentActivityLogModal = () => {
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const { showIntentActivityLog, setShowIntentActivityLog } = useSyncCtx();
   const [entries, setEntries] = useState(() => getActivityLog());
+
+  useEffect(() => {
+    if (showIntentActivityLog) setEntries(getActivityLog());
+  }, [showIntentActivityLog]);
 
   if (!showIntentActivityLog) return null;
 
