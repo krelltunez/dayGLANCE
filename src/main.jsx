@@ -3,6 +3,20 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
+// crypto.randomUUID() requires a secure context (HTTPS or localhost).
+// When accessed over HTTP on a LAN IP the API is absent and every call throws,
+// silently breaking any action that creates a new task/id.
+// crypto.getRandomValues() has no such restriction and is safe to use here.
+if (typeof crypto.randomUUID !== 'function') {
+  crypto.randomUUID = () => {
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    return [b.slice(0,4),b.slice(4,6),b.slice(6,8),b.slice(8,10),b.slice(10,16)]
+      .map(s => Array.from(s).map(x => x.toString(16).padStart(2,'0')).join('')).join('-');
+  };
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
