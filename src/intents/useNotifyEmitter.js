@@ -15,8 +15,13 @@ const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.l
 function taskDue(task) {
   if (!task.date) return undefined;
   if (task.isAllDay) return task.date;
-  // Parse as local time and emit as UTC — satisfies the intents datetime({ offset: true }) schema.
-  return new Date(`${task.date}T${task.startTime}:00`).toISOString();
+  // Append the local UTC offset so the wall-clock time is preserved (e.g. 09:00+05:00,
+  // not converted to 04:00Z). The intents schema requires datetime({ offset: true }).
+  const off = -new Date().getTimezoneOffset(); // minutes east of UTC
+  const sign = off >= 0 ? '+' : '-';
+  const pad = n => String(Math.abs(n)).padStart(2, '0');
+  const offsetStr = `${sign}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`;
+  return `${task.date}T${task.startTime}:00${offsetStr}`;
 }
 
 /**
