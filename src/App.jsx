@@ -181,7 +181,8 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
-  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
+  useEffect(() => { if (isReviewerUnlocked) console.info('[dayGLANCE] Reviewer unlock active'); }, [isReviewerUnlocked]);
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -9498,7 +9499,7 @@ const DayPlanner = () => {
       {showFramesModal && !isMobile && <FramesModal />}
 
       {/* Subscription wall — shown on Android, iOS, and macOS when subscription is inactive */}
-      {(isAndroidApp || isIOSApp || isElectronApp) && (subLoading || !isPro) && (
+      {(isAndroidApp || isIOSApp || isElectronApp) && (subLoading || !isPro) && !isReviewerUnlocked && (
         <SubscriptionWall
           isIOSApp={isIOSApp || isElectronApp}
           isLoading={subLoading}
@@ -9510,6 +9511,7 @@ const DayPlanner = () => {
           billingEvent={billingEvent}
           clearBillingEvent={clearBillingEvent}
           billingErrorMessage={billingErrorMessage}
+          onReviewerUnlock={setReviewerUnlocked}
         />
       )}
     </div>

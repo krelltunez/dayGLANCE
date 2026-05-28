@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader } from 'lucide-react';
+import { REVIEWER_ACCESS_CODE } from '../config/reviewerAccess.js';
 
 /**
  * Full-screen paywall shown on Android, iOS, and macOS when the user has no active subscription.
@@ -21,6 +22,7 @@ export default function SubscriptionWall({
   onSubscribeYearly,
   onSubscribeLifetime,
   onRestore,
+  onReviewerUnlock,
   isLoading,
   prices,
   trialEligible = true,
@@ -33,8 +35,12 @@ export default function SubscriptionWall({
     catch { return false; }
   })();
 
-  const [pending, setPending]   = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
+  const [pending, setPending]         = useState(null);
+  const [errorMsg, setErrorMsg]       = useState(null);
+  const [showCodeInput, setShowCodeInput] = useState(false);
+  const [codeValue, setCodeValue]     = useState('');
+  const [codeError, setCodeError]     = useState(false);
+  const codeInputRef = useRef(null);
 
   useEffect(() => {
     if (!billingEvent) return;
@@ -57,6 +63,21 @@ export default function SubscriptionWall({
     setErrorMsg(null);
     setPending('restore');
     onRestore?.();
+  };
+
+  const handleShowCodeInput = () => {
+    setShowCodeInput(true);
+    setCodeError(false);
+    setCodeValue('');
+    setTimeout(() => codeInputRef.current?.focus(), 0);
+  };
+
+  const handleCodeSubmit = () => {
+    if (codeValue.trim() === REVIEWER_ACCESS_CODE) {
+      onReviewerUnlock?.();
+    } else {
+      setCodeError(true);
+    }
   };
 
   const bg   = dark ? 'bg-gray-950' : 'bg-white';
@@ -170,6 +191,39 @@ export default function SubscriptionWall({
       >
         {pending === 'restore' ? 'Checking…' : 'Restore purchase'}
       </button>
+
+      {/* Reviewer / access code bypass */}
+      {!showCodeInput ? (
+        <button
+          onClick={handleShowCodeInput}
+          className={`mt-4 text-xs ${sub} opacity-50 hover:opacity-80 transition-opacity`}
+        >
+          Have an access code?
+        </button>
+      ) : (
+        <div className="mt-4 w-full max-w-xs flex flex-col items-center gap-2">
+          <div className="flex w-full gap-2">
+            <input
+              ref={codeInputRef}
+              type="text"
+              value={codeValue}
+              onChange={e => { setCodeValue(e.target.value); setCodeError(false); }}
+              onKeyDown={e => e.key === 'Enter' && handleCodeSubmit()}
+              placeholder="Access code"
+              className={`flex-1 rounded-lg border px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 ${dark ? 'bg-gray-900 border-gray-700 text-gray-100 placeholder-gray-600' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'}`}
+            />
+            <button
+              onClick={handleCodeSubmit}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              Unlock
+            </button>
+          </div>
+          {codeError && (
+            <p className="text-xs text-red-500">Invalid code.</p>
+          )}
+        </div>
+      )}
 
     </div>
   );

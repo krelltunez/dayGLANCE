@@ -102,6 +102,10 @@ function billingErrorMessage(code) {
   }
 }
 
+// ── Reviewer unlock ───────────────────────────────────────────────────────────
+
+const REVIEWER_UNLOCK_KEY = 'day-planner-reviewer-unlock';
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -123,7 +127,15 @@ export function useSubscription() {
   const [trialEligible, setTrialEligible] = useState(() => readTrialEligibility());
   const [isLoading, setIsLoading]         = useState(false);
   const [billingEvent, setBillingEvent]   = useState(null);
+  const [isReviewerUnlocked, setIsReviewerUnlockedState] = useState(
+    () => localStorage.getItem(REVIEWER_UNLOCK_KEY) === 'true'
+  );
   const timeoutRef = useRef(null);
+
+  const setReviewerUnlocked = useCallback(() => {
+    try { localStorage.setItem(REVIEWER_UNLOCK_KEY, 'true'); } catch {}
+    setIsReviewerUnlockedState(true);
+  }, []);
 
   const isOnNativePlatform = !!(BILLING || IOS || ELECTRON);
 
@@ -288,5 +300,7 @@ export function useSubscription() {
     billingEvent,
     clearBillingEvent,
     billingErrorMessage,
+    isReviewerUnlocked,
+    setReviewerUnlocked,
   };
 }
