@@ -81,6 +81,7 @@ function createWindow(): BrowserWindow {
     width: saved.width,
     height: saved.height,
     ...(saved.x != null && saved.y != null ? { x: saved.x, y: saved.y } : {}),
+    show: false,
     minWidth: 800,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
@@ -110,6 +111,11 @@ function createWindow(): BrowserWindow {
   });
 
   if (saved.maximized) mainWindow.maximize();
+
+  // Show the window only after the renderer has painted its first frame,
+  // preventing the white screen that appears when the window is shown before
+  // React has had a chance to render anything.
+  mainWindow.once('ready-to-show', () => { live(mainWindow)?.show(); });
 
   if (DEV) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
