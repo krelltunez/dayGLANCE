@@ -6,7 +6,6 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
-import { getStorageUsage } from '../utils/storage.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
@@ -73,9 +72,6 @@ const SettingsModal = () => {
 
   const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
   const provider = cloudSyncProviders[currentProvider];
-  const storageUsage = getStorageUsage();
-  const storageWarning = storageUsage.totalBytes > 4 * 1024 * 1024;
-
   const [intentForm, setIntentForm] = useState(() => {
     const raw = localStorage.getItem(INTENT_CONFIG_KEY);
     const saved = raw ? JSON.parse(raw) : {};
