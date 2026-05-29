@@ -184,7 +184,12 @@ export function useSubscription() {
 
   // On mount: background refresh for each platform.
   useEffect(() => {
-    if (BILLING) BILLING.refresh?.();
+    if (BILLING) {
+      BILLING.refresh?.();
+      // Re-read trial eligibility after a delay to match iOS behavior — BillingManager
+      // queries Play async, so the initial read may predate the authoritative result.
+      setTimeout(() => { setTrialEligible(readTrialEligibility()); }, 3000);
+    }
 
     if (IOS) {
       // RevenueCat caches status; re-read after a short delay so it has
