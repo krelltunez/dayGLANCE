@@ -1165,6 +1165,10 @@ const DayPlanner = () => {
     window.history.replaceState(null, '');
   }, []);
 
+  // Best-effort request for persistent storage on startup.
+  // Keeps IndexedDB / Cache Storage alive even when the browser is under quota pressure.
+  useEffect(() => { navigator.storage?.persist?.(); }, []);
+
   // Lock body/html scrolling to prevent scroll chaining (all devices incl. desktop PWA)
   useEffect(() => {
     document.documentElement.style.overflow = 'hidden';

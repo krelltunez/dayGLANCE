@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Globe, Key, LayoutGrid, Loader, Lock, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Globe, HardDrive, Key, LayoutGrid, Loader, Lock, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../utils/timezones.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
-import { getStorageUsage } from '../utils/storage.js';
+import { getStorageUsage, formatBytes } from '../utils/storage.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
@@ -94,6 +94,11 @@ const SettingsModal = () => {
   // null | 'passphrase-needed' | 'running' | { error: string }
   const [intentSetupPhase, setIntentSetupPhase] = useState(null);
   const [intentPassphraseInput, setIntentPassphraseInput] = useState('');
+
+  const [persisted, setPersisted] = useState(null); // null = checking, true/false = result
+  useEffect(() => {
+    navigator.storage?.persisted?.().then(p => setPersisted(p));
+  }, []);
 
   const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
   const [mainWindowHotkey, setMainWindowHotkey] = useState(() => localStorage.getItem('dg-main-window-hotkey') || '');
@@ -691,6 +696,34 @@ const SettingsModal = () => {
                           <option value={60}>After 60 days</option>
                         </select>
                       </div>
+                    </div>
+
+                    <hr className={borderClass} />
+
+                    {/* Storage */}
+                    <div className="space-y-3">
+                      <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
+                        <HardDrive size={16} className={textSecondary} />
+                        Storage
+                      </div>
+                      <p className={`text-xs ${textSecondary}`}>
+                        {formatBytes(storageUsage.totalBytes)} used{storageWarning ? ' — nearing the ~5 MB localStorage limit' : ''}
+                      </p>
+                      {persisted === false && (
+                        <div className={`p-3 rounded-lg border ${darkMode ? 'bg-amber-900/20 border-amber-700' : 'bg-amber-50 border-amber-300'}`}>
+                          <p className={`text-xs ${darkMode ? 'text-amber-300' : 'text-amber-800'} mb-2`}>
+                            Your data may be cleared by the browser when storage is low. Allow persistent storage to protect it.
+                          </p>
+                          <button
+                            onClick={() => {
+                              navigator.storage?.persist?.().then(granted => setPersisted(granted));
+                            }}
+                            className={`px-3 py-1.5 text-xs rounded-lg font-medium ${darkMode ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'} transition-colors`}
+                          >
+                            Allow persistent storage
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
