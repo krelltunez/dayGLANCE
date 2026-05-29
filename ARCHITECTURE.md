@@ -12,6 +12,7 @@ This document describes the high-level architecture of the dayGLANCE app for con
 - [WebDAV sync engine](#webdav-sync-engine)
 - [Obsidian integration](#obsidian-integration)
 - [Android WebView bridge](#android-webview-bridge)
+- [Intents system](#intents-system)
 - [Proxy layer](#proxy-layer)
 - [Home screen widget (Android)](#home-screen-widget-android)
 
@@ -52,11 +53,11 @@ dayGLANCE is a single-page React app wrapped in an Android WebView. The web app 
 
 ### Structure
 
-The entire UI and application logic lives in `src/App.jsx` — a single large component. This is intentional: it keeps data flow explicit and avoids prop-drilling complexity. Supporting modules handle isolated concerns:
+`src/App.jsx` is the top-level orchestrator — it wires together state, hooks, and layout components. Over time, cohesive slices of logic have been extracted into dedicated modules:
 
-| File | Responsibility |
+| Path | Responsibility |
 |---|---|
-| `App.jsx` | All UI, state management, and orchestration |
+| `App.jsx` | Top-level orchestration, layout selection, context provision |
 | `ai.js` | AI provider abstraction (OpenAI, Anthropic, Ollama, etc.) |
 | `ai-prompts.js` | Prompt templates for every AI feature |
 | `native.js` | Thin JS wrappers around the Android JavascriptInterface |
@@ -64,10 +65,52 @@ The entire UI and application logic lives in `src/App.jsx` — a single large co
 | `mergeSync.js` | WebDAV sync and three-way merge logic |
 | `trmnl.js` | TRMNL e-ink display integration |
 | `versionCheck.js` | Update checking |
+| `components/` | All React UI components (layout, modals, cards, etc.) |
+| `hooks/` | Custom React hooks (one concern per hook — see below) |
+| `context/` | React Context definitions (`DayPlannerContext`, `FeaturesContext`, `SyncContext`) |
+| `utils/` | Pure utility functions (date/time formatting, task helpers, crypto, etc.) |
+| `constants/` | Static data (default frame definitions, habit presets) |
+| `config/` | Runtime configuration (feature-flag/reviewer access logic) |
+| `intents/` | `@glance-apps/intents` integration — intent polling, handling, and logging |
+| `sync/adapter.js` | `@glance-apps/sync` adapter — pins all dayGLANCE-specific sync engine config |
+
+### Hooks
+
+Business logic that was previously inline in `App.jsx` has been progressively extracted into hooks in `src/hooks/`. Each hook owns one concern:
+
+| Hook | Responsibility |
+|---|---|
+| `useTaskActions` | CRUD operations on tasks (add, edit, delete, complete, move) |
+| `useCalendarSync` | Native Android calendar event import |
+| `useCloudSync` | WebDAV sync scheduling and conflict surfacing |
+| `useDragDrop` | Drag-and-drop rescheduling |
+| `useHabits` | Habit definitions and daily completion tracking |
+| `useRoutines` | Routine chip definitions by day of week |
+| `useGTDFrames` | Frame definitions and scheduling logic |
+| `useGoalsProjects` | Goals and projects state |
+| `useReminderEngine` | Notification scheduling and snooze handling |
+| `useObsidian` | Obsidian vault polling and write-back |
+| `useVoiceAI` | Voice input capture and AI parsing |
+| `useBackup` | Auto-backup and manual backup/restore |
+| `useKeyboardShortcuts` | Global keyboard shortcut registration |
+| `useAppInit` | One-time startup logic (migration, onboarding gate) |
+| `useDataPersistence` | `localStorage` read/write for all data buckets |
+
+(This is a representative list; see `src/hooks/` for the full set.)
+
+### Context
+
+Three context objects are used to avoid threading props through deeply nested component trees:
+
+| Context | What it carries |
+|---|---|
+| `DayPlannerContext` | Core app state and callbacks (tasks, settings, navigation) |
+| `FeaturesContext` | Feature-flag / subscription state |
+| `SyncContext` | Sync status, last-sync timestamp, conflict state |
 
 ### State management
 
-dayGLANCE uses plain React hooks — no Redux, Zustand, or Context. `App.jsx` declares around 300 `useState` hooks directly. This keeps data flow linear and easy to trace, at the cost of a large top-level component. `useCallback` and `useMemo` are used extensively to avoid re-renders on expensive derived data.
+dayGLANCE uses plain React hooks — no Redux, Zustand, or external state library. State is declared in `App.jsx` and custom hooks; `useCallback` and `useMemo` are used extensively to avoid unnecessary re-renders.
 
 ### Persistence
 
@@ -282,6 +325,26 @@ export function nativeGetEvents(date) {
 ### Notification action loop
 
 Task reminder notifications include action buttons (e.g. "Snooze 10 min", "Mark done"). When tapped, the action is written to a pending-action slot in native storage. The next time the WebView is foregrounded, the app calls `getPendingAction()` to read and process it.
+
+---
+
+## Intents system
+
+dayGLANCE supports a structured intent protocol via the `@glance-apps/intents` package. External apps (e.g. Shortcuts, automation tools) can write signed intent envelopes to a WebDAV directory; dayGLANCE polls that directory and applies the intents.
+
+```
+External app writes intent envelope → WebDAV /GLANCE/events/
+  → useIntentPoller (foreground: every 2 min, background: every 15 min)
+  → downloads new envelope files (cursor-based, only unprocessed)
+  → decrypts / verifies envelope (optional encryption via intentsKeyStore)
+  → handleIntent() applies the action (create task, complete task, query, etc.)
+  → logActivity() records result to intentLog
+  → processed envelope files are garbage-collected after 30 days
+```
+
+Supported intent actions are `create`, `complete`, `open`, and `query`. The tray popup (`?tray`) never polls — it holds a read-only state snapshot and must not consume events before the main window can act on them.
+
+The `intentsEncryptionSetup.js` / `intentsKeyStore.js` modules manage the optional end-to-end encryption key used to protect envelope contents in transit.
 
 ---
 

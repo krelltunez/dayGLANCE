@@ -69,15 +69,30 @@ When adding new logic, please add a test file alongside it if the logic is non-t
 ```
 dayGLANCE/
 ├── src/
-│   ├── App.jsx             # Main React component — most UI and app logic lives here
+│   ├── App.jsx             # Top-level orchestrator — wires state, hooks, and layout
 │   ├── main.jsx            # Entry point
 │   ├── ai.js               # AI provider integration (API calls, config)
 │   ├── ai-prompts.js       # Prompt templates for all AI features
 │   ├── native.js           # Bridge to Android native APIs
 │   ├── obsidian.js         # Obsidian vault integration
-│   ├── mergeSync.js        # Data merge/sync utilities
+│   ├── mergeSync.js        # WebDAV sync and three-way merge logic
 │   ├── trmnl.js            # TRMNL e-ink display integration
-│   └── versionCheck.js     # Update checking
+│   ├── versionCheck.js     # Update checking
+│   ├── components/         # React UI components (modals, cards, layout, etc.)
+│   │   ├── goals/          # Goal-related components
+│   │   └── projects/       # Project-related components
+│   ├── hooks/              # Custom React hooks (one concern per hook)
+│   ├── context/            # React Context definitions
+│   │   ├── DayPlannerContext.jsx
+│   │   ├── FeaturesContext.jsx
+│   │   └── SyncContext.jsx
+│   ├── utils/              # Pure utility functions (formatting, task helpers, etc.)
+│   ├── constants/          # Static data (default frames, habit presets)
+│   ├── config/             # Runtime configuration (feature flags, reviewer access)
+│   ├── intents/            # @glance-apps/intents — intent polling, handling, logging
+│   └── sync/
+│       └── adapter.js      # @glance-apps/sync adapter with dayGLANCE-specific config
+├── api/                    # Vercel serverless functions (WebDAV and calendar proxies)
 ├── public/                 # Static assets (icons, service worker)
 ├── dayglance-android/      # Android native wrapper (Kotlin/WebView)
 │   └── app/src/main/
@@ -86,13 +101,12 @@ dayGLANCE/
 │       │   ├── widget/                  # Home screen widget
 │       │   └── bridge/                  # Native bridge implementations
 │       └── res/layout/widget_*.xml      # Widget layouts
-├── api/                    # Backend/API utilities
 ├── vite.config.js          # Web build config
 ├── vite.config.android.js  # Android-specific build config
 └── build-and-install.sh    # Full Android build + install script
 ```
 
-`App.jsx` is large and intentionally monolithic for now — if you're looking for a specific feature, search for a comment or UI string rather than browsing linearly.
+If you're looking for a specific feature, searching for a UI string or function name is faster than browsing linearly. The hooks in `src/hooks/` are named by concern (e.g. `useTaskActions`, `useHabits`, `useCloudSync`) and are a good starting point when tracing a feature end-to-end.
 
 ---
 
