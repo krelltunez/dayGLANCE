@@ -12,6 +12,7 @@ Thanks for your interest in contributing! Whether you're fixing a typo, squashin
 - [Making a pull request](#making-a-pull-request)
 - [Reporting security issues](#reporting-security-issues)
 - [Reporting bugs](#reporting-bugs)
+- [License](#license)
 
 ---
 
@@ -154,3 +155,7 @@ Please [open an issue](https://github.com/krelltunez/dayGLANCE/issues) and inclu
 - **Environment:** browser/OS, or Android version and device if it's an Android-specific issue
 
 If you're not sure whether something is a bug or by design, open an issue anyway and we'll figure it out together.
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
