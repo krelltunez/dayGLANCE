@@ -3923,6 +3923,18 @@ const DayPlanner = () => {
         parseInt(dtstr.substr(6, 2))
       );
     } else if (dtstr.length >= 15) {
+      // Z suffix means UTC — use Date.UTC so the browser converts to local time.
+      // Without this, Google Calendar events (which are exported in UTC) display
+      // at the UTC hour rather than the user's local hour.
+      if (dtstr.endsWith('Z')) {
+        return new Date(Date.UTC(
+          parseInt(dtstr.substr(0, 4)),
+          parseInt(dtstr.substr(4, 2)) - 1,
+          parseInt(dtstr.substr(6, 2)),
+          parseInt(dtstr.substr(9, 2)),
+          parseInt(dtstr.substr(11, 2))
+        ));
+      }
       return new Date(
         parseInt(dtstr.substr(0, 4)),
         parseInt(dtstr.substr(4, 2)) - 1,
