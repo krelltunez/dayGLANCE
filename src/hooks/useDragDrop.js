@@ -465,7 +465,7 @@ export default function useDragDrop({
         const prevDraggedTask = draggedTask;
         setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
-            ? { ...t, startTime, date: dropDateStr, isAllDay: false }
+            ? { ...t, startTime, date: dropDateStr, isAllDay: false, transitionId: crypto.randomUUID() }
             : t
         ));
         // If this is a native Android calendar event, write the change back to the device calendar
@@ -509,7 +509,7 @@ export default function useDragDrop({
         // Reschedule an existing scheduled task
         setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
-            ? { ...t, startTime, date: dropDateStr, isAllDay: false }
+            ? { ...t, startTime, date: dropDateStr, isAllDay: false, transitionId: crypto.randomUUID() }
             : t
         ));
       } else if (draggedTask._overdueType === 'deadline') {
@@ -587,7 +587,7 @@ export default function useDragDrop({
       } else {
         setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
-            ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
+            ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true, transitionId: crypto.randomUUID() }
             : t
         ));
       }
@@ -606,7 +606,7 @@ export default function useDragDrop({
         // Reschedule an existing scheduled task to a new all-day slot
         setTasks(prev => prev.map(t =>
           t.id === draggedTask.id
-            ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true }
+            ? { ...t, startTime: '00:00', date: dropDateStr, isAllDay: true, transitionId: crypto.randomUUID() }
             : t
         ));
       } else if (draggedTask._overdueType === 'deadline') {
@@ -1379,6 +1379,7 @@ export default function useDragDrop({
           startTime: finalTime,
           isAllDay: droppingToAllDay,
           date: dropDateStr,
+          transitionId: crypto.randomUUID(),
         } : t));
         // Sync native Android calendar events back to the device calendar
         if (task.nativeEventId && !droppingToAllDay && finalTime) {

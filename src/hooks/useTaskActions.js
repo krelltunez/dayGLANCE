@@ -409,7 +409,7 @@ export default function useTaskActions({
 
     if (fromInbox) {
       setUnscheduledTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? dateToString(new Date()) : null } : task
+        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? dateToString(new Date()) : null, transitionId: crypto.randomUUID() } : task
       ));
     } else {
       const task = tasks.find(t => t.id === id);
@@ -433,7 +433,7 @@ export default function useTaskActions({
         });
       }
       setTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed } : task
+        task.id === id ? { ...task, completed: !task.completed, transitionId: crypto.randomUUID() } : task
       ));
     }
     if (taskToToggle && !taskToToggle.completed) {

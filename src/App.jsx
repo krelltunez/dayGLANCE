@@ -5311,7 +5311,7 @@ const DayPlanner = () => {
           }
           case 'rename': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, title: edit.newTitle } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, title: edit.newTitle, transitionId: crypto.randomUUID() } : t));
             break;
           }
           case 'delete': {
@@ -5320,17 +5320,17 @@ const DayPlanner = () => {
           }
           case 'complete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true, lastModified: new Date().toISOString() } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
             break;
           }
           case 'uncomplete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, lastModified: new Date().toISOString() } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
             break;
           }
           case 'changePriority': {
             if (isInbox) {
-              setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, priority: edit.priority } : t));
+              setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, priority: edit.priority, transitionId: crypto.randomUUID() } : t));
             }
             break;
           }
@@ -5340,7 +5340,7 @@ const DayPlanner = () => {
               if (t.id !== id) return t;
               const existing = (t.title.match(/#(\p{L}[\p{L}\p{N}_]*)/gu) || []).map(s => s.slice(1).toLowerCase());
               if (existing.includes(edit.tag.toLowerCase())) return t;
-              return { ...t, title: t.title + ` #${edit.tag}` };
+              return { ...t, title: t.title + ` #${edit.tag}`, transitionId: crypto.randomUUID() };
             }));
             break;
           }
@@ -5348,7 +5348,7 @@ const DayPlanner = () => {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
             setter(prev => prev.map(t => {
               if (t.id !== id) return t;
-              return { ...t, title: t.title.replace(new RegExp(`\\s*#${edit.tag}\\b`, 'gi'), '') };
+              return { ...t, title: t.title.replace(new RegExp(`\\s*#${edit.tag}\\b`, 'gi'), ''), transitionId: crypto.randomUUID() };
             }));
             break;
           }
@@ -7371,7 +7371,7 @@ const DayPlanner = () => {
     for (const placement of accepted) {
       setTasks(prev => prev.map(t => {
         if (t.id === placement.taskId || String(t.id) === String(placement.taskId)) {
-          return { ...t, date: placement.date, startTime: placement.time, isAllDay: false };
+          return { ...t, date: placement.date, startTime: placement.time, isAllDay: false, transitionId: crypto.randomUUID() };
         }
         return t;
       }));

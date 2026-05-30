@@ -64,6 +64,23 @@ function shouldEmit(task) {
   return !!(task.source_app && task.source_entity_id);
 }
 
+/** Pure payload builder — exported for testing. */
+export function buildNotifyPayload(task, change, now) {
+  return {
+    event_id: task.transitionId ?? makeEventId(),
+    source_app: task.source_app,
+    source_entity_id: task.source_entity_id,
+    event: change.event,
+    task_id: task.id,
+    title: task.title,
+    timestamp: now,
+    entity_type: ENTITY_TYPES.TASK,
+    ...(change.due !== undefined ? { due: change.due } : {}),
+    ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
+    ...(change.completed_at !== undefined ? { completed_at: change.completed_at } : {}),
+  };
+}
+
 // ─── hook ────────────────────────────────────────────────────────────────────
 
 /**
@@ -72,8 +89,11 @@ function shouldEmit(task) {
  * state change. No-ops when the intent WebDAV config is absent.
  *
  * Covered events: completed, uncompleted, deleted, rescheduled, updated.
- * Recurring templates are excluded — their completion model (completedDates)
- * differs from the boolean model assumed here.
+ * Recurring templates are excluded: recurringTasks is a separate state slice
+ * not passed to this hook, so recurring completions (completedDates) and
+ * recurring-instance deletions (exceptions) never reach the diff loop. This
+ * is intentional: no current consumer relies on dayGLANCE-native recurring
+ * tasks emitting notify events.
  */
 export function useNotifyEmitter({ tasks, unscheduledTasks }) {
   const prevRef = useRef(null);
@@ -144,19 +164,7 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
       }
 
       for (const { task, change } of emits) {
-        const payload = {
-          event_id: makeEventId(),
-          source_app: task.source_app,
-          source_entity_id: task.source_entity_id,
-          event: change.event,
-          task_id: task.id,
-          title: task.title,
-          timestamp: now,
-          entity_type: ENTITY_TYPES.TASK,
-          ...(change.due !== undefined ? { due: change.due } : {}),
-          ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
-          ...(change.completed_at !== undefined ? { completed_at: change.completed_at } : {}),
-        };
+        const payload = buildNotifyPayload(task, change, now);
 
         try {
           const envelope = deriveKey
