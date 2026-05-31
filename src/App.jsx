@@ -1174,11 +1174,15 @@ const DayPlanner = () => {
 
   // Best-effort request for persistent storage on startup.
   // Keeps IndexedDB / Cache Storage alive even when the browser is under quota pressure.
-  useEffect(() => { navigator.storage?.persist?.(); }, []);
+  // No-op in the native shells: WebView storage lives in the app's private data
+  // directory and isn't subject to browser quota eviction.
+  useEffect(() => { if (!isNativeApp()) navigator.storage?.persist?.(); }, []);
 
-  // Refresh persisted status each time the ? modal opens.
+  // Refresh persisted status each time the ? modal opens. Skipped in the native
+  // shells, where the "data may be cleared" warning doesn't apply — leaving
+  // storagePersisted null keeps the banner hidden.
   useEffect(() => {
-    if (showHelpModal) navigator.storage?.persisted?.().then(p => setStoragePersisted(p));
+    if (showHelpModal && !isNativeApp()) navigator.storage?.persisted?.().then(p => setStoragePersisted(p));
   }, [showHelpModal]);
 
   // Lock body/html scrolling to prevent scroll chaining (all devices incl. desktop PWA)
