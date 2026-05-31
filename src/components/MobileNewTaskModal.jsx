@@ -3,6 +3,8 @@ import { BookOpen, Calendar, Check, Loader, Sparkles, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
+import { SOURCE_APPS } from '../native.js';
+import LastGlanceBadge from './LastGlanceBadge.jsx';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 
@@ -70,6 +72,13 @@ const MobileNewTaskModal = () => {
                 }
               }}
             >
+              {/* Source attribution — shown when editing a task created via lastGLANCE */}
+              {mobileEditingTask?.source_app === SOURCE_APPS.LASTGLANCE && (
+                <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
+                  <LastGlanceBadge size={14} className="flex-shrink-0" />
+                  <span>Added by lastGLANCE</span>
+                </div>
+              )}
               {/* Title */}
               <div className="relative">
                 <input
