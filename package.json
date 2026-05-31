@@ -1,8 +1,7 @@
 {
   "name": "dayglance",
   "private": true,
-  "version": "2.13.2",
-  "type": "module",
+  "version": "2.13.4",  "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
