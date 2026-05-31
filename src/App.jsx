@@ -469,6 +469,13 @@ const DayPlanner = () => {
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [storagePersisted, setStoragePersisted] = useState(null);
+  // True once a persist() request has been declined by the browser. On Chromium
+  // (incl. Android) persist() grants silently based on engagement heuristics and
+  // returns false with no prompt, so we surface guidance instead of looping.
+  const [storagePersistDenied, setStoragePersistDenied] = useState(false);
+  const [storageWarnDismissed, setStorageWarnDismissed] = useState(() => {
+    try { return localStorage.getItem('storageWarnDismissed') === '1'; } catch { return false; }
+  });
 
   const tagFilterBtnRef = useRef(null);
 
@@ -9133,17 +9140,39 @@ const DayPlanner = () => {
                     </button>
                   );
                 })()}
-                {storagePersisted === false && (
+                {storagePersisted === false && !storageWarnDismissed && (
                   <div className={`p-2.5 rounded-lg border ${darkMode ? 'bg-amber-900/20 border-amber-700' : 'bg-amber-50 border-amber-300'}`}>
                     <p className={`text-xs ${darkMode ? 'text-amber-300' : 'text-amber-800'} mb-1.5`}>
                       Your data may be cleared by the browser when storage is low.
                     </p>
-                    <button
-                      onClick={() => navigator.storage?.persist?.().then(granted => setStoragePersisted(granted))}
-                      className={`px-2.5 py-1 text-xs rounded font-medium ${darkMode ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'} transition-colors`}
-                    >
-                      Allow persistent storage
-                    </button>
+                    {storagePersistDenied && (
+                      <p className={`text-xs ${darkMode ? 'text-amber-400/90' : 'text-amber-700'} mb-1.5`}>
+                        Your browser declined the request. Browsers usually only grant persistent
+                        storage once dayGLANCE is installed to your home screen. Open the browser
+                        menu and choose “Add to Home screen” / “Install app”, then reopen dayGLANCE
+                        from the home-screen icon.
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => navigator.storage?.persist?.().then(granted => {
+                          setStoragePersisted(granted);
+                          setStoragePersistDenied(!granted);
+                        })}
+                        className={`px-2.5 py-1 text-xs rounded font-medium ${darkMode ? 'bg-amber-700 hover:bg-amber-600 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'} transition-colors`}
+                      >
+                        {storagePersistDenied ? 'Try again' : 'Allow persistent storage'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setStorageWarnDismissed(true);
+                          try { localStorage.setItem('storageWarnDismissed', '1'); } catch { /* ignore */ }
+                        }}
+                        className={`px-2.5 py-1 text-xs rounded font-medium ${darkMode ? 'text-amber-300 hover:bg-amber-900/40' : 'text-amber-700 hover:bg-amber-100'} transition-colors`}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div className={`flex items-center justify-between`}>
