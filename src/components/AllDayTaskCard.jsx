@@ -4,8 +4,9 @@ import {
   FileText, Inbox, MoreHorizontal,
   Pencil, RefreshCw, SkipForward, Trash2,
 } from 'lucide-react';
-import { isNativeAndroid, isNativeApp, nativeUpdateEvent } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeUpdateEvent, SOURCE_APPS } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
+import LastGlanceBadge from './LastGlanceBadge.jsx';
 import { extractWikilinks } from '../utils/taskUtils.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -191,6 +192,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
               )}
               <Calendar size={14} className="flex-shrink-0" />
               {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
+              {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
               <div
                 className={`${task.isTaskCalendar ? 'font-bold' : 'font-semibold'} text-sm truncate ${task.completed ? 'line-through' : ''} ${!isImported && !isTablet ? 'cursor-text' : ''} flex-1 min-w-0`}
                 onDoubleClick={!isTablet ? (e) => {
