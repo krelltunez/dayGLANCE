@@ -3007,7 +3007,7 @@ const DayPlanner = () => {
         deadline: newTask.deadline || null,
         priority: newTask.priority || 0,
         projectId: newTask.projectId || undefined,
-        assignedUserSyncIds: newTask.assignedUserSyncIds ?? t.assignedUserSyncIds,
+        assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? t.assignedUserSyncIds,
       } : t));
     } else if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
       const parsed = parseRecurringId(taskId);
@@ -3143,7 +3143,7 @@ const DayPlanner = () => {
           isAllDay: newTask.isAllDay || false,
           color: newTask.color || colors[0].class,
           projectId: newTask.projectId || undefined,
-          assignedUserSyncIds: newTask.assignedUserSyncIds ?? t.assignedUserSyncIds,
+          assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? t.assignedUserSyncIds,
         } : t));
       } else {
         // Task was unscheduled (e.g. a project task) — move it to the scheduled list
@@ -3159,7 +3159,7 @@ const DayPlanner = () => {
           isAllDay: newTask.isAllDay || false,
           color: newTask.color || colors[0].class,
           projectId: newTask.projectId || undefined,
-          assignedUserSyncIds: newTask.assignedUserSyncIds ?? existing?.assignedUserSyncIds,
+          assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existing?.assignedUserSyncIds,
         }]);
       }
     }
