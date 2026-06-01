@@ -68,7 +68,14 @@ const SettingsModal = () => {
     aiConfig, setAiConfig,
     aiConnectionStatus, setAiConnectionStatus, aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
+    multiUserEnabled, setMultiUserEnabled,
+    users, setUsers,
+    meUserSyncId, setMeUserSyncId,
   } = useFeaturesCtx();
+  const [addingUser, setAddingUser] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editingUserName, setEditingUserName] = useState('');
 
   const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
   const provider = cloudSyncProviders[currentProvider];
@@ -1435,6 +1442,180 @@ const SettingsModal = () => {
                       <p className={`${textSecondary} text-xs`}>
                         Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
                       </p>
+                      {/* Multi-user */}
+                      <div className={`space-y-3 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/30' : 'bg-stone-50'}`}>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="multi-user-toggle"
+                            checked={multiUserEnabled}
+                            onChange={e => {
+                              const val = e.target.checked;
+                              setMultiUserEnabled(val);
+                              localStorage.setItem('dayglance-multi-user-enabled', JSON.stringify(val));
+                            }}
+                            className="h-4 w-4 rounded"
+                          />
+                          <label htmlFor="multi-user-toggle" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                            Enable multi-user
+                          </label>
+                        </div>
+                        {multiUserEnabled && (
+                          <div className="space-y-3">
+                            {/* User list */}
+                            <div>
+                              <p className={`text-xs ${textSecondary} mb-2`}>Users</p>
+                              <div className="space-y-2">
+                                {users.filter(u => !u.deleted).map(u => (
+                                  <div key={u.id} className="flex items-center gap-2">
+                                    <span
+                                      style={{ width: 24, height: 24, fontSize: 13 }}
+                                      className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
+                                    >
+                                      {u.name[0].toUpperCase()}
+                                    </span>
+                                    {editingUserId === u.id ? (
+                                      <>
+                                        <input
+                                          type="text"
+                                          value={editingUserName}
+                                          onChange={e => setEditingUserName(e.target.value)}
+                                          className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                          autoFocus
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const trimmed = editingUserName.trim();
+                                            if (!trimmed) return;
+                                            const updated = users.map(usr => usr.id === u.id ? { ...usr, name: trimmed, updatedAt: new Date().toISOString() } : usr);
+                                            setUsers(updated);
+                                            localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                            setEditingUserId(null);
+                                          }}
+                                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                        >Save</button>
+                                        <button type="button" onClick={() => setEditingUserId(null)} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className={`flex-1 text-sm ${textPrimary}`}>{u.name}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => { setEditingUserId(u.id); setEditingUserName(u.name); }}
+                                          className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+                                        >Edit</button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const updated = users.map(usr => usr.id === u.id ? { ...usr, deleted: true, updatedAt: new Date().toISOString() } : usr);
+                                            setUsers(updated);
+                                            localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                            if (meUserSyncId === u.syncId) {
+                                              setMeUserSyncId(null);
+                                              localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: null }));
+                                            }
+                                          }}
+                                          className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-500 hover:bg-red-500/30"
+                                        >Remove</button>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              {addingUser ? (
+                                <div className="flex items-center gap-2 mt-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Name"
+                                    value={newUserName}
+                                    onChange={e => setNewUserName(e.target.value)}
+                                    className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                    autoFocus
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const trimmed = newUserName.trim();
+                                        if (!trimmed) return;
+                                        const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+                                        const updated = [...users, newUser];
+                                        setUsers(updated);
+                                        localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                        setNewUserName('');
+                                        setAddingUser(false);
+                                      } else if (e.key === 'Escape') {
+                                        setAddingUser(false);
+                                        setNewUserName('');
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const trimmed = newUserName.trim();
+                                      if (!trimmed) return;
+                                      const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+                                      const updated = [...users, newUser];
+                                      setUsers(updated);
+                                      localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                      setNewUserName('');
+                                      setAddingUser(false);
+                                    }}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                  >Add</button>
+                                  <button type="button" onClick={() => { setAddingUser(false); setNewUserName(''); }} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setAddingUser(true)}
+                                  className={`mt-2 text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
+                                >+ Add user</button>
+                              )}
+                            </div>
+                            {/* I am picker */}
+                            {users.filter(u => !u.deleted).length > 0 && (
+                              <div>
+                                <p className={`text-xs ${textSecondary} mb-2`}>I am</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMeUserSyncId(null);
+                                      localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: null }));
+                                    }}
+                                    className={`px-2.5 py-1 rounded-full text-sm border transition-colors ${!meUserSyncId
+                                      ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
+                                      : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+                                  >None</button>
+                                  {users.filter(u => !u.deleted).map(u => (
+                                    <button
+                                      key={u.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setMeUserSyncId(u.syncId);
+                                        localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: u.syncId }));
+                                      }}
+                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm border transition-colors ${meUserSyncId === u.syncId
+                                        ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
+                                        : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+                                    >
+                                      <span
+                                        style={{ width: 18, height: 18, fontSize: 10 }}
+                                        className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
+                                      >
+                                        {u.name[0].toUpperCase()}
+                                      </span>
+                                      {u.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="space-y-3">
                         <div>
                           <label className={`block text-sm ${textSecondary} mb-1`}>Server URL</label>

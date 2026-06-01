@@ -27,7 +27,7 @@ const MobileNewTaskModal = () => {
     moveToRecycleBin, clearNativeEventOverride,
     handleNewTaskInputChange,
   } = useDayPlannerCtx();
-  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled } = useFeaturesCtx();
+  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
 
   // Wikilink autocomplete: detect [[partial at end of title
@@ -200,6 +200,50 @@ const MobileNewTaskModal = () => {
                       );
                     })()}
                   </select>
+                </div>
+              )}
+
+              {/* Assigned to row */}
+              {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && (
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-2`}>
+                    Assigned to <span className="text-xs opacity-70">(empty = everybody)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {users.filter(u => !u.deleted).map(u => {
+                      const task = mobileEditingTask || newTask;
+                      const assigned = task.assignedUserSyncIds ?? [];
+                      const isSelected = assigned.includes(u.syncId);
+                      const toggle = () => {
+                        const newAssigned = isSelected
+                          ? assigned.filter(id => id !== u.syncId)
+                          : [...assigned, u.syncId];
+                        if (mobileEditingTask) {
+                          setMobileEditingTask(prev => ({ ...prev, assignedUserSyncIds: newAssigned }));
+                        } else {
+                          setNewTask(prev => ({ ...prev, assignedUserSyncIds: newAssigned }));
+                        }
+                      };
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={toggle}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm border transition-colors ${isSelected
+                            ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
+                            : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+                        >
+                          <span
+                            style={{ width: 18, height: 18, fontSize: 10 }}
+                            className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
+                          >
+                            {u.name[0].toUpperCase()}
+                          </span>
+                          {u.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

@@ -670,6 +670,23 @@ const DayPlanner = () => {
   const [projectFilter, setProjectFilter] = useState(null);
   // Clear project filter when the selected date changes
   useEffect(() => { setProjectFilter(null); }, [selectedDate]);
+
+  // ── Multi-user ────────────────────────────────────────────────────────────
+  const [multiUserEnabled, setMultiUserEnabled] = useState(
+    () => JSON.parse(localStorage.getItem('dayglance-multi-user-enabled') || 'false')
+  );
+  const [users, setUsers] = useState(
+    () => JSON.parse(localStorage.getItem('dayglance-users') || '[]')
+  );
+  const [meUserSyncId, setMeUserSyncId] = useState(
+    () => { const r = localStorage.getItem('dayglance-multi-user-config'); return r ? JSON.parse(r).meUserSyncId || null : null; }
+  );
+  const isVisibleForUser = useCallback((task) => {
+    if (!multiUserEnabled || !meUserSyncId) return true;
+    const assigned = task.assignedUserSyncIds ?? [];
+    return assigned.length === 0 || assigned.includes(meUserSyncId);
+  }, [multiUserEnabled, meUserSyncId]);
+
   const {
     showFocusMode, setShowFocusMode,
     focusPhase, setFocusPhase,
@@ -1372,7 +1389,7 @@ const DayPlanner = () => {
       cloudSyncEngineRef.current.upload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users]);
 
   // ── Config field timestamp tracking ──────────────────────────────────────
   // Tracks when habitsEnabled/routinesEnabled/goalsProjectsEnabled/obsidianConfig
@@ -1400,6 +1417,8 @@ const DayPlanner = () => {
   useEffect(() => { writeConfigTimestamp('day-planner-routines-enabled-updated-at'); }, [routinesEnabled]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { writeConfigTimestamp('day-planner-goals-projects-enabled-updated-at'); }, [goalsProjectsEnabled]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
   // Only track obsidianConfig on non-native apps; native apps auto-populate fields from the vault.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!isNativeApp()) writeConfigTimestamp('day-planner-obsidian-config-updated-at'); }, [obsidianConfig]);
@@ -4931,6 +4950,9 @@ const DayPlanner = () => {
         goalsProjectsEnabledUpdatedAt: localStorage.getItem('day-planner-goals-projects-enabled-updated-at') || null,
         obsidianConfig: obsidianConfig ?? null,
         obsidianConfigUpdatedAt: localStorage.getItem('day-planner-obsidian-config-updated-at') || null,
+        multiUserEnabled,
+        multiUserEnabledUpdatedAt: localStorage.getItem('dayglance-multi-user-enabled-updated-at') || null,
+        users,
         tombstonePrunedBefore: syncRetentionDays > 0
           ? new Date(Date.now() - syncRetentionDays * 86400000).toISOString()
           : null,
@@ -5060,6 +5082,22 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
       setGoalsProjectsEnabled(data.goalsProjectsEnabled);
       if (data.goalsProjectsEnabledUpdatedAt) localStorage.setItem('day-planner-goals-projects-enabled-updated-at', data.goalsProjectsEnabledUpdatedAt);
+    }
+    if (data.users !== undefined) {
+      const localUsers = JSON.parse(localStorage.getItem('dayglance-users') || '[]');
+      const merged = new Map(localUsers.map(u => [u.id, u]));
+      for (const u of data.users) {
+        const existing = merged.get(u.id);
+        if (!existing || u.updatedAt > existing.updatedAt) merged.set(u.id, u);
+      }
+      const mergedArr = [...merged.values()];
+      localStorage.setItem('dayglance-users', JSON.stringify(mergedArr));
+      setUsers(mergedArr);
+    }
+    if (data.multiUserEnabled !== undefined) {
+      localStorage.setItem('dayglance-multi-user-enabled', JSON.stringify(data.multiUserEnabled));
+      setMultiUserEnabled(data.multiUserEnabled);
+      if (data.multiUserEnabledUpdatedAt) localStorage.setItem('dayglance-multi-user-enabled-updated-at', data.multiUserEnabledUpdatedAt);
     }
     if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
     if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
@@ -5687,10 +5725,10 @@ const DayPlanner = () => {
 
   // Check if user has zero real tasks (for showing onboarding)
   const hasZeroRealTasks = useMemo(() => {
-    const realScheduledTasks = tasks.filter(t => !t.isExample && !t.imported);
-    const realInboxTasks = unscheduledTasks.filter(t => !t.isExample);
+    const realScheduledTasks = tasks.filter(t => !t.isExample && !t.imported && isVisibleForUser(t));
+    const realInboxTasks = unscheduledTasks.filter(t => !t.isExample && isVisibleForUser(t));
     return realScheduledTasks.length === 0 && realInboxTasks.length === 0 && recurringTasks.filter(t => !t.isExample).length === 0;
-  }, [tasks, unscheduledTasks, recurringTasks]);
+  }, [tasks, unscheduledTasks, recurringTasks, isVisibleForUser]);
 
   // Show onboarding when user has zero real tasks (and data is loaded, to prevent flash)
   const showOnboarding = dataLoaded && !onboardingComplete && hasZeroRealTasks;
@@ -7994,6 +8032,12 @@ const DayPlanner = () => {
     addProject, updateProject, deleteProject, moveProject,
     projectFilter, setProjectFilter,
 
+    // ── Multi-user ────────────────────────────────────────────────────────────
+    multiUserEnabled, setMultiUserEnabled,
+    users, setUsers,
+    meUserSyncId, setMeUserSyncId,
+    isVisibleForUser,
+
     // ── Reminders ─────────────────────────────────────────────────────────────
     reminderSettings, setReminderSettings,
     showRemindersSettings, setShowRemindersSettings,
@@ -8973,7 +9017,7 @@ const DayPlanner = () => {
               <SmartSchedulePanel
                 mode="reschedule"
                 aiConfig={aiConfig}
-                inboxTasks={tasks.filter(t => t.date <= dateToString(new Date()) && !t.completed && !t.imported && !t.isExample)}
+                inboxTasks={tasks.filter(t => t.date <= dateToString(new Date()) && !t.completed && !t.imported && !t.isExample && isVisibleForUser(t))}
                 smartScheduleResults={rescheduleResults}
                 smartScheduleLoading={rescheduleLoading}
                 smartScheduleError={rescheduleError}

@@ -9,6 +9,7 @@ import { renderTitleWithoutTags, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask,
 import { extractTags, extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
+import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -44,6 +45,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
     projects,
     projectFilter, setProjectFilter,
     aiConfig, aiSubtasksLoadingForTask, generateAISubtasks,
+    multiUserEnabled, users,
   } = useFeaturesCtx();
 
   const isImported = task.imported;
@@ -225,6 +227,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                 {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                 {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
                 {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
+                {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (
                     <div className="relative tag-autocomplete-container">
@@ -312,6 +315,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                 {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                 {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
                 {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
+                {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (
                     <div className="relative tag-autocomplete-container">

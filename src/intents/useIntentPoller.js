@@ -253,25 +253,24 @@ async function poll(config, context) {
 
       // Multi-user visibility filter: skip CREATE intents not assigned to this device's user.
       if (envelope.action === ACTIONS.CREATE) {
+        const multiUserEnabled = JSON.parse(localStorage.getItem('dayglance-multi-user-enabled') || 'false');
         const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
-        if (muRaw) {
-          const { multiUserEnabled, meUserSyncId } = JSON.parse(muRaw);
-          if (multiUserEnabled && meUserSyncId) {
-            const assigned = envelope.payload.assignedUserSyncIds ?? [];
-            if (assigned.length > 0 && !assigned.includes(meUserSyncId)) {
-              logActivity({
-                direction: 'in',
-                action: envelope.action,
-                event: null,
-                source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,
-                title: envelope.payload.title ?? null,
-                timestamp: envelope.emitted_at,
-                status: 'ok',
-                error: null,
-              });
-              setCursor(parsed.event_id);
-              continue;
-            }
+        const meUserSyncId = muRaw ? JSON.parse(muRaw).meUserSyncId : null;
+        if (multiUserEnabled && meUserSyncId) {
+          const assigned = envelope.payload.assignedUserSyncIds ?? [];
+          if (assigned.length > 0 && !assigned.includes(meUserSyncId)) {
+            logActivity({
+              direction: 'in',
+              action: envelope.action,
+              event: null,
+              source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,
+              title: envelope.payload.title ?? null,
+              timestamp: envelope.emitted_at,
+              status: 'ok',
+              error: null,
+            });
+            setCursor(parsed.event_id);
+            continue;
           }
         }
       }
