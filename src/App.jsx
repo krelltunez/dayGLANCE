@@ -2095,7 +2095,7 @@ const DayPlanner = () => {
     // Incomplete scheduled tasks from past dates (not imported events)
     // + today's tasks whose end time has passed
     const overdueScheduled = tasks.filter(t => {
-      if (t.completed || t.imported || t.isExample) return false;
+      if (t.completed || t.imported || t.isExample || !isVisibleForUser(t)) return false;
       if (t.date < todayStr) return true;
       return isOverdueToday(t);
     }).map(t => ({ ...t, _overdueType: 'scheduled' }));
@@ -2144,7 +2144,7 @@ const DayPlanner = () => {
 
     // Inbox tasks with past deadlines
     const overdueDeadlines = unscheduledTasks.filter(t =>
-      t.deadline && t.deadline < todayStr && !t.completed && !t.isExample
+      t.deadline && t.deadline < todayStr && !t.completed && !t.isExample && isVisibleForUser(t)
     ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
     return [...overdueScheduled, ...todayRecurring, ...overdueRecurringAllDay, ...overdueDeadlines];
@@ -5240,13 +5240,13 @@ const DayPlanner = () => {
     const lower = (taskMatch || '').toLowerCase();
     if (!lower) return null;
     // Search scheduled tasks (best match = shortest title containing the match)
-    const scheduledMatches = tasks.filter(t => !t.imported && !t.isExample && t.title.toLowerCase().includes(lower));
+    const scheduledMatches = tasks.filter(t => !t.imported && !t.isExample && isVisibleForUser(t) && t.title.toLowerCase().includes(lower));
     if (scheduledMatches.length > 0) {
       const best = scheduledMatches.sort((a, b) => a.title.length - b.title.length)[0];
       return { task: best, source: 'scheduled' };
     }
     // Search inbox tasks
-    const inboxMatches = unscheduledTasks.filter(t => !t.isExample && t.title.toLowerCase().includes(lower));
+    const inboxMatches = unscheduledTasks.filter(t => !t.isExample && isVisibleForUser(t) && t.title.toLowerCase().includes(lower));
     if (inboxMatches.length > 0) {
       const best = inboxMatches.sort((a, b) => a.title.length - b.title.length)[0];
       return { task: best, source: 'inbox' };
@@ -5428,7 +5428,7 @@ const DayPlanner = () => {
       const dayOfWeek = todayDate.toLocaleDateString('en-US', { weekday: 'long' });
 
       // Gather today's scheduled tasks
-      const scheduledToday = tasks.filter(t => t.date === todayStr && !t.imported && !t.isExample);
+      const scheduledToday = tasks.filter(t => t.date === todayStr && !t.imported && !t.isExample && isVisibleForUser(t));
       // Gather imported calendar events for today
       const calendarEventsToday = tasks.filter(t => t.date === todayStr && t.imported && !t.isTaskCalendar)
         .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false, duration: t.duration || 0 }))
@@ -5439,18 +5439,18 @@ const DayPlanner = () => {
         return occs.map(() => ({ title: t.title, time: t.startTime, completed: (t.completedDates || []).includes(todayStr) }));
       }).filter(t => !t.completed);
       // Inbox count — split into free inbox tasks vs project-assigned tasks
-      const activeUnscheduled = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      const activeUnscheduled = unscheduledTasks.filter(t => !t.completed && !t.isExample && isVisibleForUser(t));
       const inboxCount = activeUnscheduled.filter(t => !goalsProjectsEnabled || !t.projectId).length;
       const projectTaskCount = goalsProjectsEnabled ? activeUnscheduled.filter(t => t.projectId).length : 0;
       // Overdue tasks
       const overdue = getOverdueTasks();
       const overdueTasks = overdue.filter(t => t.date !== todayStr).slice(0, 5);
       // Deadlines
-      const deadlinesToday = unscheduledTasks.filter(t => t.deadline === todayStr && !t.completed);
+      const deadlinesToday = unscheduledTasks.filter(t => t.deadline === todayStr && !t.completed && isVisibleForUser(t));
       const nextWeek = new Date(todayDate);
       nextWeek.setDate(nextWeek.getDate() + 7);
       const nextWeekStr = dateToString(nextWeek);
-      const upcomingDeadlines = unscheduledTasks.filter(t => t.deadline && t.deadline > todayStr && t.deadline <= nextWeekStr && !t.completed).slice(0, 5);
+      const upcomingDeadlines = unscheduledTasks.filter(t => t.deadline && t.deadline > todayStr && t.deadline <= nextWeekStr && !t.completed && isVisibleForUser(t)).slice(0, 5);
       // Total minutes
       const totalMinutes = scheduledToday.reduce((s, t) => s + (t.duration || 0), 0)
         + todayRecurring.reduce((s, t) => s + 30, 0) // recurring default 30
@@ -5527,14 +5527,14 @@ const DayPlanner = () => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowStr = dateToString(tomorrow);
 
-      const completedToday = tasks.filter(t => t.date === todayStr && t.completed && !t.imported && !t.isExample);
-      const incompleteToday = tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample);
-      const tomorrowTasks = tasks.filter(t => t.date === tomorrowStr && !t.imported && !t.isExample);
+      const completedToday = tasks.filter(t => t.date === todayStr && t.completed && !t.imported && !t.isExample && isVisibleForUser(t));
+      const incompleteToday = tasks.filter(t => t.date === todayStr && !t.completed && !t.imported && !t.isExample && isVisibleForUser(t));
+      const tomorrowTasks = tasks.filter(t => t.date === tomorrowStr && !t.imported && !t.isExample && isVisibleForUser(t));
       const tomorrowCalendarEvents = tasks.filter(t => t.date === tomorrowStr && t.imported && !t.isTaskCalendar)
         .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false }))
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       // For suggestions, only surface free inbox tasks — project tasks have their own home
-      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId))
+      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId) && isVisibleForUser(t))
         .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
       const total = completedToday.length + incompleteToday.length;
@@ -6079,10 +6079,10 @@ const DayPlanner = () => {
     const todayRecurring = expandedRecurringTasks.filter(t => t.date === today);
     const allTodayTasks = [...tasks, ...todayRecurring];
 
-    const allDay = allTodayTasks.filter(t => t.date === today && t.isAllDay && !t.completed);
-    const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today && !t.completed);
+    const allDay = allTodayTasks.filter(t => t.date === today && t.isAllDay && !t.completed && isVisibleForUser(t));
+    const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today && !t.completed && isVisibleForUser(t));
     const scheduled = allTodayTasks.filter(t => {
-      if (t.date !== today || t.isAllDay) return false;
+      if (t.date !== today || t.isAllDay || !isVisibleForUser(t)) return false;
       const [h, m] = (t.startTime || '0:0').split(':').map(Number);
       const endMinutes = h * 60 + m + (t.duration || 0);
       // Past: hide completed tasks and imported calendar events; keep incomplete user/task-calendar tasks
@@ -6095,7 +6095,7 @@ const DayPlanner = () => {
       ...allDay.map(t => ({ ...t, _agendaType: 'allday' })),
       ...scheduled.map(t => ({ ...t, _agendaType: 'scheduled' })),
     ].filter(t => !t.isExample);
-  }, [tasks, unscheduledTasks, currentTime, expandedRecurringTasks]);
+  }, [tasks, unscheduledTasks, currentTime, expandedRecurringTasks, isVisibleForUser]);
 
   // Compute "now" marker position and inbox gap nudge for DayGlance agenda
   const agendaNowMarker = useMemo(() => {
@@ -6147,10 +6147,10 @@ const DayPlanner = () => {
       // No more scheduled tasks — gap is rest of day (cap at a large number)
       gapMinutes = 24 * 60 - nowMin;
     }
-    const incompleteInbox = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+    const incompleteInbox = unscheduledTasks.filter(t => !t.completed && !t.isExample && isVisibleForUser(t));
     const showNudge = gapMinutes >= 60 && incompleteInbox.length > 0;
     return { insertAfterIndex, nowTimeStr, showNudge, inboxCount: incompleteInbox.length, gapMinutes, insideTask };
-  }, [todayAgenda, currentTime, unscheduledTasks]);
+  }, [todayAgenda, currentTime, unscheduledTasks, isVisibleForUser]);
 
   // GLANCEahead: compute tomorrow's preview data
   const glanceAhead = useMemo(() => {
@@ -6159,7 +6159,7 @@ const DayPlanner = () => {
     const tomorrowStr = dateToString(tomorrow);
 
     // Gather tomorrow's tasks (regular + recurring)
-    const regularTasks = tasks.filter(t => t.date === tomorrowStr && !t.completed && !t.isExample);
+    const regularTasks = tasks.filter(t => t.date === tomorrowStr && !t.completed && !t.isExample && isVisibleForUser(t));
     // Expand recurring tasks for tomorrow
     const recurringInstances = recurringTasks.flatMap(template => {
       const occs = getOccurrencesInRange(template, tomorrowStr, tomorrowStr);
@@ -6183,7 +6183,7 @@ const DayPlanner = () => {
     const allTasks = [...regularTasks, ...recurringInstances];
     const userTasks = allTasks.filter(t => !t.imported || t.isTaskCalendar);
     const calendarEvents = allTasks.filter(t => t.imported && !t.isTaskCalendar);
-    const deadlines = unscheduledTasks.filter(t => t.deadline === tomorrowStr && !t.completed && !t.isExample);
+    const deadlines = unscheduledTasks.filter(t => t.deadline === tomorrowStr && !t.completed && !t.isExample && isVisibleForUser(t));
     const scheduledItems = allTasks.filter(t => t.startTime && !t.isAllDay);
 
     // First start time (earliest scheduled item)
@@ -6209,7 +6209,7 @@ const DayPlanner = () => {
       committedMinutes,
       isEmpty: allTasks.length === 0 && deadlines.length === 0,
     };
-  }, [tasks, recurringTasks, unscheduledTasks, getOccurrencesInRange, dateToString]);
+  }, [tasks, recurringTasks, unscheduledTasks, getOccurrencesInRange, dateToString, isVisibleForUser]);
 
   // Group tasks + recurring by date for O(1) lookups (avoids repeated O(n) scans)
   const tasksByDate = useMemo(() => {
@@ -6317,7 +6317,7 @@ const DayPlanner = () => {
         }
         return true;
       });
-      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample);
+      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample && isVisibleForUser(t));
       // Only include tasks that can actually fit in the available slot.
       // Tasks with no duration are always included (we don't know how long they take).
       const candidates = [
@@ -7207,7 +7207,7 @@ const DayPlanner = () => {
       const todayStr = dateToString(today);
       // Gather inbox tasks (non-completed, non-example, non-project)
       // Project tasks belong to their project cards and shouldn't be auto-scheduled from here
-      const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId));
+      const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId) && isVisibleForUser(t));
       if (inboxTasks.length === 0) {
         setSmartScheduleError('No inbox tasks to schedule.');
         setSmartScheduleLoading(false);
@@ -7353,7 +7353,7 @@ const DayPlanner = () => {
     try {
       const today = new Date();
       const todayStr = dateToString(today);
-      const tasksToReschedule = tasks.filter(t => t.date <= todayStr && !t.completed && !t.imported && !t.isExample);
+      const tasksToReschedule = tasks.filter(t => t.date <= todayStr && !t.completed && !t.imported && !t.isExample && isVisibleForUser(t));
       if (tasksToReschedule.length === 0) {
         setRescheduleError('No incomplete tasks to reschedule.');
         setRescheduleLoading(false);
