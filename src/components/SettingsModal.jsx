@@ -9,7 +9,7 @@ import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
-import { INTENT_CONFIG_KEY } from '../intents/useIntentPoller.js';
+import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
@@ -90,6 +90,16 @@ const SettingsModal = () => {
   // null | 'passphrase-needed' | 'running' | { error: string }
   const [intentSetupPhase, setIntentSetupPhase] = useState(null);
   const [intentPassphraseInput, setIntentPassphraseInput] = useState('');
+
+  const [multiUserForm, setMultiUserForm] = useState(() => {
+    const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+    const saved = raw ? JSON.parse(raw) : {};
+    return {
+      multiUserEnabled: saved.multiUserEnabled ?? false,
+      meUserSyncId: saved.meUserSyncId ?? '',
+    };
+  });
+  const [multiUserSaved, setMultiUserSaved] = useState(false);
 
   const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
   const [mainWindowHotkey, setMainWindowHotkey] = useState(() => localStorage.getItem('dg-main-window-hotkey') || '');
@@ -1608,6 +1618,49 @@ const SettingsModal = () => {
                             </button>
                           </div>
                         )}
+                        {/* Multi-user / "me" identity */}
+                        <div className={`space-y-3 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/30' : 'bg-stone-50'}`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              id="multi-user-toggle"
+                              checked={multiUserForm.multiUserEnabled}
+                              onChange={e => setMultiUserForm(p => ({ ...p, multiUserEnabled: e.target.checked }))}
+                              className="h-4 w-4 rounded"
+                            />
+                            <label htmlFor="multi-user-toggle" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                              Enable multi-user filtering
+                            </label>
+                          </div>
+                          {multiUserForm.multiUserEnabled && (
+                            <div>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>My sync ID</label>
+                              <input
+                                type="text"
+                                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                value={multiUserForm.meUserSyncId}
+                                onChange={e => setMultiUserForm(p => ({ ...p, meUserSyncId: e.target.value.trim() }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
+                              />
+                              <p className={`text-xs ${textSecondary} mt-1`}>
+                                Your UUID from lastGLANCE's user list. Only chores assigned to you (or everyone) will appear. Completions are attributed to this ID.
+                              </p>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify(multiUserForm));
+                                setMultiUserSaved(true);
+                                setTimeout(() => setMultiUserSaved(false), 2000);
+                              }}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
+                            >
+                              {multiUserSaved ? 'Saved' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             disabled={intentSetupPhase === 'running' || intentSetupPhase === 'passphrase-needed'}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
-import { writeEventFile, INTENT_CONFIG_KEY } from './useIntentPoller.js';
+import { writeEventFile, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
 
 // The tray holds a read-only state snapshot. Any task-state changes in tray
@@ -121,6 +121,10 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
     if (!emits.length) return;
 
     const fire = async () => {
+      // Resolve this device's user sync_id for completion attribution.
+      const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+      const meUserSyncId = muRaw ? (JSON.parse(muRaw).meUserSyncId || null) : null;
+
       // Resolve encryption posture once for the whole batch.
       let deriveKey = null;
       if (config.encryptionEnabled) {
@@ -155,7 +159,7 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
           entity_type: ENTITY_TYPES.TASK,
           ...(change.due !== undefined ? { due: change.due } : {}),
           ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
-          ...(change.completed_at !== undefined ? { completed_at: change.completed_at } : {}),
+          ...(change.completed_at !== undefined ? { completed_at: change.completed_at, completedByUserSyncId: meUserSyncId } : {}),
         };
 
         try {
