@@ -72,8 +72,9 @@ import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
-import { useIntentPoller } from './intents/useIntentPoller.js';
+import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
+import { syncSharedUsers } from './intents/sharedUsers.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -1419,6 +1420,29 @@ const DayPlanner = () => {
   useEffect(() => { writeConfigTimestamp('day-planner-goals-projects-enabled-updated-at'); }, [goalsProjectsEnabled]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
+
+  // Sync user list with GLANCE/glance-users.json on WebDAV so dayGLANCE and
+  // lastGLANCE share the same roster regardless of which app is opened first.
+  useEffect(() => {
+    const raw = localStorage.getItem(INTENT_CONFIG_KEY);
+    const intentConfig = raw ? JSON.parse(raw) : null;
+    if (!intentConfig?.webdavUrl) return;
+    syncSharedUsers(intentConfig, users).then(merged => {
+      if (!merged) return;
+      const mergedById = new Map(merged.map(u => [u.syncId, u]));
+      const localById = new Map(users.map(u => [u.syncId, u]));
+      const hasNew = merged.some(u => {
+        const local = localById.get(u.syncId);
+        return !local || u.updatedAt > local.updatedAt;
+      });
+      if (hasNew || merged.length !== users.length) {
+        localStorage.setItem('dayglance-users', JSON.stringify(merged));
+        setUsers(merged);
+      }
+    }).catch(err => console.warn('[shared-users] sync error:', err.message));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users]);
+
   // Only track obsidianConfig on non-native apps; native apps auto-populate fields from the vault.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!isNativeApp()) writeConfigTimestamp('day-planner-obsidian-config-updated-at'); }, [obsidianConfig]);
