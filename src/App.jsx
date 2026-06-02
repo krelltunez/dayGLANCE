@@ -1432,9 +1432,9 @@ const DayPlanner = () => {
     })();
     syncSharedUsers(cloudSyncConfig, usersPath, users).then(merged => {
       if (!merged) return;
-      const localById = new Map(users.map(u => [u.syncId, u]));
+      const localById = new Map(users.map(u => [u.syncId ?? u.id, u]));
       const hasNew = merged.some(u => {
-        const local = localById.get(u.syncId);
+        const local = localById.get(u.syncId ?? u.id);
         return !local || u.updatedAt > local.updatedAt;
       });
       if (hasNew || merged.length !== users.length) {
@@ -5114,10 +5114,11 @@ const DayPlanner = () => {
     }
     if (data.users !== undefined) {
       const localUsers = JSON.parse(localStorage.getItem('dayglance-users') || '[]');
-      const merged = new Map(localUsers.map(u => [u.id, u]));
+      const merged = new Map(localUsers.map(u => [u.syncId ?? u.id, u]));
       for (const u of data.users) {
-        const existing = merged.get(u.id);
-        if (!existing || u.updatedAt > existing.updatedAt) merged.set(u.id, u);
+        const key = u.syncId ?? u.id;
+        const existing = merged.get(key);
+        if (!existing || u.updatedAt > existing.updatedAt) merged.set(key, u);
       }
       const mergedArr = [...merged.values()];
       localStorage.setItem('dayglance-users', JSON.stringify(mergedArr));

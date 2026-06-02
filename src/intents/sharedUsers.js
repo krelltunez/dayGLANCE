@@ -38,9 +38,10 @@ function authHeaders(username, appPassword) {
 function mergeUsers(local, remote) {
   const map = new Map();
   for (const u of [...local, ...remote]) {
-    const existing = map.get(u.syncId);
+    const key = u.syncId ?? u.id;
+    const existing = map.get(key);
     if (!existing || u.updatedAt > existing.updatedAt) {
-      map.set(u.syncId, u);
+      map.set(key, u);
     }
   }
   return [...map.values()];
