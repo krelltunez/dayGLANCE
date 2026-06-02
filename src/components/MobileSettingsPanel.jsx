@@ -6,7 +6,7 @@ import {
   Footprints, FolderOpen, Globe, GripVertical, HelpCircle, Key, LayoutGrid,
   Loader, Lock, Mic, Moon, Pencil, Plus,
   Flag, RefreshCw, Save, Settings, Sparkles, Sun, Target, Trash2,
-  Undo2, Upload, Volume2, VolumeX, Wifi, WifiOff, Zap,
+  Undo2, Upload, Users, Volume2, VolumeX, Wifi, WifiOff, Zap,
 } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../utils/timezones.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
@@ -22,7 +22,8 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
-import { INTENT_CONFIG_KEY } from '../intents/useIntentPoller.js';
+import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
+import { syncSharedUsers } from '../intents/sharedUsers.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
@@ -109,6 +110,7 @@ const MobileSettingsPanel = () => {
     setShowWeeklyReviewTimePicker, setShowMorningTimePicker,
     reminderSettings, setReminderSettings,
     applyReminderPreset, updateCategoryReminder,
+    users, setUsers, meUserSyncId, setMeUserSyncId,
   } = useFeaturesCtx();
 
   const [intentForm, setIntentForm] = useState(() => {
@@ -128,6 +130,15 @@ const MobileSettingsPanel = () => {
   const [intentSaved, setIntentSaved] = useState(false);
   const [intentSetupPhase, setIntentSetupPhase] = useState(null);
   const [intentPassphraseInput, setIntentPassphraseInput] = useState('');
+  const [muAddingUser, setMuAddingUser] = useState(false);
+  const [muNewUserName, setMuNewUserName] = useState('');
+  const [muEditingUserId, setMuEditingUserId] = useState(null);
+  const [muEditingUserName, setMuEditingUserName] = useState('');
+  const [muUsersPath, setMuUsersPath] = useState(() => {
+    const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+    return raw ? (JSON.parse(raw).usersPath ?? '/GLANCE/users/') : '/GLANCE/users/';
+  });
+  const [muSyncStatus, setMuSyncStatus] = useState(null); // null | 'syncing' | 'ok' | 'error'
 
   // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
   const mobileSettingsViewRef = useRef(mobileSettingsView);
@@ -315,6 +326,19 @@ const MobileSettingsPanel = () => {
           )}
         </div>
         <span className={`font-medium ${textPrimary} flex-1 text-left`}>GLANCE Integrations</span>
+        <ChevronRight size={18} className={textSecondary} />
+      </button>
+      <button
+        onClick={() => setMobileSettingsView('multiUser')}
+        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+      >
+        <div className="relative">
+          <Users size={20} className={users.filter(u => !u.deleted).length > 0 ? 'text-green-500' : textSecondary} />
+          {users.filter(u => !u.deleted).length > 0 && (
+            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
+          )}
+        </div>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Multi-user</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
     </div>
@@ -2342,6 +2366,213 @@ const MobileSettingsPanel = () => {
       </div>
 
       {routinesEnabled && <MobileRoutinesTab />}
+    </div>
+  )}
+
+  {mobileSettingsView === 'multiUser' && (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 mb-2">
+        <button onClick={() => setMobileSettingsView('main')} className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`}>
+          <ChevronLeft size={20} className={textSecondary} />
+        </button>
+        <h2 className={`text-lg font-semibold ${textPrimary}`}>Multi-user</h2>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <p className={`text-xs ${textSecondary}`}>Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.</p>
+        {cloudSyncConfig?.enabled && (
+          <button
+            type="button"
+            disabled={muSyncStatus === 'syncing'}
+            onClick={async () => {
+              setMuSyncStatus('syncing');
+              try {
+                const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+                const uPath = raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined;
+                const merged = await syncSharedUsers(cloudSyncConfig, uPath, users);
+                if (merged) {
+                  localStorage.setItem('dayglance-users', JSON.stringify(merged));
+                  setUsers(merged);
+                }
+                setMuSyncStatus('ok');
+                setTimeout(() => setMuSyncStatus(null), 2000);
+              } catch {
+                setMuSyncStatus('error');
+                setTimeout(() => setMuSyncStatus(null), 3000);
+              }
+            }}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+              muSyncStatus === 'ok' ? 'bg-green-500/20 text-green-500' :
+              muSyncStatus === 'error' ? 'bg-red-500/20 text-red-500' :
+              darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-600'
+            }`}
+          >
+            <RefreshCw size={13} className={muSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+            {muSyncStatus === 'ok' ? 'Synced!' : muSyncStatus === 'error' ? 'Failed' : 'Sync now'}
+          </button>
+        )}
+      </div>
+
+      {/* People */}
+      <div>
+        <p className={`text-xs font-medium ${textSecondary} mb-2`}>People</p>
+        <div className="space-y-2">
+          {users.filter(u => !u.deleted).map(u => (
+            <div key={u.id} className={`${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3`}>
+              <span style={{ width: 28, height: 28, fontSize: 14 }} className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0">
+                {u.name[0].toUpperCase()}
+              </span>
+              {muEditingUserId === u.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={muEditingUserName}
+                    onChange={e => setMuEditingUserName(e.target.value)}
+                    className={`flex-1 px-2 py-1 border ${borderClass} rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = muEditingUserName.trim();
+                      if (!trimmed) return;
+                      const updated = users.map(usr => usr.id === u.id ? { ...usr, name: trimmed, updatedAt: new Date().toISOString() } : usr);
+                      setUsers(updated);
+                      localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                      setMuEditingUserId(null);
+                    }}
+                    className="px-2 py-1 bg-blue-600 text-white rounded-lg text-xs"
+                  >Save</button>
+                  <button type="button" onClick={() => setMuEditingUserId(null)} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span className={`flex-1 text-sm ${textPrimary}`}>{u.name}</span>
+                  <button type="button" onClick={() => { setMuEditingUserId(u.id); setMuEditingUserName(u.name); }} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Edit</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = users.map(usr => usr.id === u.id ? { ...usr, deleted: true, updatedAt: new Date().toISOString() } : usr);
+                      setUsers(updated);
+                      localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                      if (meUserSyncId === u.syncId) {
+                        setMeUserSyncId(null);
+                        localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(MULTI_USER_CONFIG_KEY) || '{}'), meUserSyncId: null }));
+                      }
+                    }}
+                    className="px-2 py-1 rounded-lg text-xs bg-red-500/20 text-red-500"
+                  >Remove</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+        {muAddingUser ? (
+          <div className={`mt-2 ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-2`}>
+            <input
+              type="text"
+              placeholder="Name"
+              value={muNewUserName}
+              onChange={e => setMuNewUserName(e.target.value)}
+              className={`flex-1 px-2 py-1 border ${borderClass} rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const trimmed = muNewUserName.trim();
+                  if (!trimmed) return;
+                  const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+                  const updated = [...users, newUser];
+                  setUsers(updated);
+                  localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                  setMuNewUserName('');
+                  setMuAddingUser(false);
+                } else if (e.key === 'Escape') {
+                  setMuAddingUser(false);
+                  setMuNewUserName('');
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const trimmed = muNewUserName.trim();
+                if (!trimmed) return;
+                const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+                const updated = [...users, newUser];
+                setUsers(updated);
+                localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                setMuNewUserName('');
+                setMuAddingUser(false);
+              }}
+              className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm"
+            >Add</button>
+            <button type="button" onClick={() => { setMuAddingUser(false); setMuNewUserName(''); }} className={`px-2 py-1 rounded-lg text-sm ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMuAddingUser(true)}
+            className={`mt-3 w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center justify-center gap-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'} text-sm font-medium`}
+          >
+            <Plus size={16} /> Add person
+          </button>
+        )}
+      </div>
+
+      {/* I am */}
+      {users.filter(u => !u.deleted).length > 0 && (
+        <div>
+          <p className={`text-xs font-medium ${textSecondary} mb-2`}>I am</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMeUserSyncId(null);
+                localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(MULTI_USER_CONFIG_KEY) || '{}'), meUserSyncId: null }));
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${!meUserSyncId ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}` : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+            >None</button>
+            {users.filter(u => !u.deleted).map(u => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => {
+                  setMeUserSyncId(u.syncId);
+                  localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(MULTI_USER_CONFIG_KEY) || '{}'), meUserSyncId: u.syncId }));
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${meUserSyncId === u.syncId ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}` : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+              >
+                <span style={{ width: 18, height: 18, fontSize: 10 }} className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0">
+                  {u.name[0].toUpperCase()}
+                </span>
+                {u.name}
+              </button>
+            ))}
+          </div>
+          {meUserSyncId && <p className={`text-xs ${textSecondary} mt-2`}>Tasks assigned to others will be hidden. Unassigned tasks are shared.</p>}
+        </div>
+      )}
+
+      {/* Users sync path (only shown when cloud sync is configured) */}
+      {cloudSyncConfig?.enabled && (
+        <div>
+          <label className={`block text-sm ${textSecondary} mb-1`}>Users sync path</label>
+          <input
+            type="text"
+            placeholder="/GLANCE/users/"
+            value={muUsersPath}
+            onChange={e => {
+              const val = e.target.value;
+              setMuUsersPath(val);
+              const existing = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+              const prev = existing ? JSON.parse(existing) : {};
+              localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ ...prev, usersPath: val }));
+            }}
+            className={`w-full px-3 py-2 border ${borderClass} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+          />
+          <p className={`text-xs ${textSecondary} mt-1`}>WebDAV path where the shared user list is stored. Must match across all GLANCE apps.</p>
+        </div>
+      )}
     </div>
   )}
 </div>

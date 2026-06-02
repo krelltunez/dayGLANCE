@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { parseEnvelope, parseEncryptedEnvelope, filenameFor, parseFilename, deriveEnvelopeKey, NoKeyError, WrongKeyError, NotEncryptedError, MalformedEnvelopeError } from '@glance-apps/intents';
+import { parseEnvelope, parseEncryptedEnvelope, filenameFor, parseFilename, deriveEnvelopeKey, NoKeyError, WrongKeyError, NotEncryptedError, MalformedEnvelopeError, ACTIONS } from '@glance-apps/intents';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
 import { handleIntent } from './handleIntent.js';
 import { logActivity } from './intentLog.js';
 
 export const INTENT_CONFIG_KEY = 'dayglance-intent-config';
+export const MULTI_USER_CONFIG_KEY = 'dayglance-multi-user-config';
 const CURSOR_KEY = 'dayglance-intent-cursor';
 const GC_LAST_RUN_KEY = 'dayglance-intent-gc-last-run';
 const DEFAULT_EVENTS_PATH = '/GLANCE/events/';
@@ -248,6 +249,30 @@ async function poll(config, context) {
       if (envelope.emitted_by === 'app.dayglance') {
         setCursor(parsed.event_id);
         continue;
+      }
+
+      // Multi-user visibility filter: skip CREATE intents not assigned to this device's user.
+      if (envelope.action === ACTIONS.CREATE) {
+        const multiUserEnabled = JSON.parse(localStorage.getItem('dayglance-multi-user-enabled') || 'false');
+        const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+        const meUserSyncId = muRaw ? JSON.parse(muRaw).meUserSyncId : null;
+        if (multiUserEnabled && meUserSyncId) {
+          const assigned = envelope.payload.assignedUserSyncIds ?? [];
+          if (assigned.length > 0 && !assigned.includes(meUserSyncId)) {
+            logActivity({
+              direction: 'in',
+              action: envelope.action,
+              event: null,
+              source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,
+              title: envelope.payload.title ?? null,
+              timestamp: envelope.emitted_at,
+              status: 'ok',
+              error: null,
+            });
+            setCursor(parsed.event_id);
+            continue;
+          }
+        }
       }
 
       const result = await handleIntent(envelope.action, envelope.payload, context);
