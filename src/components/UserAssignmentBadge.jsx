@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function UserAssignmentBadge({ users = [], assignedUserSyncIds = [], size = 14 }) {
   if (!assignedUserSyncIds?.length) return null;
-  const assigned = users.filter(u => !u.deleted && assignedUserSyncIds.includes(u.syncId));
+  const assigned = users.filter(u => !u.deleted && assignedUserSyncIds.includes(u.syncId ?? u.id));
   if (!assigned.length) return null;
   const dim = size;
   return (

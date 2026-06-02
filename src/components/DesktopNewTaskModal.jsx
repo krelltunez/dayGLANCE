@@ -243,13 +243,14 @@ const DesktopNewTaskModal = () => {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {users.filter(u => !u.deleted).map(u => {
+                      const key = u.syncId ?? u.id;
                       const task = mobileEditingTask || newTask;
                       const assigned = task.assignedUserSyncIds ?? [];
-                      const isSelected = assigned.includes(u.syncId);
+                      const isSelected = assigned.includes(key);
                       const toggle = () => {
                         const newAssigned = isSelected
-                          ? assigned.filter(id => id !== u.syncId)
-                          : [...assigned, u.syncId];
+                          ? assigned.filter(id => id !== key)
+                          : [...assigned, key];
                         if (mobileEditingTask) {
                           setMobileEditingTask(prev => ({ ...prev, assignedUserSyncIds: newAssigned }));
                         } else {
