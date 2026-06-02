@@ -1763,6 +1763,7 @@ const SettingsModal = () => {
                                     await setupIntentsEncryption(cfg, passphrase);
                                     if (cfg.webdavUrl || cfg.username || cfg.appPassword) {
                                       localStorage.setItem(INTENT_CONFIG_KEY, JSON.stringify(cfg));
+                                      window.dispatchEvent(new Event('dayglance-intent-config-saved'));
                                     }
                                     setIntentSetupPhase(null);
                                     setIntentSaved(true);
@@ -1842,6 +1843,7 @@ const SettingsModal = () => {
 
                               if (cfg.webdavUrl || cfg.username || cfg.appPassword) {
                                 localStorage.setItem(INTENT_CONFIG_KEY, JSON.stringify(cfg));
+                                window.dispatchEvent(new Event('dayglance-intent-config-saved'));
                               } else {
                                 localStorage.removeItem(INTENT_CONFIG_KEY);
                               }
