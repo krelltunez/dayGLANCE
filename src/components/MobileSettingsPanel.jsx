@@ -334,8 +334,8 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <div className="relative">
-          <Users size={20} className={users.filter(u => !u.deleted).length > 0 ? 'text-green-500' : textSecondary} />
-          {users.filter(u => !u.deleted).length > 0 && (
+          <Users size={20} className={multiUserEnabled && users.filter(u => !u.deleted).length > 0 ? 'text-green-500' : textSecondary} />
+          {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && (
             <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
           )}
         </div>
