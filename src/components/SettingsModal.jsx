@@ -87,6 +87,7 @@ const SettingsModal = () => {
       username: saved.username ?? '',
       appPassword: saved.appPassword ?? '',
       eventsPath: saved.eventsPath ?? '/GLANCE/events/',
+      usersPath: saved.usersPath ?? '/GLANCE/users/',
       foregroundInterval: saved.foregroundInterval ?? 120000,
       backgroundInterval: saved.backgroundInterval ?? 900000,
       gcRetentionDays: saved.gcRetentionDays ?? 30,
@@ -940,6 +941,190 @@ const SettingsModal = () => {
 
                     <hr className={borderClass} />
 
+                    {/* Multi-user / Household Section */}
+                    <div className="space-y-3">
+                      <button onClick={() => toggleSettingsSection('multiUser')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
+                        <Users size={16} className={textSecondary} />
+                        Multi-user
+                        {users.filter(u => !u.deleted).length > 0 && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.multiUser ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.multiUser && (
+                        <div className="space-y-4">
+                          <p className={`${textSecondary} text-xs`}>
+                            Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.
+                          </p>
+                          {/* User list */}
+                          <div>
+                            <p className={`text-xs font-medium ${textSecondary} mb-2`}>People</p>
+                            <div className="space-y-2">
+                              {users.filter(u => !u.deleted).map(u => (
+                                <div key={u.id} className="flex items-center gap-2">
+                                  <span
+                                    style={{ width: 24, height: 24, fontSize: 13 }}
+                                    className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
+                                  >
+                                    {u.name[0].toUpperCase()}
+                                  </span>
+                                  {editingUserId === u.id ? (
+                                    <>
+                                      <input
+                                        type="text"
+                                        value={editingUserName}
+                                        onChange={e => setEditingUserName(e.target.value)}
+                                        className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                        autoFocus
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const trimmed = editingUserName.trim();
+                                          if (!trimmed) return;
+                                          const updated = users.map(usr => usr.id === u.id ? { ...usr, name: trimmed, updatedAt: new Date().toISOString() } : usr);
+                                          setUsers(updated);
+                                          localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                          setEditingUserId(null);
+                                        }}
+                                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                      >Save</button>
+                                      <button type="button" onClick={() => setEditingUserId(null)} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className={`flex-1 text-sm ${textPrimary}`}>{u.name}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingUserId(u.id); setEditingUserName(u.name); }}
+                                        className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
+                                      >Edit</button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = users.map(usr => usr.id === u.id ? { ...usr, deleted: true, updatedAt: new Date().toISOString() } : usr);
+                                          setUsers(updated);
+                                          localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                          if (meUserSyncId === u.syncId) {
+                                            setMeUserSyncId(null);
+                                            localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: null }));
+                                          }
+                                        }}
+                                        className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-500 hover:bg-red-500/30"
+                                      >Remove</button>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {addingUser ? (
+                              <div className="flex items-center gap-2 mt-2">
+                                <input
+                                  type="text"
+                                  placeholder="Name"
+                                  value={newUserName}
+                                  onChange={e => setNewUserName(e.target.value)}
+                                  className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                                  autoFocus
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const trimmed = newUserName.trim();
+                                      if (!trimmed) return;
+                                      const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+                                      const updated = [...users, newUser];
+                                      setUsers(updated);
+                                      localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                      setNewUserName('');
+                                      setAddingUser(false);
+                                    } else if (e.key === 'Escape') {
+                                      setAddingUser(false);
+                                      setNewUserName('');
+                                    }
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const trimmed = newUserName.trim();
+                                    if (!trimmed) return;
+                                    const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+                                    const updated = [...users, newUser];
+                                    setUsers(updated);
+                                    localStorage.setItem('dayglance-users', JSON.stringify(updated));
+                                    setNewUserName('');
+                                    setAddingUser(false);
+                                  }}
+                                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                >Add</button>
+                                <button type="button" onClick={() => { setAddingUser(false); setNewUserName(''); }} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setAddingUser(true)}
+                                className={`mt-2 text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
+                              >+ Add person</button>
+                            )}
+                          </div>
+                          {/* I am picker */}
+                          {users.filter(u => !u.deleted).length > 0 && (
+                            <div>
+                              <p className={`text-xs font-medium ${textSecondary} mb-2`}>I am</p>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMeUserSyncId(null);
+                                    localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: null }));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-full text-sm border transition-colors ${!meUserSyncId
+                                    ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
+                                    : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+                                >None</button>
+                                {users.filter(u => !u.deleted).map(u => (
+                                  <button
+                                    key={u.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setMeUserSyncId(u.syncId);
+                                      localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: u.syncId }));
+                                    }}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm border transition-colors ${meUserSyncId === u.syncId
+                                      ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
+                                      : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+                                  >
+                                    <span
+                                      style={{ width: 18, height: 18, fontSize: 10 }}
+                                      className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
+                                    >
+                                      {u.name[0].toUpperCase()}
+                                    </span>
+                                    {u.name}
+                                  </button>
+                                ))}
+                              </div>
+                              {meUserSyncId && <p className={`text-xs ${textSecondary} mt-1.5`}>Tasks assigned to others will be hidden. Unassigned tasks are shared.</p>}
+                            </div>
+                          )}
+                          {/* Users path — only shown when GLANCE Integrations WebDAV is configured */}
+                          {intentForm.webdavUrl && (
+                            <div>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>Users sync path</label>
+                              <input
+                                type="text"
+                                placeholder="/GLANCE/users/"
+                                value={intentForm.usersPath}
+                                onChange={e => setIntentForm(p => ({ ...p, usersPath: e.target.value }))}
+                                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                              />
+                              <p className={`text-xs ${textSecondary} mt-1`}>WebDAV path where the shared user list is stored. Must match across all GLANCE apps.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <hr className={borderClass} />
+
                     {/* AI Features Section */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('ai')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
@@ -1417,176 +1602,6 @@ const SettingsModal = () => {
                       )}
 
                       </>)}
-                    </div>
-
-                    <hr className={borderClass} />
-
-                    {/* Multi-user / Household Section */}
-                    <div className="space-y-3">
-                      <button onClick={() => toggleSettingsSection('multiUser')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
-                        <Users size={16} className={textSecondary} />
-                        Multi-user
-                        {users.filter(u => !u.deleted).length > 0 && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.multiUser ? '' : 'rotate-180'}`} />
-                      </button>
-                      {!collapsedSettings.multiUser && (
-                        <div className="space-y-4">
-                          <p className={`${textSecondary} text-xs`}>
-                            Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.
-                          </p>
-                          {/* User list */}
-                          <div>
-                            <p className={`text-xs font-medium ${textSecondary} mb-2`}>People</p>
-                            <div className="space-y-2">
-                              {users.filter(u => !u.deleted).map(u => (
-                                <div key={u.id} className="flex items-center gap-2">
-                                  <span
-                                    style={{ width: 24, height: 24, fontSize: 13 }}
-                                    className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
-                                  >
-                                    {u.name[0].toUpperCase()}
-                                  </span>
-                                  {editingUserId === u.id ? (
-                                    <>
-                                      <input
-                                        type="text"
-                                        value={editingUserName}
-                                        onChange={e => setEditingUserName(e.target.value)}
-                                        className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                        autoFocus
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const trimmed = editingUserName.trim();
-                                          if (!trimmed) return;
-                                          const updated = users.map(usr => usr.id === u.id ? { ...usr, name: trimmed, updatedAt: new Date().toISOString() } : usr);
-                                          setUsers(updated);
-                                          localStorage.setItem('dayglance-users', JSON.stringify(updated));
-                                          setEditingUserId(null);
-                                        }}
-                                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                                      >Save</button>
-                                      <button type="button" onClick={() => setEditingUserId(null)} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className={`flex-1 text-sm ${textPrimary}`}>{u.name}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => { setEditingUserId(u.id); setEditingUserName(u.name); }}
-                                        className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
-                                      >Edit</button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = users.map(usr => usr.id === u.id ? { ...usr, deleted: true, updatedAt: new Date().toISOString() } : usr);
-                                          setUsers(updated);
-                                          localStorage.setItem('dayglance-users', JSON.stringify(updated));
-                                          if (meUserSyncId === u.syncId) {
-                                            setMeUserSyncId(null);
-                                            localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: null }));
-                                          }
-                                        }}
-                                        className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-500 hover:bg-red-500/30"
-                                      >Remove</button>
-                                    </>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            {addingUser ? (
-                              <div className="flex items-center gap-2 mt-2">
-                                <input
-                                  type="text"
-                                  placeholder="Name"
-                                  value={newUserName}
-                                  onChange={e => setNewUserName(e.target.value)}
-                                  className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                                  autoFocus
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      const trimmed = newUserName.trim();
-                                      if (!trimmed) return;
-                                      const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
-                                      const updated = [...users, newUser];
-                                      setUsers(updated);
-                                      localStorage.setItem('dayglance-users', JSON.stringify(updated));
-                                      setNewUserName('');
-                                      setAddingUser(false);
-                                    } else if (e.key === 'Escape') {
-                                      setAddingUser(false);
-                                      setNewUserName('');
-                                    }
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const trimmed = newUserName.trim();
-                                    if (!trimmed) return;
-                                    const newUser = { id: crypto.randomUUID(), name: trimmed, syncId: crypto.randomUUID(), updatedAt: new Date().toISOString() };
-                                    const updated = [...users, newUser];
-                                    setUsers(updated);
-                                    localStorage.setItem('dayglance-users', JSON.stringify(updated));
-                                    setNewUserName('');
-                                    setAddingUser(false);
-                                  }}
-                                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                                >Add</button>
-                                <button type="button" onClick={() => { setAddingUser(false); setNewUserName(''); }} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setAddingUser(true)}
-                                className={`mt-2 text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
-                              >+ Add person</button>
-                            )}
-                          </div>
-                          {/* I am picker */}
-                          {users.filter(u => !u.deleted).length > 0 && (
-                            <div>
-                              <p className={`text-xs font-medium ${textSecondary} mb-2`}>I am</p>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMeUserSyncId(null);
-                                    localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: null }));
-                                  }}
-                                  className={`px-2.5 py-1 rounded-full text-sm border transition-colors ${!meUserSyncId
-                                    ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
-                                    : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
-                                >None</button>
-                                {users.filter(u => !u.deleted).map(u => (
-                                  <button
-                                    key={u.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setMeUserSyncId(u.syncId);
-                                      localStorage.setItem(MULTI_USER_CONFIG_KEY, JSON.stringify({ meUserSyncId: u.syncId }));
-                                    }}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm border transition-colors ${meUserSyncId === u.syncId
-                                      ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
-                                      : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
-                                  >
-                                    <span
-                                      style={{ width: 18, height: 18, fontSize: 10 }}
-                                      className="rounded-full bg-gray-500 text-white flex items-center justify-center font-semibold leading-none flex-shrink-0"
-                                    >
-                                      {u.name[0].toUpperCase()}
-                                    </span>
-                                    {u.name}
-                                  </button>
-                                ))}
-                              </div>
-                              {meUserSyncId && <p className={`text-xs ${textSecondary} mt-1.5`}>Tasks assigned to others will be hidden. Unassigned tasks are shared.</p>}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     <hr className={borderClass} />
