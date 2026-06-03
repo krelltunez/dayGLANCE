@@ -154,6 +154,7 @@ export default function useTaskActions({
         subtasks: [],
         ...(obsidianMeta ?? {}),
         ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
+        ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),
       };
 
       if (toInbox) {
