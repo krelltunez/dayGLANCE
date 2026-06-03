@@ -218,6 +218,7 @@ async function handleCreate(payload, context) {
     ...(normalized.source_app ? { source_app: normalized.source_app } : {}),
     ...(normalized.source_entity_id ? { source_entity_id: normalized.source_entity_id } : {}),
     ...(intentKey ? { _intentKey: intentKey } : {}),
+    ...(raw.assigned_user_ids?.length ? { assignedUserSyncIds: raw.assigned_user_ids } : {}),
   };
 
   if (recurring) {
