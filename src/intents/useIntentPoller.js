@@ -20,6 +20,10 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 // the event before the main window can act on it.
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
+// Module-level lock: prevents React StrictMode's double-mount from running two
+// concurrent poll() calls, which would both see cursor=null and duplicate tasks.
+let pollLock = false;
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function authHeaders(config) {
@@ -139,6 +143,16 @@ export async function runIntentGC(config) {
 // ─── poll once ──────────────────────────────────────────────────────────────
 
 async function poll(config, context) {
+  if (pollLock) return;
+  pollLock = true;
+  try {
+    await _poll(config, context);
+  } finally {
+    pollLock = false;
+  }
+}
+
+async function _poll(config, context) {
   const dir = eventsDir(config);
   const headers = authHeaders(config);
 
