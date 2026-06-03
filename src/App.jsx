@@ -1431,8 +1431,10 @@ const DayPlanner = () => {
       const raw = localStorage.getItem('dayglance-multi-user-config');
       return raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined;
     })();
+    console.log('[shared-users diag] firing with users:', JSON.stringify(users.map(u => ({id: u.id, syncId: u.syncId, name: u.name}))));
     syncSharedUsers(cloudSyncConfig, usersPath, users).then(merged => {
       if (!merged) return;
+      console.log('[shared-users diag] merged result:', JSON.stringify(merged.map(u => ({id: u.id, syncId: u.syncId, name: u.name}))));
       const localById = new Map(users.map(u => [u.syncId ?? u.id, u]));
       const hasNew = merged.some(u => {
         const local = localById.get(u.syncId ?? u.id);
