@@ -70,7 +70,7 @@ export async function writeEventFile(config, envelope) {
   const headers = { ...authHeaders(config), 'Content-Type': 'application/json' };
 
   let res = await webdavFetch('PUT', fileUrl, headers, body);
-  if (res.status === 404 || res.status === 409) {
+  if (res.status === 403 || res.status === 404 || res.status === 409) {
     await webdavFetch('MKCOL', dir, authHeaders(config));
     res = await webdavFetch('PUT', fileUrl, headers, body);
   }

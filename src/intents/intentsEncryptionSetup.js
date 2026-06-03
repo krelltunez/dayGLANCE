@@ -37,7 +37,7 @@ async function fetchOrCreateRootSalt(config) {
   const putHeaders = { ...headers, 'Content-Type': 'application/json' };
 
   let putRes = await webdavFetch('PUT', saltUrl, putHeaders, body);
-  if (putRes.status === 404 || putRes.status === 409) {
+  if (putRes.status === 403 || putRes.status === 404 || putRes.status === 409) {
     await webdavFetch('MKCOL', dir, headers);
     putRes = await webdavFetch('PUT', saltUrl, putHeaders, body);
   }
