@@ -1,0 +1,13 @@
+diff --git a/node_modules/@glance-apps/intents/dist/index.js b/node_modules/@glance-apps/intents/dist/index.js
+index f9379dd..d83c7ca 100644
+--- a/node_modules/@glance-apps/intents/dist/index.js
++++ b/node_modules/@glance-apps/intents/dist/index.js
+@@ -396,7 +396,7 @@ var CreateSchema = z.object({
+   source_app: z.string().regex(sourceAppPattern).optional(),
+   source_entity_id: z.string().min(1).optional(),
+   assigned_user_ids: z.array(z.string()).optional()
+-}).strict().refine((data) => data.duration === void 0 || !!data.due && hasTimeComponent(data.due), {
++}).refine((data) => data.duration === void 0 || !!data.due && hasTimeComponent(data.due), {
+   message: "duration requires `due` with a time component",
+   path: ["duration"]
+ }).refine((data) => data.source_entity_id === void 0 || !!data.source_app, {
