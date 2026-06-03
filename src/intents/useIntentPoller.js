@@ -259,7 +259,7 @@ async function poll(config, context) {
         const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
         const meUserSyncId = muRaw ? JSON.parse(muRaw).meUserSyncId : null;
         if (multiUserEnabled && meUserSyncId) {
-          const assigned = envelope.payload.assignedUserSyncIds ?? [];
+          const assigned = envelope.payload.assigned_user_ids ?? [];
           if (assigned.length > 0 && !assigned.includes(meUserSyncId)) {
             logActivity({
               direction: 'in',
