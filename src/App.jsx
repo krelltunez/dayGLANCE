@@ -3072,7 +3072,8 @@ const DayPlanner = () => {
                 exceptions: {
                   ...t.exceptions,
                   [parsed.dateStr]: { ...(t.exceptions?.[parsed.dateStr] || {}), skipped: true },
-                }
+                },
+                lastModified: new Date().toISOString()
               };
             }));
             setTasks(prev => [...prev, {
@@ -3106,6 +3107,7 @@ const DayPlanner = () => {
                 };
                 // Update recurrence pattern on template if changed
                 updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
+                updated.lastModified = new Date().toISOString();
                 return updated;
               }
               return t;
@@ -3128,7 +3130,8 @@ const DayPlanner = () => {
         subtasks: existingTask?.subtasks || [],
         recurrence: { ...newTask.recurrence, startDate: taskDate },
         completedDates: existingTask?.completed ? [taskDate] : [],
-        exceptions: {}
+        exceptions: {},
+        lastModified: new Date().toISOString()
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
       setRecurringTasks(prev => [...prev, template]);
@@ -5993,7 +5996,7 @@ const DayPlanner = () => {
             const baseStart = (exceptions[parsed.dateStr] || t).startTime || '0:00';
             const newStart = minutesToTime(Math.min(timeToMinutes(baseStart) + snoozeMin, 23 * 60 + 45));
             exceptions[parsed.dateStr] = { ...(exceptions[parsed.dateStr] || {}), startTime: newStart };
-            return { ...t, exceptions };
+            return { ...t, exceptions, lastModified: new Date().toISOString() };
           }));
         } else {
           setTasks(prev => prev.map(t => {

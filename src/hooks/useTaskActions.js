@@ -180,7 +180,8 @@ export default function useTaskActions({
           subtasks: [],
           recurrence: { ...newTask.recurrence, startDate: taskDate },
           completedDates: [],
-          exceptions: {}
+          exceptions: {},
+          lastModified: new Date().toISOString()
         };
         setRecurringTasks(prev => [...prev, template]);
         if (!onboardingProgress.hasCreatedRecurring) {
@@ -307,7 +308,7 @@ export default function useTaskActions({
       const parsed = parseRecurringId(taskId);
       if (parsed) {
         setRecurringTasks(prev => prev.map(t =>
-          t.id === parsed.templateId ? { ...t, color: newColor } : t
+          t.id === parsed.templateId ? { ...t, color: newColor, lastModified: new Date().toISOString() } : t
         ));
       }
       setShowColorPicker(null);
@@ -334,7 +335,7 @@ export default function useTaskActions({
       const parsed = parseRecurringId(taskId);
       if (parsed) {
         setRecurringTasks(prev => prev.map(t =>
-          t.id === parsed.templateId ? { ...t, notes } : t
+          t.id === parsed.templateId ? { ...t, notes, lastModified: new Date().toISOString() } : t
         ));
       }
     } else if (isInbox) {
@@ -357,7 +358,7 @@ export default function useTaskActions({
       const origStart = t.recurrence.startDate;
       const earlierDate = origStart <= dateStr ? origStart : dateStr;
       const newStart = earlierDate.substring(0, 8) + '01';
-      return { ...t, recurrence: { ...newRecurrence, startDate: newStart } };
+      return { ...t, recurrence: { ...newRecurrence, startDate: newStart }, lastModified: new Date().toISOString() };
     }));
   };
 
@@ -369,7 +370,7 @@ export default function useTaskActions({
       delete updated.maxOccurrences;
       if (endDate) updated.endDate = endDate;
       if (maxOccurrences) updated.maxOccurrences = maxOccurrences;
-      return { ...t, recurrence: updated };
+      return { ...t, recurrence: updated, lastModified: new Date().toISOString() };
     }));
   };
 
@@ -388,7 +389,8 @@ export default function useTaskActions({
           ...t,
           completedDates: completed
             ? (t.completedDates || []).filter(d => d !== dateStr)
-            : [...(t.completedDates || []), dateStr]
+            : [...(t.completedDates || []), dateStr],
+          lastModified: new Date().toISOString()
         };
       }));
       if (!onboardingProgress.hasCompletedTask) {
@@ -465,6 +467,7 @@ export default function useTaskActions({
       setRecurringTasks(prev => prev.map(t => t.id !== parsed.templateId ? t : {
         ...t,
         exceptions: { ...t.exceptions, [parsed.dateStr]: { ...(t.exceptions?.[parsed.dateStr] || {}), skipped: true } },
+        lastModified: new Date().toISOString()
       }));
       setTasks(prev => [...prev, {
         id: crypto.randomUUID(), title,
@@ -657,7 +660,7 @@ export default function useTaskActions({
     if (mode === 'this') {
       setRecurringTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
-        return { ...t, exceptions: { ...t.exceptions, [dateStr]: { deleted: true } } };
+        return { ...t, exceptions: { ...t.exceptions, [dateStr]: { deleted: true } }, lastModified: new Date().toISOString() };
       }));
     } else if (mode === 'future') {
       const dayBefore = new Date(dateStr + 'T12:00:00');
@@ -665,7 +668,7 @@ export default function useTaskActions({
       const endDate = dateToString(dayBefore);
       setRecurringTasks(prev => prev.map(t => {
         if (t.id !== taskId) return t;
-        return { ...t, recurrence: { ...t.recurrence, endDate } };
+        return { ...t, recurrence: { ...t.recurrence, endDate }, lastModified: new Date().toISOString() };
       }));
     } else if (mode === 'series') {
       recordDeletedTaskTombstone(taskId);

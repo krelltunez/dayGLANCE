@@ -449,13 +449,13 @@ export default function useDragDrop({
             // Same-date drag: store startTime override in exception
             setRecurringTasks(prev => prev.map(t => {
               if (t.id !== templateId) return t;
-              return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], startTime } } };
+              return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], startTime } }, lastModified: new Date().toISOString() };
             }));
           } else {
             // Cross-date drag: mark deleted on old date, create regular task on new date
             setRecurringTasks(prev => prev.map(t => {
               if (t.id !== templateId) return t;
-              return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } } };
+              return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } }, lastModified: new Date().toISOString() };
             }));
             const { id, isRecurring, recurringTemplateId, ...taskData } = draggedTask;
             setTasks(prev => [...prev, { ...taskData, id: crypto.randomUUID(), startTime, date: dropDateStr, isAllDay: false }]);
@@ -768,7 +768,7 @@ export default function useDragDrop({
         const { templateId, dateStr } = recurringInfo;
         setRecurringTasks(prev => prev.map(t => {
           if (t.id !== templateId) return t;
-          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } } };
+          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } }, lastModified: new Date().toISOString() };
         }));
       } else {
         setTasks(prevTasks => prevTasks.map(t =>
@@ -838,7 +838,7 @@ export default function useDragDrop({
         const { templateId, dateStr } = recurringInfo;
         setRecurringTasks(prev => prev.map(t => {
           if (t.id !== templateId) return t;
-          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } } };
+          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } }, lastModified: new Date().toISOString() };
         }));
       } else {
         setTasks(prevTasks => prevTasks.map(t =>

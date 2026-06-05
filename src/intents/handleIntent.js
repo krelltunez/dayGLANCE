@@ -255,6 +255,7 @@ async function handleCreate(payload, context) {
       recurrence: freqToRecurrence(recurring, startDate),
       completedDates: [],
       exceptions: {},
+      lastModified: new Date().toISOString(),
     };
     setRecurringTasks(prev => [...prev, newRecurring]);
   } else if (due) {

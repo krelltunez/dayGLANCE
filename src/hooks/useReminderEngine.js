@@ -369,7 +369,7 @@ export default function useReminderEngine({
         if (t.id !== parsed.templateId) return t;
         const exceptions = { ...(t.exceptions || {}) };
         exceptions[parsed.dateStr] = { ...(exceptions[parsed.dateStr] || {}), startTime: newStartTime };
-        return { ...t, exceptions };
+        return { ...t, exceptions, lastModified: new Date().toISOString() };
       }));
     } else {
       setTasks(prev => prev.map(t =>

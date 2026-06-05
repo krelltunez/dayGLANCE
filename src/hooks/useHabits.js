@@ -133,7 +133,7 @@ const useHabits = ({ playUISound }) => {
   };
 
   const addHabit = (habit) => {
-    setHabits(prev => [...prev, { ...habit, id: Date.now().toString(), createdAt: new Date().toISOString(), archived: false }]);
+    setHabits(prev => [...prev, { ...habit, id: crypto.randomUUID(), createdAt: new Date().toISOString(), archived: false }]);
   };
 
   const updateHabit = (id, updates) => {
