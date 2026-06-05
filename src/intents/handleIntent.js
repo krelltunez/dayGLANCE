@@ -257,14 +257,14 @@ async function handleCreate(payload, context) {
       exceptions: {},
       lastModified: new Date().toISOString(),
     };
-    setRecurringTasks(prev => [...prev, newRecurring]);
+    setRecurringTasks(prev => prev.some(t => t.id === taskId) ? prev : [...prev, newRecurring]);
   } else if (due) {
     const scheduled = parseDue(due, allDay);
     const newTask = { ...baseTask, date: scheduled.date, startTime: scheduled.startTime, isAllDay: scheduled.isAllDay };
-    setTasks(prev => [...prev, newTask]);
+    setTasks(prev => prev.some(t => t.id === taskId) ? prev : [...prev, newTask]);
   } else {
     const newTask = { ...baseTask, priority: priority ?? 0, ...(normalized.deadline ? { deadline: normalized.deadline } : {}) };
-    setUnscheduledTasks(prev => [...prev, newTask]);
+    setUnscheduledTasks(prev => prev.some(t => t.id === taskId) ? prev : [...prev, newTask]);
   }
 
   return ok({ task_id: taskId });
