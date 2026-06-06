@@ -9,6 +9,11 @@
 //   APPLE_ID                         your Apple ID email
 //   APPLE_APP_SPECIFIC_PASSWORD      app-specific password generated at appleid.apple.com
 //   APPLE_TEAM_ID                    10-char Team ID from developer.apple.com/account
+//
+// Required env vars for a Mac App Store build (build:electron:mas):
+//   CSC_LINK                         path to .p12 for the "3rd Party Mac Developer Application" cert
+//   CSC_KEY_PASSWORD                 password for the .p12
+//   APPLE_TEAM_ID                    10-char Team ID
 
 const hasCert = Boolean(process.env.CSC_LINK);
 
@@ -36,6 +41,12 @@ module.exports = {
       { target: 'dmg', arch: ['x64', 'arm64'] },
       { target: 'zip', arch: ['x64', 'arm64'] },
     ],
+  },
+  mas: {
+    hardenedRuntime: false, // MAS builds must NOT use Hardened Runtime — sandbox replaces it
+    entitlements: 'electron/entitlements.mas.plist',
+    entitlementsInherit: 'electron/entitlements.mas.plist',
+    category: 'public.app-category.productivity',
   },
   win: {
     target: [{ target: 'nsis' }],

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Required by Electron for the V8 JIT compiler under Hardened Runtime -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- Required by Electron to load its own unsigned helper code -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- MAS requires full App Sandbox -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- Outbound network (CalDAV, AI APIs, RevenueCat REST, WebSocket) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- StoreKit in-app purchases -->
+    <key>com.apple.security.in-app-payments</key>
+    <true/>
+    <!-- Obsidian vault: user picks folder via open panel -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <!-- iCloud CloudDocuments sync -->
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array>
+      <string>iCloud.com.dayglance</string>
+    </array>
+    <key>com.apple.developer.icloud-services</key>
+    <array>
+      <string>CloudDocuments</string>
+    </array>
+    <key>com.apple.developer.ubiquity-kvstore-identifier</key>
+    <string>$(TeamIdentifierPrefix)com.dayglance</string>
+  </dict>
+</plist>
