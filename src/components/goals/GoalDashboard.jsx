@@ -20,6 +20,7 @@ import {
   GitBranch,
   GripVertical,
   Layers,
+  Link2,
   LogIn,
   Plus,
   RotateCcw,
@@ -825,9 +826,16 @@ const GoalMiniCard = ({ goal, onClick }) => {
         darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-stone-50 hover:bg-stone-100'
       }`}
     >
-      <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate`}>
-        {goal.title}
-      </p>
+      <div className="flex items-center gap-1.5">
+        <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate flex-1 min-w-0`}>
+          {goal.title}
+        </p>
+        {goal.source_app === 'app.lifeglance' && (
+          <span title="Linked with lifeGLANCE" className={`flex-shrink-0 ${textSecondary} opacity-60`}>
+            <Link2 size={11} />
+          </span>
+        )}
+      </div>
       {(!isCompleted && (daysLabel || showCaution || allProjectsDone)) ? (
         <div className="flex items-center gap-1 mt-0.5">
           {daysLabel && <span className={`text-xs ${labelColor}`}>{daysLabel}</span>}
