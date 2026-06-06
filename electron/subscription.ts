@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 
 // Replace with the public macOS SDK key from the RevenueCat dashboard
 // (App Settings → API Keys → Public app-specific key for macOS).
-const RC_API_KEY       = 'REVENUECAT_MACOS_API_KEY';
+const RC_API_KEY       = 'appl_uHejfwubTbYOTpEPNYFsjXAgnHw';
 const RC_BASE          = 'https://api.revenuecat.com/v1';
 const ENTITLEMENT_ID   = 'pro';
 const PRODUCT_YEARLY   = 'com.dayglance.app.pro.yearly';
