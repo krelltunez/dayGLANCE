@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen, Calendar, Check, Loader, Sparkles, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -9,6 +10,7 @@ import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtil
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 
 const MobileNewTaskModal = () => {
+  const { t } = useTranslation();
   const {
     showAddTask, setShowAddTask,
     isMobile,
@@ -54,7 +56,7 @@ const MobileNewTaskModal = () => {
           >
             <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
               <h3 className={`font-semibold ${textPrimary} text-lg`}>
-                {mobileEditingTask ? 'Edit Task' : newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
+                {mobileEditingTask ? t('task.editTask') : newTask.openInInbox ? t('task.newInbox') : t('task.newScheduled')}
               </h3>
               <button onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
                 <X size={18} className={textSecondary} />
@@ -76,7 +78,7 @@ const MobileNewTaskModal = () => {
               {mobileEditingTask?.source_app === SOURCE_APPS.LASTGLANCE && (
                 <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
                   <LastGlanceBadge size={14} className="flex-shrink-0" />
-                  <span>Added by lastGLANCE</span>
+                  <span>{t('task.addedByLastGlance')}</span>
                 </div>
               )}
               {/* Title */}
@@ -84,7 +86,7 @@ const MobileNewTaskModal = () => {
                 <input
                   ref={newTaskInputRef}
                   type="text"
-                  placeholder="Task title"
+                  placeholder={t('task.titlePlaceholder')}
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
                   autoFocus={!mobileEditingTask && !newTask.title}
@@ -112,7 +114,7 @@ const MobileNewTaskModal = () => {
                   taskAISuggestionLoading ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
                       <Loader size={11} className="animate-spin" />
-                      <span>Estimating...</span>
+                      <span>{t('task.estimating')}</span>
                     </div>
                   ) : taskAISuggestion ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
@@ -161,7 +163,7 @@ const MobileNewTaskModal = () => {
               {/* Project assignment (only when Goals & Projects is enabled) */}
               {goalsProjectsEnabled && (
                 <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>Project</label>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.project')}</label>
                   <select
                     value={newTask.projectId || ''}
                     onChange={(e) => {
@@ -250,7 +252,7 @@ const MobileNewTaskModal = () => {
 
               {/* Color row */}
               <div>
-                <label className={`block text-sm ${textSecondary} mb-2`}>Color</label>
+                <label className={`block text-sm ${textSecondary} mb-2`}>{t('task.color')}</label>
                 <div className="grid grid-cols-9 gap-2">
                   {colors.map((color) => (
                     <button
@@ -268,7 +270,7 @@ const MobileNewTaskModal = () => {
               {newTask.openInInbox ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>Priority</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.priority')}</label>
                     <button
                       type="button"
                       onClick={() => !newTask.projectId && setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
@@ -284,7 +286,7 @@ const MobileNewTaskModal = () => {
                     </button>
                   </div>
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>Deadline</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.deadline')}</label>
                     <div className="relative deadline-picker-container">
                       <button
                         type="button"
@@ -315,7 +317,7 @@ const MobileNewTaskModal = () => {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
                     <select
                       value={newTask.duration}
                       onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
@@ -330,7 +332,7 @@ const MobileNewTaskModal = () => {
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.date')}</label>
                     {(() => {
                       const isRecurringEdit = mobileEditingTask && typeof mobileEditingTask.id === 'string' && mobileEditingTask.id.startsWith('recurring-');
                       const dateDisabled = newTask.keepUnscheduled || (isRecurringEdit && (mobileEditingTask.recurrenceType === 'daily' || newTask.recurrence?.type === 'daily'));
@@ -347,7 +349,7 @@ const MobileNewTaskModal = () => {
                     })()}
                   </div>
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.time')}</label>
                     <button
                       type="button"
                       onClick={() => !newTask.isAllDay && !newTask.keepUnscheduled && setShowTimePicker(true)}
@@ -358,7 +360,7 @@ const MobileNewTaskModal = () => {
                     </button>
                   </div>
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
                     <select
                       value={newTask.duration}
                       onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
@@ -371,7 +373,7 @@ const MobileNewTaskModal = () => {
                     </select>
                   </div>
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
                     <label className={`flex items-center h-10 ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e) => { e.preventDefault(); !newTask.keepUnscheduled && setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
                       <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                         {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
@@ -398,7 +400,7 @@ const MobileNewTaskModal = () => {
                   )}
                   {(<>
                     <div className="col-span-2 relative">
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.repeat')}</label>
                       <button
                         type="button"
                         onClick={() => !newTask.keepUnscheduled && setShowRecurrencePicker(!showRecurrencePicker)}
@@ -510,7 +512,7 @@ const MobileNewTaskModal = () => {
                   type="submit"
                   className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  {mobileEditingTask ? 'Save Changes' : newTask.openInInbox ? (newTask.projectId ? 'Add to Project' : 'Add to Inbox') : newTask.projectId && newTask.keepUnscheduled ? 'Add to Project' : newTask.projectId ? 'Add to Project and Schedule' : 'Add to Schedule'}
+                  {mobileEditingTask ? t('task.saveChanges') : newTask.openInInbox ? (newTask.projectId ? t('task.addToProject') : t('task.addToInbox')) : newTask.projectId && newTask.keepUnscheduled ? t('task.addToProject') : newTask.projectId ? t('task.addToProjectAndSchedule') : t('task.addToSchedule')}
                 </button>
               </div>
 
@@ -526,7 +528,7 @@ const MobileNewTaskModal = () => {
                   }}
                   className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
                 >
-                  Delete Task
+                  {t('task.deleteTask')}
                 </button>
               )}
             </form>
@@ -551,7 +553,7 @@ const MobileNewTaskModal = () => {
                 {newTask.color && (
                   <div className={`w-3 h-3 rounded-full flex-shrink-0 ${newTask.color}`} />
                 )}
-                <h3 className={`font-semibold ${textPrimary} text-lg`}>Edit Event</h3>
+                <h3 className={`font-semibold ${textPrimary} text-lg`}>{t('task.editEvent')}</h3>
               </div>
               <button onClick={() => setMobileEditingNativeEvent(null)} className={`p-1 rounded-lg ${hoverBg}`}>
                 <X size={18} className={textSecondary} />
@@ -570,7 +572,7 @@ const MobileNewTaskModal = () => {
 
               {/* Title */}
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Title</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.title')}</label>
                 <input
                   type="text"
                   value={newTask.title}
@@ -581,7 +583,7 @@ const MobileNewTaskModal = () => {
 
               {/* Color row */}
               <div>
-                <label className={`block text-sm ${textSecondary} mb-2`}>Color override</label>
+                <label className={`block text-sm ${textSecondary} mb-2`}>{t('task.colorOverride')}</label>
                 <div className="flex gap-2 flex-wrap">
                   <button
                     type="button"
@@ -653,7 +655,7 @@ const MobileNewTaskModal = () => {
 
               {/* Notes */}
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Notes</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.notes')}</label>
                 <textarea
                   value={newTask.notes || ''}
                   onChange={(e) => setNewTask({ ...newTask, notes: e.target.value })}
@@ -669,7 +671,7 @@ const MobileNewTaskModal = () => {
                   type="submit"
                   className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  Save Changes
+                  {t('task.saveChanges')}
                 </button>
               </div>
 
@@ -679,7 +681,7 @@ const MobileNewTaskModal = () => {
                 onClick={() => clearNativeEventOverride(mobileEditingNativeEvent)}
                 className={`w-full px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-stone-500 hover:bg-stone-100'}`}
               >
-                Reload from calendar
+                {t('task.reloadFromCalendar')}
               </button>
             </form>
           </div>

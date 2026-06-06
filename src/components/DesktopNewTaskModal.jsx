@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen, Calendar, Check, Loader, Sparkles, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -10,6 +11,7 @@ import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtil
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 
 const DesktopNewTaskModal = () => {
+  const { t } = useTranslation();
   const {
     showAddTask, setShowAddTask,
     isMobile, isTablet,
@@ -93,21 +95,21 @@ const DesktopNewTaskModal = () => {
             }}
           >
             <h3 className={`font-semibold ${textPrimary} mb-4 text-lg`}>
-              {mobileEditingTask ? 'Edit Task' : newTask.openInInbox ? 'New Inbox Task' : 'New Scheduled Task'}
+              {mobileEditingTask ? t('task.editTask') : newTask.openInInbox ? t('task.newInbox') : t('task.newScheduled')}
             </h3>
             <div className="space-y-4">
               {/* Source attribution — shown when editing a task created via lastGLANCE */}
               {mobileEditingTask?.source_app === SOURCE_APPS.LASTGLANCE && (
                 <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
                   <LastGlanceBadge size={14} className="flex-shrink-0" />
-                  <span>Added by lastGLANCE</span>
+                  <span>{t('task.addedByLastGlance')}</span>
                 </div>
               )}
               <div className="relative tag-autocomplete-container">
                 <input
                   ref={newTaskInputRef}
                   type="text"
-                  placeholder={newTask.openInInbox ? "Task title (#tag, $deadline, !priority, %mins)" : "Task title (#tag, @date, ~time, %mins, ^all-day)"}
+                  placeholder={newTask.openInInbox ? t('task.titlePlaceholderInbox') : t('task.titlePlaceholderScheduled')}
                   value={newTask.title}
                   onChange={handleNewTaskInputChange}
                   onKeyDown={handleNewTaskInputKeyDown}
@@ -147,7 +149,7 @@ const DesktopNewTaskModal = () => {
                   taskAISuggestionLoading ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
                       <Loader size={11} className="animate-spin" />
-                      <span>Estimating...</span>
+                      <span>{t('task.estimating')}</span>
                     </div>
                   ) : taskAISuggestion ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
@@ -195,7 +197,7 @@ const DesktopNewTaskModal = () => {
               {/* Project assignment (only when Goals & Projects is enabled) */}
               {goalsProjectsEnabled && (
                 <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>Project</label>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.project')}</label>
                   <select
                     value={newTask.projectId || ''}
                     onChange={(e) => {
@@ -206,7 +208,7 @@ const DesktopNewTaskModal = () => {
                     }}
                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                   >
-                    <option value="">No project</option>
+                    <option value="">{t('task.noProject')}</option>
                     {(() => {
                       const activeProjects = projects.filter(p => p.status !== 'archived' && p.status !== 'completed');
                       const withGoal = activeProjects.filter(p => p.goalId);
@@ -283,7 +285,7 @@ const DesktopNewTaskModal = () => {
                 {newTask.openInInbox ? (
                   <>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.color')}</label>
                       <div className="relative color-picker-container">
                         <button
                           type="button"
@@ -311,7 +313,7 @@ const DesktopNewTaskModal = () => {
                       </div>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Priority</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.priority')}</label>
                       <button
                         type="button"
                         onClick={() => !newTask.projectId && setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
@@ -328,7 +330,7 @@ const DesktopNewTaskModal = () => {
                       </button>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Deadline</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.deadline')}</label>
                       <div className="relative deadline-picker-container">
                         <button
                           type="button"
@@ -419,7 +421,7 @@ const DesktopNewTaskModal = () => {
                   <>
                     {/* Row 1: Color, Date, Recurrence */}
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Color</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.color')}</label>
                       <div className="relative color-picker-container">
                         <button
                           type="button"
@@ -447,7 +449,7 @@ const DesktopNewTaskModal = () => {
                       </div>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Date</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.date')}</label>
                       {(() => {
                         const isRecurringEdit = mobileEditingTask && typeof mobileEditingTask.id === 'string' && mobileEditingTask.id.startsWith('recurring-');
                         const dateDisabled = newTask.keepUnscheduled || (isRecurringEdit && (mobileEditingTask.recurrenceType === 'daily' || newTask.recurrence?.type === 'daily'));
@@ -464,7 +466,7 @@ const DesktopNewTaskModal = () => {
                       })()}
                     </div>
                     <div className="relative">
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Recurrence</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.repeat')}</label>
                       <button
                         type="button"
                         onClick={() => !newTask.keepUnscheduled && setShowRecurrencePicker(!showRecurrencePicker)}
@@ -571,7 +573,7 @@ const DesktopNewTaskModal = () => {
                     )}
                     {/* Row 2: Time, Duration, All Day */}
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Time</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.time')}</label>
                       <button
                         type="button"
                         onClick={() => !newTask.isAllDay && !newTask.keepUnscheduled && setShowTimePicker(true)}
@@ -582,7 +584,7 @@ const DesktopNewTaskModal = () => {
                       </button>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>Duration</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
                       <select
                         value={newTask.duration}
                         onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
@@ -597,7 +599,7 @@ const DesktopNewTaskModal = () => {
                       </select>
                     </div>
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>All Day</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
                       <div className={`flex items-center h-10 ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} onClick={() => !newTask.keepUnscheduled && setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay }))}>
                         <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                           {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
@@ -628,7 +630,7 @@ const DesktopNewTaskModal = () => {
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  {mobileEditingTask ? 'Save Changes' : newTask.openInInbox ? (newTask.projectId ? 'Add to Project' : 'Add to Inbox') : newTask.projectId && newTask.keepUnscheduled ? 'Add to Project' : newTask.projectId ? 'Add to Project and Schedule' : 'Add to Schedule'}
+                  {mobileEditingTask ? t('task.saveChanges') : newTask.openInInbox ? (newTask.projectId ? t('task.addToProject') : t('task.addToInbox')) : newTask.projectId && newTask.keepUnscheduled ? t('task.addToProject') : newTask.projectId ? t('task.addToProjectAndSchedule') : t('task.addToSchedule')}
                 </button>
                 {mobileEditingTask && (
                   <button
@@ -641,7 +643,7 @@ const DesktopNewTaskModal = () => {
                     }}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                   >
-                    Delete
+                    {t('common.delete')}
                   </button>
                 )}
                 <button
@@ -649,13 +651,13 @@ const DesktopNewTaskModal = () => {
                   onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); }}
                   className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
               {!mobileEditingTask && (
               <div className={`text-xs ${textSecondary} text-center`}>
-                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Enter</kbd> add to {newTask.openInInbox ? 'inbox' : 'schedule'}
-                {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Esc</kbd> cancel
+                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Enter</kbd> {t('task.addToHint', { target: newTask.openInInbox ? t('task.inbox') : t('task.schedule') })}
+                {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Esc</kbd> {t('common.cancel')}
               </div>
               )}
             </div>

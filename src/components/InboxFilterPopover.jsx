@@ -19,6 +19,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
     inboxTagFilter, setInboxTagFilter,
     inboxProjectFilter, setInboxProjectFilter,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { goalsProjectsEnabled, projects } = useFeaturesCtx();
 
   const popoverRef = useRef(null);
@@ -114,7 +115,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-3 py-2.5 border-b ${borderClass}`}>
-          <span className={`text-sm font-semibold ${textPrimary}`}>Filter Inbox</span>
+          <span className={`text-sm font-semibold ${textPrimary}`}>{t('common.filterInbox')}</span>
           <div className="flex items-center gap-1">
             {isNonDefault && (
               <button

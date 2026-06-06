@@ -5,9 +5,11 @@ import {
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const DesktopWelcomeModal = () => {
+  const { t } = useTranslation();
   const {
     setShowWelcome,
     desktopWelcomeStep, setDesktopWelcomeStep,
@@ -42,10 +44,10 @@ const DesktopWelcomeModal = () => {
                 alt="dayGLANCE"
                 className="h-24 mx-auto mb-6"
               />
-              <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>Welcome to dayGLANCE</h1>
-              <p className={`${textSecondary}`}>Your minimalist day planner</p>
-              <p className={`${textSecondary} text-xs mt-3`}>100% local — no accounts, no servers, no tracking.</p>
-              <p className={`${textSecondary} text-sm mt-4`}>Let&apos;s take a quick tour of the key features.</p>
+              <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('onboarding.welcomeTitle')}</h1>
+              <p className={`${textSecondary}`}>{t('onboarding.welcomeSubtitle')}</p>
+              <p className={`${textSecondary} text-xs mt-3`}>{t('onboarding.welcomeLocal')}</p>
+              <p className={`${textSecondary} text-sm mt-4`}>{t('onboarding.welcomeTour')}</p>
             </div>
           )}
           {desktopWelcomeStep === 1 && (
@@ -53,7 +55,7 @@ const DesktopWelcomeModal = () => {
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <Plus size={32} className="text-blue-500" />
               </div>
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Your Layout</h2>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.layoutTitle')}</h2>
               <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -81,7 +83,7 @@ const DesktopWelcomeModal = () => {
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <GripVertical size={32} className="text-blue-500" />
               </div>
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Interacting with Tasks</h2>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.interactingTitle')}</h2>
               <ul className={`text-sm ${textSecondary} space-y-2 text-left list-none`}>
                 <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
                 <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
@@ -100,7 +102,7 @@ const DesktopWelcomeModal = () => {
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <Search size={32} className="text-blue-500" />
               </div>
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Spotlight Search &amp; Weekly Review</h2>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.spotlightTitle')}</h2>
               <div className={`text-sm ${textSecondary} space-y-4 text-left`}>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
@@ -122,22 +124,22 @@ const DesktopWelcomeModal = () => {
               <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <Zap size={32} className="text-amber-500" />
               </div>
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Keyboard Shortcuts</h2>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.shortcutsTitle')}</h2>
               <div className={`text-sm ${textSecondary} space-y-2`}>
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
-                  <span>New scheduled task</span>
+                  <span>{t('onboarding.shortcutNewScheduled')}</span>
                   <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>N</kbd>
                 </div>
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
-                  <span>New inbox task</span>
+                  <span>{t('onboarding.shortcutNewInbox')}</span>
                   <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>I</kbd>
                 </div>
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
-                  <span>Jump to today</span>
+                  <span>{t('onboarding.shortcutToday')}</span>
                   <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
                 </div>
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
-                  <span>Undo / Redo</span>
+                  <span>{t('onboarding.shortcutUndoRedo')}</span>
                   <span className="flex gap-1">
                     <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
                     <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Shift+Z</kbd>
@@ -152,7 +154,7 @@ const DesktopWelcomeModal = () => {
               <div className="w-16 h-16 bg-stone-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <Settings size={32} className={textSecondary} />
               </div>
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Settings &amp; Sync</h2>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.settingsSyncTitle')}</h2>
               <div className={`text-sm ${textSecondary} space-y-2 text-left`}>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -181,8 +183,8 @@ const DesktopWelcomeModal = () => {
               <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <Zap size={32} className="text-purple-500" />
               </div>
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>Make It Yours</h2>
-              <p className={`${textSecondary} text-sm mb-4`}>Optional features you can enable anytime in Settings:</p>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.makeItYoursTitle')}</h2>
+              <p className={`${textSecondary} text-sm mb-4`}>{t('onboarding.makeItYoursDesc')}</p>
               <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -212,19 +214,19 @@ const DesktopWelcomeModal = () => {
                 alt="dayGLANCE"
                 className="h-20 mx-auto mb-6"
               />
-              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>You&apos;re All Set!</h2>
+              <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.allSetTitle')}</h2>
               <div className="space-y-3 w-full max-w-xs mx-auto">
                 <button
                   onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); }}
                   className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors"
                 >
-                  Just Get Started
+                  {t('onboarding.justGetStarted')}
                 </button>
                 <button
                   onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); setShowSettings(true); }}
                   className={`w-full px-6 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-xl font-medium flex items-center justify-center gap-2 transition-colors`}
                 >
-                  <Cloud size={18} /> Set Up Cloud Sync
+                  <Cloud size={18} /> {t('onboarding.setUpCloudSync')}
                 </button>
               </div>
               <a
@@ -233,7 +235,7 @@ const DesktopWelcomeModal = () => {
                 rel="noopener noreferrer"
                 className={`inline-block mt-4 text-sm ${textSecondary} hover:text-blue-500 transition-colors`}
               >
-                Explore the docs at docs.dayglance.app
+                {t('onboarding.exploreDocs')}
               </a>
             </div>
           )}
@@ -245,7 +247,7 @@ const DesktopWelcomeModal = () => {
             onClick={() => { setShowWelcome(false); setDesktopWelcomeStep(0); }}
             className={`text-sm ${textSecondary} px-3 py-2 hover:${textPrimary} transition-colors`}
           >
-            Skip
+            {t('common.skip')}
           </button>
           <div className="flex gap-3">
             {desktopWelcomeStep > 0 && (

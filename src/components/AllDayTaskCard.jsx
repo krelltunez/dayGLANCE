@@ -42,6 +42,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     goalsProjectsEnabled,
@@ -104,7 +105,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
             title="Postpone to tomorrow"
           >
             <SkipForward size={14} />
-            {inMenu && <span className="text-xs">Postpone</span>}
+            {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
           </button>
           )}
           {!isTablet && (
@@ -114,7 +115,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
             title="Edit"
           >
             <Pencil size={14} />
-            {inMenu && <span className="text-xs">Edit</span>}
+            {inMenu && <span className="text-xs">{t('common.edit')}</span>}
           </button>
           )}
           {!isTablet && (
@@ -124,7 +125,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
             title="Delete"
           >
             <Trash2 size={14} />
-            {inMenu && <span className="text-xs">Delete</span>}
+            {inMenu && <span className="text-xs">{t('common.delete')}</span>}
           </button>
           )}
         </>
@@ -139,7 +140,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
           title="Postpone to tomorrow"
         >
           <SkipForward size={14} />
-          {inMenu && <span className="text-xs">Postpone</span>}
+          {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
         </button>
         {!isTablet && (
         <button
@@ -148,7 +149,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
           title="Edit"
         >
           <Pencil size={14} />
-          {inMenu && <span className="text-xs">Edit</span>}
+          {inMenu && <span className="text-xs">{t('common.edit')}</span>}
         </button>
         )}
         {!isTablet && (
@@ -158,7 +159,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
           title="Move to Inbox"
         >
           <Inbox size={14} />
-          {inMenu && <span className="text-xs">To Inbox</span>}
+          {inMenu && <span className="text-xs">{t('common.toInbox')}</span>}
         </button>
         )}
       </>
@@ -313,7 +314,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
         {expandedNotesTaskId === task.id && isImported && (
           <div className="notes-panel-container p-2">
             <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
-              <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
+              <div className="text-xs font-semibold opacity-75 mb-1">{t('common.description')}</div>
               <textarea
                 defaultValue={task.notes || ''}
                 placeholder="Add description…"

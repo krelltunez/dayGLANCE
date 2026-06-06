@@ -1,9 +1,11 @@
 import React from 'react';
 import { Search, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { highlightMatch, renderTitle } from '../utils/textFormatting.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const SpotlightModal = () => {
+  const { t } = useTranslation();
   const {
     setShowSpotlight,
     isMobile,
@@ -41,7 +43,7 @@ const SpotlightModal = () => {
                 handleSpotlightSelect(spotlightResults[spotlightSelectedIndex]);
               }
             }}
-            placeholder="Search tasks..."
+            placeholder={t('spotlight.placeholder')}
             className={`flex-1 bg-transparent outline-none ${textPrimary} text-sm placeholder:${textSecondary}`}
             autoFocus
           />
@@ -56,9 +58,9 @@ const SpotlightModal = () => {
         {/* Results */}
         <div className="max-h-[50vh] overflow-y-auto">
           {!spotlightQuery.trim() ? (
-            <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>Type to search across all tasks...</div>
+            <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>{t('spotlight.typeToSearch')}</div>
           ) : spotlightResults.length === 0 ? (
-            <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>No results found</div>
+            <div className={`px-4 py-8 text-center text-sm ${textSecondary}`}>{t('spotlight.noResults')}</div>
           ) : (() => {
             const sourceBadgeColors = darkMode ? {
               scheduled: 'bg-blue-900/40 text-blue-300',
@@ -75,7 +77,7 @@ const SpotlightModal = () => {
               deleted: 'bg-red-100 text-red-700',
               archived: 'bg-stone-200 text-stone-500',
             };
-            const groupLabels = { today: 'Today', thisweek: 'This week', future: 'Coming up', nodate: 'No date', past: 'Past', deleted: 'Deleted', archived: 'Archived' };
+            const groupLabels = { today: t('spotlight.groupToday'), thisweek: t('spotlight.groupThisWeek'), future: t('spotlight.groupFuture'), nodate: t('spotlight.groupNoDate'), past: t('spotlight.groupPast'), deleted: t('spotlight.groupDeleted'), archived: t('spotlight.groupArchived') };
             let lastGroup = null;
             return spotlightResults.map((result, idx) => {
               const isSelected = idx === spotlightSelectedIndex;

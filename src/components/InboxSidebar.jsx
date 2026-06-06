@@ -51,6 +51,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     handleMobileTaskTouchStart, handleMobileTaskTouchMove, handleMobileTaskTouchEnd,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     aiConfig,
@@ -93,7 +94,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           title="New Inbox Task"
         >
           <Plus size={14} strokeWidth={3} />
-          <span className="text-xs font-medium">New Task</span>
+          <span className="text-xs font-medium">{t('common.newTask')}</span>
         </button>
         {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
           <button

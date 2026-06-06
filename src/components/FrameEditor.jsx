@@ -4,6 +4,7 @@ import { FRAME_COLORS, DAY_LABELS } from '../constants/frames.js';
 import ClockTimePicker from './ClockTimePicker.jsx';
 
 const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames, use24HourClock, isTablet }) => {
+  const { t } = useTranslation();
   const [label, setLabel] = useState(frame?.label || '');
   const [days, setDays] = useState(frame?.days || [1, 2, 3, 4, 5]);
   const [start, setStart] = useState(frame?.start || '09:00');

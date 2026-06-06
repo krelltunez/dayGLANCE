@@ -4,6 +4,7 @@ import { FRAME_COLORS } from '../constants/frames.js';
 import ClockTimePicker from './ClockTimePicker.jsx';
 
 const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, defaultColor, existingFrames, getFrameInstancesForDate, onSave, onCancel, darkMode, textPrimary, textSecondary, borderClass, hoverBg, formatTime, isTablet, use24HourClock }) => {
+  const { t } = useTranslation();
   const [label, setLabel] = useState('');
   const [start, setStart] = useState(defaultStart);
   const [end, setEnd] = useState(defaultEnd);
@@ -53,7 +54,7 @@ const QuickAddFrameForm = ({ dateStr, dateDisplay, defaultStart, defaultEnd, def
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-1">
-        <h3 className={`text-lg font-semibold ${textPrimary}`}>New Frame</h3>
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('frames.newFrame')}</h3>
         <button onClick={onCancel} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
           <X size={18} className={textSecondary} />
         </button>
