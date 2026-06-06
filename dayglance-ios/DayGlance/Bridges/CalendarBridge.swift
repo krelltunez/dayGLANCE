@@ -277,4 +277,23 @@ final class CalendarBridge {
               let dict = obj as? [String: Any] else { return nil }
         return dict
     }
+
+    // MARK: - Reminders (Phase 11)
+
+    func getReminders() -> String {
+        let predicate = store.predicateForReminders(in: nil)
+        var result = "[]"
+        let sem = DispatchSemaphore(value: 0)
+        store.fetchReminders(matching: predicate) { reminders in
+            let incomplete = (reminders ?? []).filter { !$0.isCompleted }
+            let items = incomplete.compactMap { r -> [String: Any]? in
+                guard let title = r.title else { return nil }
+                return ["id": r.calendarItemIdentifier, "title": title, "notes": r.notes ?? ""]
+            }
+            result = (try? String(data: JSONSerialization.data(withJSONObject: items), encoding: .utf8)) ?? "[]"
+            sem.signal()
+        }
+        sem.wait()
+        return result
+    }
 }

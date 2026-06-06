@@ -3411,6 +3411,7 @@ const DayPlanner = () => {
     setFocusTimerSeconds(focusWorkMinutes * 60);
     setFocusTimerRunning(true);
     playFocusSound('work');
+    try { window.DayGlanceNative?.triggerHaptic('medium'); } catch (_) {}
     if (!onboardingProgress.hasUsedFocusMode) {
       setOnboardingProgress(prev => ({ ...prev, hasUsedFocusMode: true }));
     }
@@ -5419,6 +5420,7 @@ const DayPlanner = () => {
           case 'complete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
             setter(prev => prev.map(t => t.id === id ? { ...t, completed: true, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
+            try { window.DayGlanceNative?.triggerHaptic('success'); } catch (_) {}
             break;
           }
           case 'uncomplete': {
@@ -5997,6 +5999,7 @@ const DayPlanner = () => {
       } else if (pending.action === 'focus-stop') {
         exitFocusModeRef.current?.(false);
       } else if (pending.action === 'snooze' && pending.taskId) {
+        try { window.DayGlanceNative?.triggerHaptic('light'); } catch (_) {}
         // Shift the task's start time forward by the snooze duration (default 15 min)
         const snoozeMin = pending.minutes || 15;
         const parsed = parseRecurringId(pending.taskId);

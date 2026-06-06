@@ -32,6 +32,10 @@ targets:
     dependencies:
       - package: RevenueCat
         product: RevenueCat
+      - target: DayGlanceWidget
+        embed: true
+      - target: ShareExtension
+        embed: true
     entitlements:
       path: DayGlance/DayGlance.entitlements
       properties:
@@ -41,6 +45,8 @@ targets:
         com.apple.developer.icloud-services:
           - CloudDocuments
         com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)com.dayglance
+        com.apple.security.application-groups:
+          - group.com.dayglance.app
     postBuildScripts:
       - name: Copy Web Assets
         script: |
@@ -87,3 +93,81 @@ targets:
         NSMicrophoneUsageDescription: "dayGLANCE uses the microphone to record voice input for AI task parsing."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.dayglance.widgetrefresh
+        CFBundleURLTypes:
+          - CFBundleURLName: com.dayglance
+            CFBundleURLSchemes:
+              - dayglance
+        NSUserActivityTypes:
+          - NSUserActivityTypeBrowsingWeb
+          - com.apple.corespotlightitem
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: com.dayglance.newScheduledTask
+            UIApplicationShortcutItemTitle: New Scheduled Task
+            UIApplicationShortcutItemSubtitle: Add to today's schedule
+            UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeAdd
+          - UIApplicationShortcutItemType: com.dayglance.newInboxTask
+            UIApplicationShortcutItemTitle: New Inbox Task
+            UIApplicationShortcutItemSubtitle: Capture quickly
+            UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeAdd
+          - UIApplicationShortcutItemType: com.dayglance.startFocus
+            UIApplicationShortcutItemTitle: Start Focus
+            UIApplicationShortcutItemSubtitle: Focus on next task
+            UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypePlay
+          - UIApplicationShortcutItemType: com.dayglance.openToday
+            UIApplicationShortcutItemTitle: Open Today
+            UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeDate
+
+  DayGlanceWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: DayGlanceWidget
+    entitlements:
+      path: DayGlanceWidget/DayGlanceWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.dayglance.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dayglance.widget
+        INFOPLIST_FILE: DayGlanceWidget/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        SWIFT_VERSION: "5.9"
+    info:
+      path: DayGlanceWidget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: ShareExtension
+    entitlements:
+      path: ShareExtension/ShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.dayglance.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dayglance.share
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        SWIFT_VERSION: "5.9"
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1

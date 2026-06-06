@@ -183,6 +183,48 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             SubscriptionBridge.shared.restorePurchases()
             return "null"
 
+        // Phase 10 — Widget snapshot
+        case "updateWidgetSnapshot":
+            guard let json = args.first as? String else { return "null" }
+            WidgetBridge.shared.updateSnapshot(json)
+            return "null"
+
+        case "getWidgetPendingAction":
+            return WidgetBridge.shared.getPendingAction()
+
+        case "getShareExtensionPending":
+            return WidgetBridge.shared.getPendingShares()
+
+        case "getPendingShortcutAction":
+            let action = AppDelegate.pendingShortcutAction
+            AppDelegate.pendingShortcutAction = nil
+            return action.map { "\"\($0)\"" } ?? "null"
+
+        case "getPendingDeepLink":
+            let link = AppDelegate.pendingDeepLink
+            AppDelegate.pendingDeepLink = nil
+            return link.map { "\"\($0)\"" } ?? "null"
+
+        // Phase 11 — Haptics
+        case "triggerHaptic":
+            guard let type = args.first as? String else { return "null" }
+            HapticBridge.shared.trigger(type)
+            return "null"
+
+        // Phase 11 — Spotlight
+        case "indexSpotlight":
+            guard let json = args.first as? String else { return "null" }
+            SpotlightBridge.shared.indexItems(json)
+            return "null"
+        case "deindexSpotlight":
+            guard let json = args.first as? String else { return "null" }
+            SpotlightBridge.shared.deindexItems(json)
+            return "null"
+
+        // Phase 11 — Reminders
+        case "getReminders":
+            return CalendarBridge.shared.getReminders()
+
         default:
             return "null"
         }

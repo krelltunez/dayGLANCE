@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import androidx.core.content.FileProvider
@@ -481,5 +484,31 @@ class NativeBridge(
     @JavascriptInterface
     fun notifyAppReady() {
         onAppReady?.invoke()
+    }
+
+    // Phase 11 — Haptics
+    @JavascriptInterface
+    fun triggerHaptic(type: String) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                val vibrator = vm.defaultVibrator
+                val effect = when (type) {
+                    "success" -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+                    "error", "warning" -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
+                    "heavy" -> VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
+                    else -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+                }
+                vibrator.vibrate(effect)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                @Suppress("DEPRECATION")
+                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                val effect = when (type) {
+                    "heavy" -> VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
+                    else -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+                }
+                vibrator.vibrate(effect)
+            }
+        } catch (_: Throwable) { /* non-critical */ }
     }
 }

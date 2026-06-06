@@ -41,6 +41,7 @@ struct ContentView: View {
 }
 
 extension Notification.Name {
-    static let dayGlanceReloadWebView = Notification.Name("dayGlanceReloadWebView")
-    static let dayGlanceForeground    = Notification.Name("dayGlanceForeground")
+    static let dayGlanceReloadWebView  = Notification.Name("dayGlanceReloadWebView")
+    static let dayGlanceForeground     = Notification.Name("dayGlanceForeground")
+    static let dayGlanceWidgetRefresh  = Notification.Name("com.dayglance.widgetRefresh")
 }

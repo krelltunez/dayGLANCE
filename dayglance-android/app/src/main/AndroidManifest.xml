@@ -3,6 +3,7 @@
 
     <!-- Internet — load hosted DayGlance frontend (or remove if bundling locally) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Calendar -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
