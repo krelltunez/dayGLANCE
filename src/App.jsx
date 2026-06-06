@@ -74,7 +74,7 @@ import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
-import { syncSharedUsers } from './intents/sharedUsers.js';
+import { syncSharedUsers, syncSharedUsersViaICloud } from './intents/sharedUsers.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -1421,17 +1421,18 @@ const DayPlanner = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
 
-  // Sync user list with glance-users.json on WebDAV using cloud sync credentials,
-  // so dayGLANCE and lastGLANCE share the same roster regardless of which app is
-  // opened first. Re-runs when users change or cloud sync config changes.
+  // Sync user list with glance-users.json on WebDAV and iCloud, so dayGLANCE
+  // and lastGLANCE share the same roster regardless of which app is opened first.
+  // Both transports run simultaneously; whichever returns non-null is applied.
+  // Re-runs when users change or cloud sync config changes.
   useEffect(() => {
-    if (!cloudSyncConfig?.enabled) return;
     if (!multiUserEnabled) return;
     const usersPath = (() => {
       const raw = localStorage.getItem('dayglance-multi-user-config');
       return raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined;
     })();
-    syncSharedUsers(cloudSyncConfig, usersPath, users).then(merged => {
+
+    const applyMerged = (merged) => {
       if (!merged) return;
       const localById = new Map(users.map(u => [u.syncId ?? u.id, u]));
       const hasNew = merged.some(u => {
@@ -1442,7 +1443,17 @@ const DayPlanner = () => {
         localStorage.setItem('dayglance-users', JSON.stringify(merged));
         setUsers(merged);
       }
-    }).catch(err => console.warn('[shared-users] sync error:', err.message));
+    };
+
+    if (cloudSyncConfig?.enabled) {
+      syncSharedUsers(cloudSyncConfig, usersPath, users)
+        .then(applyMerged)
+        .catch(err => console.warn('[shared-users] WebDAV sync error:', err.message));
+    }
+
+    syncSharedUsersViaICloud(usersPath, users)
+      .then(applyMerged)
+      .catch(err => console.warn('[shared-users] iCloud sync error:', err.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, multiUserEnabled, cloudSyncConfig?.enabled, cloudSyncConfig?.nextcloudUrl, cloudSyncConfig?.webdavUrl, cloudSyncLastSynced]);
 

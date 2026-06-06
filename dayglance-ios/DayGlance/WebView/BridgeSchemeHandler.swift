@@ -141,6 +141,27 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         case "iCloudAvailable":
             return ICloudBridge.shared.isAvailable()
 
+        // Phase 7b — iCloud file operations (intents + multi-user)
+        case "iCloudListFiles":
+            guard let path = args.first as? String else { return "[]" }
+            return ICloudBridge.shared.listFiles(relativePath: path)
+        case "iCloudReadFile":
+            guard let path = args.first as? String else { return "null" }
+            return ICloudBridge.shared.readFile(relativePath: path)
+        case "iCloudWriteFile":
+            guard args.count >= 2,
+                  let path    = args[0] as? String,
+                  let content = args[1] as? String else {
+                return #"{"ok":false,"error":"missing args"}"#
+            }
+            return ICloudBridge.shared.writeFile(relativePath: path, content: content)
+        case "iCloudDeleteFile":
+            guard let path = args.first as? String else { return #"{"ok":false,"error":"missing args"}"# }
+            return ICloudBridge.shared.deleteFile(relativePath: path)
+        case "iCloudMakeDir":
+            guard let path = args.first as? String else { return #"{"ok":false,"error":"missing args"}"# }
+            return ICloudBridge.shared.makeDir(relativePath: path)
+
         // Phase 8 — Audio recording
         case "startRecording":
             return AudioBridge.shared.startRecording()

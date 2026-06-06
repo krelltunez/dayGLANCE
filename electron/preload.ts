@@ -117,6 +117,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('icloud:changed', handler);
   },
 
+  // iCloud file operations — intents and multi-user sync (supplemental to WebDAV)
+  listICloudFiles: (relativePath: string): Promise<string[]> =>
+    ipcRenderer.invoke('icloud:list-files', relativePath),
+  readICloudFile: (relativePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('icloud:read-file', relativePath),
+  writeICloudFile: (relativePath: string, content: string): Promise<boolean> =>
+    ipcRenderer.invoke('icloud:write-file', relativePath, content),
+  deleteICloudFile: (relativePath: string): Promise<boolean> =>
+    ipcRenderer.invoke('icloud:delete-file', relativePath),
+  makeICloudDir: (relativePath: string): Promise<boolean> =>
+    ipcRenderer.invoke('icloud:make-dir', relativePath),
+
   // Tray popup listens for the signal to focus the quick-add input.
   onFocusQuickAdd: (callback: () => void) => {
     const handler = () => callback();

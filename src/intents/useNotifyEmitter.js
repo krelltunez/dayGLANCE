@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
-import { writeEventFile, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
+import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
+import * as iCloudTransport from './icloudFileTransport.js';
 
 // The tray holds a read-only state snapshot. Any task-state changes in tray
 // mode (e.g. from an iCloud sync download) were already handled by the main
@@ -110,8 +111,10 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
 
     // Skip the initial snapshot — no previous state to diff against
     if (prev === null) return;
-    // Skip emit when config is absent
-    if (!config?.webdavUrl || !config?.username || !config?.appPassword) return;
+    // Skip emit when neither WebDAV nor iCloud is configured
+    const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
+    const hasICloud = iCloudTransport.isAvailable();
+    if (!hasWebDAV && !hasICloud) return;
 
     const prevMap = new Map(prev.map(t => [t.id, t]));
     const nextMap = new Map(allTasks.map(t => [t.id, t]));
@@ -172,7 +175,8 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
           const envelope = deriveKey
             ? await buildEncryptedEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' }, deriveKey)
             : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
-          await writeEventFile(config, envelope);
+          await writeEventFile(config, envelope);          // WebDAV (no-ops if not configured)
+          await writeEventFileICloud(config, envelope);    // iCloud (no-ops if not available)
           logActivity({
             direction: 'out',
             action: 'notify',

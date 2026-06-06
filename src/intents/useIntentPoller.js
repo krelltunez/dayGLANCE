@@ -4,6 +4,7 @@ import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
 import { handleIntent } from './handleIntent.js';
 import { logActivity } from './intentLog.js';
+import * as iCloudTransport from './icloudFileTransport.js';
 
 export const INTENT_CONFIG_KEY = 'dayglance-intent-config';
 export const MULTI_USER_CONFIG_KEY = 'dayglance-multi-user-config';
@@ -23,6 +24,9 @@ const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.l
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent poll() calls, which would both see cursor=null and duplicate tasks.
 let pollLock = false;
+
+// Separate lock for iCloud polls so they don't run concurrently.
+let iCloudPollLock = false;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -138,6 +142,231 @@ export async function runIntentGC(config) {
   }
 
   localStorage.setItem(GC_LAST_RUN_KEY, new Date().toISOString());
+}
+
+// ─── iCloud: write one event file ───────────────────────────────────────────
+
+/**
+ * Write a single envelope as a JSON file to iCloud Drive.
+ * No-ops if iCloud is unavailable. Creates the events directory on first use.
+ */
+export async function writeEventFileICloud(config, envelope) {
+  if (!iCloudTransport.isAvailable()) return;
+  const eventsRelPath = ((config?.eventsPath ?? DEFAULT_EVENTS_PATH).replace(/^\//, '').replace(/\/*$/, '')) + '/';
+  const filename = filenameFor(envelope);
+  const filePath = eventsRelPath + filename;
+  const body = JSON.stringify(envelope);
+  const ok = await iCloudTransport.writeFile(filePath, body);
+  if (!ok) {
+    // Directory may not exist yet — create it and retry
+    await iCloudTransport.makeDir(eventsRelPath);
+    await iCloudTransport.writeFile(filePath, body);
+  }
+}
+
+// ─── iCloud: garbage-collect old event files ─────────────────────────────────
+
+/**
+ * Delete iCloud event files older than config.gcRetentionDays.
+ * Best-effort; no-ops if iCloud is unavailable.
+ */
+export async function runIntentGCICloud(config) {
+  if (!iCloudTransport.isAvailable()) return;
+  const eventsRelPath = ((config?.eventsPath ?? DEFAULT_EVENTS_PATH).replace(/^\//, '').replace(/\/*$/, '')) + '/';
+  const retentionMs = (config?.gcRetentionDays ?? DEFAULT_RETENTION_DAYS) * ONE_DAY_MS;
+  const cutoff = Date.now() - retentionMs;
+
+  let names;
+  try {
+    names = await iCloudTransport.listFiles(eventsRelPath);
+  } catch (err) {
+    console.warn('[intent-gc/icloud] listFiles error:', err.message);
+    return;
+  }
+
+  const files = names
+    .filter(name => name.endsWith('.json'))
+    .map(name => ({ name, parsed: parseFilename(name) }))
+    .filter(f => f.parsed !== null);
+
+  let deleted = 0;
+  for (const { name, parsed } of files) {
+    const fileDate = parseFilenameDate(parsed.timestamp);
+    if (isNaN(fileDate) || fileDate.getTime() > cutoff) continue;
+    try {
+      await iCloudTransport.deleteFile(eventsRelPath + name);
+      deleted++;
+    } catch (err) {
+      console.warn('[intent-gc/icloud] deleteFile error:', name, err.message);
+    }
+  }
+
+  if (deleted > 0) {
+    console.log(`[intent-gc/icloud] Deleted ${deleted} expired event file(s)`);
+  }
+}
+
+// ─── iCloud: poll once ──────────────────────────────────────────────────────
+
+async function pollICloud(config, context) {
+  if (iCloudPollLock) return;
+  iCloudPollLock = true;
+  try {
+    await _pollICloud(config, context);
+  } finally {
+    iCloudPollLock = false;
+  }
+}
+
+async function _pollICloud(config, context) {
+  const eventsRelPath = ((config?.eventsPath ?? DEFAULT_EVENTS_PATH).replace(/^\//, '').replace(/\/*$/, '')) + '/';
+
+  let names;
+  try {
+    names = await iCloudTransport.listFiles(eventsRelPath);
+  } catch (err) {
+    console.warn('[intent/icloud] listFiles error:', err.message);
+    return;
+  }
+
+  const files = names
+    .filter(name => name.endsWith('.json'))
+    .map(name => ({ name, parsed: parseFilename(name) }))
+    .filter(f => f.parsed !== null)
+    .sort((a, b) => a.parsed.event_id.localeCompare(b.parsed.event_id));
+
+  const cursor = getCursor();
+  const pending = cursor ? files.filter(f => f.parsed.event_id > cursor) : files;
+
+  for (const { name, parsed } of pending) {
+    try {
+      const rawStr = await iCloudTransport.readFile(eventsRelPath + name);
+      if (rawStr === null || rawStr === 'null') {
+        setCursor(parsed.event_id);
+        continue;
+      }
+
+      // Still downloading from iCloud — skip for now; next poll will retry
+      let raw;
+      try {
+        raw = JSON.parse(rawStr);
+      } catch {
+        setCursor(parsed.event_id);
+        continue;
+      }
+
+      if (raw?.downloading === true) {
+        // Don't advance cursor — retry on next poll
+        continue;
+      }
+
+      // iCloud transport should never carry encrypted envelopes — skip with warning
+      if (raw?.encrypted === true) {
+        console.warn('[intent/icloud] Skipping encrypted envelope on iCloud transport (misconfigured sender):', name);
+        logActivity({
+          direction: 'in',
+          action: 'unknown',
+          event: null,
+          source_app: null,
+          title: null,
+          timestamp: new Date().toISOString(),
+          status: 'warn',
+          error: 'encrypted_on_icloud',
+        });
+        setCursor(parsed.event_id);
+        continue;
+      }
+
+      if (raw?.emitted_by === 'app.dayglance') {
+        setCursor(parsed.event_id);
+        continue;
+      }
+
+      let envelope;
+      try {
+        envelope = parseEnvelope(raw);
+      } catch (parseErr) {
+        let errorCode = parseErr.name ?? 'parse_error';
+        let logStatus = 'error';
+        if (parseErr instanceof MalformedEnvelopeError) {
+          console.warn('[intent/icloud] Skipping malformed envelope:', name, parseErr.message);
+          logStatus = 'warn';
+        } else if (parseErr instanceof NotEncryptedError) {
+          console.warn('[intent/icloud] Skipping malformed envelope:', name);
+        } else {
+          console.warn('[intent/icloud] Unparseable envelope, skipping:', name);
+          errorCode = 'parse_error';
+        }
+        logActivity({
+          direction: 'in',
+          action: 'unknown',
+          event: null,
+          source_app: null,
+          title: null,
+          timestamp: new Date().toISOString(),
+          status: logStatus,
+          error: errorCode,
+        });
+        setCursor(parsed.event_id);
+        continue;
+      }
+
+      if (envelope.emitted_by === 'app.dayglance') {
+        setCursor(parsed.event_id);
+        continue;
+      }
+
+      // Multi-user visibility filter
+      if (envelope.action === ACTIONS.CREATE) {
+        const multiUserEnabled = JSON.parse(localStorage.getItem('dayglance-multi-user-enabled') || 'false');
+        const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+        const meUserSyncId = muRaw ? JSON.parse(muRaw).meUserSyncId : null;
+        if (multiUserEnabled && meUserSyncId) {
+          const assigned = envelope.payload.assigned_user_ids ?? [];
+          if (assigned.length > 0 && !assigned.includes(meUserSyncId)) {
+            logActivity({
+              direction: 'in',
+              action: envelope.action,
+              event: null,
+              source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,
+              title: envelope.payload.title ?? null,
+              timestamp: envelope.emitted_at,
+              status: 'ok',
+              error: null,
+            });
+            setCursor(parsed.event_id);
+            continue;
+          }
+        }
+      }
+
+      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
+      logActivity({
+        direction: 'in',
+        action: envelope.action,
+        event: envelope.payload.event ?? null,
+        source_app: envelope.payload.source_app ?? envelope.emitted_by ?? null,
+        title: envelope.payload.title ?? null,
+        timestamp: envelope.emitted_at,
+        status: result.success ? 'ok' : 'error',
+        error: result.success ? null : result.error,
+      });
+    } catch (err) {
+      console.warn('[intent/icloud] Error processing', name, ':', err.message);
+      logActivity({
+        direction: 'in',
+        action: 'unknown',
+        event: null,
+        source_app: null,
+        title: null,
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        error: err.message,
+      });
+    }
+
+    setCursor(parsed.event_id);
+  }
 }
 
 // ─── poll once ──────────────────────────────────────────────────────────────
@@ -341,10 +570,12 @@ export function useIntentPoller(context) {
       return raw ? JSON.parse(raw) : null;
     })();
 
-    if (!config?.webdavUrl || !config?.username || !config?.appPassword) return;
+    const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
+    const hasICloud = iCloudTransport.isAvailable();
+    if (!hasWebDAV && !hasICloud) return;
 
-    const fgMs = config.foregroundInterval ?? DEFAULT_FG_MS;
-    const bgMs = config.backgroundInterval ?? DEFAULT_BG_MS;
+    const fgMs = config?.foregroundInterval ?? DEFAULT_FG_MS;
+    const bgMs = config?.backgroundInterval ?? DEFAULT_BG_MS;
     let pollTimerId = null;
     let gcTimerId = null;
     let destroyed = false;
@@ -359,7 +590,10 @@ export function useIntentPoller(context) {
     const runPoll = async () => {
       if (destroyed) return;
       try {
-        await poll(config, contextRef.current);
+        await poll(config, contextRef.current);           // WebDAV (no-ops if not configured)
+        if (iCloudTransport.isAvailable()) {
+          await pollICloud(config, contextRef.current);   // iCloud (sequential, sees advanced cursor)
+        }
       } catch (err) {
         console.warn('[intent] poll error:', err.message);
       }
@@ -385,6 +619,7 @@ export function useIntentPoller(context) {
       if (destroyed) return;
       try {
         await runIntentGC(config);
+        await runIntentGCICloud(config);
       } catch (err) {
         console.warn('[intent-gc] error:', err.message);
       }

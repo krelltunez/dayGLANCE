@@ -155,6 +155,144 @@ final class ICloudBridge {
         NotificationCenter.default.post(name: .dayGlanceForeground, object: nil)
     }
 
+    // MARK: - File operations (intents + multi-user)
+
+    /// Lists filenames (not full paths) in a directory relative to Documents/.
+    /// Returns a JSON array, [] if the directory doesn't exist, or {"error":"iCloud not available"}.
+    func listFiles(relativePath: String) -> String {
+        guard let container = containerURL() else {
+            return #"{"error":"iCloud not available"}"#
+        }
+        let docsDir = container.appendingPathComponent("Documents")
+        let dirURL = docsDir.appendingPathComponent(relativePath)
+
+        guard FileManager.default.fileExists(atPath: dirURL.path) else {
+            return "[]"
+        }
+
+        let entries: [String]
+        do {
+            entries = try FileManager.default.contentsOfDirectory(atPath: dirURL.path)
+        } catch {
+            return "[]"
+        }
+
+        // Trigger download for any .icloud placeholder files (non-blocking).
+        for entry in entries where entry.hasPrefix(".") && entry.hasSuffix(".icloud") {
+            let inner = String(entry.dropFirst().dropLast(".icloud".count))
+            let realURL = dirURL.appendingPathComponent(inner)
+            try? FileManager.default.startDownloadingUbiquitousItem(at: realURL)
+        }
+
+        let names = entries.filter { !$0.hasPrefix(".") }
+        let json = names.map { "\"\(esc($0))\"" }.joined(separator: ",")
+        return "[\(json)]"
+    }
+
+    /// Reads a file relative to Documents/. Returns content, "null", {"downloading":true}, or {"error":"..."}.
+    func readFile(relativePath: String) -> String {
+        guard let container = containerURL() else {
+            return #"{"error":"iCloud not available"}"#
+        }
+        let docsDir = container.appendingPathComponent("Documents")
+        let fileURL = docsDir.appendingPathComponent(relativePath)
+
+        let placeholderURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("." + fileURL.lastPathComponent + ".icloud")
+        if FileManager.default.fileExists(atPath: placeholderURL.path) {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+            return #"{"downloading":true}"#
+        }
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+            return "null"
+        }
+
+        try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+
+        let status = (try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]))?
+            .ubiquitousItemDownloadingStatus
+        if let status, status != .current {
+            return #"{"downloading":true}"#
+        }
+
+        var result = "null"
+        var coordError: NSError?
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(readingItemAt: fileURL, options: [], error: &coordError) { url in
+            guard let data = try? Data(contentsOf: url),
+                  let str  = String(data: data, encoding: .utf8) else { return }
+            result = str
+        }
+        if let err = coordError {
+            return "{\"error\":\"\(esc(err.localizedDescription))\"}"
+        }
+        return result
+    }
+
+    /// Writes content to a file relative to Documents/, creating parent directories.
+    /// Returns {"ok":true} or {"ok":false,"error":"..."}.
+    func writeFile(relativePath: String, content: String) -> String {
+        guard let container = containerURL() else {
+            return #"{"ok":false,"error":"iCloud not available"}"#
+        }
+        let docsDir = container.appendingPathComponent("Documents")
+        let fileURL = docsDir.appendingPathComponent(relativePath)
+
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            guard let data = content.data(using: .utf8) else {
+                return #"{"ok":false,"error":"encoding error"}"#
+            }
+            // Write in-place (not atomic) to preserve iCloud xattrs so the daemon queues the upload.
+            try data.write(to: fileURL, options: [])
+            return #"{"ok":true}"#
+        } catch {
+            return "{\"ok\":false,\"error\":\"\(esc(error.localizedDescription))\"}"
+        }
+    }
+
+    /// Deletes a file relative to Documents/. Idempotent — returns {"ok":true} if not found.
+    func deleteFile(relativePath: String) -> String {
+        guard let container = containerURL() else {
+            return #"{"ok":false,"error":"iCloud not available"}"#
+        }
+        let docsDir = container.appendingPathComponent("Documents")
+        let fileURL = docsDir.appendingPathComponent(relativePath)
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return #"{"ok":true}"#
+        }
+
+        do {
+            try FileManager.default.removeItem(at: fileURL)
+            return #"{"ok":true}"#
+        } catch {
+            return "{\"ok\":false,\"error\":\"\(esc(error.localizedDescription))\"}"
+        }
+    }
+
+    /// Creates a directory (with intermediates) relative to Documents/.
+    /// Returns {"ok":true} or {"ok":false,"error":"..."}.
+    func makeDir(relativePath: String) -> String {
+        guard let container = containerURL() else {
+            return #"{"ok":false,"error":"iCloud not available"}"#
+        }
+        let docsDir = container.appendingPathComponent("Documents")
+        let dirURL = docsDir.appendingPathComponent(relativePath)
+
+        do {
+            try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+            return #"{"ok":true}"#
+        } catch {
+            return "{\"ok\":false,\"error\":\"\(esc(error.localizedDescription))\"}"
+        }
+    }
+
     // MARK: - Helpers
 
     private func containerURL() -> URL? {

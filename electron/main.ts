@@ -323,6 +323,73 @@ ipcMain.handle('icloud:write', (_event, json: string) => {
   } catch { return false; }
 });
 
+// iCloud file operations — intents and multi-user sync (supplemental to WebDAV).
+// All paths are relative to Documents/ inside the iCloud container.
+function iCloudDocumentsDir(): string {
+  return path.join(
+    app.getPath('home'),
+    `Library/Mobile Documents/${ICLOUD_CONTAINER_ID}/Documents`
+  );
+}
+
+ipcMain.handle('icloud:list-files', (_event, relativePath: string) => {
+  if (process.platform !== 'darwin') return [];
+  try {
+    const dirPath = path.join(iCloudDocumentsDir(), relativePath);
+    if (!fs.existsSync(dirPath)) return [];
+    return fs.readdirSync(dirPath)
+      .filter(name => !name.startsWith('.') && name.endsWith('.json'));
+  } catch { return []; }
+});
+
+ipcMain.handle('icloud:read-file', (_event, relativePath: string) => {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const filePath = path.join(iCloudDocumentsDir(), relativePath);
+    const dir = path.dirname(filePath);
+    const base = path.basename(filePath);
+    if (!fs.existsSync(filePath)) {
+      if (fs.existsSync(path.join(dir, '.' + base + '.icloud'))) {
+        return JSON.stringify({ downloading: true });
+      }
+      return null;
+    }
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch { return null; }
+});
+
+ipcMain.handle('icloud:write-file', (_event, relativePath: string, content: string) => {
+  if (process.platform !== 'darwin') return false;
+  try {
+    const filePath = path.join(iCloudDocumentsDir(), relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    // Write in-place (not rename) to preserve iCloud xattrs so bird queues the upload.
+    fs.writeFileSync(filePath, content, { encoding: 'utf-8' });
+    return true;
+  } catch { return false; }
+});
+
+ipcMain.handle('icloud:delete-file', (_event, relativePath: string) => {
+  if (process.platform !== 'darwin') return true;
+  try {
+    const filePath = path.join(iCloudDocumentsDir(), relativePath);
+    fs.unlinkSync(filePath);
+    return true;
+  } catch (e: unknown) {
+    if (e instanceof Error && (e as NodeJS.ErrnoException).code === 'ENOENT') return true;
+    return false;
+  }
+});
+
+ipcMain.handle('icloud:make-dir', (_event, relativePath: string) => {
+  if (process.platform !== 'darwin') return false;
+  try {
+    const dirPath = path.join(iCloudDocumentsDir(), relativePath);
+    fs.mkdirSync(dirPath, { recursive: true });
+    return true;
+  } catch { return false; }
+});
+
 // Watch the iCloud container directory for changes written by the iOS app.
 // Sends 'icloud:changed' to the renderer so it can run a sync cycle immediately
 // instead of waiting for the 15-second poll.

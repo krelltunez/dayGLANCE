@@ -1,4 +1,5 @@
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
+import * as icloudFileTransport from './icloudFileTransport.js';
 
 const USERS_FILENAME = 'glance-users.json';
 const DEFAULT_USERS_PATH = '/GLANCE/users/';
@@ -125,6 +126,68 @@ export async function syncSharedUsers(cloudSyncConfig, usersPath, localUsers) {
   }
   if (!putRes.ok) {
     console.warn('[shared-users] PUT failed:', putRes.status);
+  }
+
+  return merged;
+}
+
+/**
+ * Sync the local user list with glance-users.json on iCloud Drive, using the
+ * same directory structure as WebDAV: GLANCE/users/glance-users.json under
+ * the Documents/ folder of the iCloud container.
+ *
+ * Returns the merged user array, or null if iCloud is not available or the
+ * file is still downloading (caller should retry on next sync cycle).
+ */
+export async function syncSharedUsersViaICloud(usersPath, localUsers) {
+  if (!icloudFileTransport.isAvailable()) return null;
+
+  // Build relative path: strip leading / from usersPath, append filename.
+  const dirPath = (usersPath ?? DEFAULT_USERS_PATH).replace(/^\//, '').replace(/\/*$/, '') + '/';
+  const filePath = dirPath + USERS_FILENAME;
+
+  let remoteRaw;
+  try {
+    remoteRaw = await icloudFileTransport.readFile(filePath);
+  } catch (err) {
+    console.warn('[shared-users/icloud] readFile error:', err.message);
+    return null;
+  }
+
+  // Still downloading — caller should retry
+  if (remoteRaw && typeof remoteRaw === 'string') {
+    try {
+      const parsed = JSON.parse(remoteRaw);
+      if (parsed?.downloading === true) return null;
+    } catch { /* not JSON — treat as content */ }
+  }
+
+  let merged;
+  if (remoteRaw === null || remoteRaw === 'null') {
+    // File doesn't exist yet — this app is first
+    merged = localUsers;
+  } else {
+    let remoteWire = [];
+    try {
+      const data = JSON.parse(remoteRaw);
+      remoteWire = Array.isArray(data.users) ? data.users : [];
+    } catch {
+      remoteWire = [];
+    }
+    merged = mergeUsers(localUsers, remoteWire);
+  }
+
+  const wireUsers = merged.map(toWireFormat);
+  const body = JSON.stringify({ version: 1, users: wireUsers, updated_at: new Date().toISOString() });
+
+  let ok = await icloudFileTransport.writeFile(filePath, body);
+  if (!ok) {
+    // Directory may not exist — create it and retry
+    await icloudFileTransport.makeDir(dirPath);
+    ok = await icloudFileTransport.writeFile(filePath, body);
+  }
+  if (!ok) {
+    console.warn('[shared-users/icloud] writeFile failed');
   }
 
   return merged;
