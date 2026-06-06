@@ -95,7 +95,9 @@ Creates a task from any external source.
 | `recurring` | String | No | RRULE syntax or simplified shorthand (see below) |
 | `source_app` | String | No | Reverse-DNS id of the creating app (e.g. `app.lastglance`); enables `notify` events back |
 | `source_entity_id` | String | No | Opaque id meaningful to the source app; round-tripped in `notify` payloads. Requires `source_app`. |
-| `assigned_user_ids` | String[] | No | List of sync user IDs the task is assigned to; enables cross-app multi-user filtering. |
+| `assigned_user_ids` | String[] | No | List of sync user IDs the task is assigned to; enables cross-app multi-user filtering. See multi-user note below. |
+
+**Multi-user note (`assigned_user_ids`):** dayGLANCE v3.0.0 shipped full multi-user support. Each device has a per-device sync identity; a shared user roster is synced via `GLANCE/glance-users.json` on the WebDAV endpoint. When `multiUserEnabled` is on, tasks with `assigned_user_ids` set are filtered so only the assigned users see them in Timeline and week/day views. Callers that don't participate in multi-user can omit `assigned_user_ids`; the field has no effect when `multiUserEnabled` is off.
 
 **Behavior:**
 
@@ -214,7 +216,7 @@ dayGLANCE emits `notify` when a task with `source_app` set changes state. Consum
 | `due` | String | If applicable | Current `due` value; present on `rescheduled` and `updated` |
 | `previous_due` | String | If applicable | Prior `due` value; present on `rescheduled` |
 | `completed_at` | String | If applicable | Present on `completed`; equals `timestamp` |
-| `completed_by_user_id` | String | If applicable | Present on `completed`; sync ID of the user who completed the task. Enables receiving apps to attribute the completion. |
+| `completed_by_user_id` | String | If applicable | Present on `completed`; sync ID of the user who completed the task. Populated when `multiUserEnabled` is on; enables receiving apps (e.g. lastGLANCE) to attribute the completion to a specific user. |
 
 **Events:**
 
