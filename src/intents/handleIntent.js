@@ -129,7 +129,7 @@ function resolveProjectId(nameOrId, projects) {
   );
 }
 
-function handleCreateGoal(payload, context) {
+async function handleCreateGoal(payload, context) {
   const { goals = [], addGoal } = context;
 
   // Idempotency: skip if a goal with this source_app + source_entity_id already exists.
@@ -146,10 +146,16 @@ function handleCreateGoal(payload, context) {
     return ok({ warning: '', _normalized: payload });
   }
 
-  // Extract a YYYY-MM-DD date from the due string if present.
   const targetDate = payload.due ? payload.due.slice(0, 10) : undefined;
 
+  // Deterministic ID so two devices processing the same intent create the same
+  // goal ID — the sync engine then merges them as one rather than keeping both.
+  const goalId = payload.source_app && payload.source_entity_id
+    ? await deterministicTaskId(`${payload.source_app}|${payload.source_entity_id}`)
+    : crypto.randomUUID();
+
   const newGoal = addGoal({
+    id: goalId,
     title: payload.title,
     ...(targetDate ? { targetDate } : {}),
     ...(payload.source_app ? { source_app: payload.source_app } : {}),

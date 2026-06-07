@@ -33,8 +33,8 @@ const useGoalsProjects = () => {
     const now = new Date().toISOString();
     const newGoal = {
       status: 'active',
-      ...fields,
       id: crypto.randomUUID(),
+      ...fields,
       createdAt: now,
       updatedAt: now,
     };
