@@ -10,6 +10,21 @@ import { logActivity } from './intentLog.js';
  * Fire-and-forget: the caller does not need to await this.
  * No-ops silently if the WebDAV intents config is absent.
  */
+// Produces a stable event_id in the required `20260607T014953Z-xxxxxx` format,
+// derived deterministically from the goal so retries emit the same filename.
+async function stableEventId(goal) {
+  const ts = new Date(goal.createdAt)
+    .toISOString()
+    .replace(/-/g, '')
+    .replace(/:/g, '')
+    .replace(/\.\d+/, '');
+  const hash = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(goal.id))
+  );
+  const hex = [...hash.slice(0, 3)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${ts}-${hex}`;
+}
+
 export async function emitGoalCreate(goal) {
   const raw = localStorage.getItem(INTENT_CONFIG_KEY);
   const config = raw ? JSON.parse(raw) : null;
@@ -47,9 +62,10 @@ export async function emitGoalCreate(goal) {
   }
 
   try {
+    const eventId = await stableEventId(goal);
     const envelope = deriveKey
-      ? await buildEncryptedEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId: goal.id }, deriveKey)
-      : buildEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId: goal.id });
+      ? await buildEncryptedEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId }, deriveKey)
+      : buildEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId });
     await writeEventFile(config, envelope);
     await writeEventFileICloud(config, envelope);
     logActivity({
