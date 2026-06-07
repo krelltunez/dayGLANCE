@@ -1,5 +1,6 @@
 import {
   ACTIONS,
+  ENTITY_TYPES,
   TABS,
   QUERY_RETURN_VARS,
   RETURN_VAR_TYPES,
@@ -125,6 +126,36 @@ function resolveProjectId(nameOrId, projects) {
   );
 }
 
+function handleCreateGoal(payload, context) {
+  const { goals = [], addGoal } = context;
+
+  // Idempotency: skip if a goal with this source_app + source_entity_id already exists.
+  if (payload.source_app && payload.source_entity_id) {
+    const existing = goals.find(
+      g => g.source_app === payload.source_app && g.source_entity_id === payload.source_entity_id
+    );
+    if (existing) {
+      return ok({ task_id: existing.id, warning: 'Goal already exists' });
+    }
+  }
+
+  if (!addGoal) {
+    return ok({ warning: '', _normalized: payload });
+  }
+
+  // Extract a YYYY-MM-DD date from the due string if present.
+  const targetDate = payload.due ? payload.due.slice(0, 10) : undefined;
+
+  const newGoal = addGoal({
+    title: payload.title,
+    ...(targetDate ? { targetDate } : {}),
+    ...(payload.source_app ? { source_app: payload.source_app } : {}),
+    ...(payload.source_entity_id ? { source_entity_id: payload.source_entity_id } : {}),
+  });
+
+  return ok({ task_id: newGoal.id });
+}
+
 async function handleCreate(payload, context) {
   const {
     tasks = [],
@@ -134,11 +165,18 @@ async function handleCreate(payload, context) {
     setUnscheduledTasks,
     setRecurringTasks,
     projects = [],
+    goals = [],
+    addGoal,
+    entityType,
     eventId,
   } = context;
 
   const v = validate(CreateSchema, payload);
   if (!v.ok) return fail(v.error);
+
+  if (entityType === ENTITY_TYPES.GOAL) {
+    return handleCreateGoal(v.data, context);
+  }
 
   const raw = v.data;
 

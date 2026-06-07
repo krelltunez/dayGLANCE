@@ -282,6 +282,15 @@ async function _pollICloud(config, context) {
         continue;
       }
 
+      // Same entity_type pre-strip as the WebDAV path.
+      let entityType;
+      if (raw?.action === ACTIONS.CREATE && raw?.payload?.entity_type) {
+        entityType = raw.payload.entity_type;
+        delete raw.payload.entity_type;
+      } else if (raw?.action === ACTIONS.CREATE && raw?.emitted_by === 'app.lifeglance') {
+        entityType = 'goal';
+      }
+
       let envelope;
       try {
         envelope = parseEnvelope(raw);
@@ -340,7 +349,7 @@ async function _pollICloud(config, context) {
         }
       }
 
-      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
+      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id, entityType });
       logActivity({
         direction: 'in',
         action: envelope.action,
@@ -431,6 +440,20 @@ async function _poll(config, context) {
         continue;
       }
 
+      // entity_type is not in CreateSchema (.strict()), so strip it before
+      // parsing and carry it separately for handleIntent routing.
+      // For encrypted envelopes we can't inspect the payload, so infer from
+      // emitted_by: any create from app.lifeglance is a goal create.
+      let entityType;
+      if (raw?.action === ACTIONS.CREATE && raw?.payload?.entity_type) {
+        entityType = raw.payload.entity_type;
+        delete raw.payload.entity_type;
+      } else if (raw?.encrypted !== true && raw?.action === ACTIONS.CREATE && raw?.emitted_by === 'app.lifeglance') {
+        entityType = 'goal';
+      } else if (raw?.encrypted === true && raw?.emitted_by === 'app.lifeglance') {
+        entityType = 'goal';
+      }
+
       let envelope;
       try {
         if (raw?.encrypted === true) {
@@ -518,7 +541,7 @@ async function _poll(config, context) {
         }
       }
 
-      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
+      const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id, entityType });
       logActivity({
         direction: 'in',
         action: envelope.action,
@@ -556,7 +579,8 @@ async function _poll(config, context) {
  * Config is read from localStorage at mount; no-ops when unconfigured.
  *
  * context shape: { tasks, unscheduledTasks, recurringTasks, projects,
- *                  setTasks, setUnscheduledTasks, setRecurringTasks, navigate }
+ *                  setTasks, setUnscheduledTasks, setRecurringTasks,
+ *                  goals, addGoal, navigate }
  */
 export function useIntentPoller(context) {
   const contextRef = useRef(context);

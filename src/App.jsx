@@ -893,6 +893,7 @@ const DayPlanner = () => {
   useIntentPoller({
     tasks, unscheduledTasks, recurringTasks, projects,
     setTasks, setUnscheduledTasks, setRecurringTasks,
+    goals, addGoal,
     navigate: tab => {
       // TABS values: 'glance' | 'timeline' | 'inbox' | 'goals' | 'settings'
       // mobileActiveTab values: 'dayglance' | 'timeline' | 'inbox' | 'goals' | 'settings'
