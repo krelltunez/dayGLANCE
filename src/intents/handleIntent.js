@@ -167,14 +167,13 @@ async function handleCreate(payload, context) {
     projects = [],
     goals = [],
     addGoal,
-    entityType,
     eventId,
   } = context;
 
   const v = validate(CreateSchema, payload);
   if (!v.ok) return fail(v.error);
 
-  if (entityType === ENTITY_TYPES.GOAL) {
+  if (v.data.entity_type === ENTITY_TYPES.GOAL) {
     return handleCreateGoal(v.data, context);
   }
 
