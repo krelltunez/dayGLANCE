@@ -117,6 +117,7 @@ function findDefaultActiveIdx(sortedGoals) {
 const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mobile, showLifeGlanceCheckbox = false }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, isMobile } =
     useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const [title, setTitle] = useState(initial?.title || '');
   const [description, setDescription] = useState(initial?.description || '');
