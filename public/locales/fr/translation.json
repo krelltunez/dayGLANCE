@@ -667,6 +667,8 @@
     "standalone": "Autonome",
     "projects": "Projets",
     "noArchivedGoals": "Aucun objectif archivé",
-    "noArchivedProjects": "Aucun projet archivé"
+    "noArchivedProjects": "Aucun projet archivé",
+    "trackedInLifeGlance": "Suivi dans lifeGLANCE",
+    "fromLifeGlance": "De lifeGLANCE"
   }
 }

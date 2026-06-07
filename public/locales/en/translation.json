@@ -667,6 +667,8 @@
     "standalone": "Standalone",
     "projects": "Projects",
     "noArchivedGoals": "No archived goals",
-    "noArchivedProjects": "No archived projects"
+    "noArchivedProjects": "No archived projects",
+    "trackedInLifeGlance": "Tracked in lifeGLANCE",
+    "fromLifeGlance": "From lifeGLANCE"
   }
 }

@@ -246,7 +246,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
         </div>
       )}
 
-      {/* Track in lifeGLANCE — only on create, only when WebDAV intents configured */}
+      {/* Track in lifeGLANCE — checkbox on create, read-only indicator on edit */}
       {showLifeGlanceCheckbox && !initial && (
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -257,6 +257,14 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
           />
           <span className={`text-sm ${textSecondary}`}>Track in lifeGLANCE</span>
         </label>
+      )}
+      {initial && (initial.source_app === 'app.lifeglance' || initial.synced_to_lifeglance) && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          <Link2 size={14} className="text-blue-400 flex-shrink-0" />
+          <span className="text-sm text-blue-400">
+            {initial.source_app === 'app.lifeglance' ? t('goals.fromLifeGlance') : t('goals.trackedInLifeGlance')}
+          </span>
+        </div>
       )}
 
       {/* Actions */}
